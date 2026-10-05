@@ -465,6 +465,12 @@ export const api = {
     req<PagesResponse>(`/documents/${documentId}/pages`),
   /** Persist the user's page selection for extraction (the Page Scope toggles). Extraction
    * then restricts itself to these pages; an empty list resets to the default (all face/notes). */
+  /** Save how pages are read — the parts of each corrected page. The whole set: a page left out
+   *  goes back to the classifier's reading. */
+  setPageOverrides: (documentId: string,
+                     overrides: { page: number; parts: import("../types").PagePart[] }[]) =>
+    req<{ ok: boolean }>(`/documents/${documentId}/page-overrides`,
+      { method: "PUT", body: JSON.stringify({ overrides }) }),
   setDocumentScope: (documentId: string, includedPages: number[]) =>
     req<{ ok: boolean; included_pages: number[]; count: number }>(
       `/documents/${documentId}/scope`,

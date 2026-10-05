@@ -3801,10 +3801,20 @@ def _default_scope(pages: list[dict]) -> set[int]:
     return {(p.get("index", 0) or 0) for p in pages if p.get("kind") in ("face", "notes")}
 
 
-def _build_pages(pages: list[dict], scope: list[int] | None = None) -> dict:
+def _build_pages(pages: list[dict], scope: list[int] | None = None,
+                 overrides: list[dict] | None = None) -> dict:
     """PagesResponse from the document's real classified pages. Inclusion reflects the user's
     persisted scope when set; otherwise the default (face/notes are in scope, the rest are
-    skipped)."""
+    skipped).
+
+    Served WITH the person's page corrections applied (`services.page_overrides`), because that is
+    how the next run will read the pages; each card carries its `parts` — the override's, or the
+    classifier's own cut in the same form — so the screen edits the reading it will get."""
+    from app.services.page_overrides import apply_to_page_dicts, classifier_parts
+
+    if overrides:
+        pages = apply_to_page_dicts(pages, overrides)
+    overridden = {o["page"] for o in overrides or []}
     chosen = set(scope) if scope is not None else _default_scope(pages)
     cards = []
     for p in pages:
@@ -3831,6 +3841,10 @@ def _build_pages(pages: list[dict], scope: list[int] | None = None) -> dict:
             # by; this is the number the reader sees on the page. They differ by however much front
             # matter the report has, which is why showing only one of them misleads.
             "printed": p.get("printed_page"),
+            "statement": p.get("statement"),
+            "entity": p.get("scope"),
+            "parts": classifier_parts(p),
+            "overridden": idx in overridden,
         })
     # Counted from the cards, by the same helper the sample route uses — see app/services/
     # page_scope.py for why the two routes are no longer allowed their own arithmetic.
@@ -3859,7 +3873,47 @@ def get_document_pages(
     row = session.get(Document, document_id)
     if row is None:
         raise HTTPException(status_code=404, detail="Document not found")
-    return _build_pages(_document_pages(row, store), row.page_scope)
+    return _build_pages(_document_pages(row, store), row.page_scope, row.page_overrides)
+
+
+class PageOverridesEdit(BaseModel):
+    # One entry per page: {"page": <0-based index>, "parts": [{from_y, kind, statement, entity}]}.
+    # The whole set: a page left out loses its override; a page with no parts likewise.
+    overrides: list[dict]
+
+
+@router.put("/{document_id}/page-overrides",
+            dependencies=[Depends(require(Permission.PIPELINE_RUN)), Depends(authorized_document)])
+def set_page_overrides(
+    document_id: str,
+    body: PageOverridesEdit,
+    session: Session = Depends(db),
+    store: LocalObjectStore = Depends(object_store),
+) -> dict:
+    """Save a person's correction of how pages are read — which parts of a page are a statement
+    face (and which statement, whose figures), notes, or not read — for every later run of this
+    document. An invalid entry is a 422 naming the page and the part. A page given a face or notes
+    part is added to a persisted page scope, so the correction is not silently out of scope."""
+    from app.db.models import Document
+    from app.services.page_overrides import OverrideError, normalise
+
+    row = session.get(Document, document_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+    pages = _document_pages(row, store)
+    try:
+        cleaned = normalise(body.overrides, page_count=len(pages))
+    except OverrideError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    row.page_overrides = cleaned or None
+    if row.page_scope is not None:
+        read = {o["page"] for o in cleaned if any(p["kind"] != "other" for p in o["parts"])}
+        row.page_scope = sorted(set(row.page_scope) | read)
+    if row.pages is None:
+        row.pages = pages
+    session.commit()
+    return {"ok": True, "document_id": document_id, "overrides": cleaned,
+            **_build_pages(pages, row.page_scope, cleaned)}
 
 
 class ScopeEdit(BaseModel):

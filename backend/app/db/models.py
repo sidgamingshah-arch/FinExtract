@@ -63,6 +63,9 @@ class Document(Base):
     # User-chosen extraction scope: explicit list of INCLUDED page indices. None = default
     # (all face/notes pages). Honoured by the extraction pipeline.
     page_scope: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    # A person's corrections of how pages are read — parts, kinds, statements, entities
+    # (`services.page_overrides`). Applied after the classifier on every run of this document.
+    page_overrides: Mapped[list | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 
     runs: Mapped[list["ExtractionRun"]] = relationship(back_populates="document")

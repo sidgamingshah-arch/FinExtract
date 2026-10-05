@@ -7,21 +7,101 @@ import { EmptyState } from "../components/EmptyState";
 import { pageNames } from "../components/SourceViewer";
 import { SCREENS } from "./config";
 import {
-  useDocumentPages, usePages, useProjectLoaded, useSetDocumentScope,
+  useDocumentPages, usePages, useProjectLoaded, useSetDocumentScope, useSetPageOverrides,
 } from "../lib/queries";
 import { useAppLocale, useUI } from "../store";
 import { useT } from "../i18n";
 import { useCan } from "../lib/rbac";
 import { api } from "../lib/api";
 import { color, confStyle, font, layout, radius } from "../theme";
-import type { PageCard } from "../types";
+import type { PageCard, PagePart } from "../types";
+
+const STATEMENTS = ["balance_sheet", "profit_and_loss", "cash_flow", "changes_in_equity"];
+
+/** How one page is read, part by part: where each part begins, what it is, and — for a statement
+ *  face — which statement and whose figures. Starts from the reading the next run would use (the
+ *  saved correction, else the classifier's own cut). Clicking the page image adds a cut there. */
+function PartsEditor({ parts, setParts, canEdit, t }:
+  { parts: PagePart[]; setParts: (p: PagePart[]) => void; canEdit: boolean;
+    t: (k: string) => string }) {
+  const update = (i: number, patch: Partial<PagePart>) => {
+    const next = parts.map((p, j) => (j === i ? { ...p, ...patch } : p));
+    if (patch.kind && patch.kind !== "face") {
+      next[i] = { ...next[i], statement: null, entity: null };
+    } else if (patch.kind === "face" && !next[i].statement) {
+      next[i] = { ...next[i], statement: "balance_sheet" };
+    }
+    setParts(next);
+  };
+  const sel = { fontSize: 11, padding: "3px 4px", borderRadius: 5,
+                border: `1px solid ${color.controlBorder}`, background: color.surface };
+  return (
+    <div data-testid="parts-editor" style={{ display: "grid", gap: 6 }}>
+      {parts.map((p, i) => (
+        <div key={i} style={{ display: "flex", gap: 5, alignItems: "center", flexWrap: "wrap" }}>
+          <span style={{ fontSize: 10.5, color: color.muted, minWidth: 64 }}>
+            {i + 1}. {t("sc.from")} {Math.round(p.from_y * 100)}%
+          </span>
+          <select disabled={!canEdit} value={p.kind} style={sel}
+                  onChange={(e) => update(i, { kind: e.target.value as PagePart["kind"] })}>
+            <option value="face">{t("sc.kindFace")}</option>
+            <option value="notes">{t("sc.kindNotes")}</option>
+            <option value="other">{t("sc.kindOther")}</option>
+          </select>
+          {p.kind === "face" && (
+            <>
+              <select disabled={!canEdit} value={p.statement ?? ""} style={sel}
+                      onChange={(e) => update(i, { statement: e.target.value })}>
+                {STATEMENTS.map((k) => <option key={k} value={k}>{t(`sc.stmt.${k}`)}</option>)}
+              </select>
+              <select disabled={!canEdit} value={p.entity ?? ""} style={sel}
+                      onChange={(e) => update(i, {
+                        entity: (e.target.value || null) as PagePart["entity"] })}>
+                <option value="">{t("sc.entityAuto")}</option>
+                <option value="consolidated">{t("sc.entityConsolidated")}</option>
+                <option value="company">{t("sc.entityCompany")}</option>
+              </select>
+            </>
+          )}
+          {canEdit && i > 0 && (
+            <button onClick={() => setParts(parts.filter((_, j) => j !== i))}
+                    style={{ fontSize: 10.5, color: color.sec, background: "none", cursor: "pointer",
+                             border: `1px solid ${color.controlBorder}`, borderRadius: 5,
+                             padding: "2px 7px" }}>
+              {t("sc.removePart")}
+            </button>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 /** Rendered preview of a single PDF page (side-by-side with the page grid). Fetches the PNG
  *  directly (like ExtractionView's PageSlot) — no bbox overlay needed here. */
-function PagePreview({ docId, pageIndex, folio, t, onClose }:
+function PagePreview({ docId, pageIndex, folio, t, onClose, card, canEdit, onSave }:
   { docId: string; pageIndex: number; folio?: string | null;
-    t: (k: string) => string; onClose: () => void }) {
+    t: (k: string) => string; onClose: () => void;
+    card?: PageCard; canEdit?: boolean;
+    onSave?: (parts: PagePart[] | null) => Promise<unknown> }) {
   const [url, setUrl] = useState<string | null>(null);
+  const [parts, setParts] = useState<PagePart[]>(card?.parts ?? []);
+  const [status, setStatus] = useState<string | null>(null);
+  useEffect(() => { setParts(card?.parts ?? []); setStatus(null); }, [card, pageIndex]);
+  const cut = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!canEdit || !parts.length) return;
+    const box = e.currentTarget.getBoundingClientRect();
+    const y = Math.round(((e.clientY - box.top) / box.height) * 1000) / 1000;
+    if (y <= 0 || y >= 1 || parts.some((p) => Math.abs(p.from_y - y) < 0.01)) return;
+    const above = [...parts].reverse().find((p) => p.from_y < y) ?? parts[0];
+    setParts([...parts, { ...above, from_y: y }].sort((a, b) => a.from_y - b.from_y));
+  };
+  const save = (next: PagePart[] | null) => {
+    if (!onSave) return;
+    setStatus("…");
+    onSave(next).then(() => setStatus(t("sc.saved")))
+      .catch((err: unknown) => setStatus(String((err as Error)?.message ?? err)));
+  };
   useEffect(() => {
     let obj: string | null = null;
     let cancelled = false;
@@ -45,10 +125,38 @@ function PagePreview({ docId, pageIndex, folio, t, onClose }:
       </div>
       <div style={{ border: `1px solid ${color.cardBorder}`, borderRadius: radius.cardSm,
                     overflow: "hidden", background: "#fff", minHeight: 200 }}>
-        {url
-          ? <img src={url} alt="" style={{ display: "block", width: "100%" }} />
-          : <div style={{ padding: 40, textAlign: "center", fontSize: 11, color: color.faint }}>…</div>}
+        <div onClick={cut} style={{ position: "relative", cursor: canEdit ? "crosshair" : "default" }}>
+          {url
+            ? <img src={url} alt="" style={{ display: "block", width: "100%" }} />
+            : <div style={{ padding: 40, textAlign: "center", fontSize: 11, color: color.faint }}>…</div>}
+          {url && parts.slice(1).map((p, i) => (
+            <div key={i} style={{ position: "absolute", left: 0, right: 0, top: `${p.from_y * 100}%`,
+                                  borderTop: `2px dashed ${color.indigo}` }}>
+              <span style={{ position: "absolute", right: 4, top: 2, fontSize: 10, fontWeight: 600,
+                             color: "#fff", background: color.indigo, borderRadius: 4,
+                             padding: "0 5px" }}>{i + 2}</span>
+            </div>
+          ))}
+        </div>
       </div>
+      {card?.parts && (
+        <div style={{ marginTop: 12 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 3 }}>{t("sc.readAs")}</div>
+          {canEdit && (
+            <div style={{ fontSize: 10.5, color: color.muted, marginBottom: 8 }}>{t("sc.readAsHelp")}</div>
+          )}
+          <PartsEditor parts={parts} setParts={setParts} canEdit={!!canEdit} t={t} />
+          {canEdit && (
+            <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+              <Button onClick={() => save(parts)}>{t("sc.saveParts")}</Button>
+              {card.overridden && (
+                <Button variant="secondary" onClick={() => save(null)}>{t("sc.resetParts")}</Button>
+              )}
+            </div>
+          )}
+          {status && <div style={{ fontSize: 11, color: color.sec, marginTop: 6 }}>{status}</div>}
+        </div>
+      )}
     </div>
   );
 }
@@ -156,6 +264,7 @@ function PageCardTile(
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <span style={{ fontSize: 10.5, color: color.muted2 }}>
             {included ? t("sc.inScope") : t("sc.skipped")}
+            {p.overridden ? ` · ${t("sc.corrected")}` : ""}
           </span>
           <span
             onClick={canScope && onToggle ? onToggle : undefined}
@@ -182,6 +291,15 @@ export default function ScopeScreen() {
   const data = usingReal ? realQ.data : demoQ.data;
   const isPending = usingReal ? realQ.isPending : demoQ.isPending;
   const setScope = useSetDocumentScope(activeDocumentId ?? undefined);
+  const setOverrides = useSetPageOverrides(activeDocumentId ?? undefined);
+  // THE WHOLE SET IS SAVED: the server replaces every page's correction, so this one's is merged
+  // into the others' (null removes it, and the page goes back to the classifier's reading).
+  const saveParts = (pageIndex: number, parts: PagePart[] | null) => {
+    const others = (data?.pages ?? [])
+      .filter((pg) => pg.overridden && pg.no - 1 !== pageIndex && pg.parts)
+      .map((pg) => ({ page: pg.no - 1, parts: pg.parts as PagePart[] }));
+    return setOverrides.mutateAsync(parts ? [...others, { page: pageIndex, parts }] : others);
+  };
 
   // Local selection of INCLUDED page indices (0-based), synced from the fetched pages. On a
   // real document, toggling persists the scope so extraction restricts itself to it.
@@ -297,7 +415,10 @@ export default function ScopeScreen() {
           <PagePreview docId={activeDocumentId} pageIndex={previewIndex} t={t}
                        folio={data.pages.find(
                          (pg: PageCard) => pg.no === previewIndex + 1)?.printed ?? null}
-                       onClose={() => setPreviewIndex(null)} />
+                       onClose={() => setPreviewIndex(null)}
+                       card={data.pages.find((pg: PageCard) => pg.no === previewIndex + 1)}
+                       canEdit={canScope}
+                       onSave={(parts) => saveParts(previewIndex, parts)} />
         )}
       </div>
 

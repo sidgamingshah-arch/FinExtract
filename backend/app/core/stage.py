@@ -24,6 +24,9 @@ class PipelineContext:
     # face/notes pages). Set from the document's persisted page_scope so a user's page
     # selection on the Scope screen actually restricts what gets extracted.
     included_pages: set[int] | None = None
+    # A person's corrections of how pages are read (`services.page_overrides`), applied straight
+    # after the classifier.
+    page_overrides: list[dict] | None = None
     logs: list[str] = field(default_factory=list)
     progress_cb: Callable[[str, float], None] | None = None
     # Reported from inside a stage: (units done, units total, what a unit is). See `emit_step`.

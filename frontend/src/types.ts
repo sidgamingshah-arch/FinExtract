@@ -1019,6 +1019,21 @@ export interface PageCard {
    *  the FILE — what every index in this product means and what the viewer scrolls to — and the two
    *  differ by however much front matter the report has. Null when the page carries no folio. */
   printed?: string | null;
+  /** Which statement a face page is, and whose figures (consolidated / company / mixed). */
+  statement?: string | null;
+  entity?: string | null;
+  /** How the page is read, top to bottom: the person's override when `overridden`, otherwise the
+   *  classifier's own cut in the same form — the starting point of an edit. */
+  parts?: PagePart[];
+  overridden?: boolean;
+}
+/** One part of a page: it begins at `from_y` (fraction of the page height from the top) and
+ *  runs to where the next part begins. */
+export interface PagePart {
+  from_y: number;
+  kind: "face" | "notes" | "other";
+  statement: string | null;
+  entity: "consolidated" | "company" | null;
 }
 export interface PagesResponse {
   pages: PageCard[];

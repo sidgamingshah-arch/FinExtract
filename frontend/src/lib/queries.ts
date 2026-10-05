@@ -901,6 +901,15 @@ export function useSetDocumentScope(documentId: string | undefined) {
   });
 }
 
+export function useSetPageOverrides(documentId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (overrides: { page: number; parts: import("../types").PagePart[] }[]) =>
+      api.setPageOverrides(documentId as string, overrides),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["document-pages", documentId] }),
+  });
+}
+
 /** Data-driven commentary from a document's real extraction (Analysis screen, real mode). */
 export const useDocumentCommentary = (documentId: string | undefined, locale: Locale = "en") =>
   useQuery({

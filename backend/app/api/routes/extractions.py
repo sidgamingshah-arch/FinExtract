@@ -1412,7 +1412,8 @@ def _run_extraction_task(run_id: str, object_key: str, filename: str, options: d
         doc_model, ctx = run_extraction(data, filename=filename, ontology=working_view,
                                         included_pages=included_pages, template=template,
                                         progress_cb=progress, context_cb=progress.observe,
-                                        step_cb=progress.step, line_items=st)
+                                        step_cb=progress.step, line_items=st,
+                                        page_overrides=options.get("page_overrides"))
         run = session.get(ExtractionRun, run_id)
         if run is None:
             return
@@ -1739,7 +1740,11 @@ def start_extraction(
     # the requests would miss that.
     existing = _latest_run(session, doc.id)
     if existing is not None:
-        same_request = _satisfies(existing, body)
+        # A run read with other page corrections than the document now carries is not this
+        # request: saving an override is asking for the filing to be read differently.
+        same_request = (_satisfies(existing, body)
+                        and (existing.options or {}).get("page_overrides")
+                        == (doc.page_overrides or None))
         if existing.status == "running":
             # A RUN IN FLIGHT IS NEVER RACED, force or not. The product has no notion of two
             # concurrent pipelines over one filing — they would write the same run rows twice and
@@ -1862,6 +1867,10 @@ def start_extraction(
                    # Under the key ``rulebook`` still — see :func:`configuration_record` for why
                    # that name stays while the ontology behind it is gone.
                    "rulebook": rulebook,
+                   # THE PAGE CORRECTIONS THIS RUN READ THE FILING WITH (`services.page_overrides`),
+                   # recorded so a run can say how its pages were read, and handed to the worker
+                   # from here so the two cannot differ.
+                   "page_overrides": doc.page_overrides or None,
                    "stages": pipeline_stage_names()}
     run = ExtractionRun(
         id=run_id, document_id=doc.id,

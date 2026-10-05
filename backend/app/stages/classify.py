@@ -1614,6 +1614,12 @@ class ClassifyStage:
                 doc.unmapped_titles.extend(f.unmapped[:3])
 
         self._reclaim_statement_continuations(pages, feats, cache, ctx)
+        # A PERSON'S CORRECTION OUTRANKS THE READING ABOVE, and is applied last so nothing above
+        # can undo it. See `services.page_overrides`.
+        if ctx.page_overrides:
+            from app.services.page_overrides import apply as apply_overrides
+
+            apply_overrides(pages, ctx.page_overrides, log=ctx.log)
 
         pdf.close()
         doc.unmapped_titles = sorted(set(doc.unmapped_titles))[:60]

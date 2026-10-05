@@ -532,9 +532,53 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
         # still known — see `page_spread.page_fold`. Every reader below is handed PART of the page
         # (a note section, a batch below a statement title) and cannot answer it for itself.
         fold = page_spread.page_fold(words, w, h, rot)
+        # A PERSON'S CUT OF THE PAGE (`services.page_overrides`), when there is one: each part is
+        # read by the reader its kind names, and the classifier's own cuts below are not applied
+        # (the override removed their evidence). Notes parts above the first face part are read
+        # now, so they continue the note the previous page left open; notes parts below the last
+        # face part are read after the face, so the note they open carries on to the next page.
+        override_batches = None
+        late_notes: list = []
+        parts = (ps.evidence or {}).get("override_parts")
+        if parts:
+            title_y = (ps.evidence or {}).get("matched_title_y")
+            title = str((ps.evidence or {}).get("matched_title") or "") or None
+            override_batches, pending_notes = [], []
+            for n, part in enumerate(parts):
+                lo = part["from_y"]
+                hi = parts[n + 1]["from_y"] if n + 1 < len(parts) else 2.0
+                seg = [wd for wd in words if lo <= (wd.bbox.y0 + wd.bbox.y1) / 2 < hi]
+                if not seg:
+                    continue
+                if part["kind"] == "notes":
+                    pending_notes.append(seg)
+                elif part["kind"] == "face":
+                    if pending_notes and not override_batches:
+                        for early in pending_notes:
+                            notes_carry, notes_grid, notes_group, notes_header = _read_notes(
+                                early, ps.index, source_kind, fold, notes_carry, notes_grid,
+                                notes_group, notes_header)
+                    elif pending_notes:
+                        late_notes.extend(pending_notes)    # between two faces: read after
+                    pending_notes = []
+                    owns_title = isinstance(title_y, (int, float)) and lo <= title_y < hi
+                    override_batches.append((seg, part["statement"], part["entity"],
+                                             title if owns_title else None))
+                else:
+                    ctx.log(f"extract:page={ps.index}:override_part_unread"
+                            f"(from_y={lo:.2f},{len(seg)}_words)")
+            late_notes.extend(pending_notes)
+            ctx.log(f"extract:page={ps.index}:override_parts={len(parts)}"
+                    f"(face={len(override_batches)})")
+            if not override_batches:
+                for seg in late_notes:
+                    notes_carry, notes_grid, notes_group, notes_header = _read_notes(
+                        seg, ps.index, source_kind, fold, notes_carry, notes_grid,
+                        notes_group, notes_header)
+                continue
         # Notes pages → note detail tables (the breakdowns behind the face figures); every
         # other page → face line items. Both keep page + bbox provenance.
-        if ps.kind == PageKind.NOTES:
+        if ps.kind == PageKind.NOTES and override_batches is None:
             notes_carry, notes_grid, notes_group, notes_header = _read_notes(
                 words, ps.index, source_kind, fold, notes_carry, notes_grid, notes_group,
                 notes_header)
@@ -551,7 +595,7 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
         # whose identities belong to real notes. They are left unread, as they were never notes
         # before — they were face rows, filed as cash flows.
         supp = ps.evidence or {}
-        if ps.kind == PageKind.FACE:
+        if ps.kind == PageKind.FACE and override_batches is None:
             title_y = supp.get("matched_title_y")
             ends_y = supp.get("face_ends_at_y")
             above = ([word for word in words if (word.bbox.y0 + word.bbox.y1) / 2 < title_y]
@@ -608,7 +652,9 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
         # verdict, and did: a title at y=0.178 with a grand total and three signature lines above
         # it was refused a split, and the two statements were read as one batch. `before and
         # after` below is the real bound: a split that leaves nothing on one side is not a split.
-        if (ps.kind == PageKind.FACE and prior_statement and isinstance(split_y, (int, float))
+        if override_batches is not None:
+            batches = override_batches
+        elif (ps.kind == PageKind.FACE and prior_statement and isinstance(split_y, (int, float))
                 and 0.0 < split_y < 0.95):
             before = [word for word in words if (word.bbox.y0 + word.bbox.y1) / 2 < split_y]
             after = [word for word in words if word not in before]
@@ -675,6 +721,10 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
         # A page that produced nothing carries nothing forward, so a caption cannot reach across
         # an intervening page.
         carried = ((items[-1], batches[-1][1], ps.index) if items else None)
+        for seg in late_notes:
+            notes_carry, notes_grid, notes_group, notes_header = _read_notes(
+                seg, ps.index, source_kind, fold, notes_carry, notes_grid, notes_group,
+                notes_header)
     # Applied over the accumulated tables, not only within a page: the note-continuation carry
     # is threaded ACROSS pages here, so an empty fragment can be raised on one page while the
     # fragment carrying the rows was raised on the one before it.
