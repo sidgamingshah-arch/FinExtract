@@ -40,7 +40,7 @@ from app.core.models.line_item import LineItem
 from app.core.stage import PipelineContext, Stage
 from app.ports.registry import registry
 from app.services import (face_context, line_item_llm, line_item_notes, line_item_requests,
-                          line_item_routes, note_sourced)
+                          line_item_routes, note_columns, note_sourced)
 from app.services.mapping import authored_guidance
 from app.services.working_view import build_working_view
 # ONE WRITER FOR A FIGURE, so the two routes into a line cannot disagree about what writing one
@@ -58,6 +58,12 @@ from app.stages.note_sourced import _prose_basis, _prose_scale, _write
 # compatible gateways reserve millions of tokens for a small structured reply and time out before
 # answering): roughly 120 tokens per answer with two citations, plus the envelope itself. A group
 # of twelve is the largest measured request (the twelve depreciation parts resolving to one note).
+# THE PERIODS A LINE ITEM IS FILED UNDER — `current` and `prior` — plus `prose`, the key a figure
+# stated in a sentence arrives under and `_write_prose` files. A note row's other keys (`col2`, a
+# measure `current:allowance`, a restatement `current_col3`) are positions or variants: written as
+# periods they put an asset class or a fair-value level in a slot the export reads as a year.
+_FILED = (*note_columns.FILED_PERIODS, "prose")
+
 _RESPONSE_RESERVE = 512
 _RESPONSE_TOKENS_PER_ANSWER = 200
 
@@ -377,6 +383,13 @@ class LineItemLlmStage(Stage):
                     figures, unverified = line_item_llm.combine_terms(
                         resolved, unresolved, list(answer.signs or ()), component,
                         fallback_period=_current_period(doc) or "current")
+                    # ONLY FILED PERIODS ARE WRITTEN — see `_FILED`. Said in the log, because a
+                    # cited row whose only figures stand in other columns is answered with nothing.
+                    unfiled = sorted(p for p in figures if p not in _FILED)
+                    if unfiled:
+                        ctx.log(f"line_item_llm:{key}: not written, not a filed period: "
+                                f"{', '.join(unfiled[:8])}")
+                        figures = {p: v for p, v in figures.items() if p in _FILED}
                     if not figures:
                         # NOTHING WAS LOCATED AND NOTHING WAS EVEN CLAIMED. No figure can be published,
                         # so the answer is recorded on the row instead of vanishing — `_write_unanswered`
@@ -521,6 +534,21 @@ class LineItemLlmStage(Stage):
                 "llm_off_statement_page_scale_unverified:page "
                 + ", ".join(str(n) for n in off_statement))
             row.confidence.flags.append("low_mapping_confidence")
+        # A FIGURE PICKED BY ITS COLUMN SAYS WHICH COLUMN, and says so when nothing printed dated
+        # it. `note_columns.pick` files the picked cell under the period printed over its column or
+        # its row block; where neither states one it is filed under the reporting period and
+        # ASSUMED, so the line goes to review rather than reading as settled.
+        assumed = False
+        for e in resolved:
+            col = e.get("column") or {}
+            if not col:
+                continue
+            row.confidence.flags.append(
+                f"llm_column:{str(col.get('heading') or col.get('key') or col.get('want'))[:80]}")
+            assumed = assumed or bool(col.get("assumed"))
+        if assumed:
+            row.confidence.flags.append("llm_column_period_assumed")
+            row.confidence.flags.append("low_mapping_confidence")
         if answer.reason:
             # The model's own stated justification, surfaced rather than only logged: a reviewer
             # asking why these rows are this line sees the reasoning and not only a score. Each
@@ -550,6 +578,8 @@ class LineItemLlmStage(Stage):
             if period == "prose":
                 written += self._write_prose(row, doc, amount, resolved, ctx, item)
                 continue
+            if period not in _FILED:
+                continue
             _write(row, basis, period, amount, by="line_item_llm",
                    provenance=_cited_provenance(resolved))
             row.derivation = note_sourced.derivation.record(
@@ -565,7 +595,7 @@ class LineItemLlmStage(Stage):
                     # numbers; the two routes simply disagreed about the key. Nothing warned,
                     # because a missing key is indistinguishable from an input whose period
                     # printed no figure.
-                    inputs=[{"label": f"note {e.get('note')}: {str(e.get('caption'))[:160]}",
+                    inputs=[{"label": _input_label(e),
                              "value": str(e.get("figures", {}).get(period, "")),
                              "note": e.get("note"),
                              "counted": True,
@@ -826,6 +856,15 @@ class LineItemLlmStage(Stage):
         return 1
 
 
+def _input_label(entry: dict) -> str:
+    """A cited row as the derivation names it — note and caption, and the printed COLUMN when the
+    citation picked one, so a reviewer reads "[Total 總計]" rather than a row of nine figures."""
+    label = f"note {entry.get('note')}: {str(entry.get('caption'))[:160]}"
+    col = entry.get("column") or {}
+    heading = str(col.get("heading") or col.get("key") or "")
+    return f"{label} [{heading[:80]}]" if heading else label
+
+
 def _cited_provenance(resolved: list[dict]):
     """A real `Provenance` for the row the model cited, so click-to-source lands on the right page.
 
@@ -898,7 +937,10 @@ def _refuse_derivative_citations(item, resolved: list[dict]) -> tuple[list[dict]
         return resolved, []
     kept, refused = [], []
     for entry in resolved:
-        texts = [str(entry.get("caption") or ""), str(entry.get("title") or "")]
+        # AND THE PICKED COLUMN'S HEADING: a fair-value table prints "Derivative financial
+        # instruments" as a column as readily as a row.
+        texts = [str(entry.get("caption") or ""), str(entry.get("title") or ""),
+                 str((entry.get("column") or {}).get("heading") or "")]
         if any(v.search(t) for v in vetoes for t in texts if t):
             refused.append({"at": entry.get("at"), "note": entry.get("note"),
                             "caption": entry.get("caption"),

@@ -56,6 +56,8 @@ import re
 from collections import Counter
 from dataclasses import dataclass, field
 
+from app.services import note_columns
+
 # Content words only: 3+ letters, so units, years and row numbers do not enter the vocabulary.
 # Digits are excluded deliberately — an amount matching is handled by showing the amount, not by
 # treating it as a word, because "12,345" and "12,346" are equally distant as tokens and utterly
@@ -774,6 +776,7 @@ def identified_notes(line_item_set, notes, *, cited=None, every_note: bool = Fal
         acc_prev = by_number.get(key)
         legend_prev = acc_prev.get("_legend") if acc_prev is not None else None
         groups_prev = acc_prev.get("_groups") if acc_prev is not None else None
+        printed_prev = acc_prev.get("_printed") if acc_prev is not None else None
         for row in getattr(table, "items", None) or ():
             caption = getattr(row, "raw_label", "") or ""
             if not caption:
@@ -810,6 +813,16 @@ def identified_notes(line_item_set, notes, *, cited=None, every_note: bool = Fal
             if column_groups and column_groups != groups_prev:
                 entry_row["column_groups"] = column_groups
                 groups_prev = column_groups
+            # EVERY COLUMN THE TABLE PRINTS, blank ones included — sent where a printed column holds
+            # no figure on the row, and when it changes. `columns` names only the keys a figure
+            # stands under, so a fair-value table whose Level 1 and Level 2 print nothing reached
+            # the model as two keys, and nothing said that Level 3 was one of three, or that a
+            # 第三层次 the model might look for was printed and empty. A blank column is not a
+            # figure: `note_columns.pick` refuses a citation of one rather than reading it as zero.
+            printed = [h for h in (getattr(row, "printed_columns", None) or ()) if h]
+            if printed and note_columns.blank_columns(row) and printed != printed_prev:
+                entry_row["printed_columns"] = printed
+                printed_prev = printed
             rows.append(entry_row)
 
         # ONE ENTRY PER NOTE, WHICH IS NOT THE SAME AS ONE PER NUMBER.
@@ -845,6 +858,7 @@ def identified_notes(line_item_set, notes, *, cited=None, every_note: bool = Fal
         acc["_for"].update(wanted_by)
         acc["_rows"].extend(rows)
         acc["_legend"], acc["_groups"] = legend_prev, groups_prev
+        acc["_printed"] = printed_prev
         prose = (getattr(table, "source_text", "") or "").strip()
         if prose:
             acc["_prose"].append(prose)

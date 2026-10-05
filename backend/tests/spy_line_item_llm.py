@@ -47,8 +47,9 @@ class SpyLineItemLlm:
                  cite: dict[str, tuple[str, ...]] | None = None, specific: bool = True):
         self.only = only
         # An explicit override per key, `{key: (note, caption)}` or `(note, caption, table,
-        # group)`, for a test that needs to say exactly which row each of two siblings cites —
-        # which is the difference between "both read one row" and "each read its own".
+        # group)` or `(note, caption, table, group, column)`, for a test that needs to say exactly
+        # which row each of two siblings cites — which is the difference between "both read one
+        # row" and "each read its own" — and, with a `column`, which printed column of it.
         self.cite = dict(cite or {})
         # WHETHER IT NAMES THE BLOCK AND THE GROUP, as the reply contract asks a compliant model
         # to. False answers the way the contract read before `table` and `group` existed — note
@@ -78,15 +79,17 @@ class SpyLineItemLlm:
                 answers.append({"key": key, "sources": [], "role": "whole",
                                 "confidence": 0.0, "reason": "no note row to cite"})
                 continue
-            note, caption, table, group = (tuple(cited) + ("", ""))[:4]
+            note, caption, table, group, column = (tuple(cited) + ("", "", ""))[:5]
             source = {"note": note, "caption": caption}
             if self.specific:
                 source.update({k: v for k, v in (("table", table), ("group", group)) if v})
+            if column:
+                source["column"] = column
             answers.append({"key": key, "role": "whole", "confidence": 0.9,
                             "reason": f"note {note} states it on its total line",
                             "sources": [source]})
             self.citations.append({"key": key, "note": note, "caption": caption,
-                                   "table": table, "group": group})
+                                   "table": table, "group": group, "column": column})
 
         # A DICT FOR THE META, because `stages.line_item_llm` reads it with `.get` — every real
         # adapter returns a mapping, and a stand-in returning an object fails at the token

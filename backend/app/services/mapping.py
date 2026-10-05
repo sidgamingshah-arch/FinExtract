@@ -126,6 +126,18 @@ class SourceRef(BaseModel):
                                                "blocks")
     group: str = Field(default="", description="the row's `group`, as given, when it has one")
     caption: str = Field(default="", description="the row caption, quoted as the document prints it")
+    # ONE COLUMN OF THE ROW, because a row of a table whose columns are fair-value levels, asset
+    # classes or measures holds several figures of one year and the line is one of them. Without
+    # this the only citation was the whole row, and its POSITIONAL keys were filed as years:
+    # 河钢股份 000709's Level 3 figure went in as `current` and the same year-end's 合计 as `prior`.
+    # The printed heading as the request gives it in `columns`/`printed_columns`, or the positional
+    # key; `resolve_sources` reads it through `note_columns.pick`, which files the picked figure
+    # under the period PRINTED over its column rather than under its key.
+    column: str = Field(default="", description="the printed heading of the ONE column of the "
+                                                "row this line's figure is in, exactly as given "
+                                                "in `columns` or `printed_columns` (or its key), "
+                                                "when the row's columns are levels, classes or "
+                                                "measures rather than periods")
     quote: str = Field(default="", description="the sentence it came from, when the figure is "
                                                "stated in prose rather than in a table row")
     # THE FIGURE, and the ONLY place the model may state one.
