@@ -849,7 +849,9 @@ def _export_provider_keys(settings: Settings) -> None:
     it overridden by a stale line in a file, which is the same precedence ``settings_customise_sources``
     already gives env over .env.
     """
-    named = {settings.llm.api_key_env, settings.ocr.azure_api_key_env}
+    named = {settings.llm.api_key_env, settings.ocr.azure_api_key_env,
+             settings.document_engine.kensho_token_env,
+             settings.document_engine.kensho_refresh_token_env}
     from_dotenv = DotEnvSettingsSource(Settings, env_file=".env", env_prefix="")
     try:
         values = from_dotenv()

@@ -23,10 +23,11 @@ and every screen reads that document's own run; with no document active, the scr
 can fall back render the sample instead.
 
 The extraction engines are real and swappable, not scaffolds: OCR ships **Docling** (free,
-pip-only — the default in `backend/config.toml`), **Azure AI Document Intelligence** and
-**PaddleOCR**; the LLM ships **Azure OpenAI** (default), **Anthropic** and any
-OpenAI-compatible gateway. A loud `stub` is registered for each so the app also runs fully
-offline. What is *not* built is listed plainly in
+pip-only, runs offline — the default in `backend/config.toml`), **Azure AI Document
+Intelligence** and **PaddleOCR**; a hosted document engine, **Kensho Extract**, can read a
+filing in place of its text layer or OCR (off by default); the LLM ships the **CRISIL LLM
+gateway** (Bedrock, the default), **Azure OpenAI**, **Anthropic** and any OpenAI-compatible
+gateway. A loud `stub` is registered for each so the app also runs fully offline. What is *not* built is listed plainly in
 [`docs/architecture/06-testing-and-roadmap.md`](docs/architecture/06-testing-and-roadmap.md)
 — chiefly: no embedding adapter is bound, no optimistic-concurrency (`If-Match`) on edits,
 no Alembic migrations, and progress is polled rather than pushed.
@@ -46,17 +47,53 @@ repo-extra-1/
 
 ## Quickstart
 
+### Windows — one click
+
+1. Install **Python 3.11+** ([python.org](https://www.python.org/downloads/) — tick *Add
+   python.exe to PATH*) and **Node.js 18+** ([nodejs.org](https://nodejs.org/), LTS).
+2. Double-click **`Start-FinEx.bat`** in the repository folder.
+
+The first run creates the Python environment (`backend\.venv`), installs the backend and the
+web app — a few minutes — and asks once for the **LLM gateway key**, which it saves in
+`backend\.env` (gitignored, never committed; press Enter to run without the model). Every run
+then starts the API and the web app in two minimised windows and opens
+**http://localhost:5173** in the browser. **`Stop-FinEx.bat`** closes both.
+
+Options, from a command prompt: `Start-FinEx.bat -WithOcr` also installs Docling and fetches its
+models for scanned pages (a large download); `-Reinstall` reinstalls the packages; `-NoBrowser`
+does not open the browser. Behind a corporate proxy, pip and npm use the proxy settings the
+machine already has. If a policy blocks PowerShell scripts, run the two windows by hand as below.
+
+### Any platform — by hand
+
 ```bash
 # backend  (terminal 1)
-cd backend && pip install -e ".[dev]"
-cp config.local.example.toml config.local.toml   # then fill in the LLM gateway address + model
+cd backend && pip install -e ".[dev,pdf,cjk]"
+export LLM_GATEWAY_TOKEN=...              # or put LLM_GATEWAY_TOKEN=... in backend/.env
 pytest -q                                 # backend tests
 uvicorn app.main:app --port 8000          # API at http://127.0.0.1:8000  (/docs for OpenAPI)
 
 # frontend (terminal 2)
-cd frontend && pnpm install
-pnpm dev                                  # app at http://localhost:5173 (proxies /api → backend)
+cd frontend && npm install                # or pnpm install
+npm run dev                               # app at http://localhost:5173 (proxies /api → backend)
 ```
+
+### The LLM
+
+`backend/config.toml` `[llm]` ships the CRISIL gateway, so the only thing a machine supplies is
+the **key**, in the `LLM_GATEWAY_TOKEN` environment variable (or `backend/.env`):
+
+| | |
+|---|---|
+| provider | `bedrock_gateway` |
+| address | `https://llmgateway.crisil.local/api/bedrock/model/us.anthropic.claude-opus-4-7/invoke` |
+| key | sent in the `token` header (`auth_header`; `"Authorization"` sends a Bearer token) |
+
+The model features are on by default. Without the key, startup says so naming the variable, and
+every run maps on the deterministic route only. To point one machine at another gateway or
+model, copy `backend/config.local.example.toml` to `config.local.toml` and set the keys that
+differ. The LLM is defined only in these files — not by `FINEX_LLM__*` variables and not on the
+Settings screen.
 
 Then **sign in**. The app opens on a login screen; in demo mode use the one-click
 "Sign in as …" buttons for the seeded users — **admin** (Priya Nair), **reviewer**
@@ -67,8 +104,8 @@ The app starts **greenfield** (empty): upload a source document on the **Documen
 Template** screen (`/upload`) to begin. To explore every screen with data, an admin can flip **Load sample
 project** on the **Settings** screen (or the "Load sample data" button on any empty
 screen); set `[features].seed_demo = true` in `backend/config.toml` to load it at
-startup instead. LLM configuration (provider/model/endpoint) is admin-editable on
-Settings — the API key stays in the environment, never the UI.
+startup instead. The LLM is configured in `backend/config.toml` only (see *The LLM* above);
+the Settings screen does not edit it, and the key stays in the environment, never the UI.
 
 Optional backend engines install behind extras so the core stays light:
 `pip install -e ".[docling]"` (the recommended free OCR), `.[ocr]` (PaddleOCR),
@@ -94,7 +131,8 @@ Workspace tab; see
 
 ## The screens
 
-Documents & Template → Integrity → Page Scope → **Extraction** (`/extraction`, step 4 — runs
+Documents & Template → Integrity → Page Scope (which pages are read, and how: correct a page's
+parts — statement face, notes or not read) → **Extraction** (`/extraction`, step 4 — runs
 the pipeline and reports its stages and log while it runs, then the extracted rows with
 click-to-source) → **Workspace** (side-by-side source ↔ template, inline edit + formulas,
 confidence scores, KPIs) → All Notes (note-to-face reconciliation) → Review Queue
@@ -118,11 +156,12 @@ before anything has been uploaded.
   line items, page scope, export inclusions, settings) is admin-controlled; the analyst
   gets a simple flow. Server-side enforced (401/403) and reflected in the nav. See
   [`docs/architecture/07-rbac-and-commentary.md`](docs/architecture/07-rbac-and-commentary.md).
-- **Configuration** — `backend/config.toml` (LLM, OCR, embeddings, extraction
-  thresholds, auth, feature flags), env-overridable, surfaced on the admin Settings
-  screen. This machine's LLM gateway address and model go in the gitignored
-  `backend/config.local.toml` (copy `config.local.example.toml`), which overrides
-  `config.toml` key by key; the API key goes in the environment or `backend/.env`. See [`docs/architecture/08-configuration-and-auth.md`](docs/architecture/08-configuration-and-auth.md).
+- **Configuration** — `backend/config.toml` (LLM, OCR, the document engine, extraction
+  thresholds, auth, feature flags), surfaced on the admin Settings screen, where the
+  extraction switches — OCR for scanned pages, the document engine and the pages it reads —
+  are edited. `backend/config.local.toml` (gitignored; copy `config.local.example.toml`)
+  overrides `config.toml` key by key for one machine; keys go in the environment or
+  `backend/.env`. See [`docs/architecture/08-configuration-and-auth.md`](docs/architecture/08-configuration-and-auth.md).
 - **Multilingual** — English, Chinese, Arabic (RTL) and French. By default the language
   picker localizes **only the extracted financial output and line items**; localizing the
   whole interface is an admin toggle. See
@@ -135,6 +174,9 @@ before anything has been uploaded.
 | Excel / native-PDF / scanned ingest, per-page routing | `app/stages/ingest.py` |
 | Upfront document-integrity report (nine checks, blockers gate the run) | `app/stages/integrity.py` |
 | Locate face / notes pages first (Viterbi decode over page evidence + document order) | `app/stages/classify.py` |
+| A person's correction of a page — its parts, each a face (statement + entity), notes or not read — applied on every later run | Page Scope screen, `PUT /documents/{id}/page-overrides`, `app/services/page_overrides.py` |
+| Every printed column of a note table named, so the model and the configuration can pick a column by its heading | `app/services/row_reconstruct.py`, `app/services/note_columns.py` |
+| Hosted document engine (Kensho Extract), admin-switched | `app/adapters/kensho_extract.py`, `app/ports/document_engine.py`, `[document_engine]` |
 | Table reconstruction — native text layer and OCR converge on one path | `app/services/row_reconstruct.py`, `app/services/pdf_extract.py`, `app/services/excel_extract.py` (all driven by `app/stages/extract.py`) |
 | OCR behind adapters (Docling / Azure DI / PaddleOCR / stub) | `app/adapters/`, selected by `[ocr].engine` |
 | Line-item-driven mapping — exact, rule, fuzzy and an LLM that decides by meaning | `app/services/mapping.py`, `app/stages/map_ontology.py`, fed by `app/services/working_view.py` |

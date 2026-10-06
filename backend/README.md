@@ -5,10 +5,14 @@ FastAPI application + the document-extraction pipeline.
 ## Install & run
 
 ```bash
-pip install -e ".[dev]"
+pip install -e ".[dev,pdf,cjk]"
+export LLM_GATEWAY_TOKEN=...      # the CRISIL LLM gateway key (or LLM_GATEWAY_TOKEN=... in .env)
 pytest -q
 uvicorn app.main:app --reload
 ```
+
+On Windows, `Start-FinEx.bat` at the repository root does all of this, and starts the web app.
+The LLM gateway, model and address ship in `config.toml` `[llm]` — see the root README.
 
 ## Scanned pages: offline OCR with Docling
 
@@ -92,7 +96,7 @@ tests/                 Unit/golden tests + synthetic fixture generators
 |---|---|---|
 | `FINEX_DATABASE_URL` | `sqlite:///./finex.db` | Postgres URL in prod |
 | `FINEX_OBJECT_STORE_BACKEND` | `local` | `local` / `s3` / `minio` |
-| `FINEX_OCR_PROVIDER` | `stub` | e.g. `paddle` once installed |
+| `FINEX_OCR__ENGINE` | `docling` | OCR for scanned pages: `docling` / `azure` / `paddleocr` / `stub` |
 
 **The LLM is not an env var.** It is defined in one place, `config.toml`'s `[llm]` table; only
 its API key comes from the environment (or `.env`), under the name `[llm].api_key_env` gives.

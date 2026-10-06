@@ -96,3 +96,6 @@ backend/scripts/_*.py
 backend/models/
 backend/offline/
 backend/dist/
+
+# Windows one-click start: process ids of what it started
+.finex/
