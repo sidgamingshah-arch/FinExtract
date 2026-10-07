@@ -99,6 +99,9 @@ FILE_ROLES: dict[str, tuple[str, str]] = {
               "line_item_config and row_reconstruct.in_force_rules"),
     "output_csv_indas_v1_template.json": (LIVE, "seeded at boot"),
     "output_csv_indas_line_items.json": (LIVE, "seeded at boot with output_csv_indas_v1"),
+    "output_csv_icon_v1_template.json": (LIVE, "seeded at boot; built by scripts/build_icon_pair.py"),
+    "output_csv_icon_line_items.json": (
+        LIVE, "seeded at boot with output_csv_icon_v1; built by scripts/build_icon_pair.py"),
     "output_csv_hk_ontology.json": (
         BUILD_INPUT, "input of scripts/build_line_items.py and a test fixture; no app code reads "
                      "it, and it no longer rebuilds the shipped set"),

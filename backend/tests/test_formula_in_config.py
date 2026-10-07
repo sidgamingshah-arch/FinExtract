@@ -37,10 +37,12 @@ SEED = TEMPLATES / "output_csv_hk_line_items.json"
 TEMPLATE = TEMPLATES / "output_csv_hk_v1_template.json"
 INDAS_SEED = TEMPLATES / "output_csv_indas_line_items.json"
 INDAS_TEMPLATE = TEMPLATES / "output_csv_indas_v1_template.json"
-# Both regimes are held to their OWN template. The Ind AS set once carried the HK set's terms
+ICON_SEED = TEMPLATES / "output_csv_icon_line_items.json"
+ICON_TEMPLATE = TEMPLATES / "output_csv_icon_v1_template.json"
+# Every regime is held to its OWN template. The Ind AS set once carried the HK set's terms
 # verbatim — 19 subtotals naming 230 keys it does not define.
-REGIMES = [(SEED, TEMPLATE), (INDAS_SEED, INDAS_TEMPLATE)]
-_IDS = ["hk", "indas"]
+REGIMES = [(SEED, TEMPLATE), (INDAS_SEED, INDAS_TEMPLATE), (ICON_SEED, ICON_TEMPLATE)]
+_IDS = ["hk", "indas", "icon"]
 
 # The two whose rollup subtracts from their own reported total.
 SELF_REFERENCING = {"bs_ca__inventories", "bs_equity__retained_profits"}
@@ -109,11 +111,18 @@ def test_the_configured_formula_is_the_templates_formula(seed, template) -> None
         # `sign * abs(raw)`, which needs `sign: -1` to agree. A magnitude term written `sign: 1`
         # would ADD the charge where the template subtracts it — the drift this pins.
         #
-        # Everything else adds, because these formulas are generated from a `sum`. A bare sign flip
-        # is a real change to the arithmetic and has to be authored on both sides deliberately
-        # rather than arrive by regeneration.
+        # AND IN A `diff` EVERY CHILD AFTER THE FIRST IS SUBTRACTED (`rollups.evaluate`: the first
+        # child added, the rest subtracted, a magnitude child as -abs), so its term is `sign: -1`
+        # whether or not it is a magnitude. ICON's "a - b" lines are `diff`s: a deduction that can
+        # legitimately be negative (a tax credit) must subtract its signed value, which a
+        # magnitude child cannot do.
+        #
+        # Everything else adds. A bare sign flip is a real change to the arithmetic and has to be
+        # authored on both sides deliberately rather than arrive by regeneration.
+        op = (rollups.get(key) or {}).get("op", "sum")
         assert {t.ref: t.sign for t in item.terms} == {
-            t.ref: (-1 if t.ref in magnitude else 1) for t in item.terms}, key
+            t.ref: (-1 if (t.ref in magnitude or (op == "diff" and n > 0)) else 1)
+            for n, t in enumerate(item.terms)}, key
 
 
 @pytest.mark.parametrize("seed, template", REGIMES, ids=_IDS)

@@ -1,0 +1,2427 @@
+{
+ "schema_version": 1,
+ "template_key": "output_csv_icon_v1",
+ "name": "ICON",
+ "statements": [
+  {
+   "type": "profit_and_loss",
+   "label": "Profit and Loss Statement",
+   "label_i18n": {
+    "en": "Profit and Loss Statement"
+   },
+   "sections": [
+    {
+     "node_id": "pl_icon_sales",
+     "canonical_key": "pl_icon_sales",
+     "label": "Sales",
+     "label_i18n": {
+      "en": "Sales"
+     },
+     "role": "header",
+     "children": [
+      {
+       "node_id": "pl_icon__domestic_sales",
+       "canonical_key": "pl_icon__domestic_sales",
+       "label": "Domestic Sales",
+       "label_i18n": {
+        "en": "Domestic Sales"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "pl_icon__export_sales",
+       "canonical_key": "pl_icon__export_sales",
+       "label": "Export Sales",
+       "label_i18n": {
+        "en": "Export Sales"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "pl_icon__gross_sales_total",
+       "canonical_key": "pl_icon__gross_sales_total",
+       "label": "Total",
+       "label_i18n": {
+        "en": "Total"
+       },
+       "role": "subtotal",
+       "rollup": {
+        "op": "sum",
+        "children": [
+         "pl_icon__domestic_sales",
+         "pl_icon__export_sales"
+        ]
+       }
+      },
+      {
+       "node_id": "pl_icon__excise_duty",
+       "canonical_key": "pl_icon__excise_duty",
+       "label": "Less Excise Duty",
+       "label_i18n": {
+        "en": "Less Excise Duty"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "pl_icon__net_sales",
+       "canonical_key": "pl_icon__net_sales",
+       "label": "Net Sales (1 - 2)",
+       "label_i18n": {
+        "en": "Net Sales (1 - 2)"
+       },
+       "role": "subtotal",
+       "rollup": {
+        "op": "diff",
+        "children": [
+         "pl_icon__gross_sales_total",
+         "pl_icon__excise_duty"
+        ],
+        "cost_magnitude_children": [
+         "pl_icon__excise_duty"
+        ]
+       }
+      },
+      {
+       "node_id": "pl_icon__other_recurring_operating_income",
+       "canonical_key": "pl_icon__other_recurring_operating_income",
+       "label": "Other recurring income incidental to main business",
+       "label_i18n": {
+        "en": "Other recurring income incidental to main business"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "pl_icon__total_operating_income",
+       "canonical_key": "pl_icon__total_operating_income",
+       "label": "Total operating income",
+       "label_i18n": {
+        "en": "Total operating income"
+       },
+       "role": "subtotal",
+       "rollup": {
+        "op": "sum",
+        "children": [
+         "pl_icon__net_sales",
+         "pl_icon__other_recurring_operating_income"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "node_id": "pl_icon_cost_of_sales",
+     "canonical_key": "pl_icon_cost_of_sales",
+     "label": "Cost of Sales",
+     "label_i18n": {
+      "en": "Cost of Sales"
+     },
+     "role": "header",
+     "children": [
+      {
+       "node_id": "pl_icon__raw_materials",
+       "canonical_key": "pl_icon__raw_materials",
+       "label": "Raw materials",
+       "label_i18n": {
+        "en": "Raw materials"
+       },
+       "role": "subtotal",
+       "rollup": {
+        "op": "sum",
+        "children": [
+         "pl_icon__raw_materials_imported",
+         "pl_icon__raw_materials_indigenous"
+        ]
+       }
+      },
+      {
+       "node_id": "pl_icon__raw_materials_imported",
+       "canonical_key": "pl_icon__raw_materials_imported",
+       "label": "i) Imported",
+       "label_i18n": {
+        "en": "i) Imported"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "pl_icon__raw_materials_indigenous",
+       "canonical_key": "pl_icon__raw_materials_indigenous",
+       "label": "ii) Indigenous",
+       "label_i18n": {
+        "en": "ii) Indigenous"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "pl_icon__other_spares",
+       "canonical_key": "pl_icon__other_spares",
+       "label": "Other Spares",
+       "label_i18n": {
+        "en": "Other Spares"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "pl_icon__power_and_fuel",
+       "canonical_key": "pl_icon__power_and_fuel",
+       "label": "Power and Fuel",
+       "label_i18n": {
+        "en": "Power and Fuel"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "pl_icon__direct_labour",
+       "canonical_key": "pl_icon__direct_labour",
+       "label": "Direct Labour (Factory wages & salaries)",
+       "label_i18n": {
+        "en": "Direct Labour (Factory wages & salaries)"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "pl_icon__other_manufacturing_expenses",
+       "canonical_key": "pl_icon__other_manufacturing_expenses",
+       "label": "Other manufacturing expenses",
+       "label_i18n": {
+        "en": "Other manufacturing expenses"
+       },
+       "role": "subtotal",
+       "rollup": {
+        "op": "sum",
+        "children": [
+         "pl_icon__processing_job_work_charges",
+         "pl_icon__freight_and_transportation_charges",
+         "pl_icon__other_manufacturing_expenses_others"
+        ]
+       }
+      },
+      {
+       "node_id": "pl_icon__processing_job_work_charges",
+       "canonical_key": "pl_icon__processing_job_work_charges",
+       "label": "Processing / Job Work Charges",
+       "label_i18n": {
+        "en": "Processing / Job Work Charges"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "pl_icon__freight_and_transportation_charges",
+       "canonical_key": "pl_icon__freight_and_transportation_charges",
+       "label": "Freight and Transportation Charges",
+       "label_i18n": {
+        "en": "Freight and Transportation Charges"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "pl_icon__other_manufacturing_expenses_others",
+       "canonical_key": "pl_icon__other_manufacturing_expenses_others",
+       "label": "Others",
+       "label_i18n": {
+        "en": "Others"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "pl_icon__depreciation",
+       "canonical_key": "pl_icon__depreciation",
+       "label": "Depreciation",
+       "label_i18n": {
+        "en": "Depreciation"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "pl_icon__amortization",
+       "canonical_key": "pl_icon__amortization",
+       "label": "Amortization",
+       "label_i18n": {
+        "en": "Amortization"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "pl_icon__changes_in_inventory",
+       "canonical_key": "pl_icon__changes_in_inventory",
+       "label": "Changes in inventory",
+       "label_i18n": {
+        "en": "Changes in inventory"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "pl_icon__total_cost_of_sales",
+       "canonical_key": "pl_icon__total_cost_of_sales",
+       "label": "Sub-total (Total Cost of Sales)",
+       "label_i18n": {
+        "en": "Sub-total (Total Cost of Sales)"
+       },
+       "role": "subtotal",
+       "rollup": {
+        "op": "sum",
+        "children": [
+         "pl_icon__power_and_fuel",
+         "pl_icon__direct_labour",
+         "pl_icon__changes_in_inventory",
+         "pl_icon__amortization",
+         "pl_icon__depreciation",
+         "pl_icon__raw_materials",
+         "pl_icon__other_spares",
+         "pl_icon__other_manufacturing_expenses"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "node_id": "pl_icon_sga",
+     "canonical_key": "pl_icon_sga",
+     "label": "Selling, General and Administrative Expenses",
+     "label_i18n": {
+      "en": "Selling, General and Administrative Expenses"
+     },
+     "role": "header",
+     "children": [
+      {
+       "node_id": "pl_icon__sga_expenses",
+       "canonical_key": "pl_icon__sga_expenses",
+       "label": "Selling, general and administrative expenses",
+       "label_i18n": {
+        "en": "Selling, general and administrative expenses"
+       },
+       "role": "subtotal",
+       "rollup": {
+        "op": "sum",
+        "children": [
+         "pl_icon__salary_and_staff_expenses",
+         "pl_icon__rent_rates_and_taxes",
+         "pl_icon__lease_rentals",
+         "pl_icon__bad_debts",
+         "pl_icon__travelling_and_conveyance",
+         "pl_icon__advertisement_and_sales_promotion",
+         "pl_icon__commission_discount_and_service_charges",
+         "pl_icon__legal_and_professional_charges",
+         "pl_icon__directors_remuneration",
+         "pl_icon__auditors_remuneration",
+         "pl_icon__sga_others"
+        ]
+       }
+      },
+      {
+       "node_id": "pl_icon__salary_and_staff_expenses",
+       "canonical_key": "pl_icon__salary_and_staff_expenses",
+       "label": "Salary and staff expenses",
+       "label_i18n": {
+        "en": "Salary and staff expenses"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "pl_icon__rent_rates_and_taxes",
+       "canonical_key": "pl_icon__rent_rates_and_taxes",
+       "label": "Rent , Rates and Taxes",
+       "label_i18n": {
+        "en": "Rent , Rates and Taxes"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "pl_icon__lease_rentals",
+       "canonical_key": "pl_icon__lease_rentals",
+       "label": "Lease rentals",
+       "label_i18n": {
+        "en": "Lease rentals"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "pl_icon__bad_debts",
+       "canonical_key": "pl_icon__bad_debts",
+       "label": "Bad Debts",
+       "label_i18n": {
+        "en": "Bad Debts"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "pl_icon__travelling_and_conveyance",
+       "canonical_key": "pl_icon__travelling_and_conveyance",
+       "label": "Travelling & conveyance expenses",
+       "label_i18n": {
+        "en": "Travelling & conveyance expenses"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "pl_icon__advertisement_and_sales_promotion",
+       "canonical_key": "pl_icon__advertisement_and_sales_promotion",
+       "label": "Advertisements and Sales Promotions",
+       "label_i18n": {
+        "en": "Advertisements and Sales Promotions"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "pl_icon__commission_discount_and_service_charges",
+       "canonical_key": "pl_icon__commission_discount_and_service_charges",
+       "label": "Commission, discount & service charges",
+       "label_i18n": {
+        "en": "Commission, discount & service charges"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "pl_icon__legal_and_professional_charges",
+       "canonical_key": "pl_icon__legal_and_professional_charges",
+       "label": "Legal & professional charges",
+       "label_i18n": {
+        "en": "Legal & professional charges"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "pl_icon__directors_remuneration",
+       "canonical_key": "pl_icon__directors_remuneration",
+       "label": "Directors remuneration",
+       "label_i18n": {
+        "en": "Directors remuneration"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "pl_icon__auditors_remuneration",
+       "canonical_key": "pl_icon__auditors_remuneration",
+       "label": "Auditors remuneration",
+       "label_i18n": {
+        "en": "Auditors remuneration"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "pl_icon__sga_others",
+       "canonical_key": "pl_icon__sga_others",
+       "label": "Others",
+       "label_i18n": {
+        "en": "Others"
+       },
+       "role": "line"
+      }
+     ]
+    },
+    {
+     "node_id": "pl_icon_operating_profit",
+     "canonical_key": "pl_icon_operating_profit",
+     "label": "Operating Profit and Interest",
+     "label_i18n": {
+      "en": "Operating Profit and Interest"
+     },
+     "role": "header",
+     "children": [
+      {
+       "node_id": "pl_icon__total_operating_expenses",
+       "canonical_key": "pl_icon__total_operating_expenses",
+       "label": "Sub-total (5 + 6)",
+       "label_i18n": {
+        "en": "Sub-total (5 + 6)"
+       },
+       "role": "subtotal",
+       "rollup": {
+        "op": "sum",
+        "children": [
+         "pl_icon__total_cost_of_sales",
+         "pl_icon__sga_expenses"
+        ]
+       }
+      },
+      {
+       "node_id": "pl_icon__operating_profit_before_interest",
+       "canonical_key": "pl_icon__operating_profit_before_interest",
+       "label": "Operating Profit before Interest (3 - 7)",
+       "label_i18n": {
+        "en": "Operating Profit before Interest (3 - 7)"
+       },
+       "role": "subtotal",
+       "rollup": {
+        "op": "diff",
+        "children": [
+         "pl_icon__total_operating_income",
+         "pl_icon__total_operating_expenses"
+        ],
+        "cost_magnitude_children": [
+         "pl_icon__total_operating_expenses"
+        ]
+       }
+      },
+      {
+       "node_id": "pl_icon__interest",
+       "canonical_key": "pl_icon__interest",
+       "label": "Interest",
+       "label_i18n": {
+        "en": "Interest"
+       },
+       "role": "subtotal",
+       "rollup": {
+        "op": "sum",
+        "children": [
+         "pl_icon__interest_term_loans",
+         "pl_icon__interest_working_capital_loans",
+         "pl_icon__bank_charges"
+        ]
+       }
+      },
+      {
+       "node_id": "pl_icon__interest_term_loans",
+       "canonical_key": "pl_icon__interest_term_loans",
+       "label": "Interest on Fixed Loans / Term loans",
+       "label_i18n": {
+        "en": "Interest on Fixed Loans / Term loans"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "pl_icon__interest_working_capital_loans",
+       "canonical_key": "pl_icon__interest_working_capital_loans",
+       "label": "Interest on Working capital loans",
+       "label_i18n": {
+        "en": "Interest on Working capital loans"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "pl_icon__bank_charges",
+       "canonical_key": "pl_icon__bank_charges",
+       "label": "Bank charges",
+       "label_i18n": {
+        "en": "Bank charges"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "pl_icon__operating_profit_after_interest",
+       "canonical_key": "pl_icon__operating_profit_after_interest",
+       "label": "Operating Profit after Interest (8 - 9)",
+       "label_i18n": {
+        "en": "Operating Profit after Interest (8 - 9)"
+       },
+       "role": "subtotal",
+       "rollup": {
+        "op": "diff",
+        "children": [
+         "pl_icon__operating_profit_before_interest",
+         "pl_icon__interest"
+        ],
+        "cost_magnitude_children": [
+         "pl_icon__interest"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "node_id": "pl_icon_non_operating_income",
+     "canonical_key": "pl_icon_non_operating_income",
+     "label": "Non-operating Income",
+     "label_i18n": {
+      "en": "Non-operating Income"
+     },
+     "role": "header",
+     "children": [
+      {
+       "node_id": "pl_icon__interest_received",
+       "canonical_key": "pl_icon__interest_received",
+       "label": "Interest received",
+       "label_i18n": {
+        "en": "Interest received"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "pl_icon__dividends_received",
+       "canonical_key": "pl_icon__dividends_received",
+       "label": "Dividends received from Companies",
+       "label_i18n": {
+        "en": "Dividends received from Companies"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "pl_icon__profit_on_sale_of_assets_investments",
+       "canonical_key": "pl_icon__profit_on_sale_of_assets_investments",
+       "label": "Profit on sale of fixed assets / Investments",
+       "label_i18n": {
+        "en": "Profit on sale of fixed assets / Investments"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "pl_icon__misc_income",
+       "canonical_key": "pl_icon__misc_income",
+       "label": "Misc Income",
+       "label_i18n": {
+        "en": "Misc Income"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "pl_icon__non_operating_income_cash_subtotal",
+       "canonical_key": "pl_icon__non_operating_income_cash_subtotal",
+       "label": "Sub-total (Non operating income - Cash)",
+       "label_i18n": {
+        "en": "Sub-total (Non operating income - Cash)"
+       },
+       "role": "subtotal",
+       "rollup": {
+        "op": "sum",
+        "children": [
+         "pl_icon__interest_received",
+         "pl_icon__dividends_received",
+         "pl_icon__profit_on_sale_of_assets_investments",
+         "pl_icon__misc_income"
+        ]
+       }
+      },
+      {
+       "node_id": "pl_icon__non_operating_income_non_cash_others",
+       "canonical_key": "pl_icon__non_operating_income_non_cash_others",
+       "label": "{Others}",
+       "label_i18n": {
+        "en": "{Others}"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "pl_icon__non_operating_income_non_cash_subtotal",
+       "canonical_key": "pl_icon__non_operating_income_non_cash_subtotal",
+       "label": "Sub-total (Non operating income - Non-cash)",
+       "label_i18n": {
+        "en": "Sub-total (Non operating income - Non-cash)"
+       },
+       "role": "subtotal",
+       "rollup": {
+        "op": "sum",
+        "children": [
+         "pl_icon__non_operating_income_non_cash_others"
+        ]
+       }
+      },
+      {
+       "node_id": "pl_icon__non_operating_income_total",
+       "canonical_key": "pl_icon__non_operating_income_total",
+       "label": "Sub-total (Non operating Income)",
+       "label_i18n": {
+        "en": "Sub-total (Non operating Income)"
+       },
+       "role": "subtotal",
+       "rollup": {
+        "op": "sum",
+        "children": [
+         "pl_icon__non_operating_income_cash_subtotal",
+         "pl_icon__non_operating_income_non_cash_subtotal"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "node_id": "pl_icon_non_operating_expenses",
+     "canonical_key": "pl_icon_non_operating_expenses",
+     "label": "Non-operating Expenses",
+     "label_i18n": {
+      "en": "Non-operating Expenses"
+     },
+     "role": "header",
+     "children": [
+      {
+       "node_id": "pl_icon__crystallized_forex_loss",
+       "canonical_key": "pl_icon__crystallized_forex_loss",
+       "label": "Crystallized forex loss",
+       "label_i18n": {
+        "en": "Crystallized forex loss"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "pl_icon__write_off_of_stock_in_process",
+       "canonical_key": "pl_icon__write_off_of_stock_in_process",
+       "label": "Write-off of stock-in-process",
+       "label_i18n": {
+        "en": "Write-off of stock-in-process"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "pl_icon__write_off_of_finished_goods",
+       "canonical_key": "pl_icon__write_off_of_finished_goods",
+       "label": "Write-off of finished goods",
+       "label_i18n": {
+        "en": "Write-off of finished goods"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "pl_icon__loss_on_sale_of_assets_investments",
+       "canonical_key": "pl_icon__loss_on_sale_of_assets_investments",
+       "label": "Loss on sale of fixed assets / Investments",
+       "label_i18n": {
+        "en": "Loss on sale of fixed assets / Investments"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "pl_icon__other_non_operating_cash_expenses",
+       "canonical_key": "pl_icon__other_non_operating_cash_expenses",
+       "label": "Other non operating cash expenses",
+       "label_i18n": {
+        "en": "Other non operating cash expenses"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "pl_icon__other_non_operating_cash_expenses_2",
+       "canonical_key": "pl_icon__other_non_operating_cash_expenses_2",
+       "label": "Other non operating cash exp",
+       "label_i18n": {
+        "en": "Other non operating cash exp"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "pl_icon__non_operating_expense_cash_subtotal",
+       "canonical_key": "pl_icon__non_operating_expense_cash_subtotal",
+       "label": "Sub-total (Non operating expense -Cash)",
+       "label_i18n": {
+        "en": "Sub-total (Non operating expense -Cash)"
+       },
+       "role": "subtotal",
+       "rollup": {
+        "op": "sum",
+        "children": [
+         "pl_icon__crystallized_forex_loss",
+         "pl_icon__write_off_of_stock_in_process",
+         "pl_icon__write_off_of_finished_goods",
+         "pl_icon__loss_on_sale_of_assets_investments",
+         "pl_icon__other_non_operating_cash_expenses",
+         "pl_icon__other_non_operating_cash_expenses_2"
+        ]
+       }
+      },
+      {
+       "node_id": "pl_icon__mtm_forex_loss",
+       "canonical_key": "pl_icon__mtm_forex_loss",
+       "label": "MTM forex loss",
+       "label_i18n": {
+        "en": "MTM forex loss"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "pl_icon__non_operating_expense_non_cash_others",
+       "canonical_key": "pl_icon__non_operating_expense_non_cash_others",
+       "label": "{Others}",
+       "label_i18n": {
+        "en": "{Others}"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "pl_icon__non_operating_expense_non_cash_subtotal",
+       "canonical_key": "pl_icon__non_operating_expense_non_cash_subtotal",
+       "label": "Sub-total (Non operating expense - Non-cash)",
+       "label_i18n": {
+        "en": "Sub-total (Non operating expense - Non-cash)"
+       },
+       "role": "subtotal",
+       "rollup": {
+        "op": "sum",
+        "children": [
+         "pl_icon__mtm_forex_loss",
+         "pl_icon__non_operating_expense_non_cash_others"
+        ]
+       }
+      },
+      {
+       "node_id": "pl_icon__non_operating_expense_total",
+       "canonical_key": "pl_icon__non_operating_expense_total",
+       "label": "Sub-total (Non operating expense)",
+       "label_i18n": {
+        "en": "Sub-total (Non operating expense)"
+       },
+       "role": "subtotal",
+       "rollup": {
+        "op": "sum",
+        "children": [
+         "pl_icon__non_operating_expense_cash_subtotal",
+         "pl_icon__non_operating_expense_non_cash_subtotal"
+        ]
+       }
+      },
+      {
+       "node_id": "pl_icon__net_non_operating_income",
+       "canonical_key": "pl_icon__net_non_operating_income",
+       "label": "Net of other non-operating income/expenses",
+       "label_i18n": {
+        "en": "Net of other non-operating income/expenses"
+       },
+       "role": "subtotal",
+       "rollup": {
+        "op": "diff",
+        "children": [
+         "pl_icon__non_operating_income_total",
+         "pl_icon__non_operating_expense_total"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "node_id": "pl_icon_profit",
+     "canonical_key": "pl_icon_profit",
+     "label": "Profit and Appropriation",
+     "label_i18n": {
+      "en": "Profit and Appropriation"
+     },
+     "role": "header",
+     "children": [
+      {
+       "node_id": "pl_icon__profit_before_tax",
+       "canonical_key": "pl_icon__profit_before_tax",
+       "label": "Profit before tax/loss [10 + 11(iii)] (PBT)",
+       "label_i18n": {
+        "en": "Profit before tax/loss [10 + 11(iii)] (PBT)"
+       },
+       "role": "subtotal",
+       "rollup": {
+        "op": "sum",
+        "children": [
+         "pl_icon__operating_profit_after_interest",
+         "pl_icon__net_non_operating_income"
+        ]
+       }
+      },
+      {
+       "node_id": "pl_icon__provision_for_taxes",
+       "canonical_key": "pl_icon__provision_for_taxes",
+       "label": "Provision for taxes",
+       "label_i18n": {
+        "en": "Provision for taxes"
+       },
+       "role": "subtotal",
+       "rollup": {
+        "op": "sum",
+        "children": [
+         "pl_icon__current_tax",
+         "pl_icon__deferred_tax"
+        ]
+       }
+      },
+      {
+       "node_id": "pl_icon__current_tax",
+       "canonical_key": "pl_icon__current_tax",
+       "label": "Current tax",
+       "label_i18n": {
+        "en": "Current tax"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "pl_icon__deferred_tax",
+       "canonical_key": "pl_icon__deferred_tax",
+       "label": "Deferred tax",
+       "label_i18n": {
+        "en": "Deferred tax"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "pl_icon__profit_after_tax",
+       "canonical_key": "pl_icon__profit_after_tax",
+       "label": "Net Profit / Loss (12 -13) (PAT)",
+       "label_i18n": {
+        "en": "Net Profit / Loss (12 -13) (PAT)"
+       },
+       "role": "total",
+       "rollup": {
+        "op": "diff",
+        "children": [
+         "pl_icon__profit_before_tax",
+         "pl_icon__provision_for_taxes"
+        ]
+       }
+      },
+      {
+       "node_id": "pl_icon__equity_dividend",
+       "canonical_key": "pl_icon__equity_dividend",
+       "label": "Equity dividend (paid+proposed)",
+       "label_i18n": {
+        "en": "Equity dividend (paid+proposed)"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "pl_icon__retained_profit",
+       "canonical_key": "pl_icon__retained_profit",
+       "label": "Retained Profit (14 - 15)",
+       "label_i18n": {
+        "en": "Retained Profit (14 - 15)"
+       },
+       "role": "subtotal",
+       "rollup": {
+        "op": "diff",
+        "children": [
+         "pl_icon__profit_after_tax",
+         "pl_icon__equity_dividend"
+        ],
+        "cost_magnitude_children": [
+         "pl_icon__equity_dividend"
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "type": "balance_sheet",
+   "label": "Analysis of Balance Sheet",
+   "label_i18n": {
+    "en": "Analysis of Balance Sheet"
+   },
+   "sections": [
+    {
+     "node_id": "bs_icon_current_liabilities",
+     "canonical_key": "bs_icon_current_liabilities",
+     "label": "Current Liabilities",
+     "label_i18n": {
+      "en": "Current Liabilities"
+     },
+     "role": "header",
+     "children": [
+      {
+       "node_id": "bs_icon__bank_borrowings_applicant_bank",
+       "canonical_key": "bs_icon__bank_borrowings_applicant_bank",
+       "label": "From applicant bank",
+       "label_i18n": {
+        "en": "From applicant bank"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__bank_borrowings_other_banks",
+       "canonical_key": "bs_icon__bank_borrowings_other_banks",
+       "label": "From other banks",
+       "label_i18n": {
+        "en": "From other banks"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__bank_borrowings_subtotal",
+       "canonical_key": "bs_icon__bank_borrowings_subtotal",
+       "label": "Sub-total [i + ii] (A)",
+       "label_i18n": {
+        "en": "Sub-total [i + ii] (A)"
+       },
+       "role": "subtotal",
+       "rollup": {
+        "op": "sum",
+        "children": [
+         "bs_icon__bank_borrowings_applicant_bank",
+         "bs_icon__bank_borrowings_other_banks"
+        ]
+       }
+      },
+      {
+       "node_id": "bs_icon__short_term_borrowings_others",
+       "canonical_key": "bs_icon__short_term_borrowings_others",
+       "label": "Short term borrowings from others (including mobilization advance)",
+       "label_i18n": {
+        "en": "Short term borrowings from others (including mobilization advance)"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__short_term_borrowings_related_parties",
+       "canonical_key": "bs_icon__short_term_borrowings_related_parties",
+       "label": "Short term borrowings from Related Parties",
+       "label_i18n": {
+        "en": "Short term borrowings from Related Parties"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__sundry_creditors_trade",
+       "canonical_key": "bs_icon__sundry_creditors_trade",
+       "label": "Sundry Creditors (Trade)",
+       "label_i18n": {
+        "en": "Sundry Creditors (Trade)"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__advances_from_customers",
+       "canonical_key": "bs_icon__advances_from_customers",
+       "label": "Advance payments from customers",
+       "label_i18n": {
+        "en": "Advance payments from customers"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__provision_for_taxation",
+       "canonical_key": "bs_icon__provision_for_taxation",
+       "label": "Provision for taxation",
+       "label_i18n": {
+        "en": "Provision for taxation"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__dividend_payable",
+       "canonical_key": "bs_icon__dividend_payable",
+       "label": "Dividend payable",
+       "label_i18n": {
+        "en": "Dividend payable"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__other_statutory_liabilities",
+       "canonical_key": "bs_icon__other_statutory_liabilities",
+       "label": "Other statutory liabilities (due within 1 year)",
+       "label_i18n": {
+        "en": "Other statutory liabilities (due within 1 year)"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__cpltd",
+       "canonical_key": "bs_icon__cpltd",
+       "label": "Installments of liabilities due within one year (CPLTD)",
+       "label_i18n": {
+        "en": "Installments of liabilities due within one year (CPLTD)"
+       },
+       "role": "subtotal",
+       "rollup": {
+        "op": "sum",
+        "children": [
+         "bs_icon__cpltd_debentures",
+         "bs_icon__cpltd_preference_shares",
+         "bs_icon__cpltd_rupee_term_loans",
+         "bs_icon__cpltd_foreign_currency_loans",
+         "bs_icon__cpltd_others"
+        ]
+       }
+      },
+      {
+       "node_id": "bs_icon__cpltd_debentures",
+       "canonical_key": "bs_icon__cpltd_debentures",
+       "label": "Debentures",
+       "label_i18n": {
+        "en": "Debentures"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__cpltd_preference_shares",
+       "canonical_key": "bs_icon__cpltd_preference_shares",
+       "label": "Preference Shares",
+       "label_i18n": {
+        "en": "Preference Shares"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__cpltd_rupee_term_loans",
+       "canonical_key": "bs_icon__cpltd_rupee_term_loans",
+       "label": "Rupee Term loans",
+       "label_i18n": {
+        "en": "Rupee Term loans"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__cpltd_foreign_currency_loans",
+       "canonical_key": "bs_icon__cpltd_foreign_currency_loans",
+       "label": "Foreign currency loans",
+       "label_i18n": {
+        "en": "Foreign currency loans"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__cpltd_others",
+       "canonical_key": "bs_icon__cpltd_others",
+       "label": "Others",
+       "label_i18n": {
+        "en": "Others"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__other_current_liabilities_and_provisions",
+       "canonical_key": "bs_icon__other_current_liabilities_and_provisions",
+       "label": "Other current liabilities & provisions",
+       "label_i18n": {
+        "en": "Other current liabilities & provisions"
+       },
+       "role": "subtotal",
+       "rollup": {
+        "op": "sum",
+        "children": [
+         "bs_icon__creditors_for_expenses",
+         "bs_icon__employee_expenses_payable",
+         "bs_icon__mtm_forex_loss_liability",
+         "bs_icon__interest_accrued",
+         "bs_icon__outstanding_lease_rentals",
+         "bs_icon__other_current_liabilities_others"
+        ]
+       }
+      },
+      {
+       "node_id": "bs_icon__creditors_for_expenses",
+       "canonical_key": "bs_icon__creditors_for_expenses",
+       "label": "Creditors for Expenses",
+       "label_i18n": {
+        "en": "Creditors for Expenses"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__employee_expenses_payable",
+       "canonical_key": "bs_icon__employee_expenses_payable",
+       "label": "Employee expenses payable",
+       "label_i18n": {
+        "en": "Employee expenses payable"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__mtm_forex_loss_liability",
+       "canonical_key": "bs_icon__mtm_forex_loss_liability",
+       "label": "MTM forex loss",
+       "label_i18n": {
+        "en": "MTM forex loss"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__interest_accrued",
+       "canonical_key": "bs_icon__interest_accrued",
+       "label": "Interest accrued",
+       "label_i18n": {
+        "en": "Interest accrued"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__outstanding_lease_rentals",
+       "canonical_key": "bs_icon__outstanding_lease_rentals",
+       "label": "Outstanding lease rentals",
+       "label_i18n": {
+        "en": "Outstanding lease rentals"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__other_current_liabilities_others",
+       "canonical_key": "bs_icon__other_current_liabilities_others",
+       "label": "{Others}",
+       "label_i18n": {
+        "en": "{Others}"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__other_current_liabilities_subtotal",
+       "canonical_key": "bs_icon__other_current_liabilities_subtotal",
+       "label": "Sub total [2 to 9] (B)",
+       "label_i18n": {
+        "en": "Sub total [2 to 9] (B)"
+       },
+       "role": "subtotal",
+       "rollup": {
+        "op": "sum",
+        "children": [
+         "bs_icon__short_term_borrowings_others",
+         "bs_icon__short_term_borrowings_related_parties",
+         "bs_icon__sundry_creditors_trade",
+         "bs_icon__advances_from_customers",
+         "bs_icon__provision_for_taxation",
+         "bs_icon__dividend_payable",
+         "bs_icon__other_statutory_liabilities",
+         "bs_icon__cpltd",
+         "bs_icon__other_current_liabilities_and_provisions"
+        ]
+       }
+      },
+      {
+       "node_id": "bs_icon__total_current_liabilities",
+       "canonical_key": "bs_icon__total_current_liabilities",
+       "label": "Total current liabilities [A + B]",
+       "label_i18n": {
+        "en": "Total current liabilities [A + B]"
+       },
+       "role": "subtotal",
+       "rollup": {
+        "op": "sum",
+        "children": [
+         "bs_icon__bank_borrowings_subtotal",
+         "bs_icon__other_current_liabilities_subtotal"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "node_id": "bs_icon_term_liabilities",
+     "canonical_key": "bs_icon_term_liabilities",
+     "label": "Term Liabilities",
+     "label_i18n": {
+      "en": "Term Liabilities"
+     },
+     "role": "header",
+     "children": [
+      {
+       "node_id": "bs_icon__debentures_and_preference_shares",
+       "canonical_key": "bs_icon__debentures_and_preference_shares",
+       "label": "Debentures & Preference Shares (not maturing within 1 year)",
+       "label_i18n": {
+        "en": "Debentures & Preference Shares (not maturing within 1 year)"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__lease_liabilities",
+       "canonical_key": "bs_icon__lease_liabilities",
+       "label": "Lease Liabilities",
+       "label_i18n": {
+        "en": "Lease Liabilities"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__rupee_term_loans",
+       "canonical_key": "bs_icon__rupee_term_loans",
+       "label": "Rupee Term loans (excl. instalments payable within 1 year)",
+       "label_i18n": {
+        "en": "Rupee Term loans (excl. instalments payable within 1 year)"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__foreign_currency_loans",
+       "canonical_key": "bs_icon__foreign_currency_loans",
+       "label": "Foreign currency loans (excl. instalments payable within 1 year)",
+       "label_i18n": {
+        "en": "Foreign currency loans (excl. instalments payable within 1 year)"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__term_deposits",
+       "canonical_key": "bs_icon__term_deposits",
+       "label": "Term deposits including mobilization advance (repayable after 1 year)",
+       "label_i18n": {
+        "en": "Term deposits including mobilization advance (repayable after 1 year)"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__long_term_borrowings_related_parties",
+       "canonical_key": "bs_icon__long_term_borrowings_related_parties",
+       "label": "Long term borrowings from Related parties",
+       "label_i18n": {
+        "en": "Long term borrowings from Related parties"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__other_term_liabilities_non_debt",
+       "canonical_key": "bs_icon__other_term_liabilities_non_debt",
+       "label": "Other term liabilities not considered as debt (incl. Deferred tax liabilities)",
+       "label_i18n": {
+        "en": "Other term liabilities not considered as debt (incl. Deferred tax liabilities)"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__total_term_liabilities",
+       "canonical_key": "bs_icon__total_term_liabilities",
+       "label": "Total Term Liabilities [11 to 16]",
+       "label_i18n": {
+        "en": "Total Term Liabilities [11 to 16]"
+       },
+       "role": "subtotal",
+       "rollup": {
+        "op": "sum",
+        "children": [
+         "bs_icon__debentures_and_preference_shares",
+         "bs_icon__lease_liabilities",
+         "bs_icon__rupee_term_loans",
+         "bs_icon__foreign_currency_loans",
+         "bs_icon__term_deposits",
+         "bs_icon__long_term_borrowings_related_parties",
+         "bs_icon__other_term_liabilities_non_debt"
+        ]
+       }
+      },
+      {
+       "node_id": "bs_icon__total_outside_liabilities",
+       "canonical_key": "bs_icon__total_outside_liabilities",
+       "label": "Total Outside Liabilities [10 + 17]",
+       "label_i18n": {
+        "en": "Total Outside Liabilities [10 + 17]"
+       },
+       "role": "total",
+       "rollup": {
+        "op": "sum",
+        "children": [
+         "bs_icon__total_current_liabilities",
+         "bs_icon__total_term_liabilities"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "node_id": "bs_icon_net_worth",
+     "canonical_key": "bs_icon_net_worth",
+     "label": "Net Worth",
+     "label_i18n": {
+      "en": "Net Worth"
+     },
+     "role": "header",
+     "children": [
+      {
+       "node_id": "bs_icon__share_capital",
+       "canonical_key": "bs_icon__share_capital",
+       "label": "Ordinary Share Capital",
+       "label_i18n": {
+        "en": "Ordinary Share Capital"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__general_reserve",
+       "canonical_key": "bs_icon__general_reserve",
+       "label": "General Reserve",
+       "label_i18n": {
+        "en": "General Reserve"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__revaluation_reserve",
+       "canonical_key": "bs_icon__revaluation_reserve",
+       "label": "Revaluation Reserve",
+       "label_i18n": {
+        "en": "Revaluation Reserve"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__other_reserves",
+       "canonical_key": "bs_icon__other_reserves",
+       "label": "Other Reserves (excluding Provisions)",
+       "label_i18n": {
+        "en": "Other Reserves (excluding Provisions)"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__surplus_or_deficit_in_profit_and_loss",
+       "canonical_key": "bs_icon__surplus_or_deficit_in_profit_and_loss",
+       "label": "Surplus (+) or deficit (-) in Profit & Loss a/c",
+       "label_i18n": {
+        "en": "Surplus (+) or deficit (-) in Profit & Loss a/c"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__share_premium",
+       "canonical_key": "bs_icon__share_premium",
+       "label": "Share Premium",
+       "label_i18n": {
+        "en": "Share Premium"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__capital_redemption_reserve",
+       "canonical_key": "bs_icon__capital_redemption_reserve",
+       "label": "Capital Redemption Reserve",
+       "label_i18n": {
+        "en": "Capital Redemption Reserve"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__share_application_money",
+       "canonical_key": "bs_icon__share_application_money",
+       "label": "Share application money",
+       "label_i18n": {
+        "en": "Share application money"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__foreign_currency_translation_reserve",
+       "canonical_key": "bs_icon__foreign_currency_translation_reserve",
+       "label": "Foreign currency translation reserve",
+       "label_i18n": {
+        "en": "Foreign currency translation reserve"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__minority_interest",
+       "canonical_key": "bs_icon__minority_interest",
+       "label": "Minority Interest",
+       "label_i18n": {
+        "en": "Minority Interest"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__quasi_equity",
+       "canonical_key": "bs_icon__quasi_equity",
+       "label": "Quasi Equity",
+       "label_i18n": {
+        "en": "Quasi Equity"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__net_worth_others",
+       "canonical_key": "bs_icon__net_worth_others",
+       "label": "Others",
+       "label_i18n": {
+        "en": "Others"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__net_worth",
+       "canonical_key": "bs_icon__net_worth",
+       "label": "NET WORTH",
+       "label_i18n": {
+        "en": "NET WORTH"
+       },
+       "role": "subtotal",
+       "rollup": {
+        "op": "sum",
+        "children": [
+         "bs_icon__share_capital",
+         "bs_icon__general_reserve",
+         "bs_icon__revaluation_reserve",
+         "bs_icon__other_reserves",
+         "bs_icon__surplus_or_deficit_in_profit_and_loss",
+         "bs_icon__share_premium",
+         "bs_icon__capital_redemption_reserve",
+         "bs_icon__share_application_money",
+         "bs_icon__foreign_currency_translation_reserve",
+         "bs_icon__minority_interest",
+         "bs_icon__quasi_equity",
+         "bs_icon__net_worth_others"
+        ]
+       }
+      },
+      {
+       "node_id": "bs_icon__total_liabilities_and_net_worth",
+       "canonical_key": "bs_icon__total_liabilities_and_net_worth",
+       "label": "TOTAL LIABILITIES [18 + 24]",
+       "label_i18n": {
+        "en": "TOTAL LIABILITIES [18 + 24]"
+       },
+       "role": "total",
+       "rollup": {
+        "op": "sum",
+        "children": [
+         "bs_icon__total_outside_liabilities",
+         "bs_icon__net_worth"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "node_id": "bs_icon_current_assets",
+     "canonical_key": "bs_icon_current_assets",
+     "label": "Current Assets",
+     "label_i18n": {
+      "en": "Current Assets"
+     },
+     "role": "header",
+     "children": [
+      {
+       "node_id": "bs_icon__cash_and_bank_balances",
+       "canonical_key": "bs_icon__cash_and_bank_balances",
+       "label": "Cash and Bank Balances",
+       "label_i18n": {
+        "en": "Cash and Bank Balances"
+       },
+       "role": "subtotal",
+       "rollup": {
+        "op": "sum",
+        "children": [
+         "bs_icon__cash_balance",
+         "bs_icon__bank_balance"
+        ]
+       }
+      },
+      {
+       "node_id": "bs_icon__cash_balance",
+       "canonical_key": "bs_icon__cash_balance",
+       "label": "Cash balance",
+       "label_i18n": {
+        "en": "Cash balance"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__bank_balance",
+       "canonical_key": "bs_icon__bank_balance",
+       "label": "Bank balance",
+       "label_i18n": {
+        "en": "Bank balance"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__current_investments",
+       "canonical_key": "bs_icon__current_investments",
+       "label": "Investments (other than long term)",
+       "label_i18n": {
+        "en": "Investments (other than long term)"
+       },
+       "role": "subtotal",
+       "rollup": {
+        "op": "sum",
+        "children": [
+         "bs_icon__govt_and_trustee_securities",
+         "bs_icon__fixed_deposits_with_banks"
+        ]
+       }
+      },
+      {
+       "node_id": "bs_icon__govt_and_trustee_securities",
+       "canonical_key": "bs_icon__govt_and_trustee_securities",
+       "label": "Govt. and other trustee securities",
+       "label_i18n": {
+        "en": "Govt. and other trustee securities"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__fixed_deposits_with_banks",
+       "canonical_key": "bs_icon__fixed_deposits_with_banks",
+       "label": "Fixed Deposits with banks",
+       "label_i18n": {
+        "en": "Fixed Deposits with banks"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__receivables",
+       "canonical_key": "bs_icon__receivables",
+       "label": "Receivables (incldg. bills purchased and discounted by banks)",
+       "label_i18n": {
+        "en": "Receivables (incldg. bills purchased and discounted by banks)"
+       },
+       "role": "subtotal",
+       "rollup": {
+        "op": "sum",
+        "children": [
+         "bs_icon__domestic_receivables",
+         "bs_icon__export_receivables"
+        ]
+       }
+      },
+      {
+       "node_id": "bs_icon__domestic_receivables",
+       "canonical_key": "bs_icon__domestic_receivables",
+       "label": "Domestic Receivables",
+       "label_i18n": {
+        "en": "Domestic Receivables"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__export_receivables",
+       "canonical_key": "bs_icon__export_receivables",
+       "label": "Export Receivables",
+       "label_i18n": {
+        "en": "Export Receivables"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__deferred_receivables_due_within_1_year",
+       "canonical_key": "bs_icon__deferred_receivables_due_within_1_year",
+       "label": "Instalments of deferred receivables (due within 1 year)",
+       "label_i18n": {
+        "en": "Instalments of deferred receivables (due within 1 year)"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__inventory",
+       "canonical_key": "bs_icon__inventory",
+       "label": "Inventory:",
+       "label_i18n": {
+        "en": "Inventory:"
+       },
+       "role": "subtotal",
+       "rollup": {
+        "op": "sum",
+        "children": [
+         "bs_icon__inventory_raw_materials",
+         "bs_icon__stocks_in_process",
+         "bs_icon__finished_goods",
+         "bs_icon__other_consumable_spares"
+        ]
+       }
+      },
+      {
+       "node_id": "bs_icon__inventory_raw_materials",
+       "canonical_key": "bs_icon__inventory_raw_materials",
+       "label": "Raw materials",
+       "label_i18n": {
+        "en": "Raw materials"
+       },
+       "role": "subtotal",
+       "rollup": {
+        "op": "sum",
+        "children": [
+         "bs_icon__inventory_raw_materials_imported",
+         "bs_icon__inventory_raw_materials_indigenous"
+        ]
+       }
+      },
+      {
+       "node_id": "bs_icon__inventory_raw_materials_imported",
+       "canonical_key": "bs_icon__inventory_raw_materials_imported",
+       "label": "Imported",
+       "label_i18n": {
+        "en": "Imported"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__inventory_raw_materials_indigenous",
+       "canonical_key": "bs_icon__inventory_raw_materials_indigenous",
+       "label": "Indigenous",
+       "label_i18n": {
+        "en": "Indigenous"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__stocks_in_process",
+       "canonical_key": "bs_icon__stocks_in_process",
+       "label": "Stocks-in-process",
+       "label_i18n": {
+        "en": "Stocks-in-process"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__finished_goods",
+       "canonical_key": "bs_icon__finished_goods",
+       "label": "Finished goods",
+       "label_i18n": {
+        "en": "Finished goods"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__other_consumable_spares",
+       "canonical_key": "bs_icon__other_consumable_spares",
+       "label": "Other consumable spares",
+       "label_i18n": {
+        "en": "Other consumable spares"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__advances_to_suppliers",
+       "canonical_key": "bs_icon__advances_to_suppliers",
+       "label": "Advances to suppliers of raw materials, stores and spares",
+       "label_i18n": {
+        "en": "Advances to suppliers of raw materials, stores and spares"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__advance_payment_of_taxes",
+       "canonical_key": "bs_icon__advance_payment_of_taxes",
+       "label": "Advance payment of taxes",
+       "label_i18n": {
+        "en": "Advance payment of taxes"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__other_current_assets",
+       "canonical_key": "bs_icon__other_current_assets",
+       "label": "Other current assets (specify major items)",
+       "label_i18n": {
+        "en": "Other current assets (specify major items)"
+       },
+       "role": "subtotal",
+       "rollup": {
+        "op": "sum",
+        "children": [
+         "bs_icon__interest_receivable",
+         "bs_icon__prepaid_expenses",
+         "bs_icon__retention_money_current_portion",
+         "bs_icon__other_advances_recoverable",
+         "bs_icon__other_current_assets_others"
+        ]
+       }
+      },
+      {
+       "node_id": "bs_icon__interest_receivable",
+       "canonical_key": "bs_icon__interest_receivable",
+       "label": "Interest Receivable",
+       "label_i18n": {
+        "en": "Interest Receivable"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__prepaid_expenses",
+       "canonical_key": "bs_icon__prepaid_expenses",
+       "label": "Prepaid Expenses",
+       "label_i18n": {
+        "en": "Prepaid Expenses"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__retention_money_current_portion",
+       "canonical_key": "bs_icon__retention_money_current_portion",
+       "label": "Retention money - current portion",
+       "label_i18n": {
+        "en": "Retention money - current portion"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__other_advances_recoverable",
+       "canonical_key": "bs_icon__other_advances_recoverable",
+       "label": "Other advances recoverable in cash or kind",
+       "label_i18n": {
+        "en": "Other advances recoverable in cash or kind"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__other_current_assets_others",
+       "canonical_key": "bs_icon__other_current_assets_others",
+       "label": "{Others}",
+       "label_i18n": {
+        "en": "{Others}"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__total_current_assets",
+       "canonical_key": "bs_icon__total_current_assets",
+       "label": "Total Current Assets (26 to 33)",
+       "label_i18n": {
+        "en": "Total Current Assets (26 to 33)"
+       },
+       "role": "subtotal",
+       "rollup": {
+        "op": "sum",
+        "children": [
+         "bs_icon__cash_and_bank_balances",
+         "bs_icon__govt_and_trustee_securities",
+         "bs_icon__fixed_deposits_with_banks",
+         "bs_icon__receivables",
+         "bs_icon__deferred_receivables_due_within_1_year",
+         "bs_icon__inventory",
+         "bs_icon__advances_to_suppliers",
+         "bs_icon__advance_payment_of_taxes",
+         "bs_icon__other_current_assets"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "node_id": "bs_icon_fixed_assets",
+     "canonical_key": "bs_icon_fixed_assets",
+     "label": "Fixed Assets",
+     "label_i18n": {
+      "en": "Fixed Assets"
+     },
+     "role": "header",
+     "children": [
+      {
+       "node_id": "bs_icon__gross_block",
+       "canonical_key": "bs_icon__gross_block",
+       "label": "Gross Block",
+       "label_i18n": {
+        "en": "Gross Block"
+       },
+       "role": "subtotal",
+       "rollup": {
+        "op": "sum",
+        "children": [
+         "bs_icon__land_building_plant_machinery",
+         "bs_icon__capital_work_in_progress"
+        ]
+       }
+      },
+      {
+       "node_id": "bs_icon__land_building_plant_machinery",
+       "canonical_key": "bs_icon__land_building_plant_machinery",
+       "label": "Land, building, plant, machinery etc. (including ROU asset)",
+       "label_i18n": {
+        "en": "Land, building, plant, machinery etc. (including ROU asset)"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__capital_work_in_progress",
+       "canonical_key": "bs_icon__capital_work_in_progress",
+       "label": "Capital Work in progress",
+       "label_i18n": {
+        "en": "Capital Work in progress"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__accumulated_depreciation",
+       "canonical_key": "bs_icon__accumulated_depreciation",
+       "label": "Accumulated depreciation",
+       "label_i18n": {
+        "en": "Accumulated depreciation"
+       },
+       "role": "line",
+       "sign": "natural_negative"
+      },
+      {
+       "node_id": "bs_icon__net_block",
+       "canonical_key": "bs_icon__net_block",
+       "label": "Net Block (35 - 36)",
+       "label_i18n": {
+        "en": "Net Block (35 - 36)"
+       },
+       "role": "subtotal",
+       "rollup": {
+        "op": "diff",
+        "children": [
+         "bs_icon__gross_block",
+         "bs_icon__accumulated_depreciation"
+        ],
+        "cost_magnitude_children": [
+         "bs_icon__accumulated_depreciation"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "node_id": "bs_icon_non_current_assets",
+     "canonical_key": "bs_icon_non_current_assets",
+     "label": "Other Non-current Assets",
+     "label_i18n": {
+      "en": "Other Non-current Assets"
+     },
+     "role": "header",
+     "children": [
+      {
+       "node_id": "bs_icon__exposure_in_group_entities",
+       "canonical_key": "bs_icon__exposure_in_group_entities",
+       "label": "Exposure in group entities",
+       "label_i18n": {
+        "en": "Exposure in group entities"
+       },
+       "role": "subtotal",
+       "rollup": {
+        "op": "sum",
+        "children": [
+         "bs_icon__group_investments",
+         "bs_icon__group_loans_and_advances"
+        ]
+       }
+      },
+      {
+       "node_id": "bs_icon__group_investments",
+       "canonical_key": "bs_icon__group_investments",
+       "label": "Investments",
+       "label_i18n": {
+        "en": "Investments"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__group_loans_and_advances",
+       "canonical_key": "bs_icon__group_loans_and_advances",
+       "label": "Loans & advances",
+       "label_i18n": {
+        "en": "Loans & advances"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__other_non_current_investments_and_advances",
+       "canonical_key": "bs_icon__other_non_current_investments_and_advances",
+       "label": "Other non-current investments and advances",
+       "label_i18n": {
+        "en": "Other non-current investments and advances"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__advances_to_suppliers_of_capital_goods",
+       "canonical_key": "bs_icon__advances_to_suppliers_of_capital_goods",
+       "label": "Advances to suppliers of capital goods",
+       "label_i18n": {
+        "en": "Advances to suppliers of capital goods"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__other_non_current_assets",
+       "canonical_key": "bs_icon__other_non_current_assets",
+       "label": "Others",
+       "label_i18n": {
+        "en": "Others"
+       },
+       "role": "subtotal",
+       "rollup": {
+        "op": "sum",
+        "children": [
+         "bs_icon__security_deposits",
+         "bs_icon__dues_from_directors_promoters",
+         "bs_icon__fds_under_lien",
+         "bs_icon__receivables_over_6_months",
+         "bs_icon__retention_money_non_current_portion",
+         "bs_icon__other_non_current_assets_others"
+        ]
+       }
+      },
+      {
+       "node_id": "bs_icon__security_deposits",
+       "canonical_key": "bs_icon__security_deposits",
+       "label": "Security Deposits",
+       "label_i18n": {
+        "en": "Security Deposits"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__dues_from_directors_promoters",
+       "canonical_key": "bs_icon__dues_from_directors_promoters",
+       "label": "Dues from directors/ promoters/ partners",
+       "label_i18n": {
+        "en": "Dues from directors/ promoters/ partners"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__fds_under_lien",
+       "canonical_key": "bs_icon__fds_under_lien",
+       "label": "FDs under Lien",
+       "label_i18n": {
+        "en": "FDs under Lien"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__receivables_over_6_months",
+       "canonical_key": "bs_icon__receivables_over_6_months",
+       "label": "Receivables over 6 months",
+       "label_i18n": {
+        "en": "Receivables over 6 months"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__retention_money_non_current_portion",
+       "canonical_key": "bs_icon__retention_money_non_current_portion",
+       "label": "Retention money - Non current portion",
+       "label_i18n": {
+        "en": "Retention money - Non current portion"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__other_non_current_assets_others",
+       "canonical_key": "bs_icon__other_non_current_assets_others",
+       "label": "{Others}",
+       "label_i18n": {
+        "en": "{Others}"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__total_other_non_current_assets",
+       "canonical_key": "bs_icon__total_other_non_current_assets",
+       "label": "Total Other Non-current Assets (38 to 40)",
+       "label_i18n": {
+        "en": "Total Other Non-current Assets (38 to 40)"
+       },
+       "role": "subtotal",
+       "rollup": {
+        "op": "sum",
+        "children": [
+         "bs_icon__exposure_in_group_entities",
+         "bs_icon__other_non_current_investments_and_advances",
+         "bs_icon__advances_to_suppliers_of_capital_goods",
+         "bs_icon__other_non_current_assets"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "node_id": "bs_icon_intangible_assets",
+     "canonical_key": "bs_icon_intangible_assets",
+     "label": "Intangible Assets",
+     "label_i18n": {
+      "en": "Intangible Assets"
+     },
+     "role": "header",
+     "children": [
+      {
+       "node_id": "bs_icon__intangible_assets",
+       "canonical_key": "bs_icon__intangible_assets",
+       "label": "Intangible Assets (incl. Deferred tax assets)",
+       "label_i18n": {
+        "en": "Intangible Assets (incl. Deferred tax assets)"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "bs_icon__accumulated_amortization",
+       "canonical_key": "bs_icon__accumulated_amortization",
+       "label": "Less : Accumulated amortization",
+       "label_i18n": {
+        "en": "Less : Accumulated amortization"
+       },
+       "role": "line",
+       "sign": "natural_negative"
+      },
+      {
+       "node_id": "bs_icon__net_intangible_assets",
+       "canonical_key": "bs_icon__net_intangible_assets",
+       "label": "Net Intangible Assets",
+       "label_i18n": {
+        "en": "Net Intangible Assets"
+       },
+       "role": "subtotal",
+       "rollup": {
+        "op": "diff",
+        "children": [
+         "bs_icon__intangible_assets",
+         "bs_icon__accumulated_amortization"
+        ],
+        "cost_magnitude_children": [
+         "bs_icon__accumulated_amortization"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "node_id": "bs_icon_key_figures",
+     "canonical_key": "bs_icon_key_figures",
+     "label": "Total Assets and Key Figures",
+     "label_i18n": {
+      "en": "Total Assets and Key Figures"
+     },
+     "role": "header",
+     "children": [
+      {
+       "node_id": "bs_icon__total_assets",
+       "canonical_key": "bs_icon__total_assets",
+       "label": "Total Assets (34+37+41+42)",
+       "label_i18n": {
+        "en": "Total Assets (34+37+41+42)"
+       },
+       "role": "total",
+       "rollup": {
+        "op": "sum",
+        "children": [
+         "bs_icon__total_current_assets",
+         "bs_icon__net_block",
+         "bs_icon__total_other_non_current_assets",
+         "bs_icon__net_intangible_assets"
+        ]
+       }
+      },
+      {
+       "node_id": "bs_icon__difference_in_bs",
+       "canonical_key": "bs_icon__difference_in_bs",
+       "label": "DIFFERENCE IN B/S",
+       "label_i18n": {
+        "en": "DIFFERENCE IN B/S"
+       },
+       "role": "subtotal",
+       "rollup": {
+        "op": "diff",
+        "children": [
+         "bs_icon__total_assets",
+         "bs_icon__total_liabilities_and_net_worth"
+        ]
+       }
+      },
+      {
+       "node_id": "bs_icon__tangible_net_worth",
+       "canonical_key": "bs_icon__tangible_net_worth",
+       "label": "Tangible Net Worth (25-21-24(e) -46)",
+       "label_i18n": {
+        "en": "Tangible Net Worth (25-21-24(e) -46)"
+       },
+       "role": "subtotal",
+       "rollup": {
+        "op": "diff",
+        "children": [
+         "bs_icon__net_worth",
+         "bs_icon__net_intangible_assets",
+         "bs_icon__revaluation_reserve",
+         "bs_icon__quasi_equity"
+        ]
+       }
+      },
+      {
+       "node_id": "bs_icon__net_working_capital",
+       "canonical_key": "bs_icon__net_working_capital",
+       "label": "Net Working Capital",
+       "label_i18n": {
+        "en": "Net Working Capital"
+       },
+       "role": "subtotal",
+       "rollup": {
+        "op": "diff",
+        "children": [
+         "bs_icon__total_current_assets",
+         "bs_icon__total_current_liabilities"
+        ]
+       }
+      }
+     ]
+    }
+   ],
+   "identities": [
+    {
+     "id": "bs_icon_balances",
+     "lhs": "bs_icon__total_assets",
+     "rhs": {
+      "op": "sum",
+      "children": [
+       "bs_icon__total_liabilities_and_net_worth"
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "type": "covenants_supplemental",
+   "label": "Contingent Liabilities and Other Information",
+   "label_i18n": {
+    "en": "Contingent Liabilities and Other Information"
+   },
+   "sections": [
+    {
+     "node_id": "cov_icon_contingent_liabilities",
+     "canonical_key": "cov_icon_contingent_liabilities",
+     "label": "Contingent Liabilities",
+     "label_i18n": {
+      "en": "Contingent Liabilities"
+     },
+     "role": "header",
+     "children": [
+      {
+       "node_id": "cov_icon__contingent_liabilities",
+       "canonical_key": "cov_icon__contingent_liabilities",
+       "label": "Contingent Liabilities:",
+       "label_i18n": {
+        "en": "Contingent Liabilities:"
+       },
+       "role": "subtotal",
+       "rollup": {
+        "op": "sum",
+        "children": [
+         "cov_icon__arrears_of_cumulative_dividends",
+         "cov_icon__gratuity_not_provided",
+         "cov_icon__disputed_excise_customs_tax",
+         "cov_icon__other_liabilities_not_provided",
+         "cov_icon__outstanding_lcs",
+         "cov_icon__bills_discounted_and_purchased",
+         "cov_icon__outstanding_bgs",
+         "cov_icon__financial_guarantees_issued",
+         "cov_icon__redemption_premium_not_provided",
+         "cov_icon__mtm_loss_on_derivatives_not_provided"
+        ]
+       }
+      },
+      {
+       "node_id": "cov_icon__arrears_of_cumulative_dividends",
+       "canonical_key": "cov_icon__arrears_of_cumulative_dividends",
+       "label": "Arrears of Cumulative Dividends",
+       "label_i18n": {
+        "en": "Arrears of Cumulative Dividends"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "cov_icon__gratuity_not_provided",
+       "canonical_key": "cov_icon__gratuity_not_provided",
+       "label": "Gratuity Liability Not Provided For",
+       "label_i18n": {
+        "en": "Gratuity Liability Not Provided For"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "cov_icon__disputed_excise_customs_tax",
+       "canonical_key": "cov_icon__disputed_excise_customs_tax",
+       "label": "Disputed Excise / Customs / Tax Liabilities",
+       "label_i18n": {
+        "en": "Disputed Excise / Customs / Tax Liabilities"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "cov_icon__other_liabilities_not_provided",
+       "canonical_key": "cov_icon__other_liabilities_not_provided",
+       "label": "Other liabilities not provided for",
+       "label_i18n": {
+        "en": "Other liabilities not provided for"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "cov_icon__outstanding_lcs",
+       "canonical_key": "cov_icon__outstanding_lcs",
+       "label": "Outstanding LCs",
+       "label_i18n": {
+        "en": "Outstanding LCs"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "cov_icon__bills_discounted_and_purchased",
+       "canonical_key": "cov_icon__bills_discounted_and_purchased",
+       "label": "Outstanding bills discounted & purchased",
+       "label_i18n": {
+        "en": "Outstanding bills discounted & purchased"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "cov_icon__outstanding_bgs",
+       "canonical_key": "cov_icon__outstanding_bgs",
+       "label": "Outstanding BGs",
+       "label_i18n": {
+        "en": "Outstanding BGs"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "cov_icon__financial_guarantees_issued",
+       "canonical_key": "cov_icon__financial_guarantees_issued",
+       "label": "Financial Guarantees issued by the company",
+       "label_i18n": {
+        "en": "Financial Guarantees issued by the company"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "cov_icon__redemption_premium_not_provided",
+       "canonical_key": "cov_icon__redemption_premium_not_provided",
+       "label": "Redemption premium not provided for",
+       "label_i18n": {
+        "en": "Redemption premium not provided for"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "cov_icon__mtm_loss_on_derivatives_not_provided",
+       "canonical_key": "cov_icon__mtm_loss_on_derivatives_not_provided",
+       "label": "MTM loss on derivatives not provided for",
+       "label_i18n": {
+        "en": "MTM loss on derivatives not provided for"
+       },
+       "role": "line"
+      }
+     ]
+    },
+    {
+     "node_id": "cov_icon_other_information",
+     "canonical_key": "cov_icon_other_information",
+     "label": "Other Information",
+     "label_i18n": {
+      "en": "Other Information"
+     },
+     "role": "header",
+     "children": [
+      {
+       "node_id": "cov_icon__losses_crystallized_outside_pl",
+       "canonical_key": "cov_icon__losses_crystallized_outside_pl",
+       "label": "Crystallized losses in the year without routing through P&L account",
+       "label_i18n": {
+        "en": "Crystallized losses in the year without routing through P&L account"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "cov_icon__accumulated_depreciation_on_disposals",
+       "canonical_key": "cov_icon__accumulated_depreciation_on_disposals",
+       "label": "Accumulated depreciation on fixed assets sold/ discarded during the year",
+       "label_i18n": {
+        "en": "Accumulated depreciation on fixed assets sold/ discarded during the year"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "cov_icon__accumulated_amortization_on_disposals",
+       "canonical_key": "cov_icon__accumulated_amortization_on_disposals",
+       "label": "Accumulated amortization on intangible assets sold/ discarded during the year",
+       "label_i18n": {
+        "en": "Accumulated amortization on intangible assets sold/ discarded during the year"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "cov_icon__write_off_stock_in_process",
+       "canonical_key": "cov_icon__write_off_stock_in_process",
+       "label": "Write-off in value of stock in process during the year",
+       "label_i18n": {
+        "en": "Write-off in value of stock in process during the year"
+       },
+       "role": "subtotal",
+       "rollup": {
+        "op": "sum",
+        "children": [
+         "pl_icon__write_off_of_stock_in_process"
+        ]
+       }
+      },
+      {
+       "node_id": "cov_icon__write_off_finished_goods",
+       "canonical_key": "cov_icon__write_off_finished_goods",
+       "label": "Write-off in value of finished goods during the year",
+       "label_i18n": {
+        "en": "Write-off in value of finished goods during the year"
+       },
+       "role": "subtotal",
+       "rollup": {
+        "op": "sum",
+        "children": [
+         "pl_icon__write_off_of_finished_goods"
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "kpis": {
+  "intermediates": [],
+  "ratios": [
+   {
+    "key": "current_ratio",
+    "label": "Current Ratio",
+    "label_i18n": {
+     "en": "Current Ratio"
+    },
+    "category": "Liquidity",
+    "unit": "x",
+    "numerator": [
+     {
+      "key": "bs_icon__total_current_assets"
+     }
+    ],
+    "denominator": [
+     {
+      "key": "bs_icon__total_current_liabilities"
+     }
+    ]
+   },
+   {
+    "key": "tol_to_tnw",
+    "label": "Total Outside Liabilities / Tangible Net Worth",
+    "label_i18n": {
+     "en": "Total Outside Liabilities / Tangible Net Worth"
+    },
+    "category": "Leverage",
+    "unit": "x",
+    "numerator": [
+     {
+      "key": "bs_icon__total_outside_liabilities"
+     }
+    ],
+    "denominator": [
+     {
+      "key": "bs_icon__tangible_net_worth"
+     }
+    ]
+   },
+   {
+    "key": "ttl_to_tnw",
+    "label": "Total Term Liabilities / Tangible Net Worth",
+    "label_i18n": {
+     "en": "Total Term Liabilities / Tangible Net Worth"
+    },
+    "category": "Leverage",
+    "unit": "x",
+    "numerator": [
+     {
+      "key": "bs_icon__total_term_liabilities"
+     }
+    ],
+    "denominator": [
+     {
+      "key": "bs_icon__tangible_net_worth"
+     }
+    ]
+   },
+   {
+    "key": "retained_profit_to_net_profit",
+    "label": "Retained Profit / Net Profit",
+    "label_i18n": {
+     "en": "Retained Profit / Net Profit"
+    },
+    "category": "Profitability",
+    "unit": "%",
+    "numerator": [
+     {
+      "key": "pl_icon__retained_profit"
+     }
+    ],
+    "denominator": [
+     {
+      "key": "pl_icon__profit_after_tax"
+     }
+    ]
+   },
+   {
+    "key": "dividend_rate",
+    "label": "Dividend Rate",
+    "label_i18n": {
+     "en": "Dividend Rate"
+    },
+    "category": "Profitability",
+    "unit": "%",
+    "numerator": [
+     {
+      "key": "pl_icon__equity_dividend"
+     }
+    ],
+    "denominator": [
+     {
+      "key": "bs_icon__share_capital"
+     }
+    ]
+   }
+  ]
+ }
+}

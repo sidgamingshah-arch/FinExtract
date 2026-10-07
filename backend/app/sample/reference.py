@@ -91,6 +91,10 @@ _EXTRA_PAIRS: list[tuple[Path, Path]] = [
     # forbids is reinstating a stored, selectable RULEBOOK beside the line items; this is a second
     # line-item set, the one engine there is.
     (_DIR / "output_csv_indas_v1_template.json", _DIR / "output_csv_indas_line_items.json"),
+    # ICON, the Indian bank credit-monitoring (CMA-style) spread, for the same reason: its own
+    # template and its own set (`target_template_key: output_csv_icon_v1`), built by
+    # `scripts/build_icon_pair.py` from the Company v3 workbook draft.
+    (_DIR / "output_csv_icon_v1_template.json", _DIR / "output_csv_icon_line_items.json"),
 ]
 
 # Item-level keys the line-item schema does not declare AND whose loss is already measured,

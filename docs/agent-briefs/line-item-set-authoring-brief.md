@@ -13,13 +13,18 @@ This brief has four parts:
 - the rules your output must pass, the pitfalls the code records, and what to hand back
   (§6–§9).
 
-Paths are relative to the repository root. The two shipped sets are your working examples:
+Paths are relative to the repository root. The three shipped sets are your working examples:
 
-| | HK (HKFRS / CAS filings) | Ind AS (Schedule III filings) |
-|---|---|---|
-| Template | `backend/app/sample/templates/output_csv_hk_v1_template.json` | `backend/app/sample/templates/output_csv_indas_v1_template.json` |
-| Line-item set | `backend/app/sample/templates/output_csv_hk_line_items.json` | `backend/app/sample/templates/output_csv_indas_line_items.json` |
-| Size | 480 keyed nodes (18 section headers + 462 figure lines); 529 items (462 template + 67 internal) | 211 nodes (13 headers + 198 figure lines); 256 items (198 + 58) |
+| | HK (HKFRS / CAS filings) | Ind AS (Schedule III filings) | ICON (Indian bank CMA spread) |
+|---|---|---|---|
+| Template | `backend/app/sample/templates/output_csv_hk_v1_template.json` | `backend/app/sample/templates/output_csv_indas_v1_template.json` | `backend/app/sample/templates/output_csv_icon_v1_template.json` |
+| Line-item set | `backend/app/sample/templates/output_csv_hk_line_items.json` | `backend/app/sample/templates/output_csv_indas_line_items.json` | `backend/app/sample/templates/output_csv_icon_line_items.json` |
+| Size | 480 keyed nodes (18 section headers + 462 figure lines); 529 items (462 template + 67 internal) | 211 nodes (13 headers + 198 figure lines); 256 items (198 + 58) | 199 nodes (17 headers + 182 figure lines); 182 items, no internal parts |
+
+ICON is the closest example of a set made from a client workbook: `backend/scripts/build_icon_pair.py`
+builds both of its files from the workbook's own formulas and a curated caption file
+(`backend/scripts/sample_data/icon/captions.json`). Edit those inputs and rebuild; do not hand-edit
+the two built files.
 
 The schema lives in `backend/app/schemas/line_items.py`. With the app running,
 `GET /api/v1/line-items/schema` returns it as JSON Schema plus a `field_help` text for every

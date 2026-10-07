@@ -1,0 +1,3631 @@
+{
+ "pl_icon__domestic_sales": {
+  "aliases": [
+   "Domestic Sales",
+   "Domestic revenue",
+   "Sales - Domestic",
+   "Domestic sales of products",
+   "Sale of products - Domestic",
+   "Domestic turnover",
+   "Local sales",
+   "Sales within India"
+  ],
+  "exclude_hints": [
+   "(?i)\\b(?:export|outside\\s+india|overseas)",
+   "(?i)raw\\s+materials?|stores|spares|components|indigenous|purchase",
+   "(?i)receivable|debtors"
+  ],
+  "route": "face",
+  "confidence": "medium",
+  "note": "Bare 'Domestic', the usual row caption under 'Sale of products', is deliberately not aliased. The same bare word labels the indigenous half of raw-material and stores consumption splits, so it would bind a cost row to revenue. Segment-note rows such as 'India' or 'Within India' include other operating revenue, so they are not this figure. Expect this line to be filled by the model or by a note_source part (row_caption_any ^\\s*domestic under a revenue-note title), not by a caption."
+ },
+ "pl_icon__export_sales": {
+  "aliases": [
+   "Export Sales",
+   "Export revenue",
+   "Sales - Export",
+   "Export turnover",
+   "Sale of products - Export",
+   "Revenue from exports",
+   "Export sales of products",
+   "Overseas sales"
+  ],
+  "exclude_hints": [
+   "(?i)incentive|benefit|drawback|rebate|meis|rodtep|duty|scheme",
+   "(?i)f\\.?\\s*o\\.?\\s*b|foreign\\s+exchange|earnings\\s+in",
+   "(?i)receivable|debtors"
+  ],
+  "route": "face",
+  "confidence": "medium",
+  "note": "Bare 'Export'/'Exports' is not aliased: it also labels rows under 'Earnings in foreign exchange' and 'CIF value of imports/exports'. 'Export of goods calculated on FOB basis' is a different figure (FOB, not invoice value) and is vetoed. Like domestic sales, this is mostly a note split left to the model or a note part."
+ },
+ "pl_icon__gross_sales_total": {
+  "aliases": [
+   "Gross sales",
+   "Sales (gross)",
+   "Gross turnover",
+   "Turnover (gross)",
+   "Sale of products (gross)",
+   "Sale of products",
+   "Sale of goods",
+   "Sale of manufactured goods",
+   "Sales",
+   "Sale of products (including excise duty)"
+  ],
+  "exclude_hints": [
+   "(?i)revenue\\s+from\\s+operations",
+   "(?i)\\bnet\\b",
+   "(?i)scrap|services?\\b"
+  ],
+  "route": "face",
+  "confidence": "medium",
+  "note": "Bare 'Sales' is the gross figure when excise is printed beneath it. When no excise line is printed, gross equals net, so it is still right. 'Sale of services' is not aliased (see unplaced). This is a calculated line: if the model fills only one of domestic/export, the partial sum replaces the printed figure (backend/app/services/rollups.py:342, 446-449)."
+ },
+ "pl_icon__excise_duty": {
+  "aliases": [
+   "Excise Duty",
+   "Excise duty on sale of goods",
+   "Excise duty on sales",
+   "Excise duty on sale of products",
+   "Excise duty recovered on sales",
+   "Excise duty on turnover"
+  ],
+  "exclude_hints": [
+   "(?i)(?:increase|decrease|variation|change|differen)\\w*.{0,40}excise",
+   "(?i)excise\\s+duty\\s+(?:on|in|relating\\s+to)\\s+(?:the\\s+)?(?:closing|opening|stocks?|inventor|finished|increase|decrease|\\(increase|\\(decrease|change|variation)",
+   "(?i)refund|rebate|incentive|receivable|payable|disputed|contingent|demand"
+  ],
+  "route": "face",
+  "confidence": "medium",
+  "note": "Revised Schedule VI faces print 'Less: Excise duty'. Normalisation does not strip 'Less:' (mapping.py:713-761, and no step in row_reconstruct.py:1640-1652), so the commonest face spelling will not bind. That needs a pipeline step, not a decorated alias. 'Excise duty on increase/(decrease) in stock' is an inventory adjustment and is vetoed. GST deducted in a gross-to-net reconciliation is not aliased (unplaced)."
+ },
+ "pl_icon__net_sales": {
+  "aliases": [
+   "Net Sales",
+   "Net revenue from sales",
+   "Sales (net)",
+   "Net sales of products",
+   "Sale of products (net)",
+   "Sales (net of excise duty)",
+   "Net turnover"
+  ],
+  "exclude_hints": [
+   "(?i)revenue\\s+from\\s+operations"
+  ],
+  "route": "face",
+  "confidence": "medium",
+  "note": "'Revenue from operations (net)' is not net sales because it includes other operating revenue. It goes to total_operating_income and is vetoed here. This is calculated: a lone excise figure with no domestic/export would make the rollup compute -excise over a printed 'Net sales' (rollups.py:446-449)."
+ },
+ "pl_icon__other_recurring_operating_income": {
+  "aliases": [
+   "Other recurring income incidental to main business",
+   "Other operating revenue",
+   "Other operating revenues",
+   "Other operating income",
+   "Scrap sales",
+   "Sale of scrap",
+   "Export incentives",
+   "Duty drawback",
+   "Export incentives and duty drawback",
+   "Export incentives & duty drawback",
+   "Job work income",
+   "Income from job work",
+   "Job work charges received",
+   "Processing income",
+   "Processing charges received"
+  ],
+  "exclude_hints": [
+   "(?i)^\\s*other\\s+income\\b",
+   "(?i)non[\\s-]*operating",
+   "(?i)interest|dividend|profit\\s+on\\s+sale|gain\\s+on|rent"
+  ],
+  "route": "face",
+  "confidence": "medium",
+  "note": "For a job-work processor, job-work income is its main revenue (sales), not incidental income. 'Job work charges' without 'received' is the expense caption and sits on line 16, so a revenue note printing bare 'Job work charges' for income would bind wrongly. That is rare."
+ },
+ "pl_icon__total_operating_income": {
+  "aliases": [
+   "Total operating income",
+   "Revenue from operations",
+   "Revenue from operations (net)",
+   "Income from operations",
+   "Revenue from operations (net of excise duty)",
+   "Total income from operations",
+   "Total income from operations (net)"
+  ],
+  "exclude_hints": [
+   "(?i)\\bgross\\b",
+   "(?i)total\\s+(?:income|revenue)\\b(?!\\s+from)",
+   "(?i)other\\s+income"
+  ],
+  "route": "face",
+  "confidence": "medium",
+  "note": "'Revenue from operations (gross)' includes excise and has no ICON line (unplaced). Because this line is calculated, its face row is not decomposed (backend/app/stages/map_ontology.py:1145), so the note rows (Sale of products, Other operating revenue) do not publish. Lines 1, 2 and 7 stay with the model. The printed total is kept while no component is filled (rollups.py:340-343, 446-449)."
+ },
+ "pl_icon__raw_materials": {
+  "aliases": [
+   "Cost of materials consumed",
+   "Cost of raw materials consumed",
+   "Cost of raw material consumed",
+   "Raw materials consumed",
+   "Raw material consumed",
+   "Consumption of raw materials",
+   "Consumption of raw material",
+   "Materials consumed",
+   "Cost of raw materials and components consumed",
+   "Cost of raw materials & components consumed",
+   "Raw materials and components consumed",
+   "Raw materials & components consumed",
+   "Cost of material consumed"
+  ],
+  "exclude_hints": [
+   "(?i)\\bimport|\\bc\\.?\\s*i\\.?\\s*f\\b|value\\s+of\\s+imports",
+   "(?i)inventor|closing\\s+stock|opening\\s+stock|stock\\s+at",
+   "(?i)purchases?\\s+of\\s+(?:stock|traded)"
+  ],
+  "route": "face",
+  "confidence": "high",
+  "note": "Dropped the draft's bare 'Raw materials': it is the inventory caption and the row label under 'CIF value of imports', both different figures. This is calculated: if the model fills only one of imported or indigenous, the partial sum replaces the printed figure (rollups.py:342, 446-449). Purchases of stock-in-trade cannot be added here (see unplaced)."
+ },
+ "pl_icon__raw_materials_imported": {
+  "aliases": [
+   "Imported raw materials",
+   "Imported raw materials consumed",
+   "Raw materials - Imported",
+   "Raw materials consumed - Imported",
+   "Imported raw material consumed"
+  ],
+  "exclude_hints": [
+   "(?i)c\\.?\\s*i\\.?\\s*f|value\\s+of\\s+imports",
+   "(?i)stores|spares|capital\\s+goods|components\\s+and\\s+spare",
+   "(?i)inventor|stock"
+  ],
+  "route": "face",
+  "confidence": "low",
+  "note": "The draft's bare 'Imported' also appears under stores and spares consumption and under CIF value of imports (raw materials, components, capital goods): three different figures. A better route is a note_source part: note_title_any imported\\s+and\\s+indigenous, row_caption_any ^\\s*imported, reading the value column, not the % column."
+ },
+ "pl_icon__raw_materials_indigenous": {
+  "aliases": [
+   "Indigenous raw materials",
+   "Indigenous raw materials consumed",
+   "Raw materials - Indigenous",
+   "Raw materials consumed - Indigenous",
+   "Indigenous raw material consumed"
+  ],
+  "exclude_hints": [
+   "(?i)stores|spares",
+   "(?i)inventor|stock"
+  ],
+  "route": "face",
+  "confidence": "low",
+  "note": "The draft's bare 'Indigenous' also labels the stores-and-spares split, so it is dropped. Use the same note_source part with ^\\s*(?:indigenous|domestic)."
+ },
+ "pl_icon__other_spares": {
+  "aliases": [
+   "Other Spares",
+   "Consumption of stores and spares",
+   "Consumption of stores & spares",
+   "Consumption of stores and spare parts",
+   "Consumption of stores & spare parts",
+   "Stores and spares consumed",
+   "Stores & spares consumed",
+   "Stores and spare parts consumed",
+   "Stores & spare parts consumed",
+   "Stores, spares and consumables consumed",
+   "Stores, spares & consumables consumed",
+   "Consumption of stores, spares and consumables",
+   "Consumption of stores, spares & consumables",
+   "Stores and consumables consumed",
+   "Stores & consumables consumed",
+   "Consumable stores and spares",
+   "Consumable stores & spares",
+   "Stores and spares",
+   "Stores & spares",
+   "Stores, spares and consumables",
+   "Stores, spares & consumables",
+   "Stores consumed",
+   "Spares consumed",
+   "Consumption of stores"
+  ],
+  "exclude_hints": [
+   "(?i)packing",
+   "(?i)inventor|closing\\s+stock|opening\\s+stock",
+   "(?i)c\\.?\\s*i\\.?\\s*f|value\\s+of\\s+imports",
+   "(?i)capital"
+  ],
+  "route": "face",
+  "confidence": "high",
+  "note": "'Stores, spares and packing materials' is vetoed because packing usually goes with materials. These rows sit in the 'Other expenses' note, so they publish only through decomposition of a face 'Other expenses' row bound to sga_others (map_ontology.py:1138-1161)."
+ },
+ "pl_icon__power_and_fuel": {
+  "aliases": [
+   "Power and Fuel",
+   "Power & Fuel",
+   "Power and fuel expenses",
+   "Power & fuel expenses",
+   "Power and fuel charges",
+   "Power & fuel charges",
+   "Consumption of power and fuel",
+   "Consumption of power & fuel",
+   "Power and fuel consumed",
+   "Power & fuel consumed"
+  ],
+  "exclude_hints": [
+   "(?i)sale\\s+of\\s+power|power\\s+(?:sale|income)|recover"
+  ],
+  "route": "face",
+  "confidence": "high",
+  "note": "'Electricity charges' is not aliased: for a trader or service company it is office electricity, which is SG&A."
+ },
+ "pl_icon__direct_labour": {
+  "aliases": [
+   "Direct Labour (Factory wages & salaries)",
+   "Direct Labour (Factory wages and salaries)",
+   "Direct labour",
+   "Direct labour cost",
+   "Direct labour charges",
+   "Factory wages",
+   "Wages",
+   "Wages to workers",
+   "Manufacturing wages",
+   "Labour charges",
+   "Contract labour charges"
+  ],
+  "exclude_hints": [
+   "(?i)^\\s*(?:staff\\s+)?salar",
+   "(?i)director|office|administrat|staff\\s+welfare",
+   "(?i)payable|outstanding|advance"
+  ],
+  "route": "face",
+  "confidence": "low",
+  "note": "Schedule III prints one 'Employee benefits expense' for factory and office staff. That caption goes to line 24, the analyst convention when the filing does not split it, and only explicit factory captions land here. Bare 'Wages', 'Labour charges' and 'Contract labour charges' follow the CMA convention. In a service or EPC company, 'Labour charges' can be sub-contract cost. When a face 'Employee benefits expense' bound to line 24 cites a note that prints a separate 'Wages' row, decomposition carves the wages here (map_ontology.py:1195-1245)."
+ },
+ "pl_icon__other_manufacturing_expenses": {
+  "aliases": [
+   "Other manufacturing expenses"
+  ],
+  "exclude_hints": [
+   "(?i)^\\s*manufacturing\\s+expenses\\s*$",
+   "(?i)\\b(?:and|&)\\s+other\\s+expenses"
+  ],
+  "route": "face",
+  "confidence": "low",
+  "note": "Old Schedule VI 'Manufacturing expenses' includes power, stores and labour, so it is broader than this line. It is vetoed here and placed on line 18, where decomposition can carve those items out."
+ },
+ "pl_icon__processing_job_work_charges": {
+  "aliases": [
+   "Processing / Job Work Charges",
+   "Job work charges",
+   "Job work expenses",
+   "Processing charges",
+   "Processing and job work charges",
+   "Job work and processing charges",
+   "Job work & processing charges",
+   "Conversion charges",
+   "Sub-contracting charges",
+   "Subcontracting charges",
+   "Sub-contract charges"
+  ],
+  "exclude_hints": [
+   "(?i)income|received|receipts?|earned|recover|revenue",
+   "(?i)loan|bank|borrowing|fees\\s+on\\s+loan"
+  ],
+  "route": "face",
+  "confidence": "medium",
+  "note": "'Processing charges' on loans is a finance cost and is vetoed. Job-work income spellings are vetoed and go to line 7. A revenue note printing bare 'Job work charges' as income would bind here wrongly; decomposition has no sign check."
+ },
+ "pl_icon__freight_and_transportation_charges": {
+  "aliases": [
+   "Freight and Transportation Charges",
+   "Freight & Transportation Charges",
+   "Freight and transport charges",
+   "Freight & transport charges",
+   "Freight and transportation",
+   "Freight & transportation",
+   "Freight inward",
+   "Carriage inward",
+   "Freight and cartage",
+   "Freight & cartage",
+   "Freight and cartage inward",
+   "Freight & cartage inward",
+   "Freight charges",
+   "Transportation charges",
+   "Transport charges",
+   "Freight and forwarding charges",
+   "Freight & forwarding charges",
+   "Freight and forwarding",
+   "Freight & forwarding",
+   "Freight outward",
+   "Carriage outward",
+   "Freight, octroi and cartage",
+   "Freight, octroi & cartage"
+  ],
+  "exclude_hints": [
+   "(?i)recover|income|received|reimburs|subsidy"
+  ],
+  "route": "face",
+  "confidence": "medium",
+  "note": "ICON has one freight line, in cost of sales. Freight outward and forwarding is a selling cost but is also put here, because ICON SG&A has no freight line and the figure is still freight. Freight recoveries are vetoed."
+ },
+ "pl_icon__other_manufacturing_expenses_others": {
+  "aliases": [
+   "Manufacturing expenses",
+   "Factory expenses",
+   "Repairs to machinery",
+   "Repairs and maintenance - Plant and machinery",
+   "Repairs and maintenance - Plant & machinery",
+   "Repairs & maintenance - Plant and machinery",
+   "Repairs & maintenance - Plant & machinery",
+   "Repairs and maintenance - Machinery",
+   "Repairs & maintenance - Machinery",
+   "Repairs to plant and machinery",
+   "Repairs to plant & machinery",
+   "Consumption of packing materials",
+   "Packing materials consumed",
+   "Packing material consumed",
+   "Factory overheads"
+  ],
+  "exclude_hints": [
+   "(?i)^\\s*other\\s+manufacturing\\s+expenses",
+   "(?i)building|office|vehicle|others?\\s*$"
+  ],
+  "route": "face",
+  "confidence": "low",
+  "note": "The 'Manufacturing expenses' figure is broader than this line. Binding it here lets decomposition (map_ontology.py:1138-1161) carve power, stores, labour, job work and freight into their own lines and keep only the remainder here. If the note does not reconcile, the whole figure stays here: total cost of sales is still right, only its split is wrong. Some analysts put packing materials with raw materials instead."
+ },
+ "pl_icon__depreciation": {
+  "aliases": [
+   "Depreciation",
+   "Depreciation and amortisation expense",
+   "Depreciation & amortisation expense",
+   "Depreciation and amortization expense",
+   "Depreciation & amortization expense",
+   "Depreciation and amortisation expenses",
+   "Depreciation & amortisation expenses",
+   "Depreciation and amortization expenses",
+   "Depreciation & amortization expenses",
+   "Depreciation and amortisation",
+   "Depreciation & amortisation",
+   "Depreciation and amortization",
+   "Depreciation & amortization",
+   "Depreciation expense",
+   "Depreciation on property, plant and equipment",
+   "Depreciation on property, plant & equipment",
+   "Depreciation of property, plant and equipment",
+   "Depreciation of property, plant & equipment",
+   "Depreciation on tangible assets",
+   "Depreciation on tangible fixed assets",
+   "Depreciation on right-of-use assets",
+   "Depreciation of right-of-use assets",
+   "Depreciation on investment property",
+   "Depreciation on investment properties"
+  ],
+  "exclude_hints": [
+   "(?i)accumulated|provision\\s+for\\s+depreciation",
+   "(?i)disposal|deduction|eliminat|withdrawn|written\\s*back|reversal|adjustment",
+   "(?i)impairment",
+   "(?i)cash\\s+flow|add\\s*back"
+  ],
+  "route": "face",
+  "confidence": "medium",
+  "note": "The combined face row 'Depreciation and amortisation expense' is placed here, following the CMA convention that the depreciation line carries D&A when it is not split. Decomposition carves the cited note's 'Amortisation of intangible assets' row to line 20 and keeps the rest here, so nothing is counted twice. 'Depreciation, amortisation and impairment' is vetoed because it includes impairment. map_ontology.py:849-853 forces PPE-note rows captioned 'Depreciation of property, plant and equipment' into the P&L gate, so that alias also binds the movement-table charge row in the note pass. That binding only shows in the Notes view; it does not publish."
+ },
+ "pl_icon__amortization": {
+  "aliases": [
+   "Amortization",
+   "Amortisation",
+   "Amortisation of intangible assets",
+   "Amortization of intangible assets",
+   "Amortisation of other intangible assets",
+   "Amortization of other intangible assets",
+   "Amortisation expense",
+   "Amortization expense",
+   "Amortisation on intangible assets",
+   "Amortisation of intangibles"
+  ],
+  "exclude_hints": [
+   "(?i)depreciat",
+   "(?i)accumulated",
+   "(?i)borrowing|processing\\s+fee|ancillary|premium|discount|grant|deferred\\s+income|transaction\\s+cost"
+  ],
+  "route": "face",
+  "confidence": "high",
+  "note": "Amortisation of borrowing costs, processing fees or premium is a finance cost, and amortisation of a government grant is income; all are vetoed. Any caption containing 'depreciat' is vetoed so a combined D&A row can never bind here."
+ },
+ "pl_icon__changes_in_inventory": {
+  "aliases": [
+   "Changes in inventory",
+   "Changes in inventories",
+   "Change in inventories",
+   "Changes in inventories of finished goods, work-in-progress and stock-in-trade",
+   "Changes in inventories of finished goods, work-in-progress & stock-in-trade",
+   "Changes in inventories of finished goods, stock-in-trade and work-in-progress",
+   "Changes in inventories of finished goods, stock-in-trade & work-in-progress",
+   "Changes in inventories of work-in-progress, finished goods and stock-in-trade",
+   "Changes in inventories of work-in-progress, finished goods & stock-in-trade",
+   "Changes in inventories of finished goods and work-in-progress",
+   "Changes in inventories of finished goods & work-in-progress",
+   "Changes in inventories of work-in-progress and finished goods",
+   "Changes in inventories of work-in-progress & finished goods",
+   "Changes in inventories of finished goods, work-in-progress and traded goods",
+   "Changes in inventories of finished goods, work-in-progress & traded goods",
+   "(Increase)/decrease in inventories",
+   "(Increase)/decrease in inventories of finished goods, work-in-progress and stock-in-trade",
+   "(Increase)/decrease in inventories of finished goods, work-in-progress & stock-in-trade",
+   "(Increase)/decrease in stocks",
+   "Decrease/(increase) in inventories",
+   "Decrease/(increase) in stocks"
+  ],
+  "exclude_hints": [
+   "(?i)excise",
+   "(?i)raw\\s+materials?",
+   "(?i)trade\\s+receivables|payables|working\\s+capital"
+  ],
+  "route": "face",
+  "confidence": "high",
+  "note": "'(Increase)/decrease' and 'Increase/(decrease)' normalise to the same text because punctuation is stripped (mapping.py:759). An alias therefore cannot tell their signs apart; the definition must tell the sign stage that a stock build is negative. Excise on stock movements is vetoed (unplaced)."
+ },
+ "pl_icon__total_cost_of_sales": {
+  "aliases": [],
+  "exclude_hints": [],
+  "route": "face",
+  "confidence": "low",
+  "note": "These aliases need alias_matching enabled. Ind AS Schedule III requires by-nature presentation, so this caption is rare in India. This is calculated: any single component, for example depreciation, replaces the printed figure (rollups.py:342, 446-449)."
+ },
+ "pl_icon__sga_expenses": {
+  "aliases": [
+   "Selling, general and administrative expenses",
+   "Selling, general & administrative expenses",
+   "Selling, general and administration expenses",
+   "Selling, general & administration expenses",
+   "Total selling, general and administrative expenses",
+   "Total selling, general & administrative expenses"
+  ],
+  "exclude_hints": [],
+  "route": "face",
+  "confidence": "low",
+  "note": "Even the kept caption is replaced when line 24 is filled from a separate face row. Move it to sga_others too if the template keeps a plain SUM rollup here."
+ },
+ "pl_icon__salary_and_staff_expenses": {
+  "aliases": [
+   "Salary and staff expenses",
+   "Salary & staff expenses",
+   "Employee benefits expense",
+   "Employee benefit expense",
+   "Employee benefits expenses",
+   "Employee benefit expenses",
+   "Employee costs",
+   "Employee cost",
+   "Staff costs",
+   "Staff cost",
+   "Personnel expenses",
+   "Payments to and provisions for employees",
+   "Payments to & provisions for employees",
+   "Salaries, wages and bonus",
+   "Salaries, wages & bonus",
+   "Salaries and wages",
+   "Salaries & wages",
+   "Salaries, wages, bonus and other allowances",
+   "Salaries, wages, bonus & other allowances",
+   "Salaries, wages and allowances",
+   "Salaries, wages & allowances",
+   "Salaries and allowances",
+   "Salaries & allowances",
+   "Salaries",
+   "Salary",
+   "Contribution to provident and other funds",
+   "Contribution to provident & other funds",
+   "Contribution to provident fund and other funds",
+   "Contribution to provident fund & other funds",
+   "Contribution to provident fund",
+   "Gratuity expense",
+   "Gratuity expenses",
+   "Staff welfare expenses",
+   "Staff welfare",
+   "Workmen and staff welfare expenses",
+   "Workmen & staff welfare expenses",
+   "Share-based payment expense",
+   "Employee share based payment expense",
+   "Expense on employee stock option scheme"
+  ],
+  "exclude_hints": [
+   "(?i)director|managerial|key\\s+managerial|kmp",
+   "(?i)payable|outstanding|advance|loan",
+   "(?i)factory\\s+wages|wages\\s+to\\s+workers|direct\\s+labour",
+   "(?i)capitali[sz]ed|transferred\\s+to|recover|reimburs"
+  ],
+  "route": "face",
+  "confidence": "low",
+  "note": "'Employee benefits expense' covers both Direct Labour (14) and Salary and staff (24). It is placed on 24 as the convention when factory wages are not split. That moves factory wages from cost of sales into SG&A but does not change operating profit. Bare 'Gratuity' and 'Bonus' are not aliased because they also caption provision and actuarial note rows."
+ },
+ "pl_icon__rent_rates_and_taxes": {
+  "aliases": [
+   "Rent , Rates and Taxes",
+   "Rent , Rates & Taxes",
+   "Rates and taxes",
+   "Rates & taxes",
+   "Rates and taxes, excluding taxes on income",
+   "Rates & taxes, excluding taxes on income",
+   "Rent",
+   "Rent expense",
+   "Rent expenses",
+   "Rent paid",
+   "Rent and hire charges",
+   "Rent & hire charges"
+  ],
+  "exclude_hints": [
+   "(?i)\\brent(?:al)?s?\\s+(?:income|received|receipts?|receivable)|income\\s+from\\s+rent|rental\\s+income",
+   "(?i)lease|deposit|advance",
+   "(?i)income[\\s-]*tax|deferred\\s+tax|current\\s+tax"
+  ],
+  "route": "face",
+  "confidence": "medium",
+  "note": "Bare 'Rent' is the commonest expense row, but an Other-income note can print bare 'Rent' for rental income. If a face 'Other income' row is decomposed, that income row would land on this expense line. Rental-income spellings are vetoed. Under Ind AS 116, short-term lease expense goes to line 26."
+ },
+ "pl_icon__lease_rentals": {
+  "aliases": [
+   "Lease rentals",
+   "Lease rent",
+   "Lease rental",
+   "Lease rental charges",
+   "Lease rentals under operating leases",
+   "Operating lease rentals",
+   "Expense relating to short-term leases",
+   "Short-term lease expense",
+   "Short-term lease expenses",
+   "Expense relating to short-term leases and low-value assets",
+   "Expense relating to short-term leases & low-value assets",
+   "Lease rent and hire charges",
+   "Lease rent & hire charges",
+   "Hire charges",
+   "Equipment hire charges"
+  ],
+  "exclude_hints": [
+   "(?i)income|received|receivable",
+   "(?i)interest|liabilit|right.of.use|depreciat|finance\\s+lease"
+  ],
+  "route": "face",
+  "confidence": "medium",
+  "note": "Under Ind AS 116 most lease cost is now right-of-use depreciation (line 19) plus interest on lease liabilities (unplaced), so this line is small. 'Hire charges' (equipment hire) follows convention."
+ },
+ "pl_icon__bad_debts": {
+  "aliases": [
+   "Bad Debts",
+   "Bad debts written off",
+   "Bad debts and advances written off",
+   "Bad debts & advances written off",
+   "Bad and doubtful debts",
+   "Bad & doubtful debts",
+   "Sundry balances written off",
+   "Provision for doubtful debts",
+   "Provision for doubtful trade receivables",
+   "Allowance for doubtful debts",
+   "Allowance for expected credit loss",
+   "Provision for expected credit loss",
+   "Expected credit loss on trade receivables",
+   "Impairment allowance on trade receivables"
+  ],
+  "exclude_hints": [
+   "(?i)recover|written\\s*back|no\\s+longer\\s+required|reversal|reversed|write.?back"
+  ],
+  "route": "face",
+  "confidence": "medium",
+  "note": "Provisions and ECL allowances are non-cash. They are put with write-offs per CMA convention; some analysts move them to non-operating non-cash (order 58). 'Allowance for doubtful debts' is also a balance-sheet contra caption, which the statement gate refuses. Recoveries and write-backs are vetoed."
+ },
+ "pl_icon__travelling_and_conveyance": {
+  "aliases": [
+   "Travelling & conveyance expenses",
+   "Travelling and conveyance expenses",
+   "Travelling and conveyance",
+   "Travelling & conveyance",
+   "Travel and conveyance",
+   "Travel & conveyance",
+   "Travelling expenses",
+   "Travel expenses",
+   "Travelling",
+   "Conveyance",
+   "Conveyance expenses",
+   "Foreign travel expenses"
+  ],
+  "exclude_hints": [
+   "(?i)reimburs|recover|advance"
+  ],
+  "route": "face",
+  "confidence": "high",
+  "note": "Directors' travel is treated as travel."
+ },
+ "pl_icon__advertisement_and_sales_promotion": {
+  "aliases": [
+   "Advertisements and Sales Promotions",
+   "Advertisements & Sales Promotions",
+   "Advertisement and sales promotion",
+   "Advertisement & sales promotion",
+   "Advertisement and sales promotion expenses",
+   "Advertisement & sales promotion expenses",
+   "Advertising and sales promotion",
+   "Advertising & sales promotion",
+   "Advertising and sales promotion expenses",
+   "Advertising & sales promotion expenses",
+   "Advertisement and publicity",
+   "Advertisement & publicity",
+   "Advertisement and business promotion",
+   "Advertisement & business promotion",
+   "Advertisement",
+   "Advertisement expenses",
+   "Advertising",
+   "Advertising expenses",
+   "Sales promotion expenses",
+   "Sales promotion",
+   "Business promotion expenses",
+   "Business promotion",
+   "Publicity expenses",
+   "Advertisement, publicity and sales promotion",
+   "Advertisement, publicity & sales promotion"
+  ],
+  "exclude_hints": [
+   "(?i)income|revenue|received"
+  ],
+  "route": "face",
+  "confidence": "high",
+  "note": "By-function 'Selling and marketing expenses' includes staff cost and is not aliased here (it goes to sga_others)."
+ },
+ "pl_icon__commission_discount_and_service_charges": {
+  "aliases": [
+   "Commission, discount & service charges",
+   "Commission, discount and service charges",
+   "Commission on sales",
+   "Sales commission",
+   "Selling commission",
+   "Commission to selling agents",
+   "Commission and brokerage",
+   "Commission & brokerage",
+   "Brokerage and commission",
+   "Brokerage & commission",
+   "Commission expenses",
+   "Discount allowed",
+   "Cash discount",
+   "Cash discount allowed",
+   "Trade discount"
+  ],
+  "exclude_hints": [
+   "(?i)director|managerial|non.executive",
+   "(?i)income|received|earned|receivable",
+   "(?i)bank|guarantee|letter\\s+of\\s+credit"
+  ],
+  "route": "face",
+  "confidence": "medium",
+  "note": "Bare 'Commission' is not aliased: it is also commission income (traders, agents) and directors' commission (line 32). Under Ind AS 115, discounts are usually netted off revenue and will not appear as an expense."
+ },
+ "pl_icon__legal_and_professional_charges": {
+  "aliases": [
+   "Legal & professional charges",
+   "Legal and professional charges",
+   "Legal and professional fees",
+   "Legal & professional fees",
+   "Legal and professional expenses",
+   "Legal & professional expenses",
+   "Legal and professional",
+   "Legal & professional",
+   "Professional and legal charges",
+   "Professional & legal charges",
+   "Professional and legal expenses",
+   "Professional & legal expenses",
+   "Legal and consultancy charges",
+   "Legal & consultancy charges",
+   "Professional and consultancy charges",
+   "Professional & consultancy charges",
+   "Consultancy and professional charges",
+   "Consultancy & professional charges",
+   "Professional fees",
+   "Consultancy charges",
+   "Legal expenses",
+   "Legal charges"
+  ],
+  "exclude_hints": [
+   "(?i)auditor|audit\\s+fee",
+   "(?i)director|sitting",
+   "(?i)capitali[sz]ed|borrowing|loan"
+  ],
+  "route": "face",
+  "confidence": "high",
+  "note": "Payment to auditors goes to line 33 and is vetoed here."
+ },
+ "pl_icon__directors_remuneration": {
+  "aliases": [
+   "Directors remuneration",
+   "Director's remuneration",
+   "Remuneration to directors",
+   "Managerial remuneration",
+   "Directors sitting fees",
+   "Sitting fees",
+   "Directors' sitting fees and commission",
+   "Directors' sitting fees & commission",
+   "Commission to directors",
+   "Commission to non-executive directors",
+   "Directors' fees",
+   "Remuneration to managing director",
+   "Managing director's remuneration"
+  ],
+  "exclude_hints": [
+   "(?i)auditor",
+   "(?i)payable|outstanding|advance|loan",
+   "(?i)related\\s+part|key\\s+managerial"
+  ],
+  "route": "face",
+  "confidence": "medium",
+  "note": "Executive directors' pay is often inside 'Salaries' and only appears in the related-party note. No face row cites that note, so it is never decomposed and this line stays blank."
+ },
+ "pl_icon__auditors_remuneration": {
+  "aliases": [
+   "Auditors remuneration",
+   "Auditor's remuneration",
+   "Payment to auditors",
+   "Payments to auditors",
+   "Payment to auditor",
+   "Payments to the auditor",
+   "Payment to the auditors",
+   "Payment to statutory auditors",
+   "Remuneration to auditors",
+   "Auditors' fees",
+   "Audit fees",
+   "Audit fee",
+   "Statutory audit fees"
+  ],
+  "exclude_hints": [
+   "(?i)internal\\s+audit|cost\\s+audit|secretarial",
+   "(?i)payable|outstanding"
+  ],
+  "route": "face",
+  "confidence": "high",
+  "note": "Some notes print the 'Payment to auditors' subtotal and its 'Audit fee' sub-row in the same cited note. Both would bind here, so decomposition sums them, fails its arithmetic gate and declines (map_ontology.py:1072-1074). That failure is safe. Internal and cost audit fees go to professional charges."
+ },
+ "pl_icon__sga_others": {
+  "aliases": [
+   "Other expenses",
+   "Other expense",
+   "Miscellaneous expenses",
+   "Misc. expenses",
+   "Sundry expenses",
+   "General expenses",
+   "Administrative expenses",
+   "Administrative and other expenses",
+   "Administrative & other expenses",
+   "Administrative and general expenses",
+   "Administrative & general expenses",
+   "General and administrative expenses",
+   "General & administrative expenses",
+   "Selling and administrative expenses",
+   "Selling & administrative expenses",
+   "Administrative and selling expenses",
+   "Administrative & selling expenses",
+   "Administration and selling expenses",
+   "Administration & selling expenses",
+   "Selling and distribution expenses",
+   "Selling & distribution expenses",
+   "Selling and marketing expenses",
+   "Selling & marketing expenses",
+   "Establishment expenses",
+   "Office expenses",
+   "Printing and stationery",
+   "Printing & stationery",
+   "Communication expenses",
+   "Postage and telephone",
+   "Postage & telephone",
+   "Postage, telephone and internet",
+   "Postage, telephone & internet",
+   "Telephone expenses",
+   "Insurance",
+   "Insurance expenses",
+   "Corporate social responsibility expenditure",
+   "Expenditure on corporate social responsibility",
+   "CSR expenditure",
+   "Donations",
+   "Donations and contributions",
+   "Donations & contributions",
+   "Security charges",
+   "Repairs and maintenance - Buildings",
+   "Repairs & maintenance - Buildings",
+   "Repairs to buildings",
+   "Repairs and maintenance - Others",
+   "Repairs & maintenance - Others",
+   "Subscription and membership fees",
+   "Subscription & membership fees",
+   "Books and periodicals",
+   "Books & periodicals"
+  ],
+  "exclude_hints": [
+   "(?i)^\\s*other\\s+(?:operating\\s+)?income",
+   "(?i)non[\\s-]*operating",
+   "(?i)other\\s+manufacturing|manufacturing\\s+expenses|factory",
+   "(?i)other\\s+comprehensive"
+  ],
+  "route": "face",
+  "confidence": "low",
+  "note": "Schedule III face 'Other expenses' is not SG&A others: it contains power, stores, repairs, freight, rent, travel and more. Binding it here is what lets decomposition (map_ontology.py:1138-1161) carve the note rows into lines 12-33 and the non-operating lines, with only the unclaimed remainder left here. The split is refused, and the whole figure stays here, when the note does not reconcile or when two face rows carry this key (map_ontology.py:1175-1182). The operating-expense total is still right; the cost-of-sales/SG&A split is not. By-function 'Selling and marketing' and 'General and administrative' lines include their own staff costs."
+ },
+ "pl_icon__total_operating_expenses": {
+  "aliases": [],
+  "exclude_hints": [],
+  "route": null,
+  "confidence": "high",
+  "note": "Schedule III 'Total expenses' includes finance costs and D&A, so it is not this figure (unplaced)."
+ },
+ "pl_icon__operating_profit_before_interest": {
+  "aliases": [
+   "Operating Profit before Interest",
+   "Operating profit before finance costs",
+   "Operating profit before interest and finance charges",
+   "Operating profit before interest & finance charges"
+  ],
+  "exclude_hints": [
+   "(?i)depreciation|exceptional|tax",
+   "(?i)other\\s+income",
+   "(?i)working\\s+capital"
+  ],
+  "route": "face",
+  "confidence": "low",
+  "note": "'Operating profit', 'EBITDA' and 'Profit before interest and tax' are not aliased. Indian usage varies: before or after depreciation, with or without other income. The Ind AS set's 'Operating profit' (is_pl__net_operating_profit, output_csv_indas_line_items.json:5914) is a different subtotal."
+ },
+ "pl_icon__interest": {
+  "aliases": [
+   "Finance costs",
+   "Finance cost",
+   "Finance charges",
+   "Interest and finance charges",
+   "Interest & finance charges",
+   "Interest and finance costs",
+   "Interest & finance costs",
+   "Interest and other finance costs",
+   "Interest & other finance costs",
+   "Financial expenses",
+   "Finance expenses",
+   "Borrowing costs",
+   "Interest and bank charges",
+   "Interest & bank charges",
+   "Interest and other borrowing costs",
+   "Interest & other borrowing costs"
+  ],
+  "exclude_hints": [
+   "(?i)income|received|receivable|earned",
+   "(?i)capitali[sz]ed",
+   "(?i)lease\\s+liabilit"
+  ],
+  "route": "face",
+  "confidence": "medium",
+  "note": "Hazard: 'Finance costs' is the only common caption for this line, and the line is a calculated sum of 38 + 39 + 40. Bank charges usually sit in the Other-expenses note. If decomposition carves them onto line 40, the rollup becomes computable from bank charges alone and replaces the printed finance costs (rollups.py:342, 446-449), understating interest by the whole finance cost. Fix this in the template: role 'line' on this node publishes printed plus extra parts (rollups.py:463-472), which is the CMA reading. Otherwise drop line 40's aliases. Unsplit 'Interest expense' and 'Interest on borrowings' cover both 38 and 39 and are not aliased anywhere."
+ },
+ "pl_icon__interest_term_loans": {
+  "aliases": [
+   "Interest on Fixed Loans / Term loans",
+   "Interest on term loans",
+   "Interest on term loan",
+   "Interest on term loans from banks",
+   "Interest on long-term borrowings",
+   "Interest on long-term loans",
+   "Interest on fixed loans",
+   "Interest on debentures",
+   "Interest on non-convertible debentures",
+   "Interest on vehicle loans",
+   "Interest on secured loans - term loans"
+  ],
+  "exclude_hints": [
+   "(?i)income|received|receivable|earned|accrued\\s+but\\s+not|payable",
+   "(?i)working\\s+capital|cash\\s+credit|overdraft|short.term|packing\\s+credit",
+   "(?i)lease\\s+liabilit|income\\s+tax|statutory|delayed"
+  ],
+  "route": "face",
+  "confidence": "medium",
+  "note": "The finance-cost note publishes nothing by itself: its face row 'Finance costs' is bound to a calculated line, and calculated lines are not decomposed (map_ontology.py:1145). This line needs the model or a note_source part. 'Interest on lease liabilities' is unplaced."
+ },
+ "pl_icon__interest_working_capital_loans": {
+  "aliases": [
+   "Interest on Working capital loans",
+   "Interest on working capital",
+   "Interest on working capital borrowings",
+   "Interest on working capital facilities",
+   "Interest on cash credit",
+   "Interest on cash credit facilities",
+   "Interest on cash credit and overdraft",
+   "Interest on cash credit & overdraft",
+   "Interest on bank overdraft",
+   "Interest on overdraft",
+   "Interest on short-term borrowings",
+   "Interest on short-term loans",
+   "Interest on packing credit",
+   "Interest on bills discounted",
+   "Bill discounting charges",
+   "Interest on buyers credit"
+  ],
+  "exclude_hints": [
+   "(?i)income|received|receivable|earned|payable",
+   "(?i)(?<!short-)(?<!short )\\bterm\\s+loans?|long.term|debenture",
+   "(?i)income\\s+tax|statutory|delayed|msme|micro"
+  ],
+  "route": "face",
+  "confidence": "medium",
+  "note": "'Interest on short-term borrowings' can include related-party inter-corporate deposits; CMA still treats them as working capital. The note-only caveat on line 38 applies here too."
+ },
+ "pl_icon__bank_charges": {
+  "aliases": [],
+  "exclude_hints": [],
+  "route": "face",
+  "confidence": "low",
+  "note": "These aliases are figure-correct but trigger the line 37 hazard: bank charges carved out of 'Other expenses' make the interest rollup replace the printed finance costs. Ship them only with the template fix described on line 37."
+ },
+ "pl_icon__operating_profit_after_interest": {
+  "aliases": [
+   "Operating Profit after Interest",
+   "Operating profit after finance costs"
+  ],
+  "exclude_hints": [
+   "(?i)tax|exceptional",
+   "(?i)other\\s+income"
+  ],
+  "route": "face",
+  "confidence": "low",
+  "note": "Schedule III 'Profit before exceptional items and tax' includes other income, so it is not this figure. It belongs to the PBT block."
+ },
+ "pl_icon__interest_received": {
+  "aliases": [
+   "Interest received",
+   "Interest income",
+   "Interest income on bank deposits",
+   "Interest on bank deposits",
+   "Interest income from bank deposits",
+   "Interest on deposits with banks",
+   "Interest income on deposits with banks",
+   "Interest income on fixed deposits",
+   "Interest on fixed deposits with banks",
+   "Interest received on fixed deposits",
+   "Interest on FDR",
+   "Bank interest income",
+   "Interest income on financial assets measured at amortised cost",
+   "Interest income on financial assets carried at amortised cost",
+   "Interest income from financial assets measured at amortised cost",
+   "Interest income from financial assets at amortised cost",
+   "Interest on income tax refund",
+   "Interest income on income tax refund",
+   "Interest income on loans",
+   "Interest income on inter-corporate deposits",
+   "Interest income on investments",
+   "Interest income from investments",
+   "Interest from customers",
+   "Interest on delayed payments from customers",
+   "Interest income from others",
+   "Interest income on others",
+   "Other interest income",
+   "Other interest incomes",
+   "Interest income from related party"
+  ],
+  "exclude_hints": [
+   "expense",
+   "\\bpaid\\b",
+   "payable",
+   "accrued",
+   "receivable",
+   "borrowing",
+   "finance\\s+cost",
+   "capitali[sz]",
+   "unwinding",
+   "notional",
+   "subsidy|subvention",
+   "on\\s+(?:income\\s+)?tax(?!.*refund)",
+   "\\bnet\\s+of\\s+interest\\s+expense",
+   "debenture|\\bbonds?\\b|cash\\s+credit|overdraft|working\\s+capital|term\\s+loans?|lease\\s+liabilit|public\\s+deposit|dealers?'?\\s+deposit|unsecured\\s+loan|\\bmsme\\b|micro\\s+(?:and|&)\\s+small|statutory\\s+dues"
+  ],
+  "route": "anywhere",
+  "confidence": "high",
+  "note": "Ind AS 'Interest income on financial assets measured at amortised cost' can include unwinding of discount on security deposits. That part is non-cash and belongs in {Others} 47. Analysts conventionally take the whole row as interest received. Enumerated note rows like '(a) Interest income...' or '(i) Interest income' miss the exact tier, because mapping.normalize_label (mapping.py:713-761) strips only bracketed digits. Suggested regex_hint: ^(?:[ivx]{1,4}|[a-h]|\\d{1,2})\\s+interest\\s+income\\b (tested: hits '(a) Interest income on bank deposits', not 'Net interest income')."
+ },
+ "pl_icon__dividends_received": {
+  "aliases": [
+   "Dividend income",
+   "Dividends received",
+   "Dividend received",
+   "Dividend income from investments",
+   "Dividend income from non-current investments",
+   "Dividend income from current investments",
+   "Dividend income from long-term investments",
+   "Dividend from long-term investments",
+   "Dividend on long-term investments",
+   "Dividend on current investments",
+   "Dividend from current investments",
+   "Dividend income from subsidiaries",
+   "Dividend from subsidiaries",
+   "Dividend from subsidiary companies",
+   "Dividend income from associates",
+   "Dividend income from joint ventures",
+   "Dividend income from equity investments",
+   "Dividend income from equity investments designated at FVOCI",
+   "Dividend income from equity investments measured at FVOCI",
+   "Dividend income from investments measured at FVTOCI",
+   "Dividend income from investments measured at FVTPL",
+   "Dividend from mutual funds",
+   "Dividend income from mutual funds",
+   "Dividend on mutual funds",
+   "Dividend from trade investments",
+   "Dividend from non-trade investments"
+  ],
+  "exclude_hints": [
+   "distribution\\s+tax|tax\\s+on\\s+(?:proposed\\s+)?dividend|dividend\\s+tax",
+   "proposed",
+   "interim",
+   "\\bfinal\\b",
+   "\\bpaid\\b",
+   "payable",
+   "declared",
+   "unclaimed|unpaid",
+   "preference",
+   "per\\s+share"
+  ],
+  "route": "anywhere",
+  "confidence": "high",
+  "note": "Dividend from JVs/associates is included (cash received). Equity-method share of profit is not dividend and goes to 47."
+ },
+ "pl_icon__profit_on_sale_of_assets_investments": {
+  "aliases": [
+   "Profit on sale of fixed assets",
+   "Profit on sale of fixed assets (net)",
+   "Profit on sale of assets",
+   "Profit on disposal of fixed assets",
+   "Gain on sale of fixed assets",
+   "Profit on sale of property, plant and equipment",
+   "Profit on sale of property, plant and equipment (net)",
+   "Net profit on sale of property, plant and equipment",
+   "Gain on sale of property, plant and equipment",
+   "Net gain on sale of property, plant and equipment",
+   "Gain on disposal of property, plant and equipment",
+   "Net gain on disposal of property, plant and equipment",
+   "Profit on disposal of property, plant and equipment",
+   "Profit on sale of land",
+   "Profit on sale of investments",
+   "Profit on sale of investments (net)",
+   "Net profit on sale of investments",
+   "Profit on sale of current investments",
+   "Profit on sale of current investments (net)",
+   "Profit on sale of long-term investments",
+   "Profit on sale of non-current investments",
+   "Net gain on sale of investments",
+   "Net gain on sale of current investments",
+   "Net gain on sale of non-current investments",
+   "Gain on sale of investments",
+   "Profit on redemption of mutual funds",
+   "Profit on redemption of mutual fund units",
+   "Gain on redemption of mutual funds",
+   "Profit on sale of mutual funds",
+   "Profit on sale of shares"
+  ],
+  "exclude_hints": [
+   "\\bloss",
+   "fair\\s+value|fvtpl|fvtoci|fvoci|mark[-\\s]?to[-\\s]?market|\\bmtm\\b|unreali[sz]ed|revaluation",
+   "discontinued",
+   "subsidiar"
+  ],
+  "route": "anywhere",
+  "confidence": "medium",
+  "note": "Sign-ambiguous net captions are vetoed by \\bloss and listed as unplaced: 'Profit/(loss) on sale of fixed assets (net)', 'Net gain/(loss) on sale of investments'. Ind AS filers often report mutual-fund gains only as 'Net gain on financial assets mandatorily measured at FVTPL', which mixes realised and unrealised. Those are vetoed here and placed on non-cash 47 instead."
+ },
+ "pl_icon__misc_income": {
+  "aliases": [
+   "Misc Income",
+   "Miscellaneous income",
+   "Other miscellaneous income",
+   "Miscellaneous receipts",
+   "Sundry income",
+   "Rental income",
+   "Rent income",
+   "Rent received",
+   "Income from rent",
+   "Insurance claims received",
+   "Insurance claim received",
+   "Prior period income",
+   "Other non-operating income",
+   "Other income",
+   "Other income (net)"
+  ],
+  "exclude_hints": [
+   "expens",
+   "written\\s+(?:off|back)",
+   "operating\\s+revenue",
+   "from\\s+operations",
+   "investment\\s+propert"
+  ],
+  "route": "anywhere",
+  "confidence": "medium",
+  "note": "'Other non-operating income' is Revised Schedule VI item (d). It can include profit on sale of fixed assets, so it spans 44/45; it sits here with low confidence. When it is printed label-only it is also a banner (token non_operating_expenses, mapping.py:977) — see conflicts. 'Rental income' is revenue from operations for a lessor, and the caption cannot tell the two apart."
+ },
+ "pl_icon__non_operating_income_cash_subtotal": {
+  "aliases": [],
+  "exclude_hints": [],
+  "route": null,
+  "confidence": "high",
+  "note": ""
+ },
+ "pl_icon__non_operating_income_non_cash_others": {
+  "aliases": [
+   "Liabilities no longer required written back",
+   "Provisions no longer required written back",
+   "Sundry balances written back",
+   "Sundry credit balances written back",
+   "Credit balances written back",
+   "Excess provisions written back",
+   "Net gain on fair value changes",
+   "Net gain on financial assets measured at FVTPL",
+   "Net gain on financial assets mandatorily measured at FVTPL",
+   "Fair value gain on financial instruments at FVTPL",
+   "Unwinding of discount on security deposits",
+   "Notional interest income",
+   "Share of profit of associates",
+   "Share of profit of joint ventures",
+   "Gain on termination of leases"
+  ],
+  "exclude_hints": [
+   "\\bloss",
+   "\\btax\\b",
+   "other\\s+comprehensive|\\boci\\b",
+   "investment\\s+propert"
+  ],
+  "route": "anywhere",
+  "confidence": "low",
+  "note": "If the orchestrator picks 47 as the is_pl catch-all, it becomes exclusive_residual and is locked out of matching, so these aliases die and the captions become unplaced. FVTPL gains mix realised and unrealised amounts and are placed here by the conventional non-cash reading. Share of profit of associates applies to consolidated statements only."
+ },
+ "pl_icon__non_operating_income_non_cash_subtotal": {
+  "aliases": [],
+  "exclude_hints": [],
+  "route": null,
+  "confidence": "high",
+  "note": ""
+ },
+ "pl_icon__non_operating_income_total": {
+  "aliases": [],
+  "exclude_hints": [],
+  "route": "face",
+  "confidence": "medium",
+  "note": "Some analysts move recurring items (export incentives, scrap) to line 7. Under Schedule III those normally sit in Revenue from operations ('Other operating revenues'), not in Other income. 'Other income' must appear on exactly one ICON P&L line (see conflicts). Schedule III prints 'II. Other income' / 'II Other income'. These miss the exact tier (Ind AS probe: None). Suggested regex_hint: ^(?:[ivxl]{1,5}\\s+)?other\\s+income(?:\\s+net)?$ (tested)."
+ },
+ "pl_icon__crystallized_forex_loss": {
+  "aliases": [
+   "Realised foreign exchange loss",
+   "Realised exchange loss",
+   "Realised loss on foreign exchange",
+   "Foreign exchange loss",
+   "Foreign exchange loss (net)",
+   "Net foreign exchange loss",
+   "Exchange loss",
+   "Exchange loss (net)",
+   "Net loss on foreign currency transactions and translation",
+   "Net loss on foreign currency transactions",
+   "Loss on foreign exchange fluctuation",
+   "Loss on foreign exchange fluctuation (net)",
+   "Foreign exchange fluctuation loss",
+   "Foreign exchange fluctuation loss (net)",
+   "Exchange fluctuation loss",
+   "Loss on exchange fluctuation",
+   "Foreign currency fluctuation loss",
+   "Exchange rate fluctuation loss"
+  ],
+  "exclude_hints": [
+   "\\bgain",
+   "mark[-\\s]?to[-\\s]?market|\\bmtm\\b|unreali[sz]ed|restatement|derivative|forward\\s+contract",
+   "borrowing",
+   "other\\s+comprehensive|\\boci\\b|translation\\s+reserve",
+   "capitali[sz]"
+  ],
+  "route": "anywhere",
+  "confidence": "low",
+  "note": "Indian Other expenses notes almost always print ONE net forex line that combines realised and restatement amounts, so the caption spans 50 and 57. It is placed here on the conventional analyst reading (a forex loss in Other expenses is treated as cash), with low confidence. Sign-ambiguous '(gain)/loss' and 'Foreign exchange fluctuation (net)' captions are vetoed and listed as unplaced."
+ },
+ "pl_icon__write_off_of_stock_in_process": {
+  "aliases": [
+   "Work-in-progress written off",
+   "Write-off of work-in-progress"
+  ],
+  "exclude_hints": [
+   "capital",
+   "\\bcwip\\b",
+   "project",
+   "unbilled",
+   "finished",
+   "raw\\s+material",
+   "stock[-\\s]in[-\\s]trade"
+  ],
+  "route": "anywhere",
+  "confidence": "low",
+  "note": "Indian filings normally disclose 'Inventories written off' or 'Write-down of inventories' without splitting WIP from FG, often inside cost of materials consumed or changes in inventories. Those captions span 51 and 52 and are left unplaced. Expect this line to be mostly blank or model-filled."
+ },
+ "pl_icon__write_off_of_finished_goods": {
+  "aliases": [
+   "Finished goods written off",
+   "Write-off of finished goods"
+  ],
+  "exclude_hints": [
+   "work[-\\s]in[-\\s](?:progress|process)",
+   "raw\\s+material",
+   "stock[-\\s]in[-\\s]trade"
+  ],
+  "route": "anywhere",
+  "confidence": "low",
+  "note": "Same as 51: generic inventory write-offs span 51 and 52 and are left unplaced."
+ },
+ "pl_icon__loss_on_sale_of_assets_investments": {
+  "aliases": [
+   "Loss on sale of fixed assets",
+   "Loss on sale of fixed assets (net)",
+   "Loss on sale/discard of fixed assets",
+   "Loss on sale/discard of fixed assets (net)",
+   "Loss on sale of assets",
+   "Loss on disposal of fixed assets",
+   "Loss on sale of property, plant and equipment",
+   "Loss on sale of property, plant and equipment (net)",
+   "Net loss on sale of property, plant and equipment",
+   "Loss on disposal of property, plant and equipment",
+   "Loss on disposal of property, plant and equipment (net)",
+   "Loss on sale/disposal of property, plant and equipment",
+   "Loss on sale/disposal of property, plant and equipment (net)",
+   "Loss on sale/discard of property, plant and equipment",
+   "Loss on sale/discard of property, plant and equipment (net)",
+   "Loss on sale/write off of property, plant and equipment",
+   "Loss on sale of investments",
+   "Loss on sale of investments (net)",
+   "Net loss on sale of investments",
+   "Loss on sale of current investments",
+   "Loss on sale of long-term investments",
+   "Loss on sale of non-current investments",
+   "Loss on redemption of mutual funds"
+  ],
+  "exclude_hints": [
+   "\\bprofit",
+   "\\bgain",
+   "fair\\s+value|fvtpl|fvtoci|fvoci|mark[-\\s]?to[-\\s]?market|\\bmtm\\b|unreali[sz]ed|revaluation",
+   "impairment|diminution",
+   "discontinued"
+  ],
+  "route": "anywhere",
+  "confidence": "medium",
+  "note": "A pure discard ('Fixed assets written off') has no proceeds and is non-cash, so I put it on 58. The combined sale/discard caption stays here."
+ },
+ "pl_icon__other_non_operating_cash_expenses": {
+  "aliases": [
+   "Prior period expenses",
+   "Prior period expenditure",
+   "Prior period expenses (net)"
+  ],
+  "exclude_hints": [
+   "income",
+   "\\bgain",
+   "\\bprofit",
+   "adjustment"
+  ],
+  "route": "anywhere",
+  "confidence": "low",
+  "note": "Deliberately NOT taken: 'Exceptional items' (income or expense, cash such as VRS or non-cash such as impairment), 'Donations' and 'Corporate social responsibility expenditure'. Donations and CSR are contested with sga_others (34), and claiming them on both lines would be an unbreakable tie. Sign-ambiguous 'Prior period items (net)' is vetoed (unplaced)."
+ },
+ "pl_icon__other_non_operating_cash_expenses_2": {
+  "aliases": [],
+  "exclude_hints": [],
+  "route": null,
+  "confidence": "high",
+  "note": ""
+ },
+ "pl_icon__non_operating_expense_cash_subtotal": {
+  "aliases": [],
+  "exclude_hints": [],
+  "route": null,
+  "confidence": "high",
+  "note": ""
+ },
+ "pl_icon__mtm_forex_loss": {
+  "aliases": [
+   "Unrealised foreign exchange loss",
+   "Unrealised exchange loss",
+   "Unrealised foreign exchange loss (net)",
+   "Unrealised loss on foreign exchange",
+   "Unrealised loss on foreign currency translation",
+   "Loss on restatement of foreign currency monetary items",
+   "Mark-to-market loss on derivative contracts",
+   "Mark to market loss on forward contracts",
+   "MTM loss on forward contracts",
+   "MTM loss on derivative contracts",
+   "MTM loss on derivatives",
+   "Loss on mark to market of derivative contracts",
+   "Loss on mark-to-market of forward contracts"
+  ],
+  "exclude_hints": [
+   "\\bgain",
+   "\\breali[sz]ed",
+   "\\bnot\\s+provided|unprovided",
+   "other\\s+comprehensive|\\boci\\b|hedg",
+   "interest\\s+rate|commodit"
+  ],
+  "route": "anywhere",
+  "confidence": "medium",
+  "note": "A single net forex line covering both realised and unrealised amounts goes to 50 (see there)."
+ },
+ "pl_icon__non_operating_expense_non_cash_others": {
+  "aliases": [
+   "Provision for diminution in value of investments",
+   "Provision for diminution in the value of investments",
+   "Impairment loss on investments",
+   "Impairment of investments",
+   "Impairment loss on property, plant and equipment",
+   "Impairment of property, plant and equipment",
+   "Impairment of fixed assets",
+   "Net loss on fair value changes",
+   "Net loss on financial assets measured at FVTPL",
+   "Fair value loss on financial instruments at FVTPL",
+   "Preliminary expenses written off",
+   "Miscellaneous expenditure written off",
+   "Deferred revenue expenditure written off",
+   "Fixed assets written off",
+   "Property, plant and equipment written off",
+   "Share of loss of associates",
+   "Share of loss of joint ventures"
+  ],
+  "exclude_hints": [
+   "\\bgain",
+   "\\bprofit",
+   "revers",
+   "trade\\s+receivable|doubtful|bad\\s+debt|credit\\s+loss",
+   "goodwill|intangible",
+   "other\\s+comprehensive|\\boci\\b"
+  ],
+  "route": "anywhere",
+  "confidence": "low",
+  "note": "If 58 becomes the is_pl catch-all, it is locked out of matching and these aliases die. I dropped bare 'Assets written off' because it could mean current assets."
+ },
+ "pl_icon__non_operating_expense_non_cash_subtotal": {
+  "aliases": [],
+  "exclude_hints": [],
+  "route": null,
+  "confidence": "high",
+  "note": ""
+ },
+ "pl_icon__non_operating_expense_total": {
+  "aliases": [],
+  "exclude_hints": [],
+  "route": null,
+  "confidence": "high",
+  "note": ""
+ },
+ "pl_icon__net_non_operating_income": {
+  "aliases": [],
+  "exclude_hints": [],
+  "route": "face",
+  "confidence": "medium",
+  "note": ""
+ },
+ "pl_icon__profit_before_tax": {
+  "aliases": [
+   "Profit before tax/loss",
+   "Profit before tax",
+   "Loss before tax",
+   "Profit/(loss) before tax",
+   "(Loss)/profit before tax",
+   "Profit before taxation",
+   "Loss before taxation",
+   "Profit/(loss) before taxation",
+   "Profit or loss before tax",
+   "Profit before tax for the year",
+   "Profit/(loss) before tax for the year",
+   "Net profit before tax",
+   "Net profit/(loss) before tax",
+   "Net profit before taxation",
+   "Profit before income tax",
+   "Profit/(loss) before income tax"
+  ],
+  "exclude_hints": [
+   "exceptional",
+   "extraordinary",
+   "prior\\s+period",
+   "continuing|discontinued",
+   "share\\s+of\\s+(?:net\\s+)?(?:profit|loss|result)",
+   "comprehensive"
+  ],
+  "route": "face",
+  "confidence": "high",
+  "note": "Schedule III prints 'Profit before tax (V-VI)' and 'VII. Profit before tax'. Neither matches an alias, because roman cross-references are not stripped (Ind AS probe: both None). Suggested regex_hint, tested on the normalised text: ^(?:[ivxl]{1,5}\\s+)?(?:net\\s+)?(?:profit|loss)(?:\\s+(?:loss|profit))?\\s+before\\s+(?:income\\s+)?tax(?:ation)?(?:\\s+for\\s+the\\s+(?:year|period))?(?:\\s+[ivxl]{1,5}){0,2}$. It does not hit 'v profit before exceptional items and tax iii iv'."
+ },
+ "pl_icon__provision_for_taxes": {
+  "aliases": [
+   "Provision for taxes",
+   "Tax expense",
+   "Tax expenses",
+   "Total tax expense",
+   "Total tax expenses",
+   "Income tax expense",
+   "Total income tax expense",
+   "Tax expense/(credit)",
+   "Total tax expense/(credit)",
+   "Income tax expense/(credit)",
+   "Total income tax expense/(credit)",
+   "Taxation",
+   "Total tax"
+  ],
+  "exclude_hints": [
+   "other\\s+comprehensive|\\boci\\b|relating\\s+to\\s+items|reclassified",
+   "deferred",
+   "current\\s+tax",
+   "earlier\\s+years?|prior\\s+(?:years?|periods?)",
+   "discontinued",
+   "rates\\s+and\\s+taxes",
+   "\\bpaid\\b|payable|refund|advance"
+  ],
+  "route": "face",
+  "confidence": "medium",
+  "note": "Schedule III 'Tax expense:' is usually a label-only heading, which makes it a banner (token tax_expense). Every tax row under it is then refused by the is_pl gate — see conflicts. Where to put 'Provision for taxation': see 64."
+ },
+ "pl_icon__current_tax": {
+  "aliases": [
+   "Current tax",
+   "Current income tax",
+   "Current tax expense",
+   "Current tax for the year",
+   "Current tax on profits for the year",
+   "Current tax on profit for the year",
+   "Current income tax charge",
+   "Current year tax",
+   "Current tax (MAT)",
+   "Current tax including earlier years",
+   "Provision for income tax",
+   "Provision for current tax",
+   "Provision for current income tax",
+   "Provision for taxation",
+   "Provision for tax",
+   "Tax relating to earlier years",
+   "Tax adjustments relating to earlier years",
+   "Tax adjustment of earlier years",
+   "Taxes of earlier years",
+   "Tax of earlier years",
+   "Tax for earlier years",
+   "Income tax of earlier years",
+   "Income tax for earlier years",
+   "Income tax relating to earlier years",
+   "Earlier years tax",
+   "Earlier year tax",
+   "Current tax relating to earlier years",
+   "Short/(excess) provision for tax of earlier years",
+   "Short/(excess) provision of tax for earlier years",
+   "Short/(Excess) tax provision for earlier years",
+   "Tax provision for earlier years",
+   "Adjustment of tax relating to earlier periods"
+  ],
+  "exclude_hints": [
+   "deferred",
+   "\\bmat\\s+credit",
+   "advance\\s+tax",
+   "\\bpaid\\b",
+   "payable",
+   "liabilit",
+   "\\basset",
+   "refund",
+   "other\\s+comprehensive|\\boci\\b",
+   "interest",
+   "written\\s+back|revers"
+  ],
+  "route": "anywhere",
+  "confidence": "medium",
+  "note": "When 'Provision for taxation' is printed as a valued heading above printed Current/Deferred rows, it double-counts here. The 66 PAT cross-check would flag that. 'Provision for taxation' is also the label of BS line 78 (bs_icon__provision_for_taxation). The statements differ, so it is not a tie. But in a tax note cited from both BS and P&L rows, the statement is None (map_ontology.py:836-838) and the BS label owner wins (mapping.py:1722-1731). Enumerated forms '1. Current tax' and 'Less: Current tax' miss the exact tier. Suggested regex_hint: ^(?:[ivx]{1,4}|[a-h]|\\d{1,2}|less)\\s+current\\s+(?:income\\s+)?tax(?:\\s+expense)?$ (tested; does not hit 'Current tax assets')."
+ },
+ "pl_icon__deferred_tax": {
+  "aliases": [
+   "Deferred tax",
+   "Deferred tax charge",
+   "Deferred tax credit",
+   "Deferred tax charge/(credit)",
+   "Deferred tax (credit)/charge",
+   "Deferred tax expense",
+   "Deferred tax expense/(credit)",
+   "Deferred tax expense/(income)",
+   "Deferred tax (income)/expense",
+   "Deferred tax income",
+   "Deferred income tax",
+   "Deferred tax (net)",
+   "Deferred tax for the year",
+   "Deferred tax charge/(credit) for the year"
+  ],
+  "exclude_hints": [
+   "other\\s+comprehensive|\\boci\\b|relating\\s+to\\s+items|reserve",
+   "\\bmat\\b",
+   "assets?\\s*\\(net\\)|liabilit(?:y|ies)\\s*\\(net\\)",
+   "\\b(?:asset|assets|liability|liabilities)\\b",
+   "earlier\\s+years?"
+  ],
+  "route": "anywhere",
+  "confidence": "high",
+  "note": "I did not take SME P&L wordings like 'Deferred tax liability/(asset)'. Whether a positive figure is a charge depends on which side is bracketed."
+ },
+ "pl_icon__profit_after_tax": {
+  "aliases": [
+   "Net Profit / Loss",
+   "Profit after tax",
+   "Loss after tax",
+   "Net profit for the year",
+   "Profit for the year",
+   "Loss for the year",
+   "Profit/(loss) for the year",
+   "(Loss)/profit for the year",
+   "Profit for the period",
+   "Loss for the period",
+   "Profit/(loss) for the period",
+   "Net profit/(loss) for the year",
+   "Net profit for the period",
+   "Profit/(loss) after tax",
+   "Net profit after tax",
+   "Profit after taxation",
+   "Profit after tax for the year"
+  ],
+  "exclude_hints": [
+   "comprehensive",
+   "attributable",
+   "\\bbefore\\b",
+   "continuing|discontinued",
+   "share\\s+of",
+   "per\\s+share|\\beps\\b",
+   "non[-\\s]?controlling|minority",
+   "brought\\s+forward|carried|transferred|opening|closing|balance"
+  ],
+  "route": "face",
+  "confidence": "high",
+  "note": "Schedule III 'Profit for the period (VII-VIII)' and 'XIII. Profit/(loss) for the period (IX+XII)' need a regex_hint. Suggested: ^(?:[ivxl]{1,5}\\s+)?(?:net\\s+)?(?:profit|loss)(?:\\s+(?:loss|profit))?\\s+(?:for\\s+the\\s+(?:year|period)|after\\s+tax(?:ation)?)(?:\\s+[ivxl]{1,5}){0,2}$ (tested; excludes 'from continuing operations'). The PAT row prints below the 'Tax expense' banner, so it is refused today (see conflicts)."
+ },
+ "pl_icon__equity_dividend": {
+  "aliases": [
+   "Interim dividend",
+   "Interim dividend on equity shares",
+   "Interim dividend paid",
+   "Proposed dividend",
+   "Proposed dividend on equity shares",
+   "Proposed final dividend",
+   "Proposed final dividend on equity shares",
+   "Interim dividends",
+   "Proposed dividends",
+   "Proposed final dividends"
+  ],
+  "exclude_hints": [
+   "preference",
+   "\\btax\\b",
+   "unclaimed|unpaid|payable",
+   "income|received",
+   "per\\s+share",
+   "subsidiar|non[-\\s]?controlling"
+  ],
+  "route": "anywhere",
+  "confidence": "low",
+  "note": "The keytable gates this line to profit_and_loss/is_pl. Rows printed in SOCIE or in the reserves note (cited from the BS 'Reserves and surplus' row, so balance_sheet/equity) are refused. SOCIE matrix rows are refused anyway (map_ontology.py:790-798). In practice it binds only on old-format P&L appropriations unless statements gain equity_changes (and balance_sheet with bs_equity scope). Sign: SOCIE and appropriations print deductions, and the line expects a positive figure."
+ },
+ "pl_icon__retained_profit": {
+  "aliases": [],
+  "exclude_hints": [],
+  "route": "face",
+  "confidence": "medium",
+  "note": "'Retained earnings' is a BS reserve balance and is vetoed. Indian GAAP 'Balance carried to balance sheet' comes after transfers to reserves and DDT, so it is not PAT minus dividend."
+ },
+ "bs_icon__bank_borrowings_applicant_bank": {
+  "aliases": [
+   "From applicant bank",
+   "Cash credit",
+   "Cash credit from banks",
+   "Cash credit from bank",
+   "Loans repayable on demand from banks",
+   "Working capital demand loans",
+   "Working capital demand loan",
+   "Working capital demand loans from banks",
+   "Working capital loans from banks",
+   "Working capital loan from banks",
+   "Working capital facilities from banks",
+   "Packing credit",
+   "Packing credit from banks",
+   "Export packing credit",
+   "Packing credit in foreign currency",
+   "Buyers' credit",
+   "Buyer's credit",
+   "Bank overdraft",
+   "Overdraft from banks",
+   "Short-term loans from banks",
+   "Short term loans from banks",
+   "Bills discounted with banks",
+   "Borrowings",
+   "Short-term borrowings",
+   "Short term borrowings",
+   "Current borrowings"
+  ],
+  "exclude_hints": [
+   "current\\s+maturit",
+   "(?<!short[\\s-])\\bterm\\s+loans?",
+   "related\\s+part",
+   "directors?",
+   "promoters?",
+   "other\\s+parties",
+   "from\\s+others",
+   "deposits?\\s+with",
+   "fixed\\s+deposits?",
+   "non[\\s-]*fund",
+   "letters?\\s+of\\s+credit",
+   "guarantee",
+   "vehicle",
+   "contingent",
+   "\\bsanction",
+   "\\blimits?\\b"
+  ],
+  "route": "anywhere",
+  "confidence": "low",
+  "note": "No filing says which bank is the applicant. These captions put total bank WC finance on the applicant line by convention, so Sub-total (A) is right but the split between 71 and 72 is a guess a reviewer must confirm against the banking-arrangement note. The face aggregates 'Borrowings' (Ind AS current) and 'Short-term borrowings' (RSVI) are deliberately left off: they also hold related-party loans, ICDs and, under the amended Division II, current maturities of long-term debt. 'Buyer's credit' and 'Bills discounted with banks' are treated as bank finance (A). Some analysts keep buyer's credit with trade payables, and bills discounted also appear in the contingent-liabilities note (the statement gate separates that note)."
+ },
+ "bs_icon__bank_borrowings_other_banks": {
+  "aliases": [
+   "From other banks"
+  ],
+  "exclude_hints": [],
+  "route": "anywhere",
+  "confidence": "low",
+  "note": "Expected to be filled by a reviewer or the model from the banking-arrangement or security note, not by caption matching. See 71 for why the applicant/other split cannot be read off the statements."
+ },
+ "bs_icon__bank_borrowings_subtotal": {
+  "aliases": [],
+  "exclude_hints": [],
+  "route": null,
+  "confidence": "high",
+  "note": ""
+ },
+ "bs_icon__short_term_borrowings_others": {
+  "aliases": [
+   "Short term borrowings from others (including mobilization advance)",
+   "Inter-corporate deposits",
+   "Intercorporate deposits",
+   "Commercial paper",
+   "Commercial papers",
+   "Short-term loans from others",
+   "Short term loans from others",
+   "Loans repayable on demand from other parties",
+   "Mobilisation advance",
+   "Mobilization advance",
+   "Mobilisation advances",
+   "Mobilization advances",
+   "Mobilisation advance from customers",
+   "Mobilization advance from customers",
+   "Mobilisation advance received"
+  ],
+  "exclude_hints": [
+   "banks?",
+   "related\\s+part",
+   "directors?",
+   "promoters?",
+   "holding\\s+compan",
+   "subsidiar",
+   "shareholders?",
+   "current\\s+maturit",
+   "interest"
+  ],
+  "route": "anywhere",
+  "confidence": "medium",
+  "note": "The RSVI note often prints bare sub-rows 'From banks' / 'From other parties' under a 'Loans repayable on demand' sub-heading. Those bare rows are not aliased: they recur in the long-term borrowings note, and the decomposition pass is section-blind (see conflicts). 'Mobilisation advance' is also on 100 (bs_ncl, repayable after 1 year), which is a cross-section duplicate. ICDs placed with others are assets, which the exclude hints and the gate keep off."
+ },
+ "bs_icon__short_term_borrowings_related_parties": {
+  "aliases": [
+   "Short term borrowings from Related Parties",
+   "Loans from related parties",
+   "Loan from related parties",
+   "Loans from related party",
+   "Loans and advances from related parties",
+   "Short-term loans from related parties",
+   "Unsecured loans from related parties",
+   "Loans from directors",
+   "Loan from directors",
+   "Loan from director",
+   "Unsecured loans from directors",
+   "Loans from directors and relatives",
+   "Loans from directors and their relatives",
+   "Loans from promoters",
+   "Unsecured loans from promoters",
+   "Loans from holding company",
+   "Loan from holding company",
+   "Loans from shareholders",
+   "Unsecured loans from shareholders",
+   "Inter-corporate deposits from related parties"
+  ],
+  "exclude_hints": [
+   "from\\s+banks?",
+   "financial\\s+institution",
+   "current\\s+maturit",
+   "interest",
+   "remuneration"
+  ],
+  "route": "anywhere",
+  "confidence": "medium",
+  "note": "Every caption except the label and the ICD variant is printed identically in the long-term borrowings note and is also aliased on 101 (bs_ncl). The face gate separates them, but the decomposition pass does not (see conflicts). Promoter loans that a sanction letter subordinates are treated by banks as quasi equity (115). That is not visible in the filing, so they stay here by default."
+ },
+ "bs_icon__sundry_creditors_trade": {
+  "aliases": [
+   "Sundry Creditors (Trade)",
+   "Trade payables",
+   "Sundry creditors",
+   "Trade creditors",
+   "Sundry creditors for goods",
+   "Creditors for goods",
+   "Total outstanding dues of micro enterprises and small enterprises",
+   "Total outstanding dues of creditors other than micro enterprises and small enterprises",
+   "Total outstanding dues of micro and small enterprises",
+   "Total outstanding dues of creditors other than micro and small enterprises"
+  ],
+  "exclude_hints": [
+   "creditors?\\s+for\\s+(?:capital|expenses|fixed\\s+assets|services)",
+   "capital\\s+(?:creditors|goods)",
+   "payables?\\s+(?:for|towards|on\\s+account\\s+of)\\s+(?:capital|purchase\\s+of\\s+(?:property|fixed))",
+   "employee",
+   "acceptances?"
+  ],
+  "route": "face",
+  "confidence": "high",
+  "note": "1) Schedule III prints the MSME rows as '(A) ... ; and' and '(B) ...'. The uppercase enumerators survive _LEADING_NUMBERING (row_reconstruct.py:1562-1567) and normalize_label, giving 'a total outstanding dues ... and', so these aliases bind only when the enumerator and the trailing '; and' are absent (see conflicts). 2) If a filing prints a figure on the 'Trade payables' header AND on the two MSME rows, the three are summed. 3) An RSVI schedule with a 'Sundry creditors:' sub-heading over rows 'For goods' / 'For expenses' would, through the decomposition group_hint fallback (map_ontology.py:1207-1229), put creditors for expenses into trade. 4) 'Acceptances' are vetoed and listed as unplaced (bank finance vs trade is an analyst call)."
+ },
+ "bs_icon__advances_from_customers": {
+  "aliases": [
+   "Advance payments from customers",
+   "Advance from customers",
+   "Advances from customers",
+   "Advance received from customers",
+   "Advances received from customers",
+   "Customer advances",
+   "Customer advance",
+   "Contract liabilities",
+   "Trade advances from customers"
+  ],
+  "exclude_hints": [
+   "mobili[sz]ation",
+   "security\\s+deposits?",
+   "deposits?\\s+from"
+  ],
+  "route": "anywhere",
+  "confidence": "medium",
+  "note": "Ind AS contract liabilities also include deferred revenue on billed-but-unperformed obligations, not only cash advances. Analysts conventionally read the line as customer advances, hence medium confidence. 'Revenue/Income received in advance' is not aliased (see unplaced). Mobilisation advances are vetoed here because ICON places them in 74 / 100."
+ },
+ "bs_icon__provision_for_taxation": {
+  "aliases": [
+   "Provision for taxation",
+   "Provision for tax",
+   "Provision for income tax",
+   "Provision for current tax",
+   "Provision for taxation (net of advance tax)",
+   "Provision for tax (net of advance tax)",
+   "Provision for income tax (net of advance tax)",
+   "Provision for income tax (net)",
+   "Current tax liabilities (Net)",
+   "Current tax liabilities",
+   "Current tax liability (net)",
+   "Income tax liabilities (net)",
+   "Income tax liabilities",
+   "Income tax payable"
+  ],
+  "exclude_hints": [
+   "deferred",
+   "dividend",
+   "^\\s*advance",
+   "tax\\s+assets?",
+   "net\\s+of\\s+provision",
+   "wealth"
+  ],
+  "route": "anywhere",
+  "confidence": "high",
+  "note": "The figure is printed net of advance tax, which matches the CMA practice of showing the net provision. A filing that prints gross provision and advance tax separately (with 'Less:') needs the net, and the decorated 'Less: Advance tax' row is not aliased. Tax on proposed dividend is vetoed (see 79 / unplaced)."
+ },
+ "bs_icon__dividend_payable": {
+  "aliases": [
+   "Dividend payable",
+   "Dividends payable",
+   "Proposed dividend",
+   "Proposed equity dividend",
+   "Provision for proposed dividend",
+   "Provision for dividend",
+   "Interim dividend payable",
+   "Unpaid dividends",
+   "Unclaimed dividends",
+   "Unpaid dividend",
+   "Unclaimed dividend"
+  ],
+  "exclude_hints": [
+   "\\btax\\b",
+   "receivable"
+  ],
+  "route": "anywhere",
+  "confidence": "medium",
+  "note": "Unpaid or unclaimed dividends are owed to shareholders (so they are dividend payable), but they are held in an earmarked bank account and some analysts leave them in other current liabilities (93). Dividend distribution tax is vetoed and listed as unplaced."
+ },
+ "bs_icon__other_statutory_liabilities": {
+  "aliases": [
+   "Other statutory liabilities (due within 1 year)",
+   "Statutory dues",
+   "Statutory dues payable",
+   "Other statutory dues",
+   "Statutory liabilities",
+   "Statutory remittances",
+   "Statutory dues (including provident fund and tax deducted at source)",
+   "Duties and taxes",
+   "Duties & taxes",
+   "Duties and taxes payable",
+   "Taxes payable (other than income taxes)",
+   "Taxes payable (other than income tax)",
+   "Indirect taxes payable",
+   "Other taxes payable",
+   "GST payable",
+   "TDS payable",
+   "Tax deducted at source payable",
+   "Withholding taxes payable"
+  ],
+  "exclude_hints": [
+   "^\\s*(?:provision\\s+for\\s+)?(?:current\\s+)?income[\\s-]*tax",
+   "^\\s*current\\s+tax",
+   "deferred",
+   "receivable|recoverable|input\\s+(?:tax\\s+)?credit|balances?\\s+with"
+  ],
+  "route": "anywhere",
+  "confidence": "medium",
+  "note": "PF/ESI contributions payable are statutory dues, but filings often fold them into 'Employee benefits payable' (89). No individual PF caption is aliased. Income tax is vetoed (78)."
+ },
+ "bs_icon__cpltd": {
+  "aliases": [
+   "Installments of liabilities due within one year (CPLTD)"
+  ],
+  "exclude_hints": [
+   "lease",
+   "interest",
+   "finance\\s+lease",
+   "deferred\\s+payment"
+  ],
+  "route": "anywhere",
+  "confidence": "medium",
+  "note": "A row bound to this CALCULATED line makes any decomposition of the note it sits in decline: calculated targets are 'foreign' to a leaf aggregate (map_ontology.py:1145, 1226-1240). If the lead later binds the face 'Borrowings' to a leaf so its note can be split, move these captions to 84 (the line analysts conventionally use) or to a sub__ part. Current maturities of finance-lease obligations are vetoed (they belong to 86)."
+ },
+ "bs_icon__cpltd_debentures": {
+  "aliases": [
+   "Current maturities of debentures",
+   "Current maturities of non-convertible debentures",
+   "Current maturities of redeemable non-convertible debentures",
+   "Current maturities of bonds"
+  ],
+  "exclude_hints": [
+   "interest",
+   "redemption\\s+reserve",
+   "premium"
+  ],
+  "route": "anywhere",
+  "confidence": "medium",
+  "note": "Most filings print only the aggregate 'Current maturities of long-term debt' (bound to 81), so this line is normally blank unless a note itemises it."
+ },
+ "bs_icon__cpltd_preference_shares": {
+  "aliases": [
+   "Current maturities of redeemable preference shares",
+   "Current maturities of preference shares"
+  ],
+  "exclude_hints": [
+   "dividend"
+  ],
+  "route": "anywhere",
+  "confidence": "medium",
+  "note": "Rare in practice, so expect a blank line."
+ },
+ "bs_icon__cpltd_rupee_term_loans": {
+  "aliases": [
+   "Current maturities of term loans",
+   "Current maturities of term loans from banks",
+   "Current maturities of rupee term loans",
+   "Current maturities of term loans from financial institutions",
+   "Current maturities of secured term loans",
+   "Current maturities of vehicle loans",
+   "Current maturities of long-term debt",
+   "Current maturities of long term debts",
+   "Current maturities of long-term borrowings",
+   "Current maturities of long-term loans",
+   "Current portion of long-term borrowings",
+   "Current portion of long-term debt",
+   "Instalments of term loans / debentures / preference shares due within one year"
+  ],
+  "exclude_hints": [
+   "foreign\\s+currency",
+   "external\\s+commercial",
+   "\\becb\\b",
+   "interest"
+  ],
+  "route": "anywhere",
+  "confidence": "medium",
+  "note": "'Current maturities of term loans' can include foreign-currency term loans when the filing does not split them. Treating vehicle loans as rupee term loans is a convention."
+ },
+ "bs_icon__cpltd_foreign_currency_loans": {
+  "aliases": [
+   "Current maturities of foreign currency term loans",
+   "Current maturities of foreign currency loans",
+   "Current maturities of external commercial borrowings"
+  ],
+  "exclude_hints": [
+   "interest"
+  ],
+  "route": "anywhere",
+  "confidence": "medium",
+  "note": "Rarely itemised. 'Foreign currency loans' in a current-Borrowings note are usually PCFC or buyer's credit (bank WC, line 71), not CPLTD."
+ },
+ "bs_icon__cpltd_others": {
+  "aliases": [],
+  "exclude_hints": [],
+  "route": null,
+  "confidence": "low",
+  "note": "Current 'Lease liabilities' is printed under the identical caption to 97 (bs_ncl). 97 owns the label 'Lease Liabilities', so it would win any unconstrained tie (mapping.py:1722-1732)."
+ },
+ "bs_icon__other_current_liabilities_and_provisions": {
+  "aliases": [
+   "Other current liabilities & provisions",
+   "Other current liabilities and provisions"
+  ],
+  "exclude_hints": [],
+  "route": "face",
+  "confidence": "medium",
+  "note": "This is a calculated line, so face 'Other current liabilities' bound here would make it validation evidence that disagrees with the computed sum. See unplaced for where those face aggregates go."
+ },
+ "bs_icon__creditors_for_expenses": {
+  "aliases": [
+   "Creditors for expenses",
+   "Sundry creditors for expenses",
+   "Liability for expenses",
+   "Liabilities for expenses",
+   "Outstanding expenses",
+   "Outstanding liabilities for expenses",
+   "Expenses payable",
+   "Payable for expenses",
+   "Accrued expenses",
+   "Provision for expenses"
+  ],
+  "exclude_hints": [
+   "capital",
+   "fixed\\s+assets",
+   "property,?\\s+plant",
+   "employee",
+   "salar",
+   "wages",
+   "staff",
+   "bonus",
+   "interest",
+   "prepaid"
+  ],
+  "route": "anywhere",
+  "confidence": "medium",
+  "note": "Capital creditors (payables for PPE) are vetoed and listed as unplaced; some analysts include them here. 'Accrued expenses' may include accrued salaries in some filings."
+ },
+ "bs_icon__employee_expenses_payable": {
+  "aliases": [
+   "Employee expenses payable",
+   "Employee benefits payable",
+   "Employee benefit payable",
+   "Employee related liabilities",
+   "Employee related payables",
+   "Salary and wages payable",
+   "Salaries and wages payable",
+   "Salary payable",
+   "Salaries payable",
+   "Wages payable",
+   "Salaries, wages and bonus payable",
+   "Payable to employees",
+   "Dues to employees",
+   "Employee dues payable",
+   "Bonus payable",
+   "Provision for bonus",
+   "Accrued salaries and benefits"
+  ],
+  "exclude_hints": [
+   "gratuity",
+   "compensated",
+   "leave",
+   "pension",
+   "provident",
+   "superannuation",
+   "advances?\\s+to",
+   "recoverable",
+   "loans?\\s+to"
+  ],
+  "route": "anywhere",
+  "confidence": "medium",
+  "note": "Actuarial provisions (gratuity, compensated absences / leave encashment) are vetoed: they are provisions, not payables, and the same captions recur under long-term provisions. They are listed as unplaced (93, or 89 by analyst choice)."
+ },
+ "bs_icon__mtm_forex_loss_liability": {
+  "aliases": [
+   "MTM forex loss",
+   "Derivative liabilities",
+   "Derivative financial liabilities",
+   "Mark-to-market loss on derivatives",
+   "Mark to market losses on derivative contracts",
+   "Mark-to-market loss on forward contracts",
+   "MTM loss on derivatives",
+   "MTM loss on forward contracts"
+  ],
+  "exclude_hints": [
+   "assets?",
+   "notional",
+   "unhedged",
+   "not\\s+provided",
+   "exposure",
+   "contingent"
+  ],
+  "route": "anywhere",
+  "confidence": "medium",
+  "note": "'Derivative liabilities' can include interest-rate swaps, not only forex. Bare 'Foreign exchange forward contracts' is NOT aliased because derivative and hedging notes print notional amounts under it. Unprovided MTM losses belong to covenants line 184 (notes gate) and are vetoed here."
+ },
+ "bs_icon__interest_accrued": {
+  "aliases": [
+   "Interest accrued but not due on borrowings",
+   "Interest accrued and due on borrowings",
+   "Interest accrued but not due",
+   "Interest accrued and due",
+   "Interest accrued on borrowings",
+   "Interest accrued but not due on loans",
+   "Interest accrued on debentures",
+   "Interest payable",
+   "Interest payable on borrowings"
+  ],
+  "exclude_hints": [
+   "receivable",
+   "on\\s+(?:fixed\\s+|bank\\s+)?deposits?",
+   "on\\s+investments?",
+   "on\\s+loans?\\s+(?:given|to)",
+   "on\\s+bonds",
+   "on\\s+advances"
+  ],
+  "route": "anywhere",
+  "confidence": "medium",
+  "note": "The draft's bare 'Interest accrued' is dropped because asset-side 'Other financial assets' notes print it verbatim. Because the decomposition pass is section-blind, it would claim those rows and make the bs_ca split decline (see conflicts). 'Interest accrued and due' signals overdue interest, which a reviewer should note for the credit file."
+ },
+ "bs_icon__outstanding_lease_rentals": {
+  "aliases": [
+   "Outstanding lease rentals",
+   "Lease rentals payable",
+   "Lease rent payable",
+   "Rent payable"
+  ],
+  "exclude_hints": [
+   "receivable",
+   "advance",
+   "prepaid",
+   "deposit"
+  ],
+  "route": "anywhere",
+  "confidence": "medium",
+  "note": "The Ind AS 116 current 'Lease liabilities' is deliberately NOT put here. ICON lists 'Lease Liabilities' as a term liability (97), so its current portion is an instalment of term liabilities (CPLTD, 86). See 86."
+ },
+ "bs_icon__other_current_liabilities_others": {
+  "aliases": [],
+  "exclude_hints": [],
+  "route": null,
+  "confidence": "high",
+  "note": "Unclaimed Ind AS / RSVI 'Other current liabilities', 'Other financial liabilities' and 'Provisions' face rows will sweep here. That is the conventional CMA placement, but it also absorbs pre-2021 current maturities sitting inside other financial liabilities."
+ },
+ "bs_icon__other_current_liabilities_subtotal": {
+  "aliases": [],
+  "exclude_hints": [],
+  "route": null,
+  "confidence": "high",
+  "note": ""
+ },
+ "bs_icon__total_current_liabilities": {
+  "aliases": [
+   "Total current liabilities",
+   "Total current liabilities and provisions"
+  ],
+  "exclude_hints": [
+   "^\\s*total\\s+non[\\s-]*current",
+   "net\\s+current"
+  ],
+  "route": "face",
+  "confidence": "high",
+  "note": "It differs from ICON only if an analyst reclassifies current items, e.g. moves promoter loans to quasi equity."
+ },
+ "bs_icon__debentures_and_preference_shares": {
+  "aliases": [
+   "Debentures  & Preference Shares (not maturing within 1 year)",
+   "Debentures",
+   "Non-convertible debentures",
+   "Redeemable non-convertible debentures",
+   "Secured redeemable non-convertible debentures",
+   "Bonds/debentures",
+   "Optionally convertible debentures",
+   "Redeemable preference shares",
+   "Cumulative redeemable preference shares",
+   "Redeemable cumulative preference shares"
+  ],
+  "exclude_hints": [
+   "invest",
+   "interest\\s+accrued",
+   "current\\s+maturit",
+   "redemption\\s+reserve",
+   "compulsor",
+   "premium",
+   "application\\s+money"
+  ],
+  "route": "anywhere",
+  "confidence": "medium",
+  "note": "Bare 'Bonds' is NOT aliased: non-current investment notes print it, and the section-blind decomposition pass would claim it. Bare 'Preference shares' / 'Preference share capital' is not aliased: in the share-capital note it may be irredeemable equity (see unplaced). CCDs are vetoed (quasi-equity or equity is an analyst call)."
+ },
+ "bs_icon__lease_liabilities": {
+  "aliases": [
+   "Lease liabilities",
+   "Non-current lease liabilities",
+   "Lease liabilities (non-current)",
+   "Long-term lease liabilities",
+   "Long-term maturities of finance lease obligations",
+   "Finance lease obligations",
+   "Finance lease liabilities"
+  ],
+  "exclude_hints": [
+   "current\\s+maturit",
+   "^\\s*current\\s+lease",
+   "receivable"
+  ],
+  "route": "face",
+  "confidence": "medium",
+  "note": "Division II numbers this item '(ia) Lease liabilities'. The '(ia)' survives _LEADING_NUMBERING ([ivx]{1,4} only, row_reconstruct.py:1562-1567) and normalises to 'ia lease liabilities', so the exact alias misses on standard Ind AS faces until that regex is widened (see conflicts)."
+ },
+ "bs_icon__rupee_term_loans": {
+  "aliases": [
+   "Rupee Term loans (excl. instalments payable within 1 year)",
+   "Term loans",
+   "Term loan",
+   "Term loans from banks",
+   "Term loan from banks",
+   "Rupee term loans",
+   "Rupee term loans from banks",
+   "Indian rupee term loans",
+   "Indian rupee term loans from banks",
+   "Rupee loans from banks",
+   "Term loans from financial institutions",
+   "Term loans from others",
+   "Secured term loans from banks",
+   "Long-term loans from banks",
+   "Long term bank borrowings",
+   "Vehicle loans",
+   "Vehicle loans from banks",
+   "Borrowings",
+   "Long-term borrowings",
+   "Long term borrowings",
+   "Non-current borrowings"
+  ],
+  "exclude_hints": [
+   "current\\s+maturit",
+   "foreign\\s+currency",
+   "external\\s+commercial",
+   "\\becb\\b",
+   "related\\s+part",
+   "directors?",
+   "interest\\s+accrued",
+   "given|to\\s+employees|receivable"
+  ],
+  "route": "anywhere",
+  "confidence": "medium",
+  "note": "The face aggregate 'Long-term borrowings' / NCL 'Borrowings' is left off (see unplaced). This is the line analysts conventionally use for it, and binding it here as a leaf is what would let the decomposition pass re-home itemised note rows. That is a measured decision for the lead. Treating vehicle loans as rupee term loans is a convention. The RSVI bare sub-rows 'From banks' / 'From other parties' under a 'Term loans' heading are not aliased."
+ },
+ "bs_icon__foreign_currency_loans": {
+  "aliases": [
+   "Foreign currency loans (excl. instalments payable within 1 year)",
+   "Foreign currency term loans",
+   "Foreign currency term loans from banks",
+   "Foreign currency loans",
+   "Foreign currency loans from banks",
+   "External commercial borrowings",
+   "External commercial borrowing",
+   "Term loans in foreign currency"
+  ],
+  "exclude_hints": [
+   "current\\s+maturit",
+   "packing",
+   "buyers?\\W*s?\\W*credit",
+   "pcfc",
+   "interest\\s+accrued"
+  ],
+  "route": "anywhere",
+  "confidence": "medium",
+  "note": "Under a current-liabilities banner the gate refuses this line, so current FC loans (PCFC / buyer's credit) are unaffected on the face. Only an unrecognised banner would let this line claim them."
+ },
+ "bs_icon__term_deposits": {
+  "aliases": [
+   "Term deposits including mobilization advance (repayable after 1 year)",
+   "Public deposits",
+   "Deposits from public",
+   "Fixed deposits from public",
+   "Deposits from shareholders",
+   "Mobilisation advance",
+   "Mobilization advance",
+   "Mobilisation advances",
+   "Mobilization advances"
+  ],
+  "exclude_hints": [
+   "with\\s+banks?",
+   "fixed\\s+deposits?\\s+with",
+   "margin\\s+money",
+   "placed",
+   "current\\s+maturit",
+   "interest\\s+accrued",
+   "security\\s+deposits?"
+  ],
+  "route": "anywhere",
+  "confidence": "low",
+  "note": "Bare 'Deposits' and 'Security deposits' are NOT aliased: asset-side loans and other-assets notes print them verbatim. Dealer security deposits received are listed as unplaced (102). 'Mobilisation advance' duplicates 74 across bs_cl/bs_ncl. 'Deposits from shareholders' may be related-party (101)."
+ },
+ "bs_icon__long_term_borrowings_related_parties": {
+  "aliases": [
+   "Long term borrowings from Related parties",
+   "Loans from related parties",
+   "Loan from related parties",
+   "Loans from related party",
+   "Loans and advances from related parties",
+   "Long-term loans from related parties",
+   "Unsecured loans from related parties",
+   "Loans from directors",
+   "Loan from directors",
+   "Loan from director",
+   "Unsecured loans from directors",
+   "Loans from directors and relatives",
+   "Loans from directors and their relatives",
+   "Loans from promoters",
+   "Unsecured loans from promoters",
+   "Loans from holding company",
+   "Loan from holding company",
+   "Loans from shareholders",
+   "Unsecured loans from shareholders"
+  ],
+  "exclude_hints": [
+   "from\\s+banks?",
+   "financial\\s+institution",
+   "current\\s+maturit",
+   "interest",
+   "remuneration"
+  ],
+  "route": "anywhere",
+  "confidence": "medium",
+  "note": "The same captions are on 75 (bs_cl), which the gate separates on the face (see conflicts for the decomposition pass). Promoter loans subordinated by sanction terms are banks' 'quasi equity' (115). That cannot be read from the filing, so a reviewer must move them."
+ },
+ "bs_icon__other_term_liabilities_non_debt": {
+  "aliases": [
+   "Other term liabilities not considered as debt (incl. Deferred tax liabilities)",
+   "Deferred tax liabilities (Net)",
+   "Deferred tax liabilities",
+   "Deferred tax liability (net)",
+   "Deferred tax liability",
+   "Other long-term liabilities",
+   "Other long term liabilities",
+   "Long-term provisions",
+   "Long term provisions",
+   "Other non-current liabilities",
+   "Provisions",
+   "Other financial liabilities",
+   "Deferred revenue",
+   "Deferred income",
+   "Deferred government grants"
+  ],
+  "exclude_hints": [
+   "current\\s+maturit",
+   "borrowings?",
+   "\\bloans?\\b",
+   "debentures?",
+   "assets?"
+  ],
+  "route": "face",
+  "confidence": "medium",
+  "note": "Bare 'Provisions' and 'Other financial liabilities' are also printed under current liabilities. The CL versions are unaliased, so the banner gate separates them, but under an unrecognised banner the CL rows would land here. Non-current other financial liabilities can hold interest-bearing items (deferred payment liabilities), which ICON would treat as debt. bs_ncl has no 'Others' line, so nothing else catches unplaced NCL rows."
+ },
+ "bs_icon__total_term_liabilities": {
+  "aliases": [
+   "Total Term Liabilities",
+   "Total non-current liabilities"
+  ],
+  "exclude_hints": [
+   "net\\s+current",
+   "^\\s*total\\s+current"
+  ],
+  "route": "face",
+  "confidence": "high",
+  "note": "Once 104 moves to bs_top_level, this becomes bs_ncl's highest-priority calculated line. In the draft, 104 (1058) outranks it (1057) and would be read as bs_ncl's closing subtotal."
+ },
+ "bs_icon__total_outside_liabilities": {
+  "aliases": [
+   "Total Outside Liabilities",
+   "Total liabilities"
+  ],
+  "exclude_hints": [
+   "equity",
+   "net\\s+worth",
+   "assets?",
+   "tangible"
+  ],
+  "route": "face",
+  "confidence": "medium",
+  "note": "In CMA workbooks 'TOTAL LIABILITIES' means outside liabilities PLUS net worth (the 118 label). The caption is placed here, on the annual-report meaning, and vetoed on 118. Quasi-equity reclassification makes the printed figure exceed ICON TOL."
+ },
+ "bs_icon__share_capital": {
+  "aliases": [
+   "Ordinary Share Capital",
+   "Share capital",
+   "Equity share capital",
+   "Paid-up share capital",
+   "Paid up capital",
+   "Issued, subscribed and paid-up capital",
+   "Issued, subscribed and fully paid-up share capital",
+   "Subscribed and paid-up share capital",
+   "Partners' capital",
+   "Partners' capital account",
+   "Partner's capital",
+   "Proprietor's capital",
+   "Proprietor's capital account"
+  ],
+  "exclude_hints": [
+   "preference",
+   "application\\s+money",
+   "warrants?",
+   "suspense",
+   "authori[sz]ed",
+   "current\\s+account"
+  ],
+  "route": "face",
+  "confidence": "medium",
+  "note": "RSVI 'Share capital' includes preference capital, which ICON treats as a term liability (96) if redeemable, so the line overstates when preference capital exists. Partners' capital accounts often include accumulated profits, which ICON would put in 109."
+ },
+ "bs_icon__general_reserve": {
+  "aliases": [
+   "General Reserve",
+   "General reserves"
+  ],
+  "exclude_hints": [],
+  "route": "anywhere",
+  "confidence": "high",
+  "note": "Like every reserve line, it is fed by NOTE rows. Without a bound face aggregate or the model, it fills only when a filing prints reserves on the face (see conflicts)."
+ },
+ "bs_icon__revaluation_reserve": {
+  "aliases": [
+   "Revaluation Reserve",
+   "Revaluation surplus",
+   "Asset revaluation reserve",
+   "Land revaluation reserve",
+   "Property revaluation reserve"
+  ],
+  "exclude_hints": [
+   "investment",
+   "fair\\s+value",
+   "fvoci",
+   "financial\\s+assets"
+  ],
+  "route": "anywhere",
+  "confidence": "high",
+  "note": "Investment and fair-value (FVOCI) reserves are vetoed; they go to 108."
+ },
+ "bs_icon__other_reserves": {
+  "aliases": [
+   "Other Reserves (excluding Provisions)",
+   "Other reserves",
+   "Capital reserve",
+   "Capital reserves",
+   "Debenture redemption reserve",
+   "Share options outstanding account",
+   "Employee stock options outstanding",
+   "Share based payment reserve",
+   "Statutory reserve",
+   "Special reserve",
+   "Investment allowance reserve",
+   "Investment allowance (utilised) reserve",
+   "Tonnage tax reserve",
+   "Amalgamation reserve",
+   "Equity instruments through other comprehensive income",
+   "Effective portion of cash flow hedges",
+   "Cash flow hedge reserve",
+   "Cash flow hedging reserve",
+   "Hedging reserve",
+   "Other equity",
+   "Reserves and surplus",
+   "Reserves & surplus"
+  ],
+  "exclude_hints": [
+   "revaluation",
+   "general\\s+reserve",
+   "securities\\s+premium",
+   "share\\s+premium",
+   "capital\\s+redemption",
+   "translation",
+   "^\\s*total"
+  ],
+  "route": "anywhere",
+  "confidence": "medium",
+  "note": "An OCI reserve printed as bare 'Other comprehensive income' is not aliased: it is a P&L caption, and the balance-sheet gate alone is thin. Some analysts deduct capital reserves arising on consolidation, or treat DRR as a liability-linked appropriation. The face 'Reserves and surplus' / 'Other equity' is vetoed (see unplaced)."
+ },
+ "bs_icon__surplus_or_deficit_in_profit_and_loss": {
+  "aliases": [
+   "Surplus (+) or deficit (-) in Profit & Loss a/c",
+   "Surplus in the Statement of Profit and Loss",
+   "Surplus in Statement of Profit and Loss",
+   "Surplus in the statement of profit & loss",
+   "Balance in Statement of Profit and Loss",
+   "Balance in the Statement of Profit and Loss",
+   "Surplus/(deficit) in the Statement of Profit and Loss",
+   "Deficit in the Statement of Profit and Loss",
+   "Retained earnings",
+   "Profit and loss account",
+   "Profit & loss account",
+   "Accumulated losses",
+   "Accumulated profits",
+   "Debit balance in Statement of Profit and Loss"
+  ],
+  "exclude_hints": [
+   "revaluation",
+   "for\\s+the\\s+(?:year|period)",
+   "^\\s*(?:opening|closing)"
+  ],
+  "route": "anywhere",
+  "confidence": "high",
+  "note": "Bare 'Surplus' is not aliased. It is a reserves-note sub-heading, and the group_hint fallback (map_ontology.py:1207-1229) would sum its movement rows. The sign is either: deficits are printed negative."
+ },
+ "bs_icon__share_premium": {
+  "aliases": [
+   "Share Premium",
+   "Securities premium",
+   "Securities premium account",
+   "Securities premium reserve",
+   "Share premium account"
+  ],
+  "exclude_hints": [
+   "redemption"
+  ],
+  "route": "anywhere",
+  "confidence": "high",
+  "note": ""
+ },
+ "bs_icon__capital_redemption_reserve": {
+  "aliases": [
+   "Capital Redemption Reserve"
+  ],
+  "exclude_hints": [],
+  "route": "anywhere",
+  "confidence": "high",
+  "note": ""
+ },
+ "bs_icon__share_application_money": {
+  "aliases": [
+   "Share application money",
+   "Share application money pending allotment"
+  ],
+  "exclude_hints": [
+   "refund",
+   "interest\\s+accrued"
+  ],
+  "route": "face",
+  "confidence": "high",
+  "note": "The refundable portion is a liability (RSVI other current liabilities) and is vetoed. 'Money received against share warrants' is listed as unplaced (116)."
+ },
+ "bs_icon__foreign_currency_translation_reserve": {
+  "aliases": [
+   "Foreign currency translation reserve",
+   "Foreign exchange translation reserve",
+   "Currency translation reserve",
+   "Translation reserve",
+   "Exchange differences on translating the financial statements of a foreign operation",
+   "Exchange differences on translating the financial statements of foreign operations"
+  ],
+  "exclude_hints": [
+   "monetary\\s+item"
+  ],
+  "route": "anywhere",
+  "confidence": "high",
+  "note": "'Exchange fluctuation reserve' was not borrowed; some filings use it for other FX items. FCMITDA (the AS 11 para 46A debit balance) is vetoed and listed as unplaced."
+ },
+ "bs_icon__minority_interest": {
+  "aliases": [
+   "Minority Interest",
+   "Minority interests",
+   "Non-controlling interests",
+   "Non-controlling interest"
+  ],
+  "exclude_hints": [
+   "share\\s+of",
+   "attributable",
+   "profit",
+   "loss",
+   "comprehensive"
+  ],
+  "route": "face",
+  "confidence": "high",
+  "note": "The P&L attribution rows of the same caption are kept off by the statement gate, and the matrix columns of the changes-in-equity statement are never claimed."
+ },
+ "bs_icon__quasi_equity": {
+  "aliases": [
+   "Quasi Equity"
+  ],
+  "exclude_hints": [],
+  "route": "anywhere",
+  "confidence": "low",
+  "note": "No filing caption is this figure. The candidate source rows ('Unsecured loans from promoters/directors') sit on 75 / 101, and moving them is a reviewer or model decision based on the sanction letter. Filling this line without also removing the amount from 75/101 double-counts it inside total liabilities."
+ },
+ "bs_icon__net_worth_others": {
+  "aliases": [],
+  "exclude_hints": [],
+  "route": null,
+  "confidence": "high",
+  "note": "It will absorb money received against share warrants, share capital suspense, treasury shares (negative) and instruments entirely equity in nature (see unplaced)."
+ },
+ "bs_icon__net_worth": {
+  "aliases": [
+   "NET WORTH",
+   "Total equity",
+   "Total net worth",
+   "Total shareholders' funds",
+   "Shareholders' funds",
+   "Shareholder's funds"
+  ],
+  "exclude_hints": [
+   "attributable",
+   "liabilities",
+   "tangible",
+   "adjusted"
+  ],
+  "route": "face",
+  "confidence": "medium",
+  "note": "RSVI consolidated 'Shareholders' funds' EXCLUDES minority interest, which RSVI prints separately, so that alias understates when MI exists. 'Equity attributable to owners' is vetoed for the same reason. Once 118 moves to bs_top_level, bs_equity has no calculated closing line for section reconciliation, because net worth is extracted."
+ },
+ "bs_icon__total_liabilities_and_net_worth": {
+  "aliases": [
+   "Total equity and liabilities",
+   "Total equity & liabilities",
+   "Total liabilities and equity",
+   "Total liabilities and net worth"
+  ],
+  "exclude_hints": [
+   "^\\s*total\\s+liabilities\\s*$",
+   "^\\s*total\\s+assets",
+   "less\\s+current\\s+liabilities"
+  ],
+  "route": "face",
+  "confidence": "medium",
+  "note": "The RSVI bottom line is a bare 'TOTAL', which cannot be an alias. The draft's 'TOTAL LIABILITIES' is dropped and vetoed: in annual reports it means outside liabilities (104), and on bs_top_level both lines claiming it would be an unbreakable tie."
+ },
+ "bs_icon__cash_and_bank_balances": {
+  "aliases": [
+   "Cash and Bank Balances",
+   "Cash & bank balances",
+   "Cash and bank balance",
+   "Cash and bank",
+   "Cash and cash equivalents",
+   "Cash & cash equivalents",
+   "Cash in hand and at bank",
+   "Cash in hand and at banks",
+   "Cash on hand and balances with banks"
+  ],
+  "exclude_hints": [
+   "(?i)other\\s+than\\s+cash"
+  ],
+  "route": null,
+  "confidence": "medium",
+  "note": "Ind AS 'Cash and cash equivalents' includes deposits with original maturity < 3 months. This proposal routes those to bs_icon__fixed_deposits_with_banks from the note, so the printed face figure will exceed computed cash+bank by those deposits. That is an expected cross-check gap, not an error. Old 'Cash and bank balances' may also include deposits > 3 months. 'Bank balances other than cash and cash equivalents' is vetoed on purpose."
+ },
+ "bs_icon__cash_balance": {
+  "aliases": [
+   "Cash on hand",
+   "Cash in hand",
+   "Cash balance",
+   "Cash balance on hand",
+   "Cheques, drafts on hand",
+   "Cheques on hand",
+   "Cheques in hand"
+  ],
+  "exclude_hints": [
+   "(?i)\\bbanks?\\b",
+   "(?i)equivalent"
+  ],
+  "route": null,
+  "confidence": "high",
+  "note": "Cheques and drafts on hand are placed with cash (CMA convention). Bare 'Cash' is left out: it is too generic in uncited notes, which are matched with statement=None."
+ },
+ "bs_icon__bank_balance": {
+  "aliases": [
+   "Balances with banks",
+   "Balance with banks",
+   "Balances with scheduled banks",
+   "Balance with scheduled banks",
+   "Bank balances",
+   "Bank balance",
+   "Cash at bank",
+   "Cash at banks",
+   "Balances with banks in current accounts",
+   "Balances with banks - current accounts",
+   "In current accounts",
+   "On current accounts",
+   "Current accounts",
+   "Balances in current accounts",
+   "In EEFC accounts",
+   "In exchange earners foreign currency accounts"
+  ],
+  "exclude_hints": [
+   "(?i)other\\s+than",
+   "(?i)\\bdeposit",
+   "(?i)margin|lien|pledg|earmark|unpaid|unclaimed"
+  ],
+  "route": null,
+  "confidence": "medium",
+  "note": "If 'Balances with banks' is printed as a valued sub-total above 'In current accounts' / 'In deposit accounts', binding both double counts. Normally that heading row carries no figure. Earmarked and unpaid-dividend balances are not aliased (see unplaced)."
+ },
+ "bs_icon__current_investments": {
+  "aliases": [],
+  "exclude_hints": [],
+  "route": null,
+  "confidence": "medium",
+  "note": "Bare 'Investments' (Ind AS '(i) Investments' under current financial assets) is NOT aliased. On an old Schedule VI or partnership balance sheet that row sits under 'APPLICATION OF FUNDS', a banner that resolves to no section (mapping.py:1058-1074), so the alias would bind long-term investments here. STRUCTURAL: this line is not a term of bs_icon__total_current_assets (keytable order 144 terms; workbook =ROUND(F79+F83+F84+...) skips F82). A figure published here never reaches Total current assets or Total assets."
+ },
+ "bs_icon__govt_and_trustee_securities": {
+  "aliases": [
+   "Government securities",
+   "Govt. securities",
+   "Investment in government securities",
+   "Investments in government securities",
+   "National Savings Certificates",
+   "Treasury bills",
+   "Investment in treasury bills",
+   "Current investments",
+   "Investments in mutual funds",
+   "Investment in mutual funds",
+   "Investments in units of mutual funds",
+   "Units of mutual funds"
+  ],
+  "exclude_hints": [
+   "(?i)non[-\\s]?current|long[-\\s]?term"
+  ],
+  "route": null,
+  "confidence": "medium",
+  "note": "NSCs are usually long-term and pledged. They reach this line only when printed inside the current-investments note (section current_assets)."
+ },
+ "bs_icon__fixed_deposits_with_banks": {
+  "aliases": [
+   "Fixed deposits",
+   "Fixed deposits with banks",
+   "Fixed deposit with banks",
+   "Fixed deposits with scheduled banks",
+   "Bank deposits",
+   "Deposits with banks",
+   "Term deposits with banks",
+   "In deposit accounts",
+   "Deposit accounts",
+   "Balances with banks in deposit accounts",
+   "Deposits with original maturity of less than three months",
+   "Deposits with original maturity of less than 3 months",
+   "Deposits with original maturity of more than three months but less than twelve months",
+   "Deposits with original maturity of more than 3 months but less than 12 months",
+   "Bank deposits with original maturity of more than 3 months but less than 12 months",
+   "Bank deposits with maturity of more than 3 months but less than 12 months",
+   "Bank balances other than cash and cash equivalents",
+   "Other bank balances",
+   "Bank balances other than above"
+  ],
+  "exclude_hints": [
+   "(?i)margin|lien|pledg|earmark|unpaid|unclaimed|collateral",
+   "(?i)more\\s+than\\s+(?:12|twelve)\\s+months|exceeding\\s+(?:12|twelve)\\s+months",
+   "(?i)security\\s+deposit|deposits?\\s+(?:from|received)"
+  ],
+  "route": null,
+  "confidence": "medium",
+  "note": "Routing < 3-month deposits here, as the CMA format asks, makes bs_icon__cash_and_bank_balances smaller than the printed 'Cash and cash equivalents'. Lien-marked and margin deposits are vetoed so they go to bs_icon__fds_under_lien. The face 'Bank balances other than cash and cash equivalents' / 'Other bank balances' is NOT aliased: it mixes these FDs, margin money and earmarked balances."
+ },
+ "bs_icon__receivables": {
+  "aliases": [
+   "Trade receivables",
+   "Sundry debtors",
+   "Debtors",
+   "Trade debtors"
+  ],
+  "exclude_hints": [
+   "(?i)non[-\\s]?current",
+   "(?i)exceeding\\s+(?:six|6)\\s+months|more\\s+than\\s+(?:six|6)\\s+months",
+   "(?i)other\\s+receivables"
+  ],
+  "route": null,
+  "confidence": "high",
+  "note": "Non-current Ind AS 'Trade receivables' is kept off by the section gate (this line is bs_ca). The ICON label says 'incldg. bills purchased and discounted', but bills that were discounted and derecognised are NOT inside the printed figure."
+ },
+ "bs_icon__domestic_receivables": {
+  "aliases": [
+   "Domestic Receivables",
+   "Domestic trade receivables",
+   "Trade receivables - domestic",
+   "Receivables - domestic",
+   "Domestic debtors",
+   "Debtors - domestic"
+  ],
+  "exclude_hints": [
+   "(?i)export|overseas|foreign"
+  ],
+  "route": null,
+  "confidence": "medium",
+  "note": "Most filings print no split. The face figure then stays on bs_icon__receivables, and an analyst (or a derived 'total minus export' rung) has to fill this leaf."
+ },
+ "bs_icon__export_receivables": {
+  "aliases": [
+   "Export Receivables",
+   "Trade receivables - export",
+   "Receivables - export",
+   "Export debtors",
+   "Debtors - export",
+   "Foreign debtors",
+   "Overseas debtors"
+  ],
+  "exclude_hints": [
+   "(?i)incentive|drawback|rodtep|meis|duty|scheme"
+  ],
+  "route": null,
+  "confidence": "medium",
+  "note": "Export incentives and duty drawback receivable are not trade receivables and are vetoed."
+ },
+ "bs_icon__deferred_receivables_due_within_1_year": {
+  "aliases": [],
+  "exclude_hints": [],
+  "route": null,
+  "confidence": "low",
+  "note": "Leave to the model or a reviewer. Do not alias 'Current maturities of long-term loans': that is a loan, not a receivable."
+ },
+ "bs_icon__inventory": {
+  "aliases": [
+   "Inventories",
+   "Inventory",
+   "Closing stock",
+   "Stock in hand",
+   "Stocks",
+   "Stock"
+  ],
+  "exclude_hints": [
+   "(?i)changes?\\s+in|increase|decrease|write[-\\s]?down|written\\s+down"
+  ],
+  "route": null,
+  "confidence": "high",
+  "note": "rollups.py:446-449: a calculated subtotal can be computed from ANY child that is present. If only some inventory note rows bind (for example raw materials left unplaced), the partial sum replaces the printed total. That is why 'Raw materials' is placed on a leaf (indigenous) and not on the calculated raw-materials line."
+ },
+ "bs_icon__inventory_raw_materials": {
+  "aliases": [],
+  "exclude_hints": [],
+  "route": null,
+  "confidence": "medium",
+  "note": ""
+ },
+ "bs_icon__inventory_raw_materials_imported": {
+  "aliases": [
+   "Imported raw materials",
+   "Raw materials - imported"
+  ],
+  "exclude_hints": [
+   "(?i)consum|purchase|cost\\s+of|c\\.?\\s*i\\.?\\s*f"
+  ],
+  "route": null,
+  "confidence": "medium",
+  "note": "Bare 'Imported' is dropped because it binds any row so captioned. Block 1's pl_icon__raw_materials_imported carries the same two strings under is_pl. That is not a test tie (scopes differ), but in an uncited note (statement=None, map_ontology.py:838) both lines are claimants and declaration order picks the P&L line. That is the right answer for a consumption or CIF note."
+ },
+ "bs_icon__inventory_raw_materials_indigenous": {
+  "aliases": [
+   "Indigenous raw materials",
+   "Raw materials - indigenous",
+   "Raw materials",
+   "Raw material",
+   "Raw materials and components",
+   "Raw materials (including goods in transit)",
+   "Raw materials including packing materials"
+  ],
+  "exclude_hints": [
+   "(?i)\\bimported\\b",
+   "(?i)consum|purchase|cost\\s+of|c\\.?\\s*i\\.?\\s*f"
+  ],
+  "route": null,
+  "confidence": "low",
+  "note": "This can only be wrong in the imported/indigenous split, never in the raw-material or inventory total. Risk: an UNCITED note that prints a bare 'Raw materials' row (Schedule III Part II CIF value of imports, or the imported/indigenous consumption analysis) is matched with statement=None/section=None (map_ontology.py:835-855) and would bind here. A sub__ note part with note_title_any 'inventor' would remove that risk. Bare 'Indigenous' is dropped."
+ },
+ "bs_icon__stocks_in_process": {
+  "aliases": [
+   "Work-in-progress",
+   "Work in process",
+   "Works-in-progress",
+   "Stocks-in-process",
+   "Stock-in-process",
+   "Goods-in-process",
+   "Semi-finished goods",
+   "Process stock"
+  ],
+  "exclude_hints": [
+   "(?i)capital",
+   "(?i)changes?\\s+in|increase|decrease"
+  ],
+  "route": null,
+  "confidence": "high",
+  "note": ""
+ },
+ "bs_icon__finished_goods": {
+  "aliases": [
+   "Finished goods",
+   "Finished goods (including goods in transit)",
+   "Stock-in-trade",
+   "Stock-in-trade (in respect of goods acquired for trading)",
+   "Traded goods",
+   "Finished goods and stock-in-trade"
+  ],
+  "exclude_hints": [
+   "(?i)semi[-\\s]?finished",
+   "(?i)changes?\\s+in|increase|decrease|purchase"
+  ],
+  "route": null,
+  "confidence": "medium",
+  "note": "Stock-in-trade is placed on FG by analyst convention."
+ },
+ "bs_icon__other_consumable_spares": {
+  "aliases": [
+   "Stores and spares",
+   "Stores and spare parts",
+   "Stores, spares and consumables",
+   "Consumables, stores and spares",
+   "Stores and consumables",
+   "Consumable stores",
+   "Consumable stores and spares"
+  ],
+  "exclude_hints": [
+   "(?i)consumed|consumption",
+   "(?i)capital"
+  ],
+  "route": null,
+  "confidence": "high",
+  "note": "Block 1's pl_icon__other_spares carries 'Stores and spares', 'Stores, spares and consumables' and 'Consumable stores and spares' under is_pl. That is not a test tie. In an uncited consumption note the P&L line wins by declaration order, which is correct there. Loose tools and packing materials are not aliased (see unplaced)."
+ },
+ "bs_icon__advances_to_suppliers": {
+  "aliases": [
+   "Advances to suppliers",
+   "Advance to suppliers",
+   "Advances to vendors",
+   "Advance to vendors",
+   "Trade advances",
+   "Advances to creditors",
+   "Advance to creditors"
+  ],
+  "exclude_hints": [
+   "(?i)capital",
+   "(?i)property,?\\s+plant|fixed\\s+assets|machinery"
+  ],
+  "route": null,
+  "confidence": "medium",
+  "note": "ICON wants advances to suppliers of raw materials, stores and spares; the printed row usually also covers service vendors. Capital advances are vetoed so they go to bs_icon__advances_to_suppliers_of_capital_goods."
+ },
+ "bs_icon__advance_payment_of_taxes": {
+  "aliases": [
+   "Advance payment of taxes",
+   "Advance tax",
+   "Advance income tax",
+   "Advance tax (net of provision)",
+   "Advance income tax (net of provision)",
+   "Advance tax and tax deducted at source",
+   "Tax deducted at source",
+   "TDS receivable",
+   "Taxes paid in advance",
+   "Income tax paid in advance",
+   "Prepaid taxes",
+   "Current tax assets (net)",
+   "Current tax assets",
+   "Income tax assets (net)",
+   "Income tax assets"
+  ],
+  "exclude_hints": [
+   "(?i)deferred",
+   "(?i)liabilit",
+   "(?i)non[-\\s]?current"
+  ],
+  "route": null,
+  "confidence": "high",
+  "note": "Ind AS 'Non-current tax assets (net)' under non-current assets cannot reach this bs_ca line (section gate). It falls to the bs_nca residual."
+ },
+ "bs_icon__other_current_assets": {
+  "aliases": [
+   "Other current assets"
+  ],
+  "exclude_hints": [
+   "(?i)non[-\\s]?current",
+   "(?i)\\btotal\\b"
+  ],
+  "route": null,
+  "confidence": "medium",
+  "note": "Ind AS current 'Other financial assets' is NOT aliased. Binding a second face row to this parent defeats the one-face-row decomposition gate (map_ontology.py:278-325), and that caption mixes deposits, unbilled revenue and interest accrued."
+ },
+ "bs_icon__interest_receivable": {
+  "aliases": [
+   "Interest Receivable",
+   "Interest accrued",
+   "Interest accrued on deposits",
+   "Interest accrued on fixed deposits",
+   "Interest accrued on bank deposits",
+   "Interest accrued but not due",
+   "Interest accrued on investments",
+   "Interest receivable on deposits"
+  ],
+  "exclude_hints": [
+   "(?i)borrowings?|loans?\\s+from|debentures|deposits?\\s+from|payable"
+  ],
+  "route": null,
+  "confidence": "high",
+  "note": "Shares 'Interest accrued' with block 3's bs_icon__interest_accrued (bs_cl), whose LABEL that caption is. The section gate separates them on the face. In an unsectioned or uncited context the label owner wins (mapping.py:1722-1729), so the liability line takes it."
+ },
+ "bs_icon__prepaid_expenses": {
+  "aliases": [
+   "Prepaid Expenses",
+   "Prepaid expense",
+   "Prepaid expenditure",
+   "Prepayments"
+  ],
+  "exclude_hints": [
+   "(?i)\\btax",
+   "(?i)lease|land"
+  ],
+  "route": null,
+  "confidence": "high",
+  "note": ""
+ },
+ "bs_icon__retention_money_current_portion": {
+  "aliases": [
+   "Retention money",
+   "Retention money receivable",
+   "Retention receivables",
+   "Retention monies",
+   "Retention money with customers"
+  ],
+  "exclude_hints": [
+   "(?i)non[-\\s]?current",
+   "(?i)payable"
+  ],
+  "route": null,
+  "confidence": "medium",
+  "note": "The same captions are proposed on bs_icon__retention_money_non_current_portion (bs_nca), and only the section gate splits them. Where the banner resolves to nothing (old Schedule VI 'APPLICATION OF FUNDS', the partnership horizontal format), both pass and declaration order gives this line. Retention often sits inside trade receivables with no row of its own."
+ },
+ "bs_icon__other_advances_recoverable": {
+  "aliases": [
+   "Advances recoverable in cash or in kind",
+   "Advances recoverable in cash or kind",
+   "Advances recoverable in cash or in kind or for value to be received",
+   "Advances recoverable in cash or kind or for value to be received",
+   "Loans and advances to employees",
+   "Advances to employees",
+   "Loans to employees",
+   "Staff advances",
+   "Advances to staff",
+   "Other loans and advances"
+  ],
+  "exclude_hints": [
+   "(?i)capital",
+   "(?i)related\\s+part|subsidiar|director|group\\s+compan|promoter",
+   "(?i)supplier|vendor"
+  ],
+  "route": null,
+  "confidence": "medium",
+  "note": "'Other loans and advances' (the Revised Schedule VI L&A note '(e) Others') may itself include prepaid expenses or GST balances when they are not itemised, hence medium. 'Balances with government authorities' is left unaliased (see unplaced). Related-party and director loans are vetoed."
+ },
+ "bs_icon__other_current_assets_others": {
+  "aliases": [],
+  "exclude_hints": [],
+  "route": null,
+  "confidence": "high",
+  "note": ""
+ },
+ "bs_icon__total_current_assets": {
+  "aliases": [
+   "Total Current Assets"
+  ],
+  "exclude_hints": [
+   "(?i)net\\s+current",
+   "(?i)non[-\\s]?current",
+   "(?i)less\\s+current\\s+liabilities"
+  ],
+  "route": null,
+  "confidence": "medium",
+  "note": "The CMA total will NOT equal the printed one. It omits bs_icon__current_investments (not among its terms) and anything the CMA moves to non-current (margin FDs, dues from directors, receivables over 6 months)."
+ },
+ "bs_icon__gross_block": {
+  "aliases": [],
+  "exclude_hints": [],
+  "route": null,
+  "confidence": "low",
+  "note": "Keeping 'Gross Block' here would be a partial-sum trap. With CWIP bound and the leaf empty, rollups.py:446-449 would publish CWIP alone as gross block."
+ },
+ "bs_icon__land_building_plant_machinery": {
+  "aliases": [
+   "Gross block",
+   "Gross fixed assets",
+   "Gross block of fixed assets",
+   "Fixed assets - gross block",
+   "Property, plant and equipment",
+   "Property, plant & equipment",
+   "Tangible assets",
+   "Fixed assets"
+  ],
+  "exclude_hints": [
+   "(?i)\\bnet\\b",
+   "(?i)intangible",
+   "(?i)capital\\s+work",
+   "(?i)depreciation|amorti",
+   "(?i)investment\\s+propert"
+  ],
+  "route": null,
+  "confidence": "medium",
+  "note": "Schedule III face 'Property, plant and equipment', Revised Schedule VI 'Tangible assets' and 'Right-of-use assets' are NET of depreciation and are NOT aliased (see unplaced). The gross figure is in the PPE note's 'Gross carrying amount ... As at 31 March' cell, which no caption alias can reach; it needs a note_source part that selects the column or measure. 'Gross carrying amount' is not aliased because the same row heads the intangibles and investment-property notes too. Parity caveat: line_item_matching.py:323-327 indexes LABELS as aliases, so the parity engine would give 'Gross block' to bs_icon__gross_block (its label owner). The runtime OntologyMatcher does not index labels (mapping.py:1685-1691) and gives it to this line."
+ },
+ "bs_icon__capital_work_in_progress": {
+  "aliases": [
+   "Capital work-in-progress",
+   "Capital works in progress"
+  ],
+  "exclude_hints": [
+   "(?i)intangible",
+   "(?i)changes?\\s+in|increase|decrease|additions?",
+   "(?i)capital\\s+advances?"
+  ],
+  "route": null,
+  "confidence": "high",
+  "note": ""
+ },
+ "bs_icon__accumulated_depreciation": {
+  "aliases": [
+   "Accumulated depreciation",
+   "Accumulated depreciation and impairment",
+   "Depreciation to date",
+   "Total accumulated depreciation",
+   "Provision for depreciation"
+  ],
+  "exclude_hints": [
+   "(?i)amorti",
+   "(?i)intangible",
+   "(?i)investment\\s+propert",
+   "(?i)for\\s+the\\s+year|charge|disposal|deduction|deletion|eliminated|written\\s+back"
+  ],
+  "route": null,
+  "confidence": "medium",
+  "note": "Old Schedule VI prints 'Less: Depreciation'. 'Less:' is stripped neither by normalize_label (mapping.py:713-761) nor by the leading-numbering step (row_reconstruct.py:1562-1567), and aliases may not carry it, so that face row stays unmatched. Bare 'Depreciation' is not aliased because it is also the PPE note's charge-for-the-year row. In Ind AS PPE matrices 'Accumulated depreciation' is a block heading and the closing balance is an 'As at ...' row, which needs a note part. Investment-property notes print the same caption."
+ },
+ "bs_icon__net_block": {
+  "aliases": [],
+  "exclude_hints": [],
+  "route": null,
+  "confidence": "low",
+  "note": ""
+ },
+ "bs_icon__exposure_in_group_entities": {
+  "aliases": [],
+  "exclude_hints": [],
+  "route": null,
+  "confidence": "medium",
+  "note": ""
+ },
+ "bs_icon__group_investments": {
+  "aliases": [
+   "Investments in subsidiaries",
+   "Investment in subsidiaries",
+   "Investments in subsidiary companies",
+   "Investment in subsidiary companies",
+   "Investments in associates",
+   "Investment in associates",
+   "Investments in associate companies",
+   "Investments in joint ventures",
+   "Investment in joint ventures",
+   "Investments in subsidiaries and associates",
+   "Investments in subsidiaries, associates and joint ventures",
+   "Investments in associates and joint ventures",
+   "Investments accounted for using the equity method",
+   "Investments in group companies",
+   "Investment in group companies",
+   "Investment in equity shares of subsidiaries",
+   "Investments in equity instruments of subsidiaries"
+  ],
+  "exclude_hints": [
+   "(?i)provision|impairment|diminution",
+   "(?i)share\\s+of\\s+(?:net\\s+)?(?:profit|loss|result)"
+  ],
+  "route": null,
+  "confidence": "high",
+  "note": "Draft alias 'Investments' is dropped. It would bind the Ind AS non-current '(i) Investments' face row, which also holds mutual funds and other securities."
+ },
+ "bs_icon__group_loans_and_advances": {
+  "aliases": [
+   "Loans to subsidiaries",
+   "Loans and advances to subsidiaries",
+   "Loans to subsidiary companies",
+   "Loans to associates",
+   "Loans to joint ventures",
+   "Loans to group companies",
+   "Loans and advances to group companies",
+   "Inter corporate deposits to subsidiaries",
+   "Loans to related parties",
+   "Loans and advances to related parties"
+  ],
+  "exclude_hints": [
+   "(?i)director|key\\s+managerial|\\bkmp\\b|employee|staff|promoter"
+  ],
+  "route": null,
+  "confidence": "medium",
+  "note": "'Loans (and advances) to related parties' can include directors and KMP, which ICON keeps in dues from directors. In practice these are mostly group companies, hence medium. Group loans classified as current are refused by the bs_nca gate."
+ },
+ "bs_icon__other_non_current_investments_and_advances": {
+  "aliases": [
+   "Other non-current investments",
+   "Other investments",
+   "Investments in mutual funds",
+   "Investment in mutual funds",
+   "Investments in bonds",
+   "Investment in bonds",
+   "Investments in debentures",
+   "Investments in preference shares",
+   "Investments in government securities",
+   "Investment in government securities",
+   "National Savings Certificates",
+   "Bank deposits with more than 12 months maturity",
+   "Bank deposits with maturity of more than 12 months",
+   "Fixed deposits with maturity of more than 12 months",
+   "Deposits with banks with maturity of more than twelve months"
+  ],
+  "exclude_hints": [
+   "(?i)margin|lien|pledg|earmark|collateral",
+   "(?i)subsidiar|associate|joint\\s+venture|group\\s+compan",
+   "(?i)provision|impairment|diminution"
+  ],
+  "route": null,
+  "confidence": "medium",
+  "note": "The mutual-fund, G-sec and NSC captions are also proposed on the bs_ca lines and only the gate separates them. On an unsectioned (old Schedule VI) note the current line wins by declaration order. Face 'Non-current investments' is NOT aliased because it usually contains subsidiaries."
+ },
+ "bs_icon__advances_to_suppliers_of_capital_goods": {
+  "aliases": [
+   "Capital advances",
+   "Capital advance",
+   "Advances to suppliers of capital goods",
+   "Advances for capital goods",
+   "Advance for capital goods",
+   "Advances against capital goods",
+   "Advances for capital expenditure",
+   "Advance for capital expenditure",
+   "Advances for purchase of property, plant and equipment",
+   "Advances for purchase of fixed assets"
+  ],
+  "exclude_hints": [
+   "(?i)work[-\\s]?in[-\\s]?progress",
+   "(?i)received|from\\s+customers"
+  ],
+  "route": null,
+  "confidence": "high",
+  "note": ""
+ },
+ "bs_icon__other_non_current_assets": {
+  "aliases": [],
+  "exclude_hints": [],
+  "route": null,
+  "confidence": "high",
+  "note": "This is not the residual; bs_icon__other_non_current_assets_others is."
+ },
+ "bs_icon__security_deposits": {
+  "aliases": [
+   "Security Deposits",
+   "Security deposit",
+   "Security deposits paid",
+   "Rental deposits",
+   "Rent deposits",
+   "Electricity deposits",
+   "Deposits with government authorities"
+  ],
+  "exclude_hints": [
+   "(?i)received|from\\s+customers|from\\s+dealers|payable"
+  ],
+  "route": null,
+  "confidence": "high",
+  "note": "Security deposits classified as current are refused by the bs_nca gate and fall to the current residual."
+ },
+ "bs_icon__dues_from_directors_promoters": {
+  "aliases": [
+   "Loans to directors",
+   "Loans and advances to directors",
+   "Due from directors",
+   "Dues from directors",
+   "Amounts due from directors",
+   "Advances to directors",
+   "Loans to promoters",
+   "Due from partners",
+   "Loans to partners"
+  ],
+  "exclude_hints": [
+   "(?i)loans?\\s+from",
+   "(?i)deposits?\\s+from",
+   "(?i)payable|due\\s+to"
+  ],
+  "route": null,
+  "confidence": "medium",
+  "note": "Ind AS's 'Directors current account' / \"Directors' C/A\" is NOT borrowed: on a horizontal or unsectioned balance sheet the same caption can be a credit balance on the liability side. Banks treat these dues as non-current wherever they are printed, but rows under current assets are refused by the bs_nca gate."
+ },
+ "bs_icon__fds_under_lien": {
+  "aliases": [
+   "FDs under Lien",
+   "Margin money deposits",
+   "Margin money",
+   "Margin money with banks",
+   "Margin money deposits with banks",
+   "Fixed deposits under lien",
+   "Deposits under lien",
+   "Bank deposits under lien",
+   "Fixed deposits held as margin money",
+   "Deposits held as margin money",
+   "Bank deposits held as margin money",
+   "Fixed deposits pledged with banks",
+   "Deposits pledged with banks",
+   "Pledged fixed deposits",
+   "Pledged bank deposits"
+  ],
+  "exclude_hints": [
+   "(?i)interest\\s+accrued",
+   "(?i)received"
+  ],
+  "route": null,
+  "confidence": "medium",
+  "note": "Most filings print margin money inside the CURRENT 'Other bank balances' note. A current-asset face row cites that note, so its rows carry section current_assets (map_ontology.py:835-838) and this bs_nca line refuses them. The line is reachable only from non-current notes unless its section_scope is widened to [bs_nca, bs_ca]."
+ },
+ "bs_icon__receivables_over_6_months": {
+  "aliases": [],
+  "exclude_hints": [],
+  "route": null,
+  "confidence": "low",
+  "note": "Needs a note_source part plus a derived domestic-receivables rung (total minus the over-6-months amount)."
+ },
+ "bs_icon__retention_money_non_current_portion": {
+  "aliases": [
+   "Retention money",
+   "Retention money receivable",
+   "Retention receivables",
+   "Retention monies"
+  ],
+  "exclude_hints": [
+   "(?i)payable"
+  ],
+  "route": null,
+  "confidence": "medium",
+  "note": "Same captions as the current-portion line; only the section gate separates them."
+ },
+ "bs_icon__other_non_current_assets_others": {
+  "aliases": [],
+  "exclude_hints": [],
+  "route": null,
+  "confidence": "high",
+  "note": ""
+ },
+ "bs_icon__total_other_non_current_assets": {
+  "aliases": [],
+  "exclude_hints": [],
+  "route": null,
+  "confidence": "medium",
+  "note": ""
+ },
+ "bs_icon__intangible_assets": {
+  "aliases": [
+   "Intangible assets",
+   "Other intangible assets",
+   "Intangible assets under development",
+   "Goodwill",
+   "Goodwill on consolidation",
+   "Deferred tax assets (net)",
+   "Deferred tax asset (net)",
+   "Deferred tax assets",
+   "Deferred tax asset",
+   "Net deferred tax assets",
+   "Miscellaneous expenditure",
+   "Miscellaneous expenditure (to the extent not written off or adjusted)",
+   "Preliminary expenses",
+   "Preliminary expenses (to the extent not written off)",
+   "Deferred revenue expenditure"
+  ],
+  "exclude_hints": [
+   "(?i)liabilit",
+   "(?i)amorti",
+   "(?i)impairment|written\\s+off\\s+during|additions?|disposals?"
+  ],
+  "route": null,
+  "confidence": "medium",
+  "note": "Face figures are NET of amortisation, so this line holds net intangibles and bs_icon__accumulated_amortization is left unaliased; aliasing both would deduct amortisation twice. In old Schedule VI 'Miscellaneous expenditure' sits below 'Current Liabilities and Provisions', and that banner (current_liabilities) refuses this bs_nca line. Note component rows (software, trademarks) are deliberately not aliased, to avoid binding both the face row and the note rows."
+ },
+ "bs_icon__accumulated_amortization": {
+  "aliases": [],
+  "exclude_hints": [],
+  "route": null,
+  "confidence": "low",
+  "note": "Fill this only together with a gross-intangibles note part, both read from the same note."
+ },
+ "bs_icon__net_intangible_assets": {
+  "aliases": [],
+  "exclude_hints": [],
+  "route": null,
+  "confidence": "medium",
+  "note": ""
+ },
+ "bs_icon__total_assets": {
+  "aliases": [
+   "Total assets"
+  ],
+  "exclude_hints": [
+   "(?i)total\\s+assets\\s+less\\s+current\\s+liabilities",
+   "(?i)net\\s+current\\s+(?:assets|liabilities)",
+   "(?i)total\\s+(?:non[-\\s]?)?current\\s+assets"
+  ],
+  "route": null,
+  "confidence": "medium",
+  "note": "Old and Revised Schedule VI print a bare 'TOTAL', which is too generic to alias. The CMA total excludes current investments, because they are not in Total current assets. Section: the keytable scopes this line bs_ca, while Ind AS scopes it ['bs_top_level'] so that no banner constrains it (mapping.py:1224-1243). bs_ca works on Schedule III because the row follows the current-assets banner."
+ },
+ "bs_icon__difference_in_bs": {
+  "aliases": [],
+  "exclude_hints": [],
+  "route": null,
+  "confidence": "high",
+  "note": ""
+ },
+ "bs_icon__tangible_net_worth": {
+  "aliases": [],
+  "exclude_hints": [],
+  "route": null,
+  "confidence": "high",
+  "note": ""
+ },
+ "bs_icon__net_working_capital": {
+  "aliases": [],
+  "exclude_hints": [],
+  "route": null,
+  "confidence": "medium",
+  "note": ""
+ },
+ "cov_icon__contingent_liabilities": {
+  "aliases": [
+   "Total contingent liabilities",
+   "Contingent liabilities not provided for",
+   "Contingent liabilities"
+  ],
+  "exclude_hints": [
+   "(?i)commitments?",
+   "(?i)\\bassets?\\b"
+  ],
+  "route": null,
+  "confidence": "low",
+  "note": "The printed total often excludes items ICON counts (LCs and bank guarantees sometimes sit under 'Commitments' or 'Other information'), so a mismatch with the computed sum is expected. 'Contingent liabilities and commitments' (the Schedule III heading, which includes commitments) is vetoed. The caption is usually a heading row with no value."
+ },
+ "cov_icon__arrears_of_cumulative_dividends": {
+  "aliases": [
+   "Arrears of Cumulative Dividends",
+   "Arrears of fixed cumulative dividends on preference shares",
+   "Arrears of fixed cumulative dividends",
+   "Arrears of cumulative dividends on preference shares",
+   "Arrears of dividend on cumulative preference shares",
+   "Arrears of cumulative preference dividend",
+   "Arrears of preference dividend",
+   "Cumulative preference dividend in arrears",
+   "Dividend on cumulative preference shares in arrears"
+  ],
+  "exclude_hints": [
+   "(?i)\\bpaid\\b|proposed|declared"
+  ],
+  "route": null,
+  "confidence": "high",
+  "note": ""
+ },
+ "cov_icon__gratuity_not_provided": {
+  "aliases": [
+   "Gratuity Liability Not Provided For",
+   "Liability for gratuity not provided for",
+   "Gratuity not provided for",
+   "Gratuity liability not provided",
+   "Unprovided liability for gratuity"
+  ],
+  "exclude_hints": [
+   "(?i)expense|\\bpaid\\b|contribution|provision\\s+for\\s+gratuity"
+  ],
+  "route": null,
+  "confidence": "medium",
+  "note": ""
+ },
+ "cov_icon__disputed_excise_customs_tax": {
+  "aliases": [
+   "Disputed income tax demands",
+   "Income tax demands disputed",
+   "Income tax demands under appeal",
+   "Income tax demands disputed in appeal",
+   "Disputed tax demands",
+   "Tax demands under dispute",
+   "Demands raised by tax authorities",
+   "Disputed excise duty demands",
+   "Excise duty demands under dispute",
+   "Disputed sales tax demands",
+   "Sales tax demands under dispute",
+   "Disputed customs duty demands",
+   "Disputed service tax demands",
+   "Disputed indirect tax demands",
+   "Income tax matters",
+   "Direct tax matters",
+   "Indirect tax matters",
+   "Excise duty matters",
+   "Customs duty matters",
+   "Service tax matters",
+   "Sales tax matters",
+   "GST matters",
+   "Goods and services tax matters",
+   "Tax matters",
+   "Taxation matters"
+  ],
+  "exclude_hints": [
+   "(?i)paid\\s+under\\s+protest|deposited|pre[-\\s]?deposit",
+   "(?i)provision|provided\\s+for\\s+in\\s+the\\s+books"
+  ],
+  "route": null,
+  "confidence": "medium",
+  "note": "Many notes print bare sub-rows: 'Income tax', 'Excise duty', 'Customs duty', 'Service tax', 'Sales tax/VAT', 'GST'. Those are NOT aliased. The CL note is normally uncited, so it is matched with statement=None/section=None (map_ontology.py:835-855), and block 1's pl_icon__excise_duty ('Excise Duty', declared first) would take 'Excise duty'. Those rows need a sub__ note part (note_terms 'contingent liabilities', row_caption_any on the tax words), as Ind AS does with sub__cl_contingency_note_exposures. The label wording is dropped from the aliases."
+ },
+ "cov_icon__other_liabilities_not_provided": {
+  "aliases": [
+   "Claims against the company not acknowledged as debts",
+   "Claims against the company not acknowledged as debt",
+   "Claims not acknowledged as debts",
+   "Other money for which the company is contingently liable",
+   "Other monies for which the company is contingently liable",
+   "Other contingent liabilities"
+  ],
+  "exclude_hints": [
+   "(?i)income[-\\s]?tax|excise|customs|service\\s+tax|sales\\s+tax|\\bgst\\b|\\bvat\\b|tax\\s+matters"
+  ],
+  "route": null,
+  "confidence": "low",
+  "note": "'Claims against the company not acknowledged as debts' is often a valued heading whose sub-rows are the tax matters (cov_icon__disputed_excise_customs_tax), so binding both double counts. Tax-qualified variants are vetoed so they go to the tax line. The draft label alias is dropped because filings do not print it."
+ },
+ "cov_icon__outstanding_lcs": {
+  "aliases": [
+   "Outstanding LCs",
+   "Letters of credit",
+   "Letter of credit",
+   "Letters of credit outstanding",
+   "Outstanding letters of credit",
+   "Letters of credit opened by banks",
+   "Letters of credit issued by banks",
+   "Letters of credit opened by banks on behalf of the company",
+   "Letters of credit issued by banks on behalf of the company",
+   "Letters of credit established",
+   "Unexpired letters of credit",
+   "Inland letters of credit",
+   "Foreign letters of credit"
+  ],
+  "exclude_hints": [
+   "(?i)charges|commission|acceptances?|devolved|limits?\\b|sanction|unutili[sz]ed"
+  ],
+  "route": null,
+  "confidence": "high",
+  "note": "Block 1's pl_icon__bank_charges 'Letter of credit charges' is a different string. LC charges, limits and acceptances are vetoed."
+ },
+ "cov_icon__bills_discounted_and_purchased": {
+  "aliases": [
+   "Bills discounted",
+   "Bills discounted with banks",
+   "Bills discounted with bankers",
+   "Bills discounted but not matured",
+   "Bills discounted with banks not matured",
+   "Bills discounted and outstanding",
+   "Bills of exchange discounted",
+   "Bills of exchange discounted with banks",
+   "Bills purchased and discounted",
+   "Bills receivable discounted",
+   "Export bills discounted"
+  ],
+  "exclude_hints": [
+   "(?i)charges|interest|commission"
+  ],
+  "route": null,
+  "confidence": "high",
+  "note": "If block 3 aliases 'Bills discounted' on the bank-borrowing lines (71/72), an uncited CL note (statement=None) hands it to line 71 by declaration order. See conflicts."
+ },
+ "cov_icon__outstanding_bgs": {
+  "aliases": [
+   "Outstanding BGs",
+   "Bank guarantees",
+   "Bank guarantee",
+   "Bank guarantees outstanding",
+   "Outstanding bank guarantees",
+   "Bank guarantees given",
+   "Guarantees given by banks",
+   "Guarantees issued by banks",
+   "Guarantees given by banks on behalf of the company",
+   "Guarantees issued by banks on behalf of the company",
+   "Bank guarantees issued on behalf of the company",
+   "Guarantees issued by bankers on behalf of the company",
+   "Performance bank guarantees"
+  ],
+  "exclude_hints": [
+   "(?i)commission|charges|limits?\\b|sanction|unutili[sz]ed|invoked",
+   "(?i)corporate|on\\s+behalf\\s+of\\s+(?:subsidiar|associate|related|group|joint|others)|for\\s+loans"
+  ],
+  "route": null,
+  "confidence": "high",
+  "note": "Bare 'Guarantees' (Schedule III item (b)) is NOT aliased because it can mean bank or corporate guarantees. Block 1's 'Bank guarantee commission' / 'Bank guarantee charges' are different strings."
+ },
+ "cov_icon__financial_guarantees_issued": {
+  "aliases": [
+   "Financial Guarantees issued by the company",
+   "Corporate guarantees",
+   "Corporate guarantee",
+   "Corporate guarantees given",
+   "Corporate guarantees issued",
+   "Corporate guarantees given on behalf of subsidiaries",
+   "Corporate guarantees given to banks on behalf of subsidiaries",
+   "Corporate guarantees given on behalf of group companies",
+   "Guarantees given on behalf of subsidiaries",
+   "Guarantees given on behalf of related parties",
+   "Guarantees given on behalf of group companies",
+   "Guarantees given on behalf of others",
+   "Guarantees given to banks on behalf of subsidiaries",
+   "Guarantees given for loans taken by subsidiaries",
+   "Financial guarantees",
+   "Financial guarantees given"
+  ],
+  "exclude_hints": [
+   "(?i)by\\s+banks?|bank\\s+guarantees?|bankers",
+   "(?i)received|commission|\\bfees?\\b|income",
+   "(?i)liabilit"
+  ],
+  "route": null,
+  "confidence": "medium",
+  "note": "Indian notes print either the guaranteed face amount or the loan outstanding, and ICON does not say which it wants. A recognised Ind AS financial-guarantee liability (in a cited BS note) is vetoed or refused by the gate."
+ },
+ "cov_icon__redemption_premium_not_provided": {
+  "aliases": [
+   "Redemption premium not provided for",
+   "Premium payable on redemption of debentures",
+   "Premium on redemption of debentures",
+   "Premium on redemption of debentures not provided for",
+   "Redemption premium on debentures",
+   "Premium payable on redemption of preference shares",
+   "Premium on redemption of preference shares"
+  ],
+  "exclude_hints": [
+   "(?i)reserve|provision\\s+for|amorti|written\\s+off|securities\\s+premium"
+  ],
+  "route": null,
+  "confidence": "medium",
+  "note": "Under Ind AS the premium is inside amortised cost, so this line is normally blank. A provision row with the same wording in a cited BS note is refused by the statement gate."
+ },
+ "cov_icon__mtm_loss_on_derivatives_not_provided": {
+  "aliases": [
+   "MTM loss on derivatives not provided for",
+   "Mark-to-market losses on derivative contracts not provided for",
+   "Mark to market losses on derivatives not provided for",
+   "MTM losses on derivative contracts not provided for",
+   "Mark-to-market losses on outstanding derivative contracts"
+  ],
+  "exclude_hints": [
+   "(?i)\\bgains?\\b",
+   "(?i)recogni[sz]ed\\s+in|charged\\s+to|reserve"
+  ],
+  "route": null,
+  "confidence": "low",
+  "note": "Rare after Ind AS, which recognises MTM."
+ },
+ "cov_icon__losses_crystallized_outside_pl": {
+  "aliases": [],
+  "exclude_hints": [],
+  "route": null,
+  "confidence": "low",
+  "note": ""
+ },
+ "cov_icon__accumulated_depreciation_on_disposals": {
+  "aliases": [],
+  "exclude_hints": [],
+  "route": null,
+  "confidence": "low",
+  "note": "Needs a sub__ note part: note title 'property, plant|fixed assets', row 'disposal|deduction|deletion' within the depreciation block or column."
+ },
+ "cov_icon__accumulated_amortization_on_disposals": {
+  "aliases": [],
+  "exclude_hints": [],
+  "route": null,
+  "confidence": "low",
+  "note": ""
+ },
+ "cov_icon__write_off_stock_in_process": {
+  "aliases": [],
+  "exclude_hints": [],
+  "route": null,
+  "confidence": "high",
+  "note": ""
+ },
+ "cov_icon__write_off_finished_goods": {
+  "aliases": [],
+  "exclude_hints": [],
+  "route": null,
+  "confidence": "high",
+  "note": ""
+ }
+}
