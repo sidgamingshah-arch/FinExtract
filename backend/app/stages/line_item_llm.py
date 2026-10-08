@@ -113,8 +113,16 @@ class LineItemLlmStage(Stage):
         # the lines under review rather than on the whole filing. Applied to the PLANS so a group
         # containing one focus line is still asked whole: the group exists because its members
         # share notes, and splitting it would pay for that note block twice.
-        focus = (set(ctx.settings.extraction.llm_focus_keys or ())
-                 if getattr(ctx.settings.extraction, "llm_focus_only", False) else set())
+        named = (list(ctx.settings.extraction.llm_focus_keys or ())
+                 if getattr(ctx.settings.extraction, "llm_focus_only", False) else [])
+        # A KEY ENDING IN "*" NAMES EVERY LINE WHOSE KEY STARTS WITH WHAT PRECEDES IT, so a whole
+        # set can be put in focus without copying its keys into the deployment file — `bs_icon__*`
+        # is every ICON balance-sheet line the model is asked about, and stays so as ICON changes.
+        # A pattern only ever ADDS keys of this run's own set, so a run of another set is focused
+        # exactly as before.
+        prefixes = tuple(k[:-1] for k in named if k.endswith("*") and len(k) > 1)
+        focus = {k for k in named if not k.endswith("*")}
+        focus |= {k for k in by_key if prefixes and k.startswith(prefixes)}
         if getattr(ctx.settings.extraction, "llm_focus_only", False) and not focus:
             ctx.log("line_item_llm:focus_only_requested_but_no_focus_keys_configured")
         skipped_by_focus = 0
@@ -123,8 +131,12 @@ class LineItemLlmStage(Stage):
             skipped_by_focus = len(plans) - len(kept)
             # NAMED, not only counted: a focus key that names no asked-about line is a key whose
             # figure this run cannot return, and the log said nothing about that for the whole
-            # life of the row-level focus gate.
-            unanswerable = sorted(k for k in focus if k not in by_key)
+            # life of the row-level focus gate. Only keys of THIS set's own namespaces are named:
+            # the deployment list serves every shipped set, and a key of another set is not one this
+            # run was ever going to answer.
+            spaces = {k.split("__", 1)[0] for k in by_key}
+            unanswerable = sorted(k for k in focus
+                                  if k not in by_key and k.split("__", 1)[0] in spaces)
             ctx.log(f"line_item_llm:focus keys={len(focus)} requests={len(kept)}/{len(plans)}"
                     + (f" keys_that_name_no_asked_about_line={unanswerable}"
                        if unanswerable else ""))

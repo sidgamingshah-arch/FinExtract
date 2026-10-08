@@ -472,7 +472,7 @@ def test_where_the_line_is_printed_reaches_the_request(shipped):
                 and getattr(i.statement, "value", None) == "balance_sheet")
     entry = line_item_payload(item, ("7",))
 
-    assert entry["printed_in"] == "Consolidated statement of financial position (balance sheet)"
+    assert entry["printed_in"] == "Statement of financial position (balance sheet)"
     assert "how_to_tell_it_apart" not in entry, "the generated sentence is still being sent"
     # The KEY is an engine key and is meant to be there — the model answers with it verbatim. What
     # must not be there is a section key in anything the model is asked to READ.
@@ -535,7 +535,7 @@ def test_what_a_line_declares_about_its_row_does_NOT_reach_the_request(shipped):
     # TOKEN form of `printed_in`, which this request already carries — `printed_in` is derived from
     # it — so it adds no information the model did not have and no lexical evidence of any kind.
     # What it adds is a JOIN: `services.face_context` keys its statement blocks by the token, and a
-    # model asked to match "Consolidated statement of financial position (balance sheet)" against
+    # model asked to match "Statement of financial position (balance sheet)" against
     # `balance_sheet` is being asked to guess at a mapping neither side states.
     #
     # `read_from` IS ADMISSIBLE ON THE SAME GROUND. It is the `route` — which of the statement, a

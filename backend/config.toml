@@ -349,6 +349,16 @@ llm_focus_keys = [
   "sub__principal_revenue_by_product",
   "sub__principal_revenue_by_sales_channel",
   "sub__revenue_note_principal_revenue",
+
+  # ICON (output_csv_icon) — EVERY line the model is asked about, by prefix (a trailing "*").
+  # An Indian CMA spread is mostly note-level detail — the domestic / export split, the "Other
+  # expenses" note divided between manufacturing and selling / administrative lines, interest by
+  # facility, current maturities by instrument, contingent liabilities — which a caption alone
+  # cannot place, so ICON is read through the model or not at all. The patterns name only ICON
+  # keys, so no other set's run asks anything new.
+  "pl_icon__*",
+  "bs_icon__*",
+  "cov_icon__*",
 ]
 # THE ROW-LEVEL LLM SETTINGS THAT STOOD HERE ARE RETIRED.
 #

@@ -16,8 +16,9 @@ The pair is BUILT, not hand-edited: ``scripts/build_icon_pair.py`` turns the Com
 NOT MEASURED ON A FILING: no Indian filing is in the reference corpus. What is asserted here is the
 configuration's arithmetic and caption routing, and one run of the whole pipeline over a GENERATED
 Schedule III balance sheet and P&L (`_schedule_iii_pdf`) — every printed total of which the spread
-must reproduce — not figures read off a real annual report. Two engine defects that run exposed are
-held as strict xfails at the end, so the day either is fixed the test says so.
+must reproduce — not figures read off a real annual report. The two engine defects that run exposed
+(a title printed with its date, a row opened by "(1)") are fixed for Indian filings and pinned at the
+end.
 """
 from __future__ import annotations
 
@@ -487,23 +488,17 @@ def test_a_schedule_iii_pnl_reaches_its_lines(schedule_iii):
         "profit_before_tax": 1800, "profit_after_tax": 1450}
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "ENGINE, not ICON: classify._looks_like_heading refuses a line carrying more than one number, so "
-    "'Standalone Balance Sheet as at 31 March 2025' is never a title candidate and the page is not "
-    "a face. The Ind AS set loses the page the same way. A classifier change moves every filing, "
-    "so it waits for a measurement on the reference corpus."))
 def test_a_title_printed_with_its_date_is_still_a_statement():
+    """'Standalone Balance Sheet as at 31 March 2025' on one line is the page's title (an Indian
+    filing; `services.regime`)."""
     pytest.importorskip("fitz")
     pytest.importorskip("reportlab")
     shown, _rows = _spread(_schedule_iii_pdf(title_with_date=True))
     assert shown.get(B + "total_assets") == 10300
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "ENGINE, not ICON: '(1) Current tax' and '(2) Deferred tax' — Schedule III's own enumerators — "
-    "never reach the matcher; the row is lost in row reconstruction, where '(1)' reads as an amount. "
-    "'(a) Current tax' survives and binds. The Ind AS set loses the rows the same way."))
 def test_a_numbered_tax_row_reaches_its_line():
+    """Schedule III's own '(1) Current tax' reaches its line; '(1)' is not the amount -1."""
     pytest.importorskip("fitz")
     pytest.importorskip("reportlab")
     shown, _rows = _spread(_schedule_iii_pdf(current_tax="(1)"))

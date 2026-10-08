@@ -21,6 +21,8 @@ import json
 import re
 import statistics
 import unicodedata
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from functools import lru_cache
@@ -607,6 +609,27 @@ def _split_banner_prefix(label_words: list[Word], steps: tuple[tuple[str, object
     return (banner, caption) if caption else (None, label_words)
 
 
+# A ROW OPENED BY ITS OWN ENUMERATOR — Schedule III's "(1) Current tax", "(2) Deferred tax", or "1.
+# Revenue" — where the numeral is part of the caption and not a figure. Read as a figure, "(1)" is the
+# amount -1, the words after it are neither caption nor figure, and the row is dropped with its tax
+# charge. A figure is never printed BEFORE its caption, so a bracketed or dotted one- or two-digit
+# numeral that opens a row and is followed by a word is the caption's. Switched on for an Indian
+# filing only (`services.regime`, set by `stages.extract` through `enumerated_rows`).
+_ENUMERATED_ROWS: ContextVar[bool] = ContextVar("enumerated_rows", default=False)
+_ROW_ENUMERATOR = re.compile(r"^(?:\(\d{1,2}\)|\d{1,2}[.)])$")
+_OPENS_A_WORD = re.compile(r"^[^\W\d_]", re.UNICODE)
+
+
+@contextmanager
+def enumerated_rows(on: bool):
+    """Read a row-opening "(1)" / "1." as part of the caption for the rows reconstructed inside."""
+    token = _ENUMERATED_ROWS.set(bool(on))
+    try:
+        yield
+    finally:
+        _ENUMERATED_ROWS.reset(token)
+
+
 def _scan_row(row: list[Word], fmt=None, *, extract_note_refs: bool = True) -> tuple[list[Word], str | None, list[Word]]:
     """Split one visual row into (label words, note-ref, value words).
 
@@ -632,6 +655,10 @@ def _scan_row(row: list[Word], fmt=None, *, extract_note_refs: bool = True) -> t
     note_ref: str | None = None
     value_words: list[Word] = []
     i = 0
+    if (_ENUMERATED_ROWS.get() and len(row) > 1 and _ROW_ENUMERATOR.match(row[0].text.strip())
+            and _OPENS_A_WORD.match(row[1].text.strip())):
+        label_words.append(row[0])
+        i = 1
     while i < len(row):
         tok = row[i].text.strip()
         if (extract_note_refs and _NOTE.match(tok) and i + 1 < len(row) and _is_note_ref_token(row[i + 1].text)

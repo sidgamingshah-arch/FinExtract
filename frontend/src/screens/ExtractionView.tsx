@@ -786,9 +786,14 @@ export default function ExtractionView() {
   // shaped output against the OLDEST template no matter what had been published or chosen since.
   // Now: the analyst's selection when it belongs to this configuration's template, else the latest
   // for it (`activeTemplate`, the same rule the Upload screen shows).
+  // AND WHEN THE CONFIGURATION LIST IS NOT THIS READER'S TO READ — an analyst's
+  // `GET /line-items/versions` is a 403 — the TEMPLATE THEY CHOSE still goes on the run, and the
+  // server resolves the configuration in force for it (`resolve_configuration_id`). This used to
+  // send neither half, so the server fell back to the newest stored template and an analyst's
+  // choice on the Upload screen changed nothing.
   const tpl = cfg
     ? activeTemplate(tplQ.data, selectedTemplateId, cfg.target_template_key)
-    : undefined;
+    : cfgQ.isError ? activeTemplate(tplQ.data, selectedTemplateId) : undefined;
   // `rulebook` is the wire name for what THIS run recorded about its CONFIGURATION — keyed on this
   // document and this choice, so switching the pick cannot leave the previous run's configuration
   // labelling the new one. `progress`, `stages` and `logTail` come back BESIDE `data` because `data`

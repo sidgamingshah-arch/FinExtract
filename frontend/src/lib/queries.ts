@@ -221,7 +221,12 @@ export function activeTemplate(
   key?: string,
 ): TemplateRef | undefined {
   const rows = (list ?? []).filter((t) => !key || t.template_key === key);
+  // With nothing chosen, a template a run can MAP AGAINST before one that has no configuration:
+  // the first latest row by key is the template-only primary spread, and defaulting to it gave a
+  // reader who cannot list configurations a run that recognised nothing. `configured` absent (an
+  // older server) is not a refusal, so that server's default is unchanged.
   return rows.find((t) => t.id === selectedId)
+    ?? rows.find((t) => t.is_latest && t.configured !== false)
     ?? rows.find((t) => t.is_latest)
     ?? rows[0];
 }

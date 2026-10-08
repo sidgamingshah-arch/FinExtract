@@ -348,6 +348,15 @@ def _slug(label: str) -> str:
 
 
 
+ROUTES = ("face", "note_tables", "prose", "anywhere")
+
+
+def _prose(text) -> str:
+    """Authored prose as the model is sent it: one paragraph, and no braces ("{Others}" is the
+    workbook's label for a catch-all row; braces in prose read as a key reference)."""
+    return re.sub(r"\s+", " ", str(text or "").replace("{", "").replace("}", "")).strip()
+
+
 def _definition(item: dict, label: str, terms_text: str | None, residual_note: str | None) -> str:
     text = item.get("definition") or ""
     text = re.sub(r"\s*Source Excel formula for slot 1:.*$", "", text, flags=re.S)
@@ -549,7 +558,10 @@ def build() -> tuple[dict, dict]:
             "statements": EXTRA_STATEMENTS.get(stt, [stt]),
             "section_scope": SCOPE_OVERRIDES.get(k, list(scope)),
             "order": i["order"],
-            "definition": (DEFINITION_OVERRIDES.get(k)
+            # THE REVIEWED DEFINITION FIRST: it is what the model reads to locate the line's figure
+            # (`services.line_item_llm.line_item_payload` sends no alias), so it is curated with the
+            # captions, per line, in `captions.json`.
+            "definition": (_prose(cap.get("definition")) or DEFINITION_OVERRIDES.get(k)
                            or _definition(i, labels[k], terms_text, residual_note)),
             "temporality": i.get("temporality"),
             "unit_of_account": i.get("unit_of_account"),
@@ -557,10 +569,19 @@ def build() -> tuple[dict, dict]:
             "analyst_bucket": BUCKETS.get(k, i.get("analyst_bucket")),
             "match_priority": 80,
         }
-        if k in APPEND_NOTES:
+        if k in APPEND_NOTES and not cap.get("definition"):
             item["definition"] = f"{item['definition'].rstrip('. ')}. {APPEND_NOTES[k]}"
-        if cap.get("route"):
+        # "(none)" is a reviewed decision that the line has no route: face and notes both.
+        if cap.get("route") in ROUTES:
             item["route"] = cap["route"]
+        if cap.get("exclude_criteria"):
+            item["exclude_criteria"] = [_prose(x) for x in cap["exclude_criteria"] if _prose(x)]
+        # WHICH NOTES THE MODEL IS SHOWN. Only a line declaring a `note_source` has its notes' TEXT
+        # attached to its request (`services.note_context.identified_notes`); without one the
+        # request names the notes and carries none of them. Heading words only — no row rules, so
+        # the deterministic note reader reads nothing on their account.
+        if cap.get("note_terms"):
+            item["note_source"] = {"note_terms": list(cap["note_terms"])}
         if calculated:
             item["extraction_mode"] = "derive" if k in DERIVE else "extract_or_derive"
             item["terms"] = terms

@@ -417,7 +417,49 @@ def _title_candidates(lines: list[dict]) -> list[dict]:
     return cands
 
 
-def _mid_page_statement(lines: list[dict], title_zone: list[dict]) -> tuple[str | None, bool, str | None, bool]:
+# A STATEMENT TITLE PRINTED WITH ITS DATE ON THE SAME LINE, which an Indian annual report does as a
+# matter of course: "Standalone Balance Sheet as at 31 March 2025", "Statement of Profit and Loss for
+# the year ended 31st March, 2025", "Balance Sheet as at March 31, 2025". The date gives the line two
+# numbers, so `_looks_like_heading` refuses it and the page was never a face. What follows the title
+# is a date phrase and nothing else, so the line is offered again WITHOUT it — the title and only the
+# title, still subject to every test a title is. Switched on for an Indian filing only
+# (`services.regime`); the text a candidate came from is kept, because the title's position on the
+# page is found by that text.
+_MONTH = (r"(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?"
+          r"|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)")
+_TITLE_DATE = (rf"(?:\d{{1,2}}(?:st|nd|rd|th)?[\s.,\-/]*{_MONTH}[\s.,\-/]*\d{{4}}"
+               rf"|{_MONTH}[\s.]+\d{{1,2}}(?:st|nd|rd|th)?[\s.,]*\d{{4}}"
+               r"|\d{1,2}[./-]\d{1,2}[./-]\d{2,4})")
+_TITLE_DATE_TAIL = re.compile(
+    r"^(?P<title>.+?)[\s,]+(?:as\s+(?:at|on)|for\s+the\s+(?:financial\s+)?(?:year|period|quarter|"
+    r"half[\s-]?year)\s+(?:ended|ending)|(?:year|period)\s+ended|ended|on)\s+"
+    + _TITLE_DATE + r"\s*\.?\s*$", re.IGNORECASE)
+
+
+def _without_date_tail(text: str) -> str | None:
+    """The title part of a heading line that ends in its own date phrase, or None."""
+    m = _TITLE_DATE_TAIL.match((text or "").strip())
+    if not m:
+        return None
+    title = m.group("title").strip(" ,-–—:")
+    return title if title and _looks_like_heading(title) else None
+
+
+def _dated_title_candidates(lines: list[dict]) -> list[dict]:
+    """The lines of `lines` that are a title followed by its date, offered as the title alone."""
+    out = []
+    for line in lines:
+        text = line["text"].strip()
+        if len(text) > 160 or text.endswith((";", ",")):
+            continue
+        title = _without_date_tail(text)
+        if title:
+            out.append({**line, "text": title, "printed_as": text})
+    return out
+
+
+def _mid_page_statement(lines: list[dict], title_zone: list[dict], *, dated_titles: bool = False
+                        ) -> tuple[str | None, bool, str | None, bool]:
     """Find an exact statement title that starts below a completed table on the same page.
 
     "EXACT" IS ENFORCED HERE AND WAS ONLY STATED. This path considers every heading-shaped line
@@ -435,6 +477,8 @@ def _mid_page_statement(lines: list[dict], title_zone: list[dict]) -> tuple[str 
     zone_ids = {id(line) for line in title_zone}
     candidates = [dict(line) for line in lines if id(line) not in zone_ids
                   and _looks_like_heading(line["text"])]
+    if dated_titles:
+        candidates += _dated_title_candidates([line for line in lines if id(line) not in zone_ids])
     return _resolve_statement(candidates, coverage=_MID_PAGE_TITLE_COVERAGE)
 
 
@@ -1000,15 +1044,23 @@ def _page_lines(page) -> tuple[list[dict], float]:
     return lines, height
 
 
-def _features(index: int, lines: list[dict], page_h: float, text: str) -> PageFeat:
+def _features(index: int, lines: list[dict], page_h: float, text: str, *,
+              dated_titles: bool = False) -> PageFeat:
     f = PageFeat(index=index)
     zone = _title_zone(lines)
     f.title_lines = [l["text"] for l in zone]
     cands = _title_candidates(zone)
+    if dated_titles:
+        cands += _dated_title_candidates(zone)
+    # A dated candidate's text is the title alone; the line it was printed as is what locates it.
+    printed_as = {c["text"]: c["printed_as"] for c in cands if c.get("printed_as")}
 
     f.statement, f.oci_combined, title, f.title_ambig = _resolve_statement(cands)
     if f.statement is None:
-        f.statement, f.oci_combined, title, f.title_ambig = _mid_page_statement(lines, zone)
+        f.statement, f.oci_combined, title, f.title_ambig = _mid_page_statement(
+            lines, zone, dated_titles=dated_titles)
+        if dated_titles and title is not None and title not in printed_as:
+            printed_as.update({c["text"]: c["printed_as"] for c in _dated_title_candidates(lines)})
     joined = " ".join(f.title_lines)
     # `_REPORT_SECTION` against the TITLE ZONE alone — a running header is printed there, and a
     # genuine note's body may discuss management's analysis without belonging to that section.
@@ -1020,7 +1072,8 @@ def _features(index: int, lines: list[dict], page_h: float, text: str) -> PageFe
         f.statement, title = None, None
     f.matched_title = title
     if title is not None and page_h:
-        hit = next((line for line in lines if line["text"].strip() == title), None)
+        located = printed_as.get(title, title)
+        hit = next((line for line in lines if line["text"].strip() == located), None)
         if hit is not None:
             f.matched_title_y = float(hit["y"]) / page_h
             # Anything with an AMOUNT above the title belongs to the statement that was running
@@ -1461,11 +1514,22 @@ class ClassifyStage:
         pages = [p for p in doc.pages if p.index < len(pdf)]
         feats: list[PageFeat] = []
         cache: list[tuple[list[dict], float]] = []
+        texts: list[str] = []
         for page_src in pages:
             lines, height = _page_lines(pdf[page_src.index])
-            text = "\n".join(l["text"] for l in lines)
             cache.append((lines, height))
-            feats.append(_features(page_src.index, lines, height, text))
+            texts.append("\n".join(l["text"] for l in lines))
+        # THE REGIME, decided once from the whole filing and kept on the context for the readers
+        # after this one (`stages.extract`). See `services.regime` for what it switches on and why
+        # only there.
+        from app.services.regime import is_indian_filing
+
+        indian = is_indian_filing(texts)
+        ctx.indian_filing = indian
+        if indian:
+            ctx.log("classify:regime=indian (dated titles and enumerated rows are read)")
+        for page_src, (lines, height), text in zip(pages, cache, texts):
+            feats.append(_features(page_src.index, lines, height, text, dated_titles=indian))
 
         path, margins = _decode(feats)
         # The notes explain statements already printed, so none of them precedes the face.

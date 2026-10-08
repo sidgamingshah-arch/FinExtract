@@ -977,6 +977,10 @@ export interface TemplateRef {
    *  client never ranks versions itself — the same contract as `LineItemVersionRef.in_force`. Read
    *  it to default a selection; do not sort. */
   is_latest?: boolean;
+  /** True when a line-item set is in force for this template's key (`routes/templates.py`), so a
+   *  run laid out on it maps against a configuration. Served because a reader without
+   *  `config:line_items` cannot list configurations to find out. Absent from an older server. */
+  configured?: boolean;
 }
 
 export interface IntegrityStat {

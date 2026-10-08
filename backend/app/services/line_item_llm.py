@@ -218,11 +218,16 @@ class Outcome:
 # (`profit_and_loss`), and a request that names one is asking the model to read a word the document
 # does not use. Kept beside the payload rather than on the enum because this is the only place that
 # needs the printed form — everywhere else compares tokens.
+# NOT "CONSOLIDATED". These said "Consolidated statement of financial position" on every line, and a
+# line is not consolidated or standalone — the BLOCK it is read from is, and each statement block
+# names its own `entity`. An Indian borrower's spread is read from the standalone statements, and a
+# model told the line is "printed in" the consolidated one was being steered to the wrong block of a
+# filing that prints both.
 _STATEMENT_LABEL: dict[str, str] = {
-    "balance_sheet": "Consolidated statement of financial position (balance sheet)",
-    "profit_and_loss": "Consolidated statement of profit or loss",
-    "cash_flow": "Consolidated statement of cash flows",
-    "equity_changes": "Consolidated statement of changes in equity",
+    "balance_sheet": "Statement of financial position (balance sheet)",
+    "profit_and_loss": "Statement of profit or loss",
+    "cash_flow": "Statement of cash flows",
+    "equity_changes": "Statement of changes in equity",
     "notes": "Notes to the financial statements",
     "covenants_supplemental": "Supplemental and covenant data",
     "statement_setup": "Reporting setup — currency, scale and period",
@@ -318,7 +323,7 @@ def line_item_payload(item, notes_for_item: tuple[str, ...]) -> dict:
     if statement:
         entry["printed_in"] = _STATEMENT_LABEL.get(statement, statement.replace("_", " "))
         # THE TOKEN AS WELL AS THE PROSE, so the line can be joined to its rows. `printed_in` is a
-        # reader's label ("Consolidated statement of financial position (balance sheet)") while
+        # reader's label ("Statement of financial position (balance sheet)") while
         # `services.face_context` keys its blocks by the token, and a model asked to match one
         # against the other is being asked to guess at a mapping neither side states.
         # ONLY FOR A LINE THAT MAY BE READ OFF THE FACE. The token is the JOIN KEY a citation

@@ -101,7 +101,11 @@ class ExtractStage:
         if doc.fmt == DocFormat.PDF and ctx.raw_bytes:
             from app.services.pdf_extract import extract_pdf
 
-            extract_pdf(ctx.raw_bytes, doc, ctx, scope=scope, normalisation=normalisation)
+            from app.services.row_reconstruct import enumerated_rows
+
+            # An Indian filing's "(1) Current tax" rows (`services.regime`; decided in classify).
+            with enumerated_rows(bool(getattr(ctx, "indian_filing", False))):
+                extract_pdf(ctx.raw_bytes, doc, ctx, scope=scope, normalisation=normalisation)
             _transpose_equity_matrix(doc, ctx)
             return doc
 

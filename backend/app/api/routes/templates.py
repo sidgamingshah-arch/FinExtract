@@ -294,9 +294,19 @@ def list_templates(session: Session = Depends(db)) -> list[dict]:
         template_key: max(row.version for row in rows if row.template_key == template_key)
         for template_key in {row.template_key for row in rows}
     }
+    # WHETHER A LINE-ITEM SET IS IN FORCE FOR THE KEY, answered by the server for the same reason
+    # `is_latest` is: a client that cannot read the configuration list (an analyst — that list needs
+    # `config:line_items`) still has to default to a template a run can map against. Without it the
+    # Upload screen defaulted to the first latest template by key, which is the template-only
+    # primary spread, and the extraction view sent no template at all — so an analyst's run was laid
+    # out on whichever template was stored last, whatever the picker showed.
+    from app.services.config_select import select_for_template
+
+    configured = {key for key in latest if select_for_template(session, key) is not None}
     return [{"id": row.id, "template_key": row.template_key, "name": row.name,
              "version": row.version, "is_published": row.is_published,
-             "is_latest": row.version == latest[row.template_key]} for row in rows]
+             "is_latest": row.version == latest[row.template_key],
+             "configured": row.template_key in configured} for row in rows]
 
 @router.get("/{template_id}")
 def get_template(template_id: str, session: Session = Depends(db)) -> dict:

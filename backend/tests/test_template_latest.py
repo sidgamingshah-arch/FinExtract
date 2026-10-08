@@ -76,3 +76,30 @@ def test_the_shipped_template_is_served_latest_first(client):
     assert rows, "the shipped template is not stored"
     assert rows[0]["version"] == max(r["version"] for r in rows)
     assert rows[0]["is_latest"] is True
+
+
+def test_each_row_says_whether_a_run_on_it_maps_against_a_configuration(client):
+    """`configured`: a line-item set is in force for the row's key.
+
+    Served because the Upload and extraction screens must default to a template a run can map
+    against, and a reader without `config:line_items` (an analyst) cannot list configurations to
+    find one. Without it the analyst's run went out naming no template, and the server laid it out
+    on whichever template was stored last — ICON, on a fresh database — whatever the picker showed.
+    """
+    from app.db.base import SessionLocal
+    from app.db.models import TemplateVersion
+
+    bare = f"tk-bare-{uuid.uuid4().hex[:8]}"          # a template no line-item set targets
+    with SessionLocal() as s:
+        _publish(s, bare, 1, True)
+        s.commit()
+    try:
+        rows = {r["template_key"]: r for r in client.get("/api/v1/templates").json()
+                if r["is_latest"]}
+        assert rows[bare]["configured"] is False
+        for key in ("output_csv_hk_v1", "output_csv_indas_v1", "output_csv_icon_v1"):
+            assert rows[key]["configured"] is True, key
+    finally:
+        with SessionLocal() as s:
+            s.query(TemplateVersion).filter(TemplateVersion.template_key == bare).delete()
+            s.commit()
