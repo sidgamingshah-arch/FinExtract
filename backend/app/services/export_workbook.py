@@ -33,7 +33,8 @@ WHAT IS WRITTEN
   The workbook's other ratios are its own formulas and are left to compute.
 
 The workbook is saved to recalculate in full when it is opened, so every total, ratio and the
-balance-sheet check is the workbook's own arithmetic over the figures written.
+balance-sheet check is the workbook's own arithmetic over the figures written. Of its thirty period
+columns only the filing's own years are shown; the rest are hidden, not removed.
 """
 from __future__ import annotations
 
@@ -347,10 +348,52 @@ def build_template_workbook(rows: list[dict], template_def: dict, *, line_item_s
             if isinstance(v, (int, float)) and is_input(cell):
                 cell.value = round(float(v), 6)
 
+    # THE FILING'S YEARS ARE SHOWN, NOT THE TEMPLATE'S THIRTY. The workbook has a value column for
+    # each of 30 periods; an annual report fills two, and the other 28 would show the template's
+    # zeros, a TRUE balance check and the copied currency. They are hidden rather than removed:
+    # their formulas and the workbook's layout stay as the bank designed them.
+    if periods:
+        last = first + int(head.get("periods") or 30) - 1
+        for title in layout["sheets"]:
+            _hide_columns(book[title], first + len(periods), last)
+
     book.calculation.fullCalcOnLoad = True
     out = io.BytesIO()
     book.save(out)
     return out.getvalue()
+
+
+def _hide_columns(ws, start: int, end: int) -> None:
+    """Hide columns ``start``..``end`` (1-based), splitting any width setting that spans the edge.
+
+    A sheet stores widths as ranges — the template's period columns are one ``<col min=6 max=35>``
+    — so hiding part of a range means cutting it into the part shown and the part hidden, each with
+    the range's own width; two overlapping ranges are a file Excel offers to repair.
+    """
+    from openpyxl.utils import get_column_letter
+    from openpyxl.worksheet.dimensions import ColumnDimension
+
+    if start > end:
+        return
+    dims = ws.column_dimensions
+    covered = False
+    for key, dim in list(dims.items()):
+        lo, hi = dim.min or 0, dim.max or 0
+        if hi < start or lo > end:
+            continue
+        covered = True
+        pieces = [(lo, start - 1, dim.hidden), (max(lo, start), min(hi, end), True),
+                  (end + 1, hi, dim.hidden)]
+        del dims[key]
+        for a, b, hidden in pieces:
+            if a > b:
+                continue
+            dims[get_column_letter(a)] = ColumnDimension(
+                ws, index=get_column_letter(a), width=dim.width, customWidth=dim.customWidth,
+                hidden=hidden, min=a, max=b)
+    if not covered:
+        dims[get_column_letter(start)] = ColumnDimension(
+            ws, index=get_column_letter(start), hidden=True, min=start, max=end)
 
 
 def workbook_filename(document_name: str, template_def: dict) -> str:

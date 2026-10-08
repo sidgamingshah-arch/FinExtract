@@ -204,6 +204,28 @@ def test_a_heading_icon_only_derives_is_left_blank(template, line_items, layout)
     assert _at(book, layout, B + "govt_and_trustee_securities", 0).value == 100
 
 
+def _hidden_columns(ws) -> set[int]:
+    return {c for dim in ws.column_dimensions.values() if dim.hidden
+            for c in range(dim.min, dim.max + 1)}
+
+
+def test_only_the_filings_two_years_are_shown(template, line_items):
+    """The workbook has thirty period columns; an annual report fills two. The other 28 would show
+    the template's zeros and a TRUE balance check, so they are hidden — not removed, so the bank's
+    layout and formulas stay as they were."""
+    book = _fill(template, line_items, [_row(P + "domestic_sales", ("prior", 900), ("current", 1000))])
+    for name in (PL, BS, AI):
+        hidden = _hidden_columns(book[name])
+        assert hidden == {1, 2, 3} | set(range(8, 36)), name     # A:C is the template's own
+        assert book[name].column_dimensions["F"].width == pytest.approx(20.7265625)
+    assert str(book[PL]["H23"].value).startswith("=ROUND(SUM(")    # kept, only out of sight
+
+
+def test_a_filing_with_one_year_shows_one_column(template, line_items):
+    book = _fill(template, line_items, [_row(P + "domestic_sales", ("current", 1000))])
+    assert _hidden_columns(book[PL]) == {1, 2, 3} | set(range(7, 36))
+
+
 def test_the_workbook_keeps_its_protection_and_drop_downs(template, line_items):
     book = _fill(template, line_items, [_row(P + "domestic_sales", ("current", 1))])
     assert all(book[name].protection.sheet for name in (PL, BS, AI))
