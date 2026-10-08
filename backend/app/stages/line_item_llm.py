@@ -214,6 +214,10 @@ class LineItemLlmStage(Stage):
         face_claims: dict[str, list[str]] = {}
         cited_by_key: dict[str, list[str | None]] = {}
         kept_printed: list[tuple[str, LineItem]] = []
+        # WHAT THE MODEL PLACED OUT OF EACH NOTE, per basis, period and section — see
+        # `_explain_swept_rows`. Indian filings only.
+        explained: dict[tuple[str, str, str, str], Decimal] = {}
+        indian = bool(getattr(ctx, "indian_filing", False))
         calls = failures = 0
         # EVERY REQUEST IS BUILT FIRST, THEN SENT — the first on its own, the rest together.
         #
@@ -413,6 +417,9 @@ class LineItemLlmStage(Stage):
                     answered += 1
                     filled += self._write(doc, by_concept, item, answer, resolved, figures, ctx,
                                           unverified)
+                    if indian:
+                        _record_explained(explained, item, resolved, list(answer.signs or ()),
+                                          component)
                     # THE CITATION IS ALSO A CLAIM. A printed face row states ONE line's figure, so
                     # naming it here is also saying it is not any other line's — recorded by row
                     # identity rather than by caption, because two statements can print the same words.
@@ -446,6 +453,8 @@ class LineItemLlmStage(Stage):
                 # A canceled run stops paying for requests nobody will read.
                 pool.shutdown(wait=False, cancel_futures=True)
 
+        if indian and explained:
+            _explain_swept_rows(doc, line_item_set, explained, ctx)
         blanked = self._reconcile_claimed_printed_rows(kept_printed, claimed_face_rows, ctx)
         blanked += self._settle_shared_printed_rows(doc, face_claims, cited_by_key, by_concept,
                                                     ctx)
@@ -577,6 +586,10 @@ class LineItemLlmStage(Stage):
         # travels with each resolved row (`note_sourced._figures_by_basis`) and is used when the
         # rows agree on one. Rows that disagree cannot be one figure's basis, so they fall back to
         # the document's and the row is flagged rather than guessed at.
+        if getattr(ctx, "indian_filing", False):
+            for e in resolved:
+                if _indian_note_is_the_companys(doc, e):
+                    e["basis"] = "standalone"
         row_bases = {str(e.get("basis")) for e in resolved
                      if e.get("basis") and not e.get("prose")}
         if len(row_bases) == 1:
@@ -617,6 +630,8 @@ class LineItemLlmStage(Stage):
             written += 1
             ctx.log(f"line_item_llm:{item.key}[{basis}:{period}] = {amount} "
                     f"from {len(resolved)} cited row(s)")
+            if getattr(ctx, "indian_filing", False):
+                _stand_down_other_rows(doc, row, item.key, basis, period, ctx)
         return written
 
     def _write_unanswered(self, doc, by_concept: dict, item, answer, unresolved: list[dict],
@@ -927,6 +942,153 @@ def _derivative_vetoes(item) -> list:
             except _re.error:
                 continue
     return out
+
+
+def _record_explained(explained: dict, item, resolved: list[dict], signs: list[int],
+                      component: bool) -> None:
+    """Add what this line took out of each NOTE to `explained`, keyed (note, basis, period,
+    section) — the same per-period figures `line_item_llm.figures_of` sums for the line."""
+    from app.services.line_item_llm import _amount
+
+    sections = _banner_tokens(item)
+    taken: set[str] = set()
+    for index, entry in enumerate(resolved):
+        note = str(entry.get("note") or "")
+        if not note or entry.get("on_face") or entry.get("prose"):
+            continue
+        sign = (signs[index] if component and index < len(signs) and signs[index] in (1, -1)
+                else 1)
+        basis = str(entry.get("basis") or "")
+        for period, raw in (entry.get("figures") or {}).items():
+            value = _amount(raw)
+            if value is None or period not in _FILED or (not component and period in taken):
+                continue
+            taken.add(period)
+            for section in sections:
+                k = (note, basis, period, section)
+                explained[k] = explained.get(k, Decimal(0)) + value * sign
+
+
+def _explain_swept_rows(doc, line_item_set, explained: dict, ctx) -> None:
+    """A face aggregate swept into a catch-all keeps only what its note's cited rows leave over.
+
+    THE SWEEP RUNS FIRST. `stages.residual` files every face row of a section that no line claims
+    into the section's catch-all, before any model is asked; on a Schedule III balance sheet that
+    is "(iii) Other financial liabilities", "(b) Other current liabilities", "(v) Loans" — the
+    aggregates whose breakdown ICON spreads over its named lines. The model then cites the note
+    behind each one — employee benefits payable, interest accrued, unpaid dividends out of note
+    23 — and those figures were counted a SECOND time inside the swept aggregate. Measured on an
+    Ind AS test filing: the current-liabilities catch-all held 2,305.19 against 666.90 printed as
+    leftovers, and every total above it was out by the difference.
+
+    So each swept row citing note N, in a section S, is reduced by what lines scoped to S placed
+    out of note N, per basis and period. A remainder within half a unit of nil removes the
+    figure. A remainder BELOW nil means the lines took more than the aggregate holds — a
+    citation error, not a leftover — so the row is left as it was and flagged for review.
+    """
+    from app.services.mapping import section_token_of_scope
+
+    catch_alls = {}
+    for item in getattr(line_item_set, "items", None) or ():
+        if str(getattr(item, "value_scope", "") or "") == "exclusive_residual" or \
+                getattr(item, "residual_policy", None) is not None:
+            catch_alls[item.key] = _banner_tokens(item)
+    tolerance = Decimal("0.5")
+    for row in getattr(doc, "line_items", None) or ():
+        sections = catch_alls.get(str(getattr(row, "canonical_key", "") or ""))
+        if not sections:
+            continue
+        notes = [str(n) for n in (row.cited_notes() if callable(getattr(row, "cited_notes", None))
+                                  else ()) if n]
+        if not notes:
+            continue
+        for slot, ev in list((row.values or {}).items()):
+            basis = str(getattr(getattr(ev, "basis", None), "value", getattr(ev, "basis", "")))
+            period = str(getattr(ev, "period_label", "") or "")
+            took = sum((explained.get((n, basis, period, sec), Decimal(0))
+                        for n in notes for sec in sections), Decimal(0))
+            if not took or ev.value is None:
+                continue
+            left = Decimal(str(ev.value)) - took
+            where = f"{row.source_label!r}[{basis}:{period}]"
+            if left < -tolerance:
+                row.confidence.flags.append(
+                    f"llm_note_rows_exceed_swept_aggregate:{basis}:{period}:{took}")
+                ctx.log(f"line_item_llm:swept {where} = {ev.value}, but lines placed {took} out "
+                        f"of note(s) {','.join(notes)}: left for review")
+                continue
+            if abs(left) <= tolerance:
+                del row.values[slot]
+            else:
+                ev.value = left
+            row.confidence.flags.append(f"llm_explained_out_of_sweep:{basis}:{period}:{took}")
+            ctx.log(f"line_item_llm:swept {where} reduced by {took} placed on named lines "
+                    f"out of note(s) {','.join(notes)}; {left if abs(left) > tolerance else 0} "
+                    f"left in the catch-all")
+
+
+def _stand_down_other_rows(doc, row, key: str, basis: str, period: str, ctx) -> None:
+    """The figure just written is the line's WHOLE figure for this basis and period, so no other
+    row carrying the line may still hold one there.
+
+    A line is routinely carried by more than one row: a Schedule III balance sheet prints trade
+    payables as "(A) micro and small enterprises" and "(B) others", and the lexical reader binds
+    both. The model's answer is written into ONE of them, and a cited note total of 11,096.90
+    went in beside the other row's own 2,184.36 — 13,281.26 in the spread. And a note page the
+    classifier mistook for a statement carried a second depreciation row, so the cited 2,852.55
+    was added to the face's own 2,945.15 and every profit line below it moved by that amount.
+
+    The other row's figure for this basis and period is removed and the row says why; its other
+    periods and bases are untouched. Indian filings only, like the regime's other rules: the
+    reference corpus was not re-measured with it on.
+    """
+    for other in (getattr(doc, "line_items", None) or ()):
+        if other is row or str(getattr(other, "canonical_key", "") or "") != key:
+            continue
+        gone = [k for k, ev in (other.values or {}).items()
+                if str(getattr(getattr(ev, "basis", None), "value", getattr(ev, "basis", "")))
+                == basis and str(getattr(ev, "period_label", "") or "") == period]
+        for k in gone:
+            del other.values[k]
+        if gone:
+            other.confidence.flags.append(f"llm_superseded_by_cited_figure:{basis}:{period}")
+            ctx.log(f"line_item_llm:{key}[{basis}:{period}] stood down "
+                    f"{other.source_label!r}: the cited figure is the line's whole")
+
+
+def _indian_note_is_the_companys(doc, entry) -> bool:
+    """Whether a cited NOTE row of an Indian filing belongs to the company's statements.
+
+    A note page carries no entity of its own, so its rows are filed CONSOLIDATED by default, and
+    a figure the model cited from the notes of a standalone-only annual report went into the
+    consolidated slot: on an Ind AS test filing every one of 93 answered lines — power and fuel,
+    current maturities, the applicant bank's cash credit, every reserve — was right and absent
+    from the standalone spread a CMA is read from. `note_sourced._prose_basis` already reasons the
+    same way for a sentence; this is the row's half.
+
+    An Indian report prints each set of statements BEFORE its own notes — standalone statements,
+    their notes, then the consolidated statements and theirs — so a note row belongs to the entity
+    of the last face page printed ahead of it whose entity was read. Only a row filed under the
+    default: a note whose own table declares a basis keeps it, and a face row, a prose figure and
+    a page that is neither are not notes.
+    """
+    from app.core.models.enums import PageKind
+
+    if entry.get("on_face") or entry.get("prose") or entry.get("off_statement"):
+        return False
+    if not entry.get("note") or str(entry.get("basis") or "") != "consolidated":
+        return False
+    page = (entry.get("provenance") or {}).get("page_index")
+    if page is None:
+        return False
+    number = str(entry.get("note") or "")
+    if any(getattr(t, "basis", None) is not None for t in (getattr(doc, "notes", None) or ())
+           if str(getattr(t, "note_number", "") or "") == number):
+        return False
+    faces = [p for p in (getattr(doc, "pages", None) or ())
+             if getattr(p, "kind", None) == PageKind.FACE and int(getattr(p, "index", -1)) < page
+             and getattr(p, "scope", None) in ("company", "consolidated")]
+    return bool(faces) and max(faces, key=lambda p: p.index).scope == "company"
 
 
 def _banner_tokens(item) -> set[str]:

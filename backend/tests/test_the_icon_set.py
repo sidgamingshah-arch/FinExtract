@@ -236,6 +236,12 @@ CAPTIONS = [
      B + "fixed_deposits_with_banks"),
     (None, None, "Claims against the company not acknowledged as debts",
      C + "other_liabilities_not_provided"),
+    # Schedule III's inserted item, numbered "(ia)": the same caption under two banners, the
+    # current one an instalment of a term liability due within the year.
+    ("balance_sheet", "Non-current liabilities", "(ia) Lease liabilities", B + "lease_liabilities"),
+    ("balance_sheet", "Current liabilities", "(ia) Lease liabilities", B + "cpltd_others"),
+    ("balance_sheet", "Non-current assets", "(c) Right-of-use assets",
+     B + "land_building_plant_machinery"),
 ]
 
 

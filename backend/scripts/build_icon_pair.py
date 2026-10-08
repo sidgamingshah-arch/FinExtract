@@ -374,7 +374,9 @@ def _definition(item: dict, label: str, terms_text: str | None, residual_note: s
     return re.sub(r"\s+", " ", text).strip()
 
 
-_ENUM = r"(?:(?:[ivxl]{1,6}|[a-h]|\d{1,2})\s+){0,2}"
+# Schedule III also numbers an INSERTED item with a letter after the roman: "(ia) Lease
+# liabilities", "(iia)". Without the letter the current lease liability matched no caption.
+_ENUM = r"(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\d{1,2}[a-h]?)\s+){0,2}"
 
 # SCHEDULE III HEADINGS THAT PRINT NO FIGURE, and that row reconstruction glues onto the row next to
 # them. Measured on a Schedule III balance sheet and P&L laid out as the Division II format prints

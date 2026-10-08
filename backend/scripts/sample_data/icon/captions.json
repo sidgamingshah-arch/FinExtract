@@ -2380,11 +2380,17 @@
   "definition": "Current maturities of foreign-currency term loans (FCNR, ECB) due within one year."
  },
  "bs_icon__cpltd_others": {
-  "aliases": [],
+  "aliases": [
+   "Current lease liabilities",
+   "Lease liabilities (current)",
+   "Lease liabilities",
+   "Current maturities of lease liabilities",
+   "Current maturities of finance lease obligations"
+  ],
   "exclude_hints": [],
   "route": null,
   "confidence": "low",
-  "note": "Current 'Lease liabilities' is printed under the identical caption to 97 (bs_ncl). 97 owns the label 'Lease Liabilities', so it would win any unconstrained tie (mapping.py:1722-1732).",
+  "note": "Current 'Lease liabilities' is printed under the identical caption to 97 (bs_ncl); the section gate decides between them, current liabilities here and non-current there. The current lease liability is an instalment of a term liability due within one year, which is what this line holds.",
   "note_terms": [
    "current borrowings",
    "short term borrowings",
@@ -3693,7 +3699,10 @@
    "Property, plant and equipment",
    "Property, plant & equipment",
    "Tangible assets",
-   "Fixed assets"
+   "Fixed assets",
+   "Right-of-use assets",
+   "Right of use assets",
+   "Right-of-use asset"
   ],
   "exclude_hints": [
    "(?i)\\bnet\\b",
@@ -3704,7 +3713,7 @@
   ],
   "route": null,
   "confidence": "medium",
-  "note": "Schedule III face 'Property, plant and equipment', Revised Schedule VI 'Tangible assets' and 'Right-of-use assets' are NET of depreciation and are NOT aliased (see unplaced). The gross figure is in the PPE note's 'Gross carrying amount ... As at 31 March' cell, which no caption alias can reach; it needs a note_source part that selects the column or measure. 'Gross carrying amount' is not aliased because the same row heads the intangibles and investment-property notes too. Parity caveat: line_item_matching.py:323-327 indexes LABELS as aliases, so the parity engine would give 'Gross block' to bs_icon__gross_block (its label owner). The runtime OntologyMatcher does not index labels (mapping.py:1685-1691) and gives it to this line.",
+  "note": "Schedule III face 'Property, plant and equipment', Revised Schedule VI 'Tangible assets' and 'Right-of-use assets' are NET of depreciation. All three are aliased: the label includes the ROU asset, and with accumulated depreciation blank Net Block is still right (the same convention as net PPE). Unaliased, the ROU face row was swept into the non-current catch-all. The gross figure is in the PPE note's 'Gross carrying amount ... As at 31 March' cell, which no caption alias can reach; it needs a note_source part that selects the column or measure. 'Gross carrying amount' is not aliased because the same row heads the intangibles and investment-property notes too. Parity caveat: line_item_matching.py:323-327 indexes LABELS as aliases, so the parity engine would give 'Gross block' to bs_icon__gross_block (its label owner). The runtime OntologyMatcher does not index labels (mapping.py:1685-1691) and gives it to this line.",
   "note_terms": [
    "property plant and equipment",
    "fixed assets",
