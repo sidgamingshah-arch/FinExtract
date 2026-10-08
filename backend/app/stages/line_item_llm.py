@@ -327,7 +327,8 @@ class LineItemLlmStage(Stage):
                     resolved, unresolved, _ = line_item_llm.resolve(
                         answer, doc.notes, face_context.face_index(doc), allow_face=may_face,
                         pages=face_context.other_page_index(doc) if may_pages else None,
-                        allow_pages=may_pages, allow_rows=may_rows)
+                        allow_pages=may_pages, allow_rows=may_rows,
+                        sections=_banner_tokens(item))
                     # A LINE THAT EXCLUDES DERIVATIVES REFUSES A DERIVATIVE CITATION — see
                     # `_refuse_derivative_citations`. Refused citations carry no figure, so they
                     # are recorded on the row and counted nowhere.
@@ -925,6 +926,20 @@ def _derivative_vetoes(item) -> list:
                 out.append(_re.compile(raw, _re.IGNORECASE))
             except _re.error:
                 continue
+    return out
+
+
+def _banner_tokens(item) -> set[str]:
+    """The banner tokens of this line's `section_scope` ("bs_cl" -> "current_liabilities"), which
+    decide between face rows printed with one caption under two banners. Empty for a line scoped
+    to no section, or to a statement's top level, which no banner constrains."""
+    from app.services.mapping import section_token_of_scope
+
+    out = set()
+    for scope in getattr(item, "section_scope", None) or ():
+        token = section_token_of_scope(str(getattr(scope, "value", scope) or ""))
+        if token:
+            out.add(token)
     return out
 
 

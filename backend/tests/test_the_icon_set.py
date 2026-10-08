@@ -384,7 +384,8 @@ def _pl(current_tax: str) -> list:
     ]
 
 
-def _schedule_iii_pdf(*, title_with_date: bool = False, current_tax: str = "(a)") -> bytes:
+def _schedule_iii_pdf(*, title_with_date: bool = False, current_tax: str = "(a)",
+                      plain_titles: bool = False) -> bytes:
     from reportlab.lib.pagesizes import A4
     from reportlab.pdfgen import canvas
     import io
@@ -428,10 +429,11 @@ def _schedule_iii_pdf(*, title_with_date: bool = False, current_tax: str = "(a)"
     c.setFont("Helvetica-Bold", 22)
     c.drawCentredString(A4[0] / 2, A4[1] / 2, "SAMPLE INDUSTRIES LIMITED")
     c.showPage()
+    prefix = "" if plain_titles else "STANDALONE "
     page(c, "Standalone Balance Sheet as at 31 March 2025" if title_with_date
-         else "STANDALONE BALANCE SHEET", "As at 31 March 2025", _BS)
+         else f"{prefix}BALANCE SHEET", "As at 31 March 2025", _BS)
     page(c, "Standalone Statement of Profit and Loss for the year ended 31 March 2025"
-         if title_with_date else "STANDALONE STATEMENT OF PROFIT AND LOSS",
+         if title_with_date else f"{prefix}STATEMENT OF PROFIT AND LOSS",
          "For the year ended 31 March 2025", _pl(current_tax))
     c.save()
     return buf.getvalue()
@@ -503,3 +505,35 @@ def test_a_numbered_tax_row_reaches_its_line():
     pytest.importorskip("reportlab")
     shown, _rows = _spread(_schedule_iii_pdf(current_tax="(1)"))
     assert shown.get(P + "current_tax") == 330
+
+
+def test_a_plain_balance_sheet_title_is_the_companys():
+    """A Division I filer with no subsidiaries titles its statements "Balance Sheet", with no
+    "Standalone". Schedule III titles a group's statements "Consolidated ...", so on an Indian
+    filing a title naming no entity is the company's; it used to keep the consolidated default and
+    the standalone spread, the one a CMA is read from, came out empty."""
+    pytest.importorskip("fitz")
+    pytest.importorskip("reportlab")
+    shown, _rows = _spread(_schedule_iii_pdf(plain_titles=True))
+    assert shown.get(B + "total_assets") == 10300
+    assert shown.get(P + "profit_after_tax") == 1450
+
+
+def test_every_line_the_model_is_asked_about_is_supplied_what_it_reads():
+    """THE LLM ROUTE CAN ONLY CITE WHAT A REQUEST CARRIES. A request for a line with a note set
+    carries notes and no statement rows (`line_item_requests.plan_requests`), and a note's TEXT
+    travels only for a line declaring a `note_source` (`note_context.identified_notes`). So an
+    asked-about ICON line either reads the face (`route: face`, statement rows supplied) or names
+    the note headings it lives under; one doing neither is sent note numbers with nothing under
+    them. And no line declares `anywhere`, which attaches every non-statement page of an annual
+    report to its request."""
+    from app.services.line_item_requests import asked_about
+
+    cfg = load_line_item_set(_raw(), resolve=True)
+    asked = [i for i in cfg.items if asked_about(i)]
+    unsupplied = [i.key for i in asked
+                  if i.route != "face"
+                  and not list(getattr(i.note_source, "note_terms", None) or ())]
+    assert not unsupplied, unsupplied
+    assert not [i.key for i in cfg.items if i.route == "anywhere"]
+    assert not [i.key for i in asked if i.route == "face" and i.note_source is not None]

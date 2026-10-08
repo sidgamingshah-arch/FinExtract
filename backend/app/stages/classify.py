@@ -1600,6 +1600,24 @@ class ClassifyStage:
                     if resolved is not None:
                         ctx.log(f"classify:page={page_src.index}:entity_scope=carried({resolved})")
                 elif f.matched_title is not None:
+                    if resolved is None and indian and not seen_notes:
+                        # AN INDIAN STATEMENT THAT DOES NOT SAY "CONSOLIDATED" IS THE COMPANY'S.
+                        # Schedule III titles the group's statements "Consolidated Balance Sheet"
+                        # and so on; a Division I filer with no subsidiaries prints a plain
+                        # "Balance Sheet", which carried no entity token, kept the consolidated
+                        # default, and left the standalone spread — the one a CMA is read from —
+                        # empty. Indian filings only, like the other regime rules: an HK Company
+                        # statement past the notes is decided by `_scope_of` instead.
+                        #
+                        # AHEAD OF THE NOTES ONLY. The company's statements precede their notes; a
+                        # "face" page found among the notes with no entity in its title is far
+                        # more often a note table the classifier mistook for a statement, and
+                        # filing it as the company's adds its rows to the standalone spread.
+                        # Measured on an Ind AS test filing: a tax note read as a P&L page moved
+                        # five standalone lines when this rule ran past the notes.
+                        resolved = "company"
+                        ctx.log(f"classify:page={page_src.index}:entity_scope="
+                                f"indian_title_without_consolidated(company:{current or '?'})")
                     # Including None: a titled page whose own scope is unresolved ENDS the run's
                     # verdict rather than passing it on to whatever follows.
                     run_scope = resolved

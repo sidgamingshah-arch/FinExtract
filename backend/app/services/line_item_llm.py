@@ -605,7 +605,7 @@ def plan_and_notes(line_item_set, notes, settings, *, doc=None):
 
 
 def resolve(answer: LineItemAnswer, notes, face=None, *, allow_face: bool = True,
-            pages=None, allow_pages: bool = False, allow_rows: bool = True
+            pages=None, allow_pages: bool = False, allow_rows: bool = True, sections=None
             ) -> tuple[list[dict], list[dict], dict[str, Decimal]]:
     """``(resolved, unresolved, figures)`` for one answer. The model supplies none of the figures.
 
@@ -626,10 +626,13 @@ def resolve(answer: LineItemAnswer, notes, face=None, *, allow_face: bool = True
     `pages` / `allow_pages` are the same pair for the `anywhere` route: the index of the rows on
     pages that are neither a statement nor a note, and whether THIS line may cite one. Both are
     off by default, so a caller that knows nothing about the route keeps the behaviour it had.
+
+    `sections` are the banner tokens of the line's own `section_scope`; they decide between face
+    rows printed with the same caption under different banners (`note_sourced.resolve_sources`).
     """
     resolved, unresolved = note_sourced.resolve_sources(answer.sources, notes, face,
                                                         allow_face=allow_face,
                                                         pages=pages, allow_pages=allow_pages,
-                                                        allow_rows=allow_rows)
+                                                        allow_rows=allow_rows, sections=sections)
     component = str(answer.role or "").strip().lower() == "component"
     return resolved, unresolved, figures_of(resolved, list(answer.signs or ()), component)

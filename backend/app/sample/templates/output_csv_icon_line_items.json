@@ -637,13 +637,25 @@
     "pl_income"
    ],
    "order": 1,
-   "definition": "Revenue from domestic sales recognized during the reporting period, before the separately presented excise-duty deduction. Exclude export sales, investment income and cash collections of earlier-period receivables.",
+   "definition": "Sales of products and services to customers in India for the year, before excise duty. Ind AS filings print one face row, 'Revenue from operations'; the domestic/export split is in its note ('Sale of products - Domestic', 'Sale of services') or in the disaggregation of revenue / geographical segment note ('Within India'). Indian GAAP prints it in the 'Revenue from operations' note. Where only total sale of products is given with no geographical split, the whole is domestic. Other operating revenue (scrap, export incentives, job work) belongs to pl_icon__other_recurring_operating_income.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
    "analyst_bucket": "income",
    "match_priority": 80,
-   "route": "face",
+   "exclude_criteria": [
+    "Export sales",
+    "Other operating revenue such as scrap sales and export incentives",
+    "Other income"
+   ],
+   "note_source": {
+    "note_terms": [
+     "revenue from operations",
+     "revenue from contracts with customers",
+     "disaggregation of revenue",
+     "segment information"
+    ]
+   },
    "aliases": [
     "Domestic Sales",
     "Domestic revenue",
@@ -689,13 +701,24 @@
     "pl_income"
    ],
    "order": 2,
-   "definition": "Revenue from export sales recognized during the reporting period, translated into presentation currency. Exclude domestic sales; export classification does not establish unhedged currency exposure.",
+   "definition": "Sales of products and services to customers outside India for the year, including deemed exports, before excise duty. Printed in the 'Revenue from operations' note ('Sale of products - Export', 'Export sales') or the geographical disaggregation ('Outside India'). Export incentives, duty drawback and RoDTEP/MEIS benefits are not sales: they are pl_icon__other_recurring_operating_income.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
    "analyst_bucket": "income",
    "match_priority": 80,
-   "route": "face",
+   "exclude_criteria": [
+    "Export incentives, duty drawback, RoDTEP and MEIS benefits",
+    "Domestic and deemed-domestic sales"
+   ],
+   "note_source": {
+    "note_terms": [
+     "revenue from operations",
+     "revenue from contracts with customers",
+     "disaggregation of revenue",
+     "segment information"
+    ]
+   },
    "aliases": [
     "Export Sales",
     "Export revenue",
@@ -808,13 +831,20 @@
     "pl_income"
    ],
    "order": 4,
-   "definition": "Excise duty included in gross sales and deducted to obtain net sales. Use a positive deduction magnitude; do not deduct taxes already excluded from reported revenue.",
+   "definition": "Excise duty included in gross sales and deducted to reach net sales: the 'Less: Excise duty' row of an Indian GAAP P&L or revenue note, or the 'Excise duty' expense row of an Ind AS P&L for periods before GST (July 2017). Positive magnitude. GST is never included in revenue and is not this line.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
    "analyst_bucket": "expenses",
    "match_priority": 80,
-   "route": "face",
+   "note_source": {
+    "note_terms": [
+     "revenue from operations",
+     "revenue from contracts with customers",
+     "disaggregation of revenue",
+     "sale of products"
+    ]
+   },
    "aliases": [
     "Excise Duty",
     "Excise duty on sale of goods",
@@ -916,13 +946,24 @@
     "pl_income"
    ],
    "order": 7,
-   "definition": "Recurring income incidental to the main business outside sales. Include only operating incidental income; exclude non-operating interest, dividends and disposal gains.",
+   "definition": "Operating income incidental to the main business: the 'Other operating revenue(s)' rows of the 'Revenue from operations' note - sale of scrap, export incentives, duty drawback, RoDTEP/MEIS, job-work and processing income, service and royalty income where not the main business. Not 'Other income' (interest, dividends, disposal gains, fair-value gains), which is non-operating.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
    "analyst_bucket": "income",
    "match_priority": 80,
-   "route": "face",
+   "exclude_criteria": [
+    "Interest, dividend and fair-value income in 'Other income'",
+    "Sale of products"
+   ],
+   "note_source": {
+    "note_terms": [
+     "revenue from operations",
+     "revenue from contracts with customers",
+     "disaggregation of revenue",
+     "sale of products"
+    ]
+   },
    "aliases": [
     "Other recurring income incidental to main business",
     "Other operating revenue",
@@ -1116,13 +1157,20 @@
     "pl_expenses"
    ],
    "order": 10,
-   "definition": "Imported raw-material consumption expense for the period. Exclude indigenous consumption and closing imported stock; sourcing origin alone does not establish currency risk.",
+   "definition": "Imported raw materials and components consumed in the year: the 'Imported' row of the 'Value of imported and indigenous raw materials consumed' table (with its percentage), printed in or after the 'Cost of materials consumed' note. Not CIF value of imports, which measures purchases. Leave empty if the filing gives no imported/indigenous split.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
    "analyst_bucket": "expenses",
    "match_priority": 80,
-   "route": "face",
+   "note_source": {
+    "note_terms": [
+     "cost of materials consumed",
+     "cost of raw materials consumed",
+     "raw materials consumed",
+     "imported and indigenous raw materials"
+    ]
+   },
    "aliases": [
     "Imported raw materials",
     "Imported raw materials consumed",
@@ -1162,13 +1210,20 @@
     "pl_expenses"
    ],
    "order": 11,
-   "definition": "Domestically sourced raw-material consumption expense for the period. Exclude imported consumption and closing indigenous stock.",
+   "definition": "Indigenous raw materials and components consumed in the year: the 'Indigenous' row of the 'Value of imported and indigenous raw materials consumed' table. Where the filing prints only 'Cost of materials consumed' with no split, the whole consumption is indigenous and that total is cited.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
    "analyst_bucket": "expenses",
    "match_priority": 80,
-   "route": "face",
+   "note_source": {
+    "note_terms": [
+     "cost of materials consumed",
+     "cost of raw materials consumed",
+     "raw materials consumed",
+     "imported and indigenous raw materials"
+    ]
+   },
    "aliases": [
     "Indigenous raw materials",
     "Indigenous raw materials consumed",
@@ -1207,13 +1262,20 @@
     "pl_expenses"
    ],
    "order": 12,
-   "definition": "Residual Other Spares within the expenses classification. Include only separately identified components not assigned to a named peer; exclude section totals, duplicated components and balancing plugs. Material residual components require source evidence;",
+   "definition": "Stores, spares and consumables consumed in manufacture: 'Consumption of stores and spares', 'Stores and spares consumed', 'Packing materials consumed' in the 'Other expenses' (Ind AS) or 'Manufacturing expenses' (Indian GAAP) note. Not raw materials, not repairs.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
    "analyst_bucket": "expenses",
    "match_priority": 80,
-   "route": "face",
+   "note_source": {
+    "note_terms": [
+     "other expenses",
+     "manufacturing expenses",
+     "manufacturing and other expenses",
+     "operating and other expenses"
+    ]
+   },
    "aliases": [
     "Other Spares",
     "Consumption of stores and spares",
@@ -1292,13 +1354,24 @@
     "pl_expenses"
    ],
    "order": 13,
-   "definition": "Power and Fuel recognized for the covered reporting period within expenses. Use the reported accrual classification; exclude closing asset/liability balances, capitalized amounts and charges or income already assigned to another line. Distinguish recognition from cash settlement and do not infer available liquidity from this amount.",
+   "definition": "Power and fuel consumed in manufacture: the 'Power and fuel' row of the 'Other expenses' or 'Manufacturing expenses' note. Not office electricity of a trading or service company, which stays in pl_icon__sga_others.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
    "analyst_bucket": "expenses",
    "match_priority": 80,
-   "route": "face",
+   "exclude_criteria": [
+    "Sale of power",
+    "Office electricity of a non-manufacturing company"
+   ],
+   "note_source": {
+    "note_terms": [
+     "other expenses",
+     "manufacturing expenses",
+     "manufacturing and other expenses",
+     "operating and other expenses"
+    ]
+   },
    "aliases": [
     "Power and Fuel",
     "Power & Fuel",
@@ -1346,13 +1419,20 @@
     "pl_expenses"
    ],
    "order": 14,
-   "definition": "Direct Labour (Factory wages & salaries) recognized for the covered reporting period within expenses. Use the reported accrual classification; exclude closing asset/liability balances, capitalized amounts and charges or income already assigned to another line. Distinguish recognition from cash settlement and do not infer available liquidity from this amount.",
+   "definition": "Factory labour: 'Contract labour charges', 'Labour charges', 'Wages' printed in the 'Other expenses' or 'Manufacturing expenses' note, or a factory wages row shown separately in 'Employee benefits expense'. When employee benefits expense is printed only as one total, it all belongs to pl_icon__salary_and_staff_expenses and this line is empty.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
    "analyst_bucket": "expenses",
    "match_priority": 80,
-   "route": "face",
+   "note_source": {
+    "note_terms": [
+     "employee benefits expense",
+     "other expenses",
+     "manufacturing expenses",
+     "employee costs"
+    ]
+   },
    "aliases": [
     "Direct Labour (Factory wages & salaries)",
     "Direct Labour (Factory wages and salaries)",
@@ -1456,13 +1536,20 @@
     "pl_expenses"
    ],
    "order": 16,
-   "definition": "Processing / Job Work Charges recognized for the covered reporting period within expenses. Use the reported accrual classification; exclude closing asset/liability balances, capitalized amounts and charges or income already assigned to another line. Distinguish recognition from cash settlement and do not infer available liquidity from this amount.",
+   "definition": "Processing and job-work charges paid to outside parties for manufacture: 'Job work charges', 'Processing charges', 'Sub-contracting charges' in the 'Other expenses' or 'Manufacturing expenses' note. Construction or sub-contract costs of an EPC company printed as their own expense note are also cited here.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
    "analyst_bucket": "expenses",
    "match_priority": 80,
-   "route": "face",
+   "note_source": {
+    "note_terms": [
+     "other expenses",
+     "manufacturing expenses",
+     "manufacturing and other expenses",
+     "operating and other expenses"
+    ]
+   },
    "aliases": [
     "Processing / Job Work Charges",
     "Job work charges",
@@ -1515,13 +1602,23 @@
     "pl_expenses"
    ],
    "order": 17,
-   "definition": "Freight and Transportation Charges recognized for the covered reporting period within expenses. Use the reported accrual classification; exclude closing asset/liability balances, capitalized amounts and charges or income already assigned to another line. Distinguish recognition from cash settlement and do not infer available liquidity from this amount.",
+   "definition": "Freight inward and transport of materials to the factory: 'Freight inward', 'Carriage inwards', 'Transportation charges' in the 'Other expenses' note. Freight outward / forwarding on sales is selling expense and belongs to pl_icon__sga_others.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
    "analyst_bucket": "expenses",
    "match_priority": 80,
-   "route": "face",
+   "exclude_criteria": [
+    "Freight outward and forwarding on sales"
+   ],
+   "note_source": {
+    "note_terms": [
+     "other expenses",
+     "manufacturing expenses",
+     "manufacturing and other expenses",
+     "operating and other expenses"
+    ]
+   },
    "aliases": [
     "Freight and Transportation Charges",
     "Freight & Transportation Charges",
@@ -1595,13 +1692,24 @@
     "pl_expenses"
    ],
    "order": 18,
-   "definition": "Residual Others within the expenses classification. Include only separately identified components not assigned to a named peer; exclude section totals, duplicated components and balancing plugs. Material residual components require source evidence;",
+   "definition": "The remaining manufacturing rows of the 'Other expenses' or 'Manufacturing expenses' note: repairs to plant and machinery, factory rent, insurance of plant, testing and inspection, other manufacturing expenses. Only rows that are clearly factory costs and that no other cost-of-sales line claims.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
    "analyst_bucket": "expenses",
    "match_priority": 80,
-   "route": "face",
+   "exclude_criteria": [
+    "Selling, administrative and corporate expenses",
+    "Repairs to buildings"
+   ],
+   "note_source": {
+    "note_terms": [
+     "other expenses",
+     "manufacturing expenses",
+     "manufacturing and other expenses",
+     "operating and other expenses"
+    ]
+   },
    "aliases": [
     "Manufacturing expenses",
     "Factory expenses",
@@ -1660,13 +1768,20 @@
     "pl_expenses"
    ],
    "order": 19,
-   "definition": "Depreciation expense allocated to cost of sales for the reporting period. Exclude accumulated depreciation, disposal-related removals and capital expenditure. A non-cash charge is not cash generated.",
+   "definition": "Depreciation charged for the year on property, plant and equipment, investment property and right-of-use assets: the depreciation rows of the 'Depreciation and amortisation expense' note, or the 'Depreciation for the year' row of the property, plant and equipment / fixed assets note. When the face prints only 'Depreciation and amortisation expense' and no split exists, cite that row. Amortisation of intangibles is pl_icon__amortization.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
    "analyst_bucket": "expenses",
    "match_priority": 80,
-   "route": "face",
+   "note_source": {
+    "note_terms": [
+     "depreciation and amortisation expense",
+     "depreciation and amortization expense",
+     "property plant and equipment",
+     "fixed assets"
+    ]
+   },
    "aliases": [
     "Depreciation",
     "Depreciation and amortisation expense",
@@ -1745,13 +1860,20 @@
     "pl_expenses"
    ],
    "order": 20,
-   "definition": "Amortization expense allocated to cost of sales for the period. Exclude accumulated amortization and depreciation; do not amortize deferred-tax assets.",
+   "definition": "Amortisation of intangible assets for the year (software, technical know-how, licences): the amortisation row of the 'Depreciation and amortisation expense' note or the 'Amortisation for the year' row of the intangible assets note. Not depreciation of right-of-use assets.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
    "analyst_bucket": "expenses",
    "match_priority": 80,
-   "route": "face",
+   "note_source": {
+    "note_terms": [
+     "depreciation and amortisation expense",
+     "depreciation and amortization expense",
+     "other intangible assets",
+     "intangible assets"
+    ]
+   },
    "aliases": [
     "Amortization",
     "Amortisation",
@@ -1801,13 +1923,18 @@
     "pl_expenses"
    ],
    "order": 21,
-   "definition": "Signed inventory-change expense adjustment. Proposed convention: opening work-in-process and finished goods less closing balances; a stock build reduces expense. Avoid duplicating raw-material changes already reflected in consumption.",
+   "definition": "'Changes in inventories of finished goods, work-in-progress and stock-in-trade' as printed on the face: positive for a decrease (a charge), negative for an increase. Not closing inventory and not raw-material movements, which are inside materials consumed.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "either",
    "analyst_bucket": "expenses",
    "match_priority": 80,
-   "route": "face",
+   "note_source": {
+    "note_terms": [
+     "changes in inventories of finished goods work in progress and stock in trade",
+     "changes in inventories"
+    ]
+   },
    "aliases": [
     "Changes in inventory",
     "Changes in inventories",
@@ -2026,13 +2153,24 @@
     "pl_expenses"
    ],
    "order": 24,
-   "definition": "Salary and staff expenses recognized for the covered reporting period within expenses. Use the reported accrual classification; exclude closing asset/liability balances, capitalized amounts and charges or income already assigned to another line. Distinguish recognition from cash settlement and do not infer available liquidity from this amount. 'Employee benefits expense' binds here when the filing does not separate factory wages.",
+   "definition": "Employee benefits expense: salaries, wages and bonus, contribution to provident and other funds, gratuity, staff welfare - the 'Employee benefits expense' face row or the total of its note. Excludes directors' sitting fees and commission printed in 'Other expenses' and contract labour, which are separate lines.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
    "analyst_bucket": "expenses",
    "match_priority": 80,
-   "route": "face",
+   "exclude_criteria": [
+    "Directors' sitting fees and commission in 'Other expenses'",
+    "Contract labour charges"
+   ],
+   "note_source": {
+    "note_terms": [
+     "employee benefits expense",
+     "employee benefit expenses",
+     "employee costs",
+     "payments to and provisions for employees"
+    ]
+   },
    "aliases": [
     "Salary and staff expenses",
     "Salary & staff expenses",
@@ -2141,13 +2279,20 @@
     "pl_expenses"
    ],
    "order": 25,
-   "definition": "Rent , Rates and Taxes recognized for the covered reporting period within expenses. Use the reported accrual classification; exclude closing asset/liability balances, capitalized amounts and charges or income already assigned to another line. Distinguish recognition from cash settlement and do not infer available liquidity from this amount.",
+   "definition": "'Rent' (short-term and low-value lease rent under Ind AS 116) and 'Rates and taxes' rows of the 'Other expenses' note, cited as components. Not lease liability interest or right-of-use depreciation.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
    "analyst_bucket": "expenses",
    "match_priority": 80,
-   "route": "face",
+   "note_source": {
+    "note_terms": [
+     "other expenses",
+     "administrative and other expenses",
+     "selling and distribution expenses",
+     "administrative expenses"
+    ]
+   },
    "aliases": [
     "Rent , Rates and Taxes",
     "Rent , Rates & Taxes",
@@ -2201,13 +2346,20 @@
     "pl_expenses"
    ],
    "order": 26,
-   "definition": "Lease rentals recognized for the covered reporting period within expenses. Use the reported accrual classification; exclude closing asset/liability balances, capitalized amounts and charges or income already assigned to another line. Distinguish recognition from cash settlement and do not infer available liquidity from this amount.",
+   "definition": "Lease rentals or hire charges printed separately from rent in the 'Other expenses' note ('Lease rentals', 'Hire charges', 'Equipment hire'). Empty when only 'Rent' is printed; rent belongs to pl_icon__rent_rates_and_taxes.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
    "analyst_bucket": "expenses",
    "match_priority": 80,
-   "route": "face",
+   "note_source": {
+    "note_terms": [
+     "other expenses",
+     "administrative and other expenses",
+     "selling and distribution expenses",
+     "administrative expenses"
+    ]
+   },
    "aliases": [
     "Lease rentals",
     "Lease rent",
@@ -2266,13 +2418,20 @@
     "pl_expenses"
    ],
    "order": 27,
-   "definition": "Bad Debts recognized for the covered reporting period within expenses. Use the reported accrual classification; exclude closing asset/liability balances, capitalized amounts and charges or income already assigned to another line. Distinguish recognition from cash settlement and do not infer available liquidity from this amount.",
+   "definition": "Bad debts written off and the provision / allowance for doubtful debts or expected credit loss charged in the year, from the 'Other expenses' note, cited as components. Not the closing allowance balance.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
    "analyst_bucket": "expenses",
    "match_priority": 80,
-   "route": "face",
+   "note_source": {
+    "note_terms": [
+     "other expenses",
+     "administrative and other expenses",
+     "selling and distribution expenses",
+     "administrative expenses"
+    ]
+   },
    "aliases": [
     "Bad Debts",
     "Bad debts written off",
@@ -2328,13 +2487,20 @@
     "pl_expenses"
    ],
    "order": 28,
-   "definition": "Travelling & conveyance expenses recognized for the covered reporting period within expenses. Use the reported accrual classification; exclude closing asset/liability balances, capitalized amounts and charges or income already assigned to another line. Distinguish recognition from cash settlement and do not infer available liquidity from this amount.",
+   "definition": "'Travelling and conveyance' expense from the 'Other expenses' note.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
    "analyst_bucket": "expenses",
    "match_priority": 80,
-   "route": "face",
+   "note_source": {
+    "note_terms": [
+     "other expenses",
+     "administrative and other expenses",
+     "selling and distribution expenses",
+     "administrative expenses"
+    ]
+   },
    "aliases": [
     "Travelling & conveyance expenses",
     "Travelling and conveyance expenses",
@@ -2386,13 +2552,20 @@
     "pl_expenses"
    ],
    "order": 29,
-   "definition": "Advertisements and Sales Promotions recognized for the covered reporting period within expenses. Use the reported accrual classification; exclude closing asset/liability balances, capitalized amounts and charges or income already assigned to another line. Distinguish recognition from cash settlement and do not infer available liquidity from this amount.",
+   "definition": "'Advertisement', 'Sales promotion', 'Business promotion' rows of the 'Other expenses' or 'Selling and distribution expenses' note.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
    "analyst_bucket": "expenses",
    "match_priority": 80,
-   "route": "face",
+   "note_source": {
+    "note_terms": [
+     "other expenses",
+     "administrative and other expenses",
+     "selling and distribution expenses",
+     "administrative expenses"
+    ]
+   },
    "aliases": [
     "Advertisements and Sales Promotions",
     "Advertisements & Sales Promotions",
@@ -2470,13 +2643,20 @@
     "pl_expenses"
    ],
    "order": 30,
-   "definition": "Commission, discount & service charges recognized for the covered reporting period within expenses. Use the reported accrual classification; exclude closing asset/liability balances, capitalized amounts and charges or income already assigned to another line. Distinguish recognition from cash settlement and do not infer available liquidity from this amount.",
+   "definition": "Selling commission, brokerage, discounts and service charges paid on sales from the 'Other expenses' or 'Selling and distribution expenses' note. Not directors' commission.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
    "analyst_bucket": "expenses",
    "match_priority": 80,
-   "route": "face",
+   "note_source": {
+    "note_terms": [
+     "other expenses",
+     "administrative and other expenses",
+     "selling and distribution expenses",
+     "administrative expenses"
+    ]
+   },
    "aliases": [
     "Commission, discount & service charges",
     "Commission, discount and service charges",
@@ -2536,13 +2716,20 @@
     "pl_expenses"
    ],
    "order": 31,
-   "definition": "Legal & professional charges recognized for the covered reporting period within expenses. Use the reported accrual classification; exclude closing asset/liability balances, capitalized amounts and charges or income already assigned to another line. Distinguish recognition from cash settlement and do not infer available liquidity from this amount.",
+   "definition": "'Legal and professional charges' / 'Legal and professional fees' from the 'Other expenses' note. Payment to auditors is pl_icon__auditors_remuneration.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
    "analyst_bucket": "expenses",
    "match_priority": 80,
-   "route": "face",
+   "note_source": {
+    "note_terms": [
+     "other expenses",
+     "administrative and other expenses",
+     "selling and distribution expenses",
+     "administrative expenses"
+    ]
+   },
    "aliases": [
     "Legal & professional charges",
     "Legal and professional charges",
@@ -2616,13 +2803,20 @@
     "pl_expenses"
    ],
    "order": 32,
-   "definition": "Directors remuneration recognized for the covered reporting period within expenses. Use the reported accrual classification; exclude closing asset/liability balances, capitalized amounts and charges or income already assigned to another line. Distinguish recognition from cash settlement and do not infer available liquidity from this amount.",
+   "definition": "Directors' sitting fees and commission to non-executive directors printed in the 'Other expenses' note, plus managerial remuneration only where printed separately from employee benefits expense. Remuneration already inside employee benefits expense is not cited again.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
    "analyst_bucket": "expenses",
    "match_priority": 80,
-   "route": "face",
+   "note_source": {
+    "note_terms": [
+     "other expenses",
+     "employee benefits expense",
+     "related party disclosures",
+     "managerial remuneration"
+    ]
+   },
    "aliases": [
     "Directors remuneration",
     "Director's remuneration",
@@ -2678,13 +2872,20 @@
     "pl_expenses"
    ],
    "order": 33,
-   "definition": "Auditors remuneration recognized for the covered reporting period within expenses. Use the reported accrual classification; exclude closing asset/liability balances, capitalized amounts and charges or income already assigned to another line. Distinguish recognition from cash settlement and do not infer available liquidity from this amount.",
+   "definition": "'Payment to auditors' / 'Auditors' remuneration' in the 'Other expenses' note: audit fee, tax audit, other services and reimbursement. Cite the row in 'Other expenses', or the total of its sub-note, not both.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
    "analyst_bucket": "expenses",
    "match_priority": 80,
-   "route": "face",
+   "note_source": {
+    "note_terms": [
+     "other expenses",
+     "payment to auditors",
+     "auditors remuneration",
+     "administrative and other expenses"
+    ]
+   },
    "aliases": [
     "Auditors remuneration",
     "Auditor's remuneration",
@@ -2739,13 +2940,24 @@
     "pl_expenses"
    ],
    "order": 34,
-   "definition": "Residual Others within the expenses classification. Include only separately identified components not assigned to a named peer; exclude section totals, duplicated components and balancing plugs. Material residual components require source evidence;. When the filing prints only 'Other expenses', this line carries it; its note splits power, stores, freight, rent, travel and the other named expenses into their own lines and leaves the remainder here.",
+   "definition": "Every remaining row of the 'Other expenses' note that no other ICON expense line claims: freight outward, repairs to buildings and others, insurance, communication, printing, CSR expenditure, donations, security, miscellaneous expenses. Cite each such row as a component; never cite the note total together with its rows. When the filing prints only 'Other expenses' with no note, that face row is cited here.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
    "analyst_bucket": "expenses",
    "match_priority": 80,
-   "route": "face",
+   "exclude_criteria": [
+    "The 'Other expenses' note total when its rows are cited",
+    "Rows claimed by power and fuel, stores, job work, freight inward, rent, rates, bad debts, travel, advertisement, commission, legal, directors' and auditors' remuneration"
+   ],
+   "note_source": {
+    "note_terms": [
+     "other expenses",
+     "administrative and other expenses",
+     "selling and distribution expenses",
+     "administrative expenses"
+    ]
+   },
    "aliases": [
     "Other expenses",
     "Other expense",
@@ -3053,13 +3265,24 @@
     "pl_expenses"
    ],
    "order": 38,
-   "definition": "Interest on Fixed Loans / Term loans recognized for the covered reporting period within interest. Use the reported accrual classification; exclude closing asset/liability balances, capitalized amounts and charges or income already assigned to another line. Distinguish recognition from cash settlement and do not infer available liquidity from this amount.",
+   "definition": "Interest on term loans, debentures, vehicle loans and other long-term borrowings, and interest on lease liabilities, from the 'Finance costs' note. Not interest on cash credit or working-capital loans.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
    "analyst_bucket": "interest",
    "match_priority": 80,
-   "route": "face",
+   "exclude_criteria": [
+    "Interest on cash credit and working-capital loans",
+    "Bank charges and processing fees"
+   ],
+   "note_source": {
+    "note_terms": [
+     "finance costs",
+     "finance cost",
+     "interest and finance charges",
+     "borrowing costs"
+    ]
+   },
    "aliases": [
     "Interest on Fixed Loans / Term loans",
     "Interest on term loans",
@@ -3111,13 +3334,23 @@
     "pl_expenses"
    ],
    "order": 39,
-   "definition": "Interest on Working capital loans recognized for the covered reporting period within interest. Use the reported accrual classification; exclude closing asset/liability balances, capitalized amounts and charges or income already assigned to another line. Distinguish recognition from cash settlement and do not infer available liquidity from this amount.",
+   "definition": "Interest on cash credit, working-capital demand loans, packing credit, bill discounting and other short-term borrowings from the 'Finance costs' note.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "either",
    "analyst_bucket": "interest",
    "match_priority": 80,
-   "route": "face",
+   "exclude_criteria": [
+    "Interest on term loans, debentures and lease liabilities"
+   ],
+   "note_source": {
+    "note_terms": [
+     "finance costs",
+     "finance cost",
+     "interest and finance charges",
+     "borrowing costs"
+    ]
+   },
    "aliases": [
     "Interest on Working capital loans",
     "Interest on working capital",
@@ -3179,13 +3412,20 @@
     "pl_expenses"
    ],
    "order": 40,
-   "definition": "Bank charges recognized for the covered reporting period within interest. Use the reported accrual classification; exclude closing asset/liability balances, capitalized amounts and charges or income already assigned to another line. Distinguish recognition from cash settlement and do not infer available liquidity from this amount.",
+   "definition": "Bank charges, loan processing fees, guarantee and LC commission and 'Other borrowing costs' from the 'Finance costs' note (or bank charges in 'Other expenses'). Exchange differences regarded as borrowing cost belong here too.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
    "analyst_bucket": "interest",
    "match_priority": 80,
-   "route": "face"
+   "note_source": {
+    "note_terms": [
+     "finance costs",
+     "finance cost",
+     "interest and finance charges",
+     "borrowing costs"
+    ]
+   }
   },
   {
    "key": "pl_icon__operating_profit_after_interest",
@@ -3256,13 +3496,19 @@
     "pl_income"
    ],
    "order": 42,
-   "definition": "Interest received recognized for the covered reporting period within non operating. Use the reported accrual classification; exclude closing asset/liability balances, capitalized amounts and charges or income already assigned to another line. Distinguish recognition from cash settlement and do not infer available liquidity from this amount.",
+   "definition": "Interest income from the 'Other income' note: on bank deposits, loans, income-tax refunds and other financial assets at amortised cost.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
    "analyst_bucket": "non_operating",
    "match_priority": 80,
-   "route": "anywhere",
+   "note_source": {
+    "note_terms": [
+     "other income",
+     "other non operating income",
+     "non operating income"
+    ]
+   },
    "aliases": [
     "Interest received",
     "Interest income",
@@ -3361,13 +3607,19 @@
     "pl_income"
    ],
    "order": 43,
-   "definition": "Dividends received from Companies recognized for the covered reporting period within non operating. Use the reported accrual classification; exclude closing asset/liability balances, capitalized amounts and charges or income already assigned to another line. Distinguish recognition from cash settlement and do not infer available liquidity from this amount.",
+   "definition": "Dividend income from investments (including mutual funds) from the 'Other income' note.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
    "analyst_bucket": "non_operating",
    "match_priority": 80,
-   "route": "anywhere",
+   "note_source": {
+    "note_terms": [
+     "other income",
+     "other non operating income",
+     "non operating income"
+    ]
+   },
    "aliases": [
     "Dividend income",
     "Dividends received",
@@ -3456,13 +3708,19 @@
     "pl_income"
    ],
    "order": 44,
-   "definition": "Profit on sale of fixed assets / Investments recognized for the covered reporting period within non operating. Use the reported accrual classification; exclude closing asset/liability balances, capitalized amounts and charges or income already assigned to another line. Distinguish recognition from cash settlement and do not infer available liquidity from this amount.",
+   "definition": "Net gain on sale or disposal of property, plant and equipment and realised gain on sale of investments, from the 'Other income' note.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "either",
    "analyst_bucket": "non_operating",
    "match_priority": 80,
-   "route": "anywhere",
+   "note_source": {
+    "note_terms": [
+     "other income",
+     "other non operating income",
+     "non operating income"
+    ]
+   },
    "aliases": [
     "Profit on sale of fixed assets",
     "Profit on sale of fixed assets (net)",
@@ -3569,13 +3827,25 @@
     "pl_income"
    ],
    "order": 45,
-   "definition": "Residual Misc Income within the non operating classification. Include only separately identified components not assigned to a named peer; exclude section totals, duplicated components and balancing plugs. Material residual components require source evidence;. When the filing prints only 'Other income', this line carries it; its note splits interest, dividends, disposal gains and amounts written back into their own lines and leaves the remainder here.",
+   "definition": "The remaining cash items of the 'Other income' note: miscellaneous income, rental income, insurance claims, net foreign-exchange gain. Not interest, dividends or disposal gains, and not non-cash items (fair-value gains, liabilities or provisions written back). When only 'Other income' is printed with no note, that row is cited.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
    "analyst_bucket": "non_operating",
    "match_priority": 80,
-   "route": "anywhere",
+   "exclude_criteria": [
+    "Interest income",
+    "Dividend income",
+    "Gain on disposal",
+    "Fair-value gains and liabilities written back"
+   ],
+   "note_source": {
+    "note_terms": [
+     "other income",
+     "other non operating income",
+     "non operating income"
+    ]
+   },
    "aliases": [
     "Misc Income",
     "Miscellaneous income",
@@ -3677,13 +3947,19 @@
     "pl_income"
    ],
    "order": 47,
-   "definition": "Residual Others within the non operating classification. Include only separately identified components not assigned to a named peer; exclude section totals, duplicated components and balancing plugs. Material residual components require source evidence;",
+   "definition": "Non-cash items of the 'Other income' note: net gain on financial assets measured at fair value through profit or loss, liabilities and provisions no longer required written back, unwinding of discount.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
    "analyst_bucket": "non_operating",
    "match_priority": 80,
-   "route": "anywhere",
+   "note_source": {
+    "note_terms": [
+     "other income",
+     "other non operating income",
+     "non operating income"
+    ]
+   },
    "aliases": [
     "Liabilities no longer required written back",
     "Provisions no longer required written back",
@@ -3805,13 +4081,20 @@
     "pl_expenses"
    ],
    "order": 50,
-   "definition": "Crystallized forex loss recognized for the covered reporting period within non operating. Use the reported accrual classification; exclude closing asset/liability balances, capitalized amounts and charges or income already assigned to another line. Distinguish recognition from cash settlement and do not infer available liquidity from this amount.",
+   "definition": "Realised net foreign-exchange loss charged in the year, from the 'Other expenses' or 'Finance costs' note. Not a gain.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "either",
    "analyst_bucket": "non_operating",
    "match_priority": 80,
-   "route": "anywhere",
+   "note_source": {
+    "note_terms": [
+     "other expenses",
+     "finance costs",
+     "exceptional items",
+     "other income"
+    ]
+   },
    "aliases": [
     "Realised foreign exchange loss",
     "Realised exchange loss",
@@ -3881,13 +4164,19 @@
     "pl_expenses"
    ],
    "order": 51,
-   "definition": "Period expense from writing off work-in-process inventory. Exclude closing inventory and duplicate expense already recognized in cost of sales. Normally a non-cash carrying-value reduction despite the template cash-items placement.",
+   "definition": "Write-off or write-down of work-in-progress charged in the year, usually an exceptional item or a row of 'Other expenses'.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
    "analyst_bucket": "non_operating",
    "match_priority": 80,
-   "route": "anywhere",
+   "note_source": {
+    "note_terms": [
+     "exceptional items",
+     "other expenses",
+     "prior period items"
+    ]
+   },
    "aliases": [
     "Work-in-progress written off",
     "Write-off of work-in-progress"
@@ -3925,13 +4214,19 @@
     "pl_expenses"
    ],
    "order": 52,
-   "definition": "Period expense from writing off finished-goods inventory. Exclude closing inventory and duplicate cost-of-sales charges. Not itself a current cash payment despite cash-items placement.",
+   "definition": "Write-off or write-down of finished goods charged in the year, usually an exceptional item or a row of 'Other expenses'.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
    "analyst_bucket": "non_operating",
    "match_priority": 80,
-   "route": "anywhere",
+   "note_source": {
+    "note_terms": [
+     "exceptional items",
+     "other expenses",
+     "prior period items"
+    ]
+   },
    "aliases": [
     "Finished goods written off",
     "Write-off of finished goods"
@@ -3965,13 +4260,18 @@
     "pl_expenses"
    ],
    "order": 53,
-   "definition": "Loss on sale of fixed assets / Investments recognized for the covered reporting period within non operating. Use the reported accrual classification; exclude closing asset/liability balances, capitalized amounts and charges or income already assigned to another line. Distinguish recognition from cash settlement and do not infer available liquidity from this amount.",
+   "definition": "Net loss on sale, discard or write-off of property, plant and equipment or investments, from the 'Other expenses' note or exceptional items.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "either",
    "analyst_bucket": "non_operating",
    "match_priority": 80,
-   "route": "anywhere",
+   "note_source": {
+    "note_terms": [
+     "other expenses",
+     "exceptional items"
+    ]
+   },
    "aliases": [
     "Loss on sale of fixed assets",
     "Loss on sale of fixed assets (net)",
@@ -4069,13 +4369,19 @@
     "pl_expenses"
    ],
    "order": 54,
-   "definition": "Residual Other non operating cash expenses within the non operating classification. Include only separately identified components not assigned to a named peer; exclude section totals, duplicated components and balancing plugs. Material residual components require source evidence;",
+   "definition": "Exceptional items and prior-period items that are expenses: the 'Exceptional items' face row or its note (voluntary retirement, settlement, impairment where printed as exceptional).",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
    "analyst_bucket": "non_operating",
    "match_priority": 80,
-   "route": "anywhere",
+   "note_source": {
+    "note_terms": [
+     "exceptional items",
+     "other expenses",
+     "prior period items"
+    ]
+   },
    "aliases": [
     "Prior period expenses",
     "Prior period expenditure",
@@ -4117,7 +4423,14 @@
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
    "analyst_bucket": "non_operating",
-   "match_priority": 80
+   "match_priority": 80,
+   "note_source": {
+    "note_terms": [
+     "exceptional items",
+     "other expenses",
+     "prior period items"
+    ]
+   }
   },
   {
    "key": "pl_icon__non_operating_expense_cash_subtotal",
@@ -4181,13 +4494,20 @@
     "pl_expenses"
    ],
    "order": 57,
-   "definition": "MTM forex loss recognized for the covered reporting period within non operating. Use the reported accrual classification; exclude closing asset/liability balances, capitalized amounts and charges or income already assigned to another line. Distinguish recognition from cash settlement and do not infer available liquidity from this amount.",
+   "definition": "Unrealised mark-to-market loss on derivatives or foreign-currency restatement charged in the year, where printed separately.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "either",
    "analyst_bucket": "non_operating",
    "match_priority": 80,
-   "route": "anywhere",
+   "note_source": {
+    "note_terms": [
+     "other expenses",
+     "finance costs",
+     "exceptional items",
+     "other income"
+    ]
+   },
    "aliases": [
     "Unrealised foreign exchange loss",
     "Unrealised exchange loss",
@@ -4251,7 +4571,13 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "non_operating",
    "match_priority": 80,
-   "route": "anywhere",
+   "note_source": {
+    "note_terms": [
+     "exceptional items",
+     "other expenses",
+     "prior period items"
+    ]
+   },
    "aliases": [
     "Provision for diminution in value of investments",
     "Provision for diminution in the value of investments",
@@ -4586,13 +4912,17 @@
     "pl_expenses"
    ],
    "order": 64,
-   "definition": "Current income-tax expense or credit recognized in profit and loss for the period. Exclude tax paid, advance-tax assets and the closing tax liability.",
+   "definition": "Current tax charged in the P&L: the '(1) Current tax' face row under 'Tax expense', including tax of earlier years when printed beside it and MAT under Indian GAAP net of MAT credit entitlement. Not advance tax paid or the tax liability.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
    "analyst_bucket": "expenses",
    "match_priority": 80,
-   "route": "anywhere",
+   "route": "face",
+   "exclude_criteria": [
+    "Deferred tax",
+    "Advance tax paid"
+   ],
    "aliases": [
     "Current tax",
     "Current income tax",
@@ -4695,13 +5025,13 @@
     "pl_expenses"
    ],
    "order": 65,
-   "definition": "Deferred income-tax expense or credit recognized in profit and loss. Exclude closing deferred-tax assets/liabilities and tax effects recognized outside profit and loss.",
+   "definition": "Deferred tax charge (positive) or credit (negative) in the P&L: the '(2) Deferred tax' face row. Not the deferred tax asset or liability balance.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "either",
    "analyst_bucket": "expenses",
    "match_priority": 80,
-   "route": "anywhere",
+   "route": "face",
    "aliases": [
     "Deferred tax",
     "Deferred tax charge",
@@ -4855,13 +5185,25 @@
     "is_pl"
    ],
    "order": 67,
-   "definition": "Equity dividends paid and proposed attributable to the reporting period on the template basis. Avoid overlap between paid and proposed distributions; proposed dividends need not be recognized liabilities.",
+   "definition": "Equity dividend for the year, paid and proposed: interim dividend paid plus final dividend proposed or recommended for the year, from the 'Dividends' / 'Distribution made and proposed' note or, under Indian GAAP, the 'Proposed dividend' appropriation in the surplus. Exclude dividend distribution tax and the prior year's final dividend paid in this year.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
    "analyst_bucket": "expenses",
    "match_priority": 80,
-   "route": "anywhere",
+   "exclude_criteria": [
+    "Dividend distribution tax",
+    "Prior year's final dividend paid in the current year"
+   ],
+   "note_source": {
+    "note_terms": [
+     "dividends",
+     "distributions made and proposed",
+     "proposed dividend",
+     "reserves and surplus",
+     "other equity"
+    ]
+   },
    "aliases": [
     "Interim dividend",
     "Interim dividend on equity shares",
@@ -4952,13 +5294,24 @@
     "bs_cl"
    ],
    "order": 71,
-   "definition": "Outstanding drawn short-term borrowing from the applicant bank at statement date. Exclude sanctioned/unused limits, other-bank balances and separately accrued interest. Applicant-bank identity is not supplied by this template. Current 'Borrowings' bind here by convention: the filing does not say which bank applied. Its note splits current maturities, inter-corporate deposits and related-party loans into their own lines; a reviewer moves other banks' share to the next line.",
+   "definition": "Working-capital borrowings from the lending (applicant) bank at the balance-sheet date: cash credit, working-capital demand loan, packing credit, bill discounting from banks, from the current 'Borrowings' / 'Short-term borrowings' note. When the note names banks, cite the rows of the lead or consortium-leader bank; when it does not, cite all secured working-capital loans from banks. Exclude current maturities of long-term debt, loans from related parties and inter-corporate deposits.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_liabilities",
    "match_priority": 80,
-   "route": "anywhere",
+   "exclude_criteria": [
+    "Current maturities of long-term borrowings",
+    "Loans from related parties and inter-corporate deposits",
+    "Sanctioned but undrawn limits"
+   ],
+   "note_source": {
+    "note_terms": [
+     "current borrowings",
+     "short term borrowings",
+     "borrowings"
+    ]
+   },
    "aliases": [
     "From applicant bank",
     "Cash credit",
@@ -5053,13 +5406,22 @@
     "bs_cl"
    ],
    "order": 72,
-   "definition": "Outstanding drawn short-term borrowing from banks other than the applicant bank. Exclude sanctioned/unused limits, applicant-bank balances and separately accrued interest.",
+   "definition": "Working-capital borrowings from banks other than the applicant bank, where the borrowings note names the banks. Empty when the note does not identify banks.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_liabilities",
    "match_priority": 80,
-   "route": "anywhere",
+   "exclude_criteria": [
+    "Current maturities of long-term borrowings"
+   ],
+   "note_source": {
+    "note_terms": [
+     "current borrowings",
+     "short term borrowings",
+     "borrowings"
+    ]
+   },
    "aliases": [
     "From other banks"
    ],
@@ -5118,13 +5480,19 @@
     "bs_cl"
    ],
    "order": 74,
-   "definition": "Residual Short term borrowings from others (including mobilization advance) within the current liabilities classification. Include only separately identified components not assigned to a named peer; exclude section totals, duplicated components and balancing plugs. Material residual components require source evidence;",
+   "definition": "Short-term borrowings not from banks and not from related parties: inter-corporate deposits, commercial paper, short-term loans from NBFCs and others, mobilisation advances treated as borrowing, from the current borrowings note.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_liabilities",
    "match_priority": 80,
-   "route": "anywhere",
+   "note_source": {
+    "note_terms": [
+     "current borrowings",
+     "short term borrowings",
+     "borrowings"
+    ]
+   },
    "aliases": [
     "Short term borrowings from others (including mobilization advance)",
     "Inter-corporate deposits",
@@ -5190,13 +5558,20 @@
     "bs_cl"
    ],
    "order": 75,
-   "definition": "Recognized Short term borrowings from Related Parties balance at statement date, classified as current liabilities. Use the reported carrying basis and entity perimeter; distinguish this balance from period income/expense, sanctioned limits and cash payments. Exclude amounts already assigned to named peer categories; do not infer realizability, collateral eligibility or covenant treatment.",
+   "definition": "Short-term loans from directors, promoters, subsidiaries or other related parties in the current borrowings note.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_liabilities",
    "match_priority": 80,
-   "route": "anywhere",
+   "note_source": {
+    "note_terms": [
+     "current borrowings",
+     "short term borrowings",
+     "borrowings",
+     "related party disclosures"
+    ]
+   },
    "aliases": [
     "Short term borrowings from Related Parties",
     "Loans from related parties",
@@ -5340,13 +5715,19 @@
     "bs_cl"
    ],
    "order": 77,
-   "definition": "Recognized Advance payments from customers balance at statement date, classified as current liabilities. Use the reported carrying basis and entity perimeter; distinguish this balance from period income/expense, sanctioned limits and cash payments. Exclude amounts already assigned to named peer categories; do not infer realizability, collateral eligibility or covenant treatment.",
+   "definition": "'Advances from customers' and 'Contract liabilities' in the 'Other current liabilities' note.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_liabilities",
    "match_priority": 80,
-   "route": "anywhere",
+   "note_source": {
+    "note_terms": [
+     "other current liabilities",
+     "other liabilities",
+     "contract liabilities"
+    ]
+   },
    "aliases": [
     "Advance payments from customers",
     "Advance from customers",
@@ -5394,13 +5775,20 @@
     "bs_cl"
    ],
    "order": 78,
-   "definition": "Recognized Provision for taxation balance at statement date, classified as current liabilities. Use the reported carrying basis and entity perimeter; distinguish this balance from period income/expense, sanctioned limits and cash payments. Exclude amounts already assigned to named peer categories; do not infer realizability, collateral eligibility or covenant treatment.",
+   "definition": "Income-tax liability at the date: the 'Current tax liabilities (net)' face row (Ind AS) or 'Provision for taxation / income tax (net of advance tax)' in 'Short-term provisions' (Indian GAAP).",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_liabilities",
    "match_priority": 80,
-   "route": "anywhere",
+   "note_source": {
+    "note_terms": [
+     "current tax liabilities",
+     "short term provisions",
+     "provisions",
+     "income tax"
+    ]
+   },
    "aliases": [
     "Provision for taxation",
     "Provision for tax",
@@ -5461,13 +5849,19 @@
     "bs_cl"
    ],
    "order": 79,
-   "definition": "Recognized Dividend payable balance at statement date, classified as current liabilities. Use the reported carrying basis and entity perimeter; distinguish this balance from period income/expense, sanctioned limits and cash payments. Exclude amounts already assigned to named peer categories; do not infer realizability, collateral eligibility or covenant treatment.",
+   "definition": "'Unpaid dividends' / 'Unclaimed dividends' in 'Other financial liabilities', and 'Proposed dividend' and tax on it in Indian GAAP 'Short-term provisions'.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_liabilities",
    "match_priority": 80,
-   "route": "anywhere",
+   "note_source": {
+    "note_terms": [
+     "other financial liabilities",
+     "other current liabilities",
+     "short term provisions"
+    ]
+   },
    "aliases": [
     "Dividend payable",
     "Dividends payable",
@@ -5518,13 +5912,18 @@
     "bs_cl"
    ],
    "order": 80,
-   "definition": "Residual Other statutory liabilities (due within 1 year) within the current liabilities classification. Include only separately identified components not assigned to a named peer; exclude section totals, duplicated components and balancing plugs. Material residual components require source evidence;",
+   "definition": "'Statutory dues', 'Statutory liabilities' (GST, TDS, provident fund, ESIC) in the 'Other current liabilities' note.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_liabilities",
    "match_priority": 80,
-   "route": "anywhere",
+   "note_source": {
+    "note_terms": [
+     "other current liabilities",
+     "other liabilities"
+    ]
+   },
    "aliases": [
     "Other statutory liabilities (due within 1 year)",
     "Statutory dues",
@@ -5595,13 +5994,20 @@
     "bs_cl"
    ],
    "order": 81,
-   "definition": "Current portion of long-term obligations contractually due within one year, including the listed debt and preference-share components. Exclude later maturities and accrued interest; not principal repaid during the year.",
+   "definition": "Instalments of long-term debt due within one year: 'Current maturities of long-term borrowings / debt' - inside current 'Borrowings' under Ind AS, inside 'Other current liabilities' under Indian GAAP. The total of its debenture, preference, rupee and foreign-currency term-loan components.",
    "temporality": "instant",
    "unit_of_account": "subtotal",
    "sign_convention": "either",
    "analyst_bucket": "current_liabilities",
    "match_priority": 90,
-   "route": "anywhere",
+   "note_source": {
+    "note_terms": [
+     "current borrowings",
+     "short term borrowings",
+     "other current liabilities",
+     "borrowings"
+    ]
+   },
    "extraction_mode": "extract_or_derive",
    "terms": [
     {
@@ -5657,13 +6063,20 @@
     "bs_cl"
    ],
    "order": 82,
-   "definition": "Recognized Debentures balance at statement date, classified as current liabilities. Use the reported carrying basis and entity perimeter; distinguish this balance from period income/expense, sanctioned limits and cash payments. Exclude amounts already assigned to named peer categories; do not infer realizability, collateral eligibility or covenant treatment.",
+   "definition": "Current maturities of debentures (NCDs) due within one year, from the current borrowings or other current liabilities note.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_liabilities",
    "match_priority": 80,
-   "route": "anywhere",
+   "note_source": {
+    "note_terms": [
+     "current borrowings",
+     "short term borrowings",
+     "other current liabilities",
+     "borrowings"
+    ]
+   },
    "aliases": [
     "Current maturities of debentures",
     "Current maturities of non-convertible debentures",
@@ -5701,13 +6114,20 @@
     "bs_cl"
    ],
    "order": 83,
-   "definition": "Recognized Preference Shares balance at statement date, classified as current liabilities. Use the reported carrying basis and entity perimeter; distinguish this balance from period income/expense, sanctioned limits and cash payments. Exclude amounts already assigned to named peer categories; do not infer realizability, collateral eligibility or covenant treatment.",
+   "definition": "Redeemable preference shares (classified as borrowing) due for redemption within one year.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_liabilities",
    "match_priority": 80,
-   "route": "anywhere",
+   "note_source": {
+    "note_terms": [
+     "current borrowings",
+     "short term borrowings",
+     "other current liabilities",
+     "borrowings"
+    ]
+   },
    "aliases": [
     "Current maturities of redeemable preference shares",
     "Current maturities of preference shares"
@@ -5739,13 +6159,24 @@
     "bs_cl"
    ],
    "order": 84,
-   "definition": "Recognized Rupee Term loans balance at statement date, classified as current liabilities. Use the reported carrying basis and entity perimeter; distinguish this balance from period income/expense, sanctioned limits and cash payments. Exclude amounts already assigned to named peer categories; do not infer realizability, collateral eligibility or covenant treatment.",
+   "definition": "Current maturities of rupee term loans (including vehicle and equipment loans) from banks and financial institutions: the 'Current maturities of long-term borrowings' row of the current borrowings note (Ind AS) or 'Other current liabilities' note (Indian GAAP). Excludes foreign-currency loans and debentures.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_liabilities",
    "match_priority": 80,
-   "route": "anywhere",
+   "exclude_criteria": [
+    "Non-current portion of term loans",
+    "Interest accrued on term loans"
+   ],
+   "note_source": {
+    "note_terms": [
+     "current borrowings",
+     "short term borrowings",
+     "other current liabilities",
+     "borrowings"
+    ]
+   },
    "aliases": [
     "Current maturities of term loans",
     "Current maturities of term loans from banks",
@@ -5802,13 +6233,20 @@
     "bs_cl"
    ],
    "order": 85,
-   "definition": "Recognized Foreign currency loans balance at statement date, classified as current liabilities. Use the reported carrying basis and entity perimeter; distinguish this balance from period income/expense, sanctioned limits and cash payments. Exclude amounts already assigned to named peer categories; do not infer realizability, collateral eligibility or covenant treatment.",
+   "definition": "Current maturities of foreign-currency term loans (FCNR, ECB) due within one year.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_liabilities",
    "match_priority": 80,
-   "route": "anywhere",
+   "note_source": {
+    "note_terms": [
+     "current borrowings",
+     "short term borrowings",
+     "other current liabilities",
+     "borrowings"
+    ]
+   },
    "aliases": [
     "Current maturities of foreign currency term loans",
     "Current maturities of foreign currency loans",
@@ -5842,12 +6280,20 @@
     "bs_cl"
    ],
    "order": 86,
-   "definition": "Residual Others within the current liabilities classification. Include only separately identified components not assigned to a named peer; exclude section totals, duplicated components and balancing plugs. Material residual components require source evidence;",
+   "definition": "Other long-term obligations due within one year: current lease liabilities, current maturities of deferred payment credits and deposits.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_liabilities",
-   "match_priority": 80
+   "match_priority": 80,
+   "note_source": {
+    "note_terms": [
+     "current borrowings",
+     "short term borrowings",
+     "other current liabilities",
+     "lease liabilities"
+    ]
+   }
   },
   {
    "key": "bs_icon__other_current_liabilities_and_provisions",
@@ -5912,13 +6358,19 @@
     "bs_cl"
    ],
    "order": 88,
-   "definition": "Recognized Creditors for Expenses balance at statement date, classified as current liabilities. Use the reported carrying basis and entity perimeter; distinguish this balance from period income/expense, sanctioned limits and cash payments. Exclude amounts already assigned to named peer categories; do not infer realizability, collateral eligibility or covenant treatment.",
+   "definition": "Payables for expenses and capital goods printed apart from trade payables ('Creditors for expenses', 'Payable for capital goods') in 'Other financial liabilities' or 'Other current liabilities'.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_liabilities",
    "match_priority": 80,
-   "route": "anywhere",
+   "note_source": {
+    "note_terms": [
+     "trade payables",
+     "other financial liabilities",
+     "other current liabilities"
+    ]
+   },
    "aliases": [
     "Creditors for expenses",
     "Sundry creditors for expenses",
@@ -5975,13 +6427,18 @@
     "bs_cl"
    ],
    "order": 89,
-   "definition": "Recognized Employee expenses payable balance at statement date, classified as current liabilities. Use the reported carrying basis and entity perimeter; distinguish this balance from period income/expense, sanctioned limits and cash payments. Exclude amounts already assigned to named peer categories; do not infer realizability, collateral eligibility or covenant treatment.",
+   "definition": "'Employee benefits payable', 'Salary and wages payable' in 'Other financial liabilities'.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_liabilities",
    "match_priority": 80,
-   "route": "anywhere",
+   "note_source": {
+    "note_terms": [
+     "other financial liabilities",
+     "other current liabilities"
+    ]
+   },
    "aliases": [
     "Employee expenses payable",
     "Employee benefits payable",
@@ -6059,13 +6516,18 @@
     "bs_cl"
    ],
    "order": 90,
-   "definition": "Closing recognized current liability arising from forex mark-to-market losses. Not the period loss expense; identify underlying instruments and avoid duplicating their carrying liability.",
+   "definition": "Derivative liabilities / mark-to-market payable on forward contracts in 'Other financial liabilities'.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "either",
    "analyst_bucket": "current_liabilities",
    "match_priority": 80,
-   "route": "anywhere",
+   "note_source": {
+    "note_terms": [
+     "other financial liabilities",
+     "other current liabilities"
+    ]
+   },
    "aliases": [
     "MTM forex loss",
     "Derivative liabilities",
@@ -6114,13 +6576,18 @@
     "bs_cl"
    ],
    "order": 91,
-   "definition": "Interest accrued but unpaid at statement date. Exclude principal, future interest and period interest already paid.",
+   "definition": "'Interest accrued but not due' and 'Interest accrued and due' on borrowings in 'Other financial liabilities' or 'Other current liabilities'.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_liabilities",
    "match_priority": 80,
-   "route": "anywhere",
+   "note_source": {
+    "note_terms": [
+     "other financial liabilities",
+     "other current liabilities"
+    ]
+   },
    "aliases": [
     "Interest accrued but not due on borrowings",
     "Interest accrued and due on borrowings",
@@ -6175,13 +6642,18 @@
     "bs_cl"
    ],
    "order": 92,
-   "definition": "Recognized Outstanding lease rentals balance at statement date, classified as current liabilities. Use the reported carrying basis and entity perimeter; distinguish this balance from period income/expense, sanctioned limits and cash payments. Exclude amounts already assigned to named peer categories; do not infer realizability, collateral eligibility or covenant treatment.",
+   "definition": "Lease rentals payable printed as their own row (not lease liabilities).",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_liabilities",
    "match_priority": 80,
-   "route": "anywhere",
+   "note_source": {
+    "note_terms": [
+     "other financial liabilities",
+     "other current liabilities"
+    ]
+   },
    "aliases": [
     "Outstanding lease rentals",
     "Lease rentals payable",
@@ -6366,13 +6838,19 @@
     "bs_ncl"
    ],
    "order": 96,
-   "definition": "Recognized Debentures & Preference Shares (not maturing within 1 year) balance at statement date, classified as non current liabilities. Use the reported carrying basis and entity perimeter; distinguish this balance from period income/expense, sanctioned limits and cash payments. Exclude amounts already assigned to named peer categories; do not infer realizability, collateral eligibility or covenant treatment.",
+   "definition": "Non-current debentures / NCDs and redeemable preference shares classified as borrowings, excluding the portion due within one year, from the non-current borrowings note.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "non_current_liabilities",
    "match_priority": 80,
-   "route": "anywhere",
+   "note_source": {
+    "note_terms": [
+     "non current borrowings",
+     "long term borrowings",
+     "borrowings"
+    ]
+   },
    "aliases": [
     "Debentures & Preference Shares (not maturing within 1 year)",
     "Debentures and Preference Shares (not maturing within 1 year)",
@@ -6478,13 +6956,23 @@
     "bs_ncl"
    ],
    "order": 98,
-   "definition": "Recognized Rupee Term loans (excl. instalments payable within 1 year) balance at statement date, classified as non current liabilities. Use the reported carrying basis and entity perimeter; distinguish this balance from period income/expense, sanctioned limits and cash payments. Exclude amounts already assigned to named peer categories; do not infer realizability, collateral eligibility or covenant treatment. Non-current 'Borrowings' bind here by convention; its note splits debentures, foreign-currency loans, deposits and related-party loans into their own lines.",
+   "definition": "Rupee term loans from banks and financial institutions (including vehicle and equipment loans) repayable after one year: the non-current / 'Long-term borrowings' note rows, excluding current maturities. When the note does not split lenders or currencies, the non-current 'Borrowings' face row is cited.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "non_current_liabilities",
    "match_priority": 80,
-   "route": "anywhere",
+   "exclude_criteria": [
+    "Current maturities of long-term borrowings",
+    "Lease liabilities"
+   ],
+   "note_source": {
+    "note_terms": [
+     "non current borrowings",
+     "long term borrowings",
+     "borrowings"
+    ]
+   },
    "aliases": [
     "Rupee Term loans (excl. instalments payable within 1 year)",
     "Term loans",
@@ -6561,13 +7049,19 @@
     "bs_ncl"
    ],
    "order": 99,
-   "definition": "Recognized Foreign currency loans (excl. instalments payable within 1 year) balance at statement date, classified as non current liabilities. Use the reported carrying basis and entity perimeter; distinguish this balance from period income/expense, sanctioned limits and cash payments. Exclude amounts already assigned to named peer categories; do not infer realizability, collateral eligibility or covenant treatment.",
+   "definition": "Foreign-currency term loans (ECB, FCNR(B), foreign-currency term loans) repayable after one year, from the non-current borrowings note.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "non_current_liabilities",
    "match_priority": 80,
-   "route": "anywhere",
+   "note_source": {
+    "note_terms": [
+     "non current borrowings",
+     "long term borrowings",
+     "borrowings"
+    ]
+   },
    "aliases": [
     "Foreign currency loans (excl. instalments payable within 1 year)",
     "Foreign currency term loans",
@@ -6615,13 +7109,19 @@
     "bs_ncl"
    ],
    "order": 100,
-   "definition": "Recognized Term deposits including mobilization advance (repayable after 1 year) balance at statement date, classified as non current liabilities. Use the reported carrying basis and entity perimeter; distinguish this balance from period income/expense, sanctioned limits and cash payments. Exclude amounts already assigned to named peer categories; do not infer realizability, collateral eligibility or covenant treatment.",
+   "definition": "Long-term deposits accepted (public deposits, dealer or security deposits treated as borrowing) and mobilisation advances repayable after one year.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "non_current_liabilities",
    "match_priority": 80,
-   "route": "anywhere",
+   "note_source": {
+    "note_terms": [
+     "non current borrowings",
+     "long term borrowings",
+     "borrowings"
+    ]
+   },
    "aliases": [
     "Term deposits including mobilization advance (repayable after 1 year)",
     "Public deposits",
@@ -6673,13 +7173,20 @@
     "bs_ncl"
    ],
    "order": 101,
-   "definition": "Recognized Long term borrowings from Related parties balance at statement date, classified as non current liabilities. Use the reported carrying basis and entity perimeter; distinguish this balance from period income/expense, sanctioned limits and cash payments. Exclude amounts already assigned to named peer categories; do not infer realizability, collateral eligibility or covenant treatment.",
+   "definition": "Long-term loans from directors, promoters or other related parties, unless subordinated and treated as quasi equity, from the non-current borrowings note.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "non_current_liabilities",
    "match_priority": 80,
-   "route": "anywhere",
+   "note_source": {
+    "note_terms": [
+     "non current borrowings",
+     "long term borrowings",
+     "borrowings",
+     "related party disclosures"
+    ]
+   },
    "aliases": [
     "Long term borrowings from Related parties",
     "Loans from related parties",
@@ -6755,7 +7262,7 @@
     "bs_ncl"
    ],
    "order": 102,
-   "definition": "Other term liabilities excluded from the template debt category, including deferred-tax liabilities. Still part of outside liabilities; non-debt classification does not mean no credit or future cash impact.",
+   "definition": "Non-current liabilities that are not debt: 'Deferred tax liabilities (net)', long-term provisions (gratuity, compensated absences), other non-current liabilities and financial liabilities. Not lease liabilities and not borrowings.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "either",
@@ -7016,13 +7523,18 @@
     "bs_equity"
    ],
    "order": 106,
-   "definition": "Recognized General Reserve balance at statement date, classified as equity. Use the reported carrying basis and entity perimeter; distinguish this balance from period income/expense, sanctioned limits and cash payments. Exclude amounts already assigned to named peer categories; do not infer realizability, collateral eligibility or covenant treatment.",
+   "definition": "'General reserve' row of the 'Other equity' (Ind AS) or 'Reserves and surplus' (Indian GAAP) note, closing balance.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "equity",
    "match_priority": 80,
-   "route": "anywhere",
+   "note_source": {
+    "note_terms": [
+     "other equity",
+     "reserves and surplus"
+    ]
+   },
    "aliases": [
     "General Reserve",
     "General reserves"
@@ -7051,13 +7563,18 @@
     "bs_equity"
    ],
    "order": 107,
-   "definition": "Recognized Revaluation Reserve balance at statement date, classified as equity. Use the reported carrying basis and entity perimeter; distinguish this balance from period income/expense, sanctioned limits and cash payments. Exclude amounts already assigned to named peer categories; do not infer realizability, collateral eligibility or covenant treatment.",
+   "definition": "'Revaluation reserve' closing balance from the other equity / reserves and surplus note.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "equity",
    "match_priority": 80,
-   "route": "anywhere",
+   "note_source": {
+    "note_terms": [
+     "other equity",
+     "reserves and surplus"
+    ]
+   },
    "aliases": [
     "Revaluation Reserve",
     "Revaluation surplus",
@@ -7098,13 +7615,22 @@
     "bs_equity"
    ],
    "order": 108,
-   "definition": "Residual Other Reserves (excluding Provisions) within the equity classification. Include only separately identified components not assigned to a named peer; exclude section totals, duplicated components and balancing plugs. Material residual components require source evidence;. When the filing prints only 'Other equity' or 'Reserves and surplus', this line carries it; its note splits the general reserve, securities premium, retained earnings and the other named reserves into their own lines and leaves the remainder here.",
+   "definition": "Reserves in the 'Other equity' / 'Reserves and surplus' note that no other net-worth line claims: other comprehensive income reserve, capital reserve, debenture redemption reserve, share-based payment reserve, cash-flow hedge reserve. Cite each as a component. When the filing prints only the 'Other equity' total, that row is cited.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "equity",
    "match_priority": 80,
-   "route": "anywhere",
+   "exclude_criteria": [
+    "Securities premium, general reserve and retained earnings",
+    "The 'Other equity' total when its rows are cited"
+   ],
+   "note_source": {
+    "note_terms": [
+     "other equity",
+     "reserves and surplus"
+    ]
+   },
    "aliases": [
     "Other Reserves (excluding Provisions)",
     "Other reserves",
@@ -7182,13 +7708,18 @@
     "bs_equity"
    ],
    "order": 109,
-   "definition": "Accumulated retained earnings or deficit at statement date, surplus positive and deficit negative. Not the current-year retained-profit flow or cash held in bank accounts.",
+   "definition": "'Retained earnings' (Ind AS) or 'Surplus in the statement of profit and loss' (Indian GAAP) closing balance from the other equity / reserves and surplus note; a deficit is negative.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "either",
    "analyst_bucket": "equity",
    "match_priority": 80,
-   "route": "anywhere",
+   "note_source": {
+    "note_terms": [
+     "other equity",
+     "reserves and surplus"
+    ]
+   },
    "aliases": [
     "Surplus (+) or deficit (-) in Profit & Loss a/c",
     "Surplus (+) or deficit (-) in Profit and Loss a/c",
@@ -7264,13 +7795,18 @@
     "bs_equity"
    ],
    "order": 110,
-   "definition": "Recognized Share Premium balance at statement date, classified as equity. Use the reported carrying basis and entity perimeter; distinguish this balance from period income/expense, sanctioned limits and cash payments. Exclude amounts already assigned to named peer categories; do not infer realizability, collateral eligibility or covenant treatment.",
+   "definition": "'Securities premium' closing balance from the other equity / reserves and surplus note.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "equity",
    "match_priority": 80,
-   "route": "anywhere",
+   "note_source": {
+    "note_terms": [
+     "other equity",
+     "reserves and surplus"
+    ]
+   },
    "aliases": [
     "Share Premium",
     "Securities premium",
@@ -7308,13 +7844,18 @@
     "bs_equity"
    ],
    "order": 111,
-   "definition": "Recognized Capital Redemption Reserve balance at statement date, classified as equity. Use the reported carrying basis and entity perimeter; distinguish this balance from period income/expense, sanctioned limits and cash payments. Exclude amounts already assigned to named peer categories; do not infer realizability, collateral eligibility or covenant treatment.",
+   "definition": "'Capital redemption reserve' closing balance.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "equity",
    "match_priority": 80,
-   "route": "anywhere",
+   "note_source": {
+    "note_terms": [
+     "other equity",
+     "reserves and surplus"
+    ]
+   },
    "aliases": [
     "Capital Redemption Reserve"
    ],
@@ -7380,13 +7921,18 @@
     "bs_equity"
    ],
    "order": 113,
-   "definition": "Recognized Foreign currency translation reserve balance at statement date, classified as equity. Use the reported carrying basis and entity perimeter; distinguish this balance from period income/expense, sanctioned limits and cash payments. Exclude amounts already assigned to named peer categories; do not infer realizability, collateral eligibility or covenant treatment.",
+   "definition": "'Foreign currency translation reserve' closing balance.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "either",
    "analyst_bucket": "equity",
    "match_priority": 80,
-   "route": "anywhere",
+   "note_source": {
+    "note_terms": [
+     "other equity",
+     "reserves and surplus"
+    ]
+   },
    "aliases": [
     "Foreign currency translation reserve",
     "Foreign exchange translation reserve",
@@ -7472,13 +8018,20 @@
     "bs_equity"
    ],
    "order": 115,
-   "definition": "Funding assigned to quasi equity for credit analysis. Permanence, subordination and repayment restrictions are not supplied; related-party status alone does not establish equity eligibility. Avoid double counting related-party debt.",
+   "definition": "Unsecured loans from promoters or directors that the filing states are subordinated to bank debt or not repayable during the bank's facility. Empty unless the filing says so.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "equity",
    "match_priority": 80,
-   "route": "anywhere",
+   "note_source": {
+    "note_terms": [
+     "non current borrowings",
+     "long term borrowings",
+     "borrowings",
+     "other equity"
+    ]
+   },
    "aliases": [
     "Quasi Equity"
    ],
@@ -7511,6 +8064,12 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "equity",
    "match_priority": 80,
+   "note_source": {
+    "note_terms": [
+     "other equity",
+     "reserves and surplus"
+    ]
+   },
    "residual_policy": {
     "framework": "residual_framework",
     "section_scope": "bs_equity",
@@ -7703,6 +8262,7 @@
    "sign_convention": "either",
    "analyst_bucket": "current_assets",
    "match_priority": 90,
+   "route": "face",
    "extraction_mode": "extract_or_derive",
    "terms": [
     {
@@ -7773,12 +8333,19 @@
     "bs_ca"
    ],
    "order": 120,
-   "definition": "Recognized Cash balance balance at statement date, classified as current assets. Use the reported carrying basis and entity perimeter; distinguish this balance from period income/expense, sanctioned limits and cash payments. Exclude amounts already assigned to named peer categories; do not infer realizability, collateral eligibility or covenant treatment.",
+   "definition": "'Cash on hand' and cheques/drafts on hand in the 'Cash and cash equivalents' (Ind AS) or 'Cash and bank balances' (Indian GAAP) note.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_assets",
    "match_priority": 80,
+   "note_source": {
+    "note_terms": [
+     "cash and cash equivalents",
+     "cash and bank balances",
+     "bank balances other than cash and cash equivalents"
+    ]
+   },
    "aliases": [
     "Cash on hand",
     "Cash in hand",
@@ -7821,12 +8388,19 @@
     "bs_ca"
    ],
    "order": 121,
-   "definition": "Recognized Bank balance balance at statement date, classified as current assets. Use the reported carrying basis and entity perimeter; distinguish this balance from period income/expense, sanctioned limits and cash payments. Exclude amounts already assigned to named peer categories; do not infer realizability, collateral eligibility or covenant treatment.",
+   "definition": "Balances with banks in current accounts, and earmarked balances such as unpaid dividend accounts, from the cash and cash equivalents / bank balances notes. Fixed deposits and margin money are other lines.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_assets",
    "match_priority": 80,
+   "note_source": {
+    "note_terms": [
+     "cash and cash equivalents",
+     "cash and bank balances",
+     "bank balances other than cash and cash equivalents"
+    ]
+   },
    "aliases": [
     "Balances with banks",
     "Balance with banks",
@@ -7920,12 +8494,18 @@
     "bs_ca"
    ],
    "order": 123,
-   "definition": "Residual Govt. and other trustee securities within the current assets classification. Include only separately identified components not assigned to a named peer; exclude section totals, duplicated components and balancing plugs. Material residual components require source evidence;. Current investments, including units of mutual funds, bind here.",
+   "definition": "Current investments: units of mutual funds, government securities, treasury bills, bonds held for the short term, from the 'Current investments' note or face row.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_assets",
    "match_priority": 80,
+   "note_source": {
+    "note_terms": [
+     "current investments",
+     "investments"
+    ]
+   },
    "aliases": [
     "Government securities",
     "Govt. securities",
@@ -7977,12 +8557,24 @@
     "bs_ca"
    ],
    "order": 124,
-   "definition": "Recognized Fixed Deposits with banks balance at statement date, classified as current assets. Use the reported carrying basis and entity perimeter; distinguish this balance from period income/expense, sanctioned limits and cash payments. Exclude amounts already assigned to named peer categories; do not infer realizability, collateral eligibility or covenant treatment. 'Bank balances other than cash and cash equivalents' bind here: they are mostly deposits of three to twelve months. Margin money and deposits under lien are not.",
+   "definition": "Fixed deposits with banks that are free of lien: deposits with original maturity up to three months (in cash and cash equivalents) and three to twelve months ('Bank balances other than cash and cash equivalents'). Margin money and deposits under lien are bs_icon__fds_under_lien.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_assets",
    "match_priority": 80,
+   "exclude_criteria": [
+    "Margin money and deposits under lien",
+    "Balances in current accounts"
+   ],
+   "note_source": {
+    "note_terms": [
+     "cash and cash equivalents",
+     "cash and bank balances",
+     "bank balances other than cash and cash equivalents",
+     "other financial assets"
+    ]
+   },
    "aliases": [
     "Fixed deposits",
     "Fixed deposits with banks",
@@ -8064,6 +8656,7 @@
    "sign_convention": "either",
    "analyst_bucket": "current_assets",
    "match_priority": 90,
+   "route": "face",
    "extraction_mode": "extract_or_derive",
    "terms": [
     {
@@ -8112,12 +8705,22 @@
     "bs_ca"
    ],
    "order": 126,
-   "definition": "Recognized Domestic Receivables balance at statement date, classified as current assets. Use the reported carrying basis and entity perimeter; distinguish this balance from period income/expense, sanctioned limits and cash payments. Exclude amounts already assigned to named peer categories; do not infer realizability, collateral eligibility or covenant treatment.",
+   "definition": "Trade receivables from customers in India due within six months, net of allowance for doubtful debts. Where the filing gives no domestic/export split, all current trade receivables are domestic. Receivables overdue more than six months are bs_icon__receivables_over_6_months.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_assets",
    "match_priority": 80,
+   "exclude_criteria": [
+    "Receivables overdue more than six months",
+    "Allowance for expected credit loss as a separate figure"
+   ],
+   "note_source": {
+    "note_terms": [
+     "trade receivables",
+     "sundry debtors"
+    ]
+   },
    "aliases": [
     "Domestic Receivables",
     "Domestic trade receivables",
@@ -8157,12 +8760,18 @@
     "bs_ca"
    ],
    "order": 127,
-   "definition": "Recognized Export Receivables balance at statement date, classified as current assets. Use the reported carrying basis and entity perimeter; distinguish this balance from period income/expense, sanctioned limits and cash payments. Exclude amounts already assigned to named peer categories; do not infer realizability, collateral eligibility or covenant treatment.",
+   "definition": "Trade receivables from overseas customers, where the trade receivables note or its text states them.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_assets",
    "match_priority": 80,
+   "note_source": {
+    "note_terms": [
+     "trade receivables",
+     "sundry debtors"
+    ]
+   },
    "aliases": [
     "Export Receivables",
     "Trade receivables - export",
@@ -8204,12 +8813,19 @@
     "bs_ca"
    ],
    "order": 128,
-   "definition": "Recognized Instalments of deferred receivables (due within 1 year) balance at statement date, classified as current assets. Use the reported carrying basis and entity perimeter; distinguish this balance from period income/expense, sanctioned limits and cash payments. Exclude amounts already assigned to named peer categories; do not infer realizability, collateral eligibility or covenant treatment.",
+   "definition": "Instalments of deferred-payment receivables falling due within one year.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_assets",
-   "match_priority": 80
+   "match_priority": 80,
+   "note_source": {
+    "note_terms": [
+     "trade receivables",
+     "sundry debtors",
+     "other financial assets"
+    ]
+   }
   },
   {
    "key": "bs_icon__inventory",
@@ -8231,6 +8847,7 @@
    "sign_convention": "either",
    "analyst_bucket": "current_assets",
    "match_priority": 90,
+   "route": "face",
    "extraction_mode": "extract_or_derive",
    "terms": [
     {
@@ -8321,12 +8938,17 @@
     "bs_ca"
    ],
    "order": 131,
-   "definition": "Recognized Imported balance at statement date, classified as current assets. Use the reported carrying basis and entity perimeter; distinguish this balance from period income/expense, sanctioned limits and cash payments. Exclude amounts already assigned to named peer categories; do not infer realizability, collateral eligibility or covenant treatment.",
+   "definition": "Imported raw materials in inventory, where the 'Inventories' note splits imported and indigenous stock.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_assets",
    "match_priority": 80,
+   "note_source": {
+    "note_terms": [
+     "inventories"
+    ]
+   },
    "aliases": [
     "Imported raw materials",
     "Raw materials - imported"
@@ -8358,12 +8980,17 @@
     "bs_ca"
    ],
    "order": 132,
-   "definition": "Recognized Indigenous balance at statement date, classified as current assets. Use the reported carrying basis and entity perimeter; distinguish this balance from period income/expense, sanctioned limits and cash payments. Exclude amounts already assigned to named peer categories; do not infer realizability, collateral eligibility or covenant treatment.",
+   "definition": "Raw materials and components in inventory (including goods-in-transit) from the 'Inventories' note; all raw-material stock when no imported/indigenous split is given.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_assets",
    "match_priority": 80,
+   "note_source": {
+    "note_terms": [
+     "inventories"
+    ]
+   },
    "aliases": [
     "Indigenous raw materials",
     "Raw materials - indigenous",
@@ -8408,12 +9035,17 @@
     "bs_ca"
    ],
    "order": 133,
-   "definition": "Recognized Stocks-in-process balance at statement date, classified as current assets. Use the reported carrying basis and entity perimeter; distinguish this balance from period income/expense, sanctioned limits and cash payments. Exclude amounts already assigned to named peer categories; do not infer realizability, collateral eligibility or covenant treatment.",
+   "definition": "'Work-in-progress' row of the 'Inventories' note.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_assets",
    "match_priority": 80,
+   "note_source": {
+    "note_terms": [
+     "inventories"
+    ]
+   },
    "aliases": [
     "Work-in-progress",
     "Work in process",
@@ -8458,12 +9090,17 @@
     "bs_ca"
    ],
    "order": 134,
-   "definition": "Recognized Finished goods balance at statement date, classified as current assets. Use the reported carrying basis and entity perimeter; distinguish this balance from period income/expense, sanctioned limits and cash payments. Exclude amounts already assigned to named peer categories; do not infer realizability, collateral eligibility or covenant treatment.",
+   "definition": "'Finished goods' and 'Stock-in-trade' (traded goods) rows of the 'Inventories' note, including goods-in-transit.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_assets",
    "match_priority": 80,
+   "note_source": {
+    "note_terms": [
+     "inventories"
+    ]
+   },
    "aliases": [
     "Finished goods",
     "Finished goods (including goods in transit)",
@@ -8506,12 +9143,17 @@
     "bs_ca"
    ],
    "order": 135,
-   "definition": "Residual Other consumable spares within the current assets classification. Include only separately identified components not assigned to a named peer; exclude section totals, duplicated components and balancing plugs. Material residual components require source evidence;",
+   "definition": "'Stores and spares', 'Packing materials', 'Loose tools' rows of the 'Inventories' note.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_assets",
    "match_priority": 80,
+   "note_source": {
+    "note_terms": [
+     "inventories"
+    ]
+   },
    "aliases": [
     "Stores and spares",
     "Stores & spares",
@@ -8566,12 +9208,20 @@
     "bs_ca"
    ],
    "order": 136,
-   "definition": "Recognized Advances to suppliers of raw materials, stores and spares balance at statement date, classified as current assets. Use the reported carrying basis and entity perimeter; distinguish this balance from period income/expense, sanctioned limits and cash payments. Exclude amounts already assigned to named peer categories; do not infer realizability, collateral eligibility or covenant treatment.",
+   "definition": "Advances to suppliers of raw materials, goods and services in 'Other current assets' or 'Short-term loans and advances'. Capital advances are non-current.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_assets",
    "match_priority": 80,
+   "note_source": {
+    "note_terms": [
+     "other current assets",
+     "short term loans and advances",
+     "loans and advances",
+     "other financial assets"
+    ]
+   },
    "aliases": [
     "Advances to suppliers",
     "Advance to suppliers",
@@ -8614,12 +9264,20 @@
     "bs_ca"
    ],
    "order": 137,
-   "definition": "Recognized Advance payment of taxes balance at statement date, classified as current assets. Use the reported carrying basis and entity perimeter; distinguish this balance from period income/expense, sanctioned limits and cash payments. Exclude amounts already assigned to named peer categories; do not infer realizability, collateral eligibility or covenant treatment.",
+   "definition": "'Current tax assets (net)' or advance income tax / tax deducted at source (net of provision) shown as a current asset.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_assets",
    "match_priority": 80,
+   "note_source": {
+    "note_terms": [
+     "current tax assets",
+     "income tax assets",
+     "short term loans and advances",
+     "other current assets"
+    ]
+   },
    "aliases": [
     "Advance payment of taxes",
     "Advance tax",
@@ -8687,6 +9345,7 @@
    "sign_convention": "either",
    "analyst_bucket": "current_assets",
    "match_priority": 90,
+   "route": "face",
    "extraction_mode": "extract_or_derive",
    "terms": [
     {
@@ -8725,12 +9384,19 @@
     "bs_ca"
    ],
    "order": 139,
-   "definition": "Recognized Interest Receivable balance at statement date, classified as current assets. Use the reported carrying basis and entity perimeter; distinguish this balance from period income/expense, sanctioned limits and cash payments. Exclude amounts already assigned to named peer categories; do not infer realizability, collateral eligibility or covenant treatment.",
+   "definition": "'Interest accrued on deposits / loans' in other financial assets (current).",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_assets",
    "match_priority": 80,
+   "note_source": {
+    "note_terms": [
+     "other financial assets",
+     "other current assets",
+     "short term loans and advances"
+    ]
+   },
    "aliases": [
     "Interest Receivable",
     "Interest accrued",
@@ -8774,12 +9440,20 @@
     "bs_ca"
    ],
    "order": 140,
-   "definition": "Recognized Prepaid Expenses balance at statement date, classified as current assets. Use the reported carrying basis and entity perimeter; distinguish this balance from period income/expense, sanctioned limits and cash payments. Exclude amounts already assigned to named peer categories; do not infer realizability, collateral eligibility or covenant treatment.",
+   "definition": "'Prepaid expenses' in 'Other current assets' or 'Short-term loans and advances'.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_assets",
    "match_priority": 80,
+   "note_source": {
+    "note_terms": [
+     "other current assets",
+     "short term loans and advances",
+     "loans and advances",
+     "other financial assets"
+    ]
+   },
    "aliases": [
     "Prepaid Expenses",
     "Prepaid expense",
@@ -8822,6 +9496,14 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_assets",
    "match_priority": 80,
+   "note_source": {
+    "note_terms": [
+     "trade receivables",
+     "contract assets",
+     "other financial assets",
+     "other current assets"
+    ]
+   },
    "aliases": [
     "Retention money",
     "Retention money receivable",
@@ -8860,12 +9542,20 @@
     "bs_ca"
    ],
    "order": 142,
-   "definition": "Residual Other advances recoverable in cash or kind within the current assets classification. Include only separately identified components not assigned to a named peer; exclude section totals, duplicated components and balancing plugs. Material residual components require source evidence;",
+   "definition": "Loans and advances to employees and other advances recoverable in cash or kind (current 'Loans', 'Short-term loans and advances').",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_assets",
    "match_priority": 80,
+   "note_source": {
+    "note_terms": [
+     "other current assets",
+     "short term loans and advances",
+     "loans and advances",
+     "other financial assets"
+    ]
+   },
    "aliases": [
     "Advances recoverable in cash or in kind",
     "Advances recoverable in cash or kind",
@@ -8959,6 +9649,7 @@
    "sign_convention": "either",
    "analyst_bucket": "current_assets",
    "match_priority": 95,
+   "route": "face",
    "extraction_mode": "extract_or_derive",
    "terms": [
     {
@@ -9061,12 +9752,20 @@
     "bs_nca"
    ],
    "order": 146,
-   "definition": "Gross carrying amount of land, buildings, plant, machinery and other fixed assets including right-of-use assets. Exclude work in progress and intangibles; right-of-use assets are not necessarily owned collateral. When the filing prints only net property, plant and equipment, this line carries the net figure and accumulated depreciation stays blank, so Net Block is still right; a reviewer can restate gross and accumulated depreciation from the asset note.",
+   "definition": "Gross block of tangible fixed assets at the year end: the 'Gross carrying amount - balance at the end of the year' total of the property, plant and equipment / fixed assets note, plus the right-of-use assets gross block. When only net carrying amounts are printed, cite the net figure.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "non_current_assets",
    "match_priority": 80,
+   "note_source": {
+    "note_terms": [
+     "property plant and equipment",
+     "fixed assets",
+     "right of use assets",
+     "tangible assets"
+    ]
+   },
    "aliases": [
     "Gross block",
     "Gross fixed assets",
@@ -9114,12 +9813,19 @@
     "bs_nca"
    ],
    "order": 147,
-   "definition": "Recognized Capital Work in progress balance at statement date, classified as non current assets. Use the reported carrying basis and entity perimeter; distinguish this balance from period income/expense, sanctioned limits and cash payments. Exclude amounts already assigned to named peer categories; do not infer realizability, collateral eligibility or covenant treatment.",
+   "definition": "'Capital work-in-progress' closing balance (face row or its note).",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "non_current_assets",
    "match_priority": 80,
+   "note_source": {
+    "note_terms": [
+     "capital work in progress",
+     "property plant and equipment",
+     "fixed assets"
+    ]
+   },
    "aliases": [
     "Capital work-in-progress",
     "Capital works in progress"
@@ -9153,12 +9859,20 @@
     "bs_nca"
    ],
    "order": 148,
-   "definition": "Accumulated depreciation deducted from gross fixed assets at statement date. A contra-asset stock, not current depreciation expense or disposal-related removal.",
+   "definition": "Accumulated depreciation and impairment at the year end: the 'Accumulated depreciation - balance at the end of the year' total of the property, plant and equipment / fixed assets note, plus the right-of-use assets' accumulated depreciation.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "non_current_assets",
    "match_priority": 80,
+   "note_source": {
+    "note_terms": [
+     "property plant and equipment",
+     "fixed assets",
+     "right of use assets",
+     "tangible assets"
+    ]
+   },
    "aliases": [
     "Accumulated depreciation",
     "Accumulated depreciation and impairment",
@@ -9266,12 +9980,20 @@
     "bs_nca"
    ],
    "order": 151,
-   "definition": "Recognized Investments balance at statement date, classified as non current assets. Use the reported carrying basis and entity perimeter; distinguish this balance from period income/expense, sanctioned limits and cash payments. Exclude amounts already assigned to named peer categories; do not infer realizability, collateral eligibility or covenant treatment.",
+   "definition": "Non-current investments in subsidiaries, associates, joint ventures and other group companies.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "non_current_assets",
    "match_priority": 80,
+   "note_source": {
+    "note_terms": [
+     "non current investments",
+     "investments",
+     "loans",
+     "related party disclosures"
+    ]
+   },
    "aliases": [
     "Investments in subsidiaries",
     "Investment in subsidiaries",
@@ -9340,12 +10062,20 @@
     "bs_nca"
    ],
    "order": 152,
-   "definition": "Recognized Loans & advances balance at statement date, classified as non current assets. Use the reported carrying basis and entity perimeter; distinguish this balance from period income/expense, sanctioned limits and cash payments. Exclude amounts already assigned to named peer categories; do not infer realizability, collateral eligibility or covenant treatment.",
+   "definition": "Loans and advances to subsidiaries, associates and other group companies.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "non_current_assets",
    "match_priority": 80,
+   "note_source": {
+    "note_terms": [
+     "non current investments",
+     "investments",
+     "loans",
+     "related party disclosures"
+    ]
+   },
    "aliases": [
     "Loans to subsidiaries",
     "Loans and advances to subsidiaries",
@@ -9399,12 +10129,20 @@
     "bs_nca"
    ],
    "order": 153,
-   "definition": "Residual Other non-current investments and advances within the non current assets classification. Include only separately identified components not assigned to a named peer; exclude section totals, duplicated components and balancing plugs. Material residual components require source evidence;",
+   "definition": "Non-current investments outside the group (equity, bonds, mutual funds held long term) and long-term loans not to group companies.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "non_current_assets",
    "match_priority": 80,
+   "note_source": {
+    "note_terms": [
+     "non current investments",
+     "investments",
+     "long term loans and advances",
+     "loans"
+    ]
+   },
    "aliases": [
     "Other non-current investments",
     "Other investments",
@@ -9464,12 +10202,20 @@
     "bs_nca"
    ],
    "order": 154,
-   "definition": "Recognized Advances to suppliers of capital goods balance at statement date, classified as non current assets. Use the reported carrying basis and entity perimeter; distinguish this balance from period income/expense, sanctioned limits and cash payments. Exclude amounts already assigned to named peer categories; do not infer realizability, collateral eligibility or covenant treatment.",
+   "definition": "'Capital advances' in 'Other non-current assets' or 'Long-term loans and advances'.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "non_current_assets",
    "match_priority": 80,
+   "note_source": {
+    "note_terms": [
+     "other non current assets",
+     "long term loans and advances",
+     "other financial assets",
+     "loans"
+    ]
+   },
    "aliases": [
     "Capital advances",
     "Capital advance",
@@ -9568,12 +10314,20 @@
     "bs_nca"
    ],
    "order": 156,
-   "definition": "Recognized Security Deposits balance at statement date, classified as non current assets. Use the reported carrying basis and entity perimeter; distinguish this balance from period income/expense, sanctioned limits and cash payments. Exclude amounts already assigned to named peer categories; do not infer realizability, collateral eligibility or covenant treatment.",
+   "definition": "'Security deposits' (non-current) in other financial assets or long-term loans and advances.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "non_current_assets",
    "match_priority": 80,
+   "note_source": {
+    "note_terms": [
+     "other non current assets",
+     "long term loans and advances",
+     "other financial assets",
+     "loans"
+    ]
+   },
    "aliases": [
     "Security Deposits",
     "Security deposit",
@@ -9621,6 +10375,13 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "non_current_assets",
    "match_priority": 80,
+   "note_source": {
+    "note_terms": [
+     "related party disclosures",
+     "loans",
+     "long term loans and advances"
+    ]
+   },
    "aliases": [
     "Loans to directors",
     "Loans and advances to directors",
@@ -9670,12 +10431,19 @@
     "bs_nca"
    ],
    "order": 158,
-   "definition": "Fixed deposits subject to lien, assigned to other non-current assets by this template. Exclude unrestricted current investments; not freely available liquidity or automatically eligible security coverage.",
+   "definition": "Margin money deposits and fixed deposits held as security / under lien against bank guarantees and letters of credit, current or non-current.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "non_current_assets",
    "match_priority": 80,
+   "note_source": {
+    "note_terms": [
+     "bank balances other than cash and cash equivalents",
+     "other financial assets",
+     "cash and bank balances"
+    ]
+   },
    "aliases": [
     "FDs under Lien",
     "Margin money deposits",
@@ -9734,12 +10502,18 @@
     "bs_nca"
    ],
    "order": 159,
-   "definition": "Receivables aged over six months assigned to other non-current assets. Ageing alone does not establish contractual non-current maturity. Avoid duplication with current receivables; ageing start date is unspecified.",
+   "definition": "Trade receivables outstanding for more than six months: the '6 months - 1 year', '1-2 years', '2-3 years' and 'More than 3 years' columns of the trade receivables ageing schedule (undisputed, considered good), cited as components.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "non_current_assets",
-   "match_priority": 80
+   "match_priority": 80,
+   "note_source": {
+    "note_terms": [
+     "trade receivables",
+     "sundry debtors"
+    ]
+   }
   },
   {
    "key": "bs_icon__retention_money_non_current_portion",
@@ -9761,6 +10535,13 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "non_current_assets",
    "match_priority": 80,
+   "note_source": {
+    "note_terms": [
+     "trade receivables",
+     "other financial assets",
+     "contract assets"
+    ]
+   },
    "aliases": [
     "Retention money",
     "Retention money receivable",
@@ -9870,12 +10651,19 @@
     "bs_nca"
    ],
    "order": 163,
-   "definition": "Template bucket combining intangible assets and deferred-tax assets. Deferred-tax assets are not amortizable intangibles; retain their distinct nature even though the output combines them.",
+   "definition": "Gross carrying amount of intangible assets at the year end (software, technical know-how, licences) from the intangible assets note. When only net is printed, cite net.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "either",
    "analyst_bucket": "non_current_assets",
    "match_priority": 80,
+   "note_source": {
+    "note_terms": [
+     "other intangible assets",
+     "intangible assets",
+     "fixed assets"
+    ]
+   },
    "aliases": [
     "Intangible assets",
     "Other intangible assets",
@@ -9935,12 +10723,19 @@
     "bs_nca"
    ],
    "order": 164,
-   "definition": "Accumulated amortization applicable to amortizable intangible assets. Exclude current-period expense and do not apply amortization to deferred-tax assets.",
+   "definition": "Accumulated amortisation of intangible assets at the year end from the intangible assets note.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "non_current_assets",
-   "match_priority": 80
+   "match_priority": 80,
+   "note_source": {
+    "note_terms": [
+     "other intangible assets",
+     "intangible assets",
+     "fixed assets"
+    ]
+   }
   },
   {
    "key": "bs_icon__net_intangible_assets",
@@ -9995,6 +10790,7 @@
    "sign_convention": "either",
    "analyst_bucket": "others",
    "match_priority": 99,
+   "route": "face",
    "extraction_mode": "extract_or_derive",
    "terms": [
     {
@@ -10150,12 +10946,23 @@
     "bs_top_level"
    ],
    "order": 174,
-   "definition": "Sum of contingent/unprovided obligation categories. Not automatically incremental funded debt; identify overlaps with recognized liabilities, bills and guarantees before credit adjustments.",
+   "definition": "The total of contingent liabilities not provided for in the 'Contingent liabilities and commitments' note: claims not acknowledged as debts, disputed taxes, guarantees, LCs and bills discounted. Capital commitments are not contingent liabilities.",
    "temporality": "instant",
    "unit_of_account": "subtotal",
    "sign_convention": "either",
    "analyst_bucket": "others",
    "match_priority": 95,
+   "exclude_criteria": [
+    "Capital commitments",
+    "Other commitments"
+   ],
+   "note_source": {
+    "note_terms": [
+     "contingent liabilities",
+     "contingent liabilities and commitments",
+     "commitments"
+    ]
+   },
    "extraction_mode": "extract_or_derive",
    "terms": [
     {
@@ -10240,6 +11047,14 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "others",
    "match_priority": 80,
+   "note_source": {
+    "note_terms": [
+     "contingent liabilities",
+     "contingent liabilities and commitments",
+     "commitments",
+     "share capital"
+    ]
+   },
    "aliases": [
     "Arrears of Cumulative Dividends",
     "Arrears of fixed cumulative dividends on preference shares",
@@ -10292,6 +11107,14 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "others",
    "match_priority": 80,
+   "note_source": {
+    "note_terms": [
+     "contingent liabilities",
+     "contingent liabilities and commitments",
+     "commitments",
+     "employee benefits"
+    ]
+   },
    "aliases": [
     "Gratuity Liability Not Provided For",
     "Liability for gratuity not provided for",
@@ -10330,12 +11153,19 @@
     "bs_top_level"
    ],
    "order": 177,
-   "definition": "Disclosed Disputed Excise / Customs / Tax Liabilities on the reporting entity basis. Use the unprovided/contingent amount identified by the filing, excluding any recognized portion already included in balance-sheet obligations. Do not infer probability of payment, enforceability or funded-debt status; retain reporting-date evidence.",
+   "definition": "Disputed income-tax, GST, excise, customs and service-tax demands under appeal, from the contingent liabilities note.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "others",
    "match_priority": 80,
+   "note_source": {
+    "note_terms": [
+     "contingent liabilities",
+     "contingent liabilities and commitments",
+     "commitments"
+    ]
+   },
    "aliases": [
     "Disputed income tax demands",
     "Income tax demands disputed",
@@ -10417,12 +11247,19 @@
     "bs_top_level"
    ],
    "order": 178,
-   "definition": "Residual Other liabilities not provided for within the others classification. Include only separately identified components not assigned to a named peer; exclude section totals, duplicated components and balancing plugs. Material residual components require source evidence;",
+   "definition": "Other claims against the company not acknowledged as debts (customer, supplier, labour, legal claims) from the contingent liabilities note.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "others",
    "match_priority": 80,
+   "note_source": {
+    "note_terms": [
+     "contingent liabilities",
+     "contingent liabilities and commitments",
+     "commitments"
+    ]
+   },
    "aliases": [
     "Claims against the company not acknowledged as debts",
     "Claims against the company not acknowledged as debt",
@@ -10463,12 +11300,19 @@
     "bs_top_level"
    ],
    "order": 179,
-   "definition": "Outstanding letters of credit issued by banks for the entity, not unused sanctioned limits or automatically funded debt. Distinguish accepted/devolved amounts and overlap with payables.",
+   "definition": "Letters of credit opened by banks on the company's behalf and outstanding.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "others",
    "match_priority": 80,
+   "note_source": {
+    "note_terms": [
+     "contingent liabilities",
+     "contingent liabilities and commitments",
+     "commitments"
+    ]
+   },
    "aliases": [
     "Outstanding LCs",
     "Letters of credit",
@@ -10523,12 +11367,19 @@
     "bs_top_level"
    ],
    "order": 180,
-   "definition": "Outstanding bills discounted or purchased disclosed as contingent exposure. Identify recourse and derecognition; reconcile to receivables and recognized borrowing without duplication.",
+   "definition": "Bills discounted with banks and not yet matured.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "others",
    "match_priority": 80,
+   "note_source": {
+    "note_terms": [
+     "contingent liabilities",
+     "contingent liabilities and commitments",
+     "commitments"
+    ]
+   },
    "aliases": [
     "Bills discounted",
     "Bills discounted with banks",
@@ -10583,12 +11434,19 @@
     "bs_top_level"
    ],
    "order": 181,
-   "definition": "Outstanding bank guarantees issued by banks on behalf of the entity. Not guarantees issued by the company; distinguish invoked/funded amounts from non-funded commitments.",
+   "definition": "Bank guarantees issued by banks on the company's behalf and outstanding.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "others",
    "match_priority": 80,
+   "note_source": {
+    "note_terms": [
+     "contingent liabilities",
+     "contingent liabilities and commitments",
+     "commitments"
+    ]
+   },
    "aliases": [
     "Outstanding BGs",
     "Bank guarantees",
@@ -10644,12 +11502,19 @@
     "bs_top_level"
    ],
    "order": 182,
-   "definition": "Financial guarantees issued directly by the company for another obligor. Face amount, underlying debt outstanding and recognized guarantee liability are distinct measures; the template does not specify the exposure basis.",
+   "definition": "Corporate guarantees given by the company for loans of subsidiaries or others.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
    "analyst_bucket": "others",
    "match_priority": 80,
+   "note_source": {
+    "note_terms": [
+     "contingent liabilities",
+     "contingent liabilities and commitments",
+     "commitments"
+    ]
+   },
    "aliases": [
     "Financial Guarantees issued by the company",
     "Corporate guarantees",
@@ -10718,6 +11583,14 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "others",
    "match_priority": 80,
+   "note_source": {
+    "note_terms": [
+     "contingent liabilities",
+     "contingent liabilities and commitments",
+     "commitments",
+     "borrowings"
+    ]
+   },
    "aliases": [
     "Redemption premium not provided for",
     "Premium payable on redemption of debentures",
@@ -10766,6 +11639,14 @@
    "sign_convention": "either",
    "analyst_bucket": "others",
    "match_priority": 80,
+   "note_source": {
+    "note_terms": [
+     "contingent liabilities",
+     "contingent liabilities and commitments",
+     "commitments",
+     "financial instruments"
+    ]
+   },
    "aliases": [
     "MTM loss on derivatives not provided for",
     "Mark-to-market losses on derivative contracts not provided for",
@@ -10810,7 +11691,14 @@
    "unit_of_account": "flow",
    "sign_convention": "either",
    "analyst_bucket": "others",
-   "match_priority": 80
+   "match_priority": 80,
+   "note_source": {
+    "note_terms": [
+     "other equity",
+     "reserves and surplus",
+     "contingent liabilities"
+    ]
+   }
   },
   {
    "key": "cov_icon__accumulated_depreciation_on_disposals",
@@ -10832,7 +11720,13 @@
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
    "analyst_bucket": "others",
-   "match_priority": 80
+   "match_priority": 80,
+   "note_source": {
+    "note_terms": [
+     "property plant and equipment",
+     "fixed assets"
+    ]
+   }
   },
   {
    "key": "cov_icon__accumulated_amortization_on_disposals",
@@ -10854,7 +11748,13 @@
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
    "analyst_bucket": "others",
-   "match_priority": 80
+   "match_priority": 80,
+   "note_source": {
+    "note_terms": [
+     "other intangible assets",
+     "intangible assets"
+    ]
+   }
   },
   {
    "key": "cov_icon__write_off_stock_in_process",

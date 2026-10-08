@@ -260,3 +260,27 @@ def test_leaving_it_alone_keeps_the_printed_figure(shipped):
     assert slot.value == Decimal("9999"), "the printed figure was not kept"
     assert row.confidence.method == "exact", f"the row was claimed anyway: {row.confidence.method}"
     assert "llm_located_nothing_kept_exact:1.00" in row.confidence.flags, row.confidence.flags
+
+
+def test_a_caption_printed_under_two_banners_resolves_under_the_asking_lines_own():
+    """Schedule III prints "Borrowings" under non-current AND current liabilities, and a citation
+    names the caption and the statement, not the banner. Document order took the first, so a
+    current-borrowings line citing "Borrowings" took the NON-CURRENT figure. The line's own
+    section breaks the tie; with no section, or no row under it, the first still wins."""
+    non_current = _face_row("Borrowings", value="6353")
+    non_current.section_hint = "Non-current liabilities"
+    current = _face_row("Borrowings", value="9396")
+    current.section_hint = "Current liabilities"
+    doc = _doc([non_current, current], {FACE_PAGE: "balance_sheet"})
+    cite = [SourceRef(statement="balance_sheet", caption="Borrowings")]
+
+    res, _ = resolve_sources(cite, [], face_context.face_index(doc),
+                             sections={"current_liabilities"})
+    assert res[0]["figures"] == {"current": "9396"}
+    res, _ = resolve_sources(cite, [], face_context.face_index(doc),
+                             sections={"non_current_liabilities"})
+    assert res[0]["figures"] == {"current": "6353"}
+    res, _ = resolve_sources(cite, [], face_context.face_index(doc))
+    assert res[0]["figures"] == {"current": "6353"}, "no section given: document order"
+    res, _ = resolve_sources(cite, [], face_context.face_index(doc), sections={"equity"})
+    assert res[0]["figures"] == {"current": "6353"}, "no row under the section: document order"

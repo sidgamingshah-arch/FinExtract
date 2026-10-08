@@ -1134,7 +1134,8 @@ def _by_column(row, ref, *, keys_are_periods: bool = False) -> tuple[dict | None
 
 def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
                     pages=None, allow_pages: bool = False,
-                    allow_rows: bool = True) -> tuple[list[dict], list[dict]]:
+                    allow_rows: bool = True,
+                    sections=None) -> tuple[list[dict], list[dict]]:
     """Match each citation the model gave against the extracted rows. Returns (resolved, unresolved).
 
     WHY THIS EXISTS RATHER THAN TRUSTING THE CITATION. The candidates offered to the model are
@@ -1165,6 +1166,14 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
     equipment" resolved for `sub__ga_depreciation` and took that row's figure. The prose branch
     below is unaffected: an amount verified against the note's own text is still accepted, which is
     the one way such a line is meant to be answered.
+
+    `sections` ARE THE BANNER TOKENS THE ASKING LINE IS SCOPED TO ("current_liabilities"), and
+    they only break a tie. A statement prints the same caption under two banners — Schedule III's
+    "Borrowings" under non-current AND current liabilities — and a citation names the caption and
+    the statement, not the banner. Document order took the first, so a current-borrowings line
+    citing "Borrowings" took the NON-CURRENT figure. Among rows tied on the caption, the one printed
+    under the line's own section is the one meant; with no such row, or no sections given, the
+    first still wins.
 
     `pages` / `allow_pages` ARE THE THIRD INDEX, and the narrowest. `services.face_context.
     other_page_index` holds the rows of pages that are neither a statement nor a note, which exist
@@ -1296,8 +1305,14 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
                         f"a row on {want_stmt} cannot be its source")})
             continue
         if want_stmt and not want_note:
-            on_face = best_caption(want_cap, [f for f in face_rows if f[0] == want_stmt],
-                                   key=lambda f: norm(f[1]))
+            on_stmt = [f for f in face_rows if f[0] == want_stmt]
+            on_face = best_caption(want_cap, on_stmt, key=lambda f: norm(f[1]))
+            if on_face is not None and sections:
+                from app.services.mapping import section_of_banner
+                own = [f for f in _tied_captions(want_cap, on_stmt, key=lambda f: norm(f[1]))
+                       if section_of_banner(getattr(f[2], "section_hint", None)) in sections]
+                if own:
+                    on_face = own[0]
             if on_face is None:
                 # EMPTY IS NOT A STATEMENT. A face row whose page resolved none carries "", and
                 # reporting it read "it is on " with nothing after it — a diagnostic worse than
