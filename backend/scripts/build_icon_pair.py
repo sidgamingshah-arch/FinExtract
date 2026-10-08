@@ -229,6 +229,11 @@ DERIVE = {
 # One catch-all per balance-sheet section: the rows no line claims are swept here, itemised.
 CATCH_ALLS = ["bs_icon__other_current_liabilities_others", "bs_icon__net_worth_others",
               "bs_icon__other_current_assets_others", "bs_icon__other_non_current_assets_others"]
+# Rows a catch-all never takes. A Schedule III face prints totals ICON does not carry ("Total
+# non-current assets", "Total equity") and its column header can surface as a row ("Particulars"
+# with the year as its figure); swept, either is counted twice. "Total outstanding dues of ..." is
+# the MSME creditor caption, not a total.
+_SWEEP_EXCLUDES = [r"^\W*(?:sub[\s-]*)?total\b(?!\s+outstanding)", r"^\W*particulars\b"]
 # Calculated lines whose printed figure is read off the filing and compared with the computed one.
 CROSS_CHECK = [
     "pl_icon__net_sales", "pl_icon__total_operating_income", "pl_icon__raw_materials",
@@ -362,28 +367,75 @@ def _definition(item: dict, label: str, terms_text: str | None, residual_note: s
 
 _ENUM = r"(?:(?:[ivxl]{1,6}|[a-h]|\d{1,2})\s+){0,2}"
 
+# SCHEDULE III HEADINGS THAT PRINT NO FIGURE, and that row reconstruction glues onto the row next to
+# them. Measured on a Schedule III balance sheet and P&L laid out as the Division II format prints
+# them: "(d) Financial assets" / "(i) Investments" reaches the matcher as "d financial assets i
+# investments", "Equity" / "(a) Equity share capital" as "equity a equity share capital", "IV.
+# Expenses" / "Cost of materials consumed" as "iv expenses cost of materials consumed", and "Total
+# equity" / "Liabilities" as "total equity liabilities". The Ind AS set loses the same rows. The
+# gluing is the engine's (row_reconstruct), and changing it moves every filing, so until that is
+# measured on the reference corpus the ICON hints read through a glued heading instead.
+_GLUED_BEFORE = ("financial assets", "financial liabilities", "equity", "expenses", "liabilities",
+                 "tax expense", "tax expenses")
+_GLUED_AFTER = ("liabilities",)
+
+
+def _alternation(phrases) -> str:
+    return "|".join(r"\s+".join(re.escape(w) for w in p.split())
+                    for p in sorted(set(phrases), key=lambda p: (-len(p), p)))
+
 
 def _regex_hint(aliases: list[str]) -> list[str]:
     """One rule-tier regex binding the line's own captions behind a leading enumerator, a
-    "Less:"/"Add:" or a trailing roman cross-reference, on the matcher's normalised text."""
+    "Less:"/"Add:", a glued Schedule III heading (`_GLUED_BEFORE` / `_GLUED_AFTER`) or a trailing
+    roman cross-reference, on the matcher's normalised text."""
     from app.services.mapping import normalize_label
 
-    alts = sorted({normalize_label(a) for a in aliases if normalize_label(a)}, key=lambda a: (-len(a), a))
+    alts = {normalize_label(a) for a in aliases if normalize_label(a)}
     if not alts:
         return []
-    body = "|".join(r"\s+".join(re.escape(w) for w in a.split()) for a in alts)
-    return [rf"^{_ENUM}(?:less\s+|add\s+)?(?:{body})(?:\s+(?:[ivxl]{{1,5}}|\d{{1,2}}))*$"]
+    before = rf"(?:(?:{_alternation(_GLUED_BEFORE)})\s+{_ENUM})?"
+    after = rf"(?:\s+(?:{_alternation(_GLUED_AFTER)}))?"
+    return [rf"^{_ENUM}{before}(?:less\s+|add\s+)?(?:{_alternation(alts)})"
+            rf"(?:\s+(?:[ivxl]{{1,5}}|\d{{1,2}}))*{after}$"]
 
 
-def _with_variants(aliases: list[str]) -> list[str]:
-    """Both spellings of "&"/"and": normalisation turns "&" into a space, so they differ."""
+# A spelling that normalises to what a GLUED ROW of another line reads as. "Total equity &
+# liabilities" normalises to "total equity liabilities", which is exactly "Total equity" with the
+# "Liabilities" heading glued on; as an alias of the statement total it took the equity subtotal at
+# the exact tier, ahead of net worth's own hint. Such a spelling is matched on the PRINTED text
+# instead (`_printed_hint`), where the "&" is still there to tell the two apart.
+_GLUE_COLLISIONS = {"total equity liabilities"}
+
+
+def _variants(aliases: list[str]) -> tuple[list[str], list[str]]:
+    """Both spellings of "&"/"and" (normalisation turns "&" into a space, so they differ), split
+    into the aliases and the spellings that collide with a glued row (`_GLUE_COLLISIONS`)."""
+    from app.services.mapping import normalize_label
+
     out: list[str] = []
+    held: list[str] = []
     for a in aliases:
         for v in (a, a.replace(" & ", " and "), re.sub(r"\band\b", "&", a)):
             v = re.sub(r"\s+", " ", v).strip()
-            if v and v not in out:
-                out.append(v)
-    return out
+            if not v or v in out or v in held:
+                continue
+            (held if normalize_label(v) in _GLUE_COLLISIONS else out).append(v)
+    return out, held
+
+
+def _with_variants(aliases: list[str]) -> list[str]:
+    return _variants(aliases)[0]
+
+
+def _printed_hint(spelling: str) -> str:
+    """A rule-tier regex for one spelling AS PRINTED (the matcher also runs hints on the raw,
+    lowercased caption), so its "&" survives."""
+    words = [r"\s*&\s*" if w == "&" else re.escape(w.lower()) for w in spelling.split()]
+    body = ""
+    for w in words:
+        body += w if (w.startswith(r"\s*") or body.endswith(r"\s*")) else (r"\s+" + w if body else w)
+    return rf"^\W*{body}\W*$"
 
 
 def build() -> tuple[dict, dict]:
@@ -513,13 +565,26 @@ def build() -> tuple[dict, dict]:
             item["extraction_mode"] = "derive" if k in DERIVE else "extract_or_derive"
             item["terms"] = terms
             item["match_priority"] = 99 if k in STATEMENT_TOTALS else 90
-        aliases = [] if k in DERIVE or k in CATCH_ALLS else _with_variants(cap.get("aliases", []))
+        aliases, held = (([], []) if k in DERIVE or k in CATCH_ALLS
+                         else _variants(cap.get("aliases", [])))
         if aliases:
             item["aliases"] = aliases
             item["aliases_i18n"] = {"en": list(aliases)}
-            item["regex_hints"] = _regex_hint(aliases)
+            item["regex_hints"] = _regex_hint(aliases) + [_printed_hint(h) for h in held]
             if cap.get("exclude_hints"):
                 item["exclude_hints"] = list(cap["exclude_hints"])
+        if k in CATCH_ALLS:
+            # THE SECTION THE SWEEP TAKES ITS ROWS FROM, stated rather than inherited. Left to the
+            # `others_master` default it is the line's `inherits` — the ICON section id
+            # (bs_icon_current_liabilities) — while the line scopes as the filing's section
+            # (bs_cl), and `stages/residual` refuses a residual whose two scopes differ
+            # ("never spans sections"): all four catch-alls swept nothing.
+            (scope_id,) = item["section_scope"]
+            item["residual_policy"] = {
+                "framework": "residual_framework", "section_scope": scope_id,
+                "population": "sweep_only", "cross_section": False, "notes_as_source": False,
+                "plug": False, "itemise": True}
+            item["exclude_hints"] = list(_SWEEP_EXCLUDES)
         items.append(item)
 
     # Section closing totals outrank the section's other calculated lines.

@@ -14,7 +14,10 @@ The pair is BUILT, not hand-edited: ``scripts/build_icon_pair.py`` turns the Com
 * on a fresh database the pair seeds and its template answers with its own set.
 
 NOT MEASURED ON A FILING: no Indian filing is in the reference corpus. What is asserted here is the
-configuration's arithmetic and caption routing, not figures read off a real annual report.
+configuration's arithmetic and caption routing, and one run of the whole pipeline over a GENERATED
+Schedule III balance sheet and P&L (`_schedule_iii_pdf`) — every printed total of which the spread
+must reproduce — not figures read off a real annual report. Two engine defects that run exposed are
+held as strict xfails at the end, so the day either is fixed the test says so.
 """
 from __future__ import annotations
 
@@ -213,6 +216,23 @@ CAPTIONS = [
     ("balance_sheet", "Current liabilities", "Total equity and liabilities",
      B + "total_liabilities_and_net_worth"),
     ("balance_sheet", "Current liabilities", "Bank guarantees", C + "outstanding_bgs"),
+    # A heading that prints no figure, glued onto the row beside it by row reconstruction — the
+    # Schedule III face layout produces every one of these (see `_GLUED_BEFORE` in the builder).
+    ("balance_sheet", "Non-current liabilities", "(a) Financial liabilities (i) Borrowings",
+     B + "rupee_term_loans"),
+    ("balance_sheet", "Current liabilities", "(a) Financial liabilities (i) Borrowings",
+     B + "bank_borrowings_applicant_bank"),
+    ("balance_sheet", "Current assets", "(b) Financial assets (ii) Trade receivables",
+     B + "receivables"),
+    ("balance_sheet", "Equity", "Equity (a) Equity share capital", B + "share_capital"),
+    ("balance_sheet", "Equity", "Total equity Liabilities", B + "net_worth"),
+    ("profit_and_loss", "Expenses", "IV. Expenses Cost of materials consumed", P + "raw_materials"),
+    ("profit_and_loss", "Tax expense:", "VI. Tax expense: (1) Current tax", P + "current_tax"),
+    # …and the "&" spelling the glued row collides with, told apart on the printed text.
+    ("balance_sheet", "Current liabilities", "Total equity & liabilities",
+     B + "total_liabilities_and_net_worth"),
+    ("balance_sheet", "Current assets", "(iv) Bank balances other than (iii) above",
+     B + "fixed_deposits_with_banks"),
     (None, None, "Claims against the company not acknowledged as debts",
      C + "other_liabilities_not_provided"),
 ]
@@ -231,6 +251,31 @@ def test_a_printed_caption_reaches_its_line(matcher, statement, heading, caption
 ])
 def test_a_caption_outside_its_lines_scope_is_refused(matcher, statement, heading, caption):
     assert matcher.match(caption, statement=statement, section=heading).canonical_key is None
+
+
+@pytest.mark.parametrize("heading, caption", [
+    ("Current assets", "(d) Other current assets"),
+    ("Current liabilities", "Other current liabilities and provisions"),
+])
+def test_a_face_aggregate_over_a_catch_all_is_left_for_the_sweep(matcher, heading, caption):
+    """Bound to its calculated line, the printed figure is REPLACED by the computed one the moment
+    the sweep fills the catch-all beneath it — total current assets came out short by exactly that
+    row. Unbound, the row is swept into the catch-all with the section's other leftovers."""
+    assert matcher.match(caption, statement="balance_sheet", section=heading).canonical_key is None
+
+
+def test_every_catch_all_sweeps_one_section():
+    """`stages/residual` refuses a residual whose own scope and its policy's scope differ ("never
+    spans sections"). Left to the default policy (the line's `inherits`, an ICON section id) every
+    catch-all differed from its filing scope (bs_cl, bs_ca, ...) and swept nothing."""
+    view = build_working_view(load_line_item_set(_raw()))
+    residuals = [m for m in view.mappings if m.value_scope == "exclusive_residual"]
+    assert sorted(m.canonical_key for m in residuals) == sorted([
+        B + "other_current_liabilities_others", B + "net_worth_others",
+        B + "other_current_assets_others", B + "other_non_current_assets_others"])
+    for m in residuals:
+        scopes = set(m.section_scope or []) | {m.residual_policy.section_scope}
+        assert len(scopes) == 1, (m.canonical_key, scopes)
 
 
 # ── shipped ──────────────────────────────────────────────────────────────────────────────────────
@@ -259,3 +304,207 @@ def test_the_pair_seeds_and_its_template_answers_with_its_own_set():
         finally:
             session.close()
             engine.dispose()
+
+
+# ── a Schedule III filing, end to end ───────────────────────────────────────────────────────────
+#
+# A generated standalone balance sheet and P&L in the Division II layout — the headings that print
+# no figure ("(d) Financial assets", "Equity", "Liabilities", "IV. Expenses"), a creditor caption
+# wrapped over two lines, the note column — with figures that tie, so every printed total is a
+# figure the spread must reproduce. Rupees in lakhs; current year, previous year.
+
+_BS = [
+    ("h", "ASSETS"), ("h", "Non-current assets"),
+    ("r", "(a) Property, plant and equipment", "3", 4200, 3900),
+    ("r", "(b) Capital work-in-progress", "3", 300, 250),
+    ("r", "(c) Other intangible assets", "4", 100, 120),
+    ("h", "(d) Financial assets"),
+    ("r", "(i) Investments", "5", 500, 450),
+    ("r", "(ii) Other financial assets", "6", 80, 70),
+    ("r", "(e) Other non-current assets", "7", 120, 110),
+    ("t", "Total non-current assets", "", 5300, 4900),
+    ("h", "Current assets"),
+    ("r", "(a) Inventories", "8", 1800, 1600),
+    ("h", "(b) Financial assets"),
+    ("r", "(i) Investments", "9", 200, 150),
+    ("r", "(ii) Trade receivables", "10", 2100, 1900),
+    ("r", "(iii) Cash and cash equivalents", "11", 350, 300),
+    ("r", "(iv) Bank balances other than (iii) above", "12", 150, 100),
+    ("r", "(v) Loans", "13", 60, 50),
+    ("r", "(vi) Other financial assets", "6", 40, 50),
+    ("r", "(c) Current tax assets (net)", "", 30, 20),
+    ("r", "(d) Other current assets", "14", 270, 230),
+    ("t", "Total current assets", "", 5000, 4400),
+    ("t", "TOTAL ASSETS", "", 10300, 9300),
+    ("h", "EQUITY AND LIABILITIES"), ("h", "Equity"),
+    ("r", "(a) Equity share capital", "15", 1000, 1000),
+    ("r", "(b) Other equity", "16", 4300, 3800),
+    ("t", "Total equity", "", 5300, 4800),
+    ("h", "Liabilities"), ("h", "Non-current liabilities"), ("h", "(a) Financial liabilities"),
+    ("r", "(i) Borrowings", "17", 1500, 1700),
+    ("r", "(ii) Lease liabilities", "18", 100, 110),
+    ("r", "(b) Provisions", "19", 150, 140),
+    ("r", "(c) Deferred tax liabilities (net)", "20", 250, 230),
+    ("t", "Total non-current liabilities", "", 2000, 2180),
+    ("h", "Current liabilities"), ("h", "(a) Financial liabilities"),
+    ("r", "(i) Borrowings", "21", 1200, 900),
+    ("h", "(ii) Trade payables"),
+    ("r", "- total outstanding dues of micro enterprises and small enterprises", "22", 150, 120),
+    ("r", "- total outstanding dues of creditors other than micro enterprises and small "
+          "enterprises", "22", 1050, 900),
+    ("r", "(iii) Other financial liabilities", "23", 220, 200),
+    ("r", "(b) Other current liabilities", "24", 230, 120),
+    ("r", "(c) Provisions", "19", 100, 60),
+    ("r", "(d) Current tax liabilities (net)", "", 50, 20),
+    ("t", "Total current liabilities", "", 3000, 2320),
+    ("t", "TOTAL EQUITY AND LIABILITIES", "", 10300, 9300),
+]
+
+
+def _pl(current_tax: str) -> list:
+    return [
+        ("r", "I. Revenue from operations", "25", 12000, 10500),
+        ("r", "II. Other income", "26", 300, 250),
+        ("t", "III. Total income (I+II)", "", 12300, 10750),
+        ("h", "IV. Expenses"),
+        ("r", "Cost of materials consumed", "27", 6500, 5800),
+        ("r", "Changes in inventories of finished goods, work-in-progress and stock-in-trade",
+         "28", -150, -100),
+        ("r", "Employee benefits expense", "29", 1500, 1350),
+        ("r", "Finance costs", "30", 280, 300),
+        ("r", "Depreciation and amortisation expense", "3", 450, 400),
+        ("r", "Other expenses", "31", 1920, 1650),
+        ("t", "Total expenses (IV)", "", 10500, 9400),
+        ("t", "V. Profit before tax (III-IV)", "", 1800, 1350),
+        ("h", "VI. Tax expense:"),
+        ("r", f"{current_tax} Current tax", "32", 330, 240),
+        ("r", ("(2)" if current_tax == "(1)" else "(b)") + " Deferred tax", "32", 20, 10),
+        ("t", "VII. Profit for the year (V-VI)", "", 1450, 1100),
+    ]
+
+
+def _schedule_iii_pdf(*, title_with_date: bool = False, current_tax: str = "(a)") -> bytes:
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas
+    import io
+
+    def amount(v):
+        return f"({abs(v):,})" if v < 0 else f"{v:,}"
+
+    def page(c, title, period, rows):
+        w, h = A4
+        y = h - 60
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(50, y, "SAMPLE INDUSTRIES LIMITED")
+        c.drawString(50, y - 16, title)
+        c.setFont("Helvetica", 9)
+        c.drawString(50, y - 30, period)
+        c.drawRightString(w - 50, y - 30, "(Rupees in lakhs)")
+        y -= 50
+        c.setFont("Helvetica-Bold", 9)
+        for x, text in ((50, "Particulars"), (385, "Note"), (470, "31 March 2025"),
+                        (w - 50, "31 March 2024")):
+            (c.drawString if x == 50 else c.drawRightString)(x, y, text)
+        y -= 14
+        for kind, label, *figures in rows:
+            c.setFont("Helvetica-Bold" if kind in "ht" else "Helvetica", 8.5)
+            if len(label) > 64:                       # wraps, figures on the last line
+                cut = label.rfind(" ", 0, 64)
+                c.drawString(62, y, label[:cut])
+                y -= 11
+                label = label[cut + 1:]
+            c.drawString(50 if kind != "r" or not label.startswith(("(", "-")) else 62, y, label)
+            if figures:
+                note, cy, py = figures
+                c.drawRightString(385, y, note)
+                c.drawRightString(470, y, amount(cy))
+                c.drawRightString(w - 50, y, amount(py))
+            y -= 13
+        c.showPage()
+
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    c.setFont("Helvetica-Bold", 22)
+    c.drawCentredString(A4[0] / 2, A4[1] / 2, "SAMPLE INDUSTRIES LIMITED")
+    c.showPage()
+    page(c, "Standalone Balance Sheet as at 31 March 2025" if title_with_date
+         else "STANDALONE BALANCE SHEET", "As at 31 March 2025", _BS)
+    page(c, "Standalone Statement of Profit and Loss for the year ended 31 March 2025"
+         if title_with_date else "STANDALONE STATEMENT OF PROFIT AND LOSS",
+         "For the year ended 31 March 2025", _pl(current_tax))
+    c.save()
+    return buf.getvalue()
+
+
+def _spread(pdf: bytes) -> tuple[dict, list[dict]]:
+    """The run's rows as the API serialises them, and the ICON grid's current-year figures."""
+    from app.api.routes.extractions import _serialize_rows
+    from app.schemas.loader import load_template
+    from app.services.documents import run_extraction
+
+    cfg = load_line_item_set(_raw(), resolve=True)
+    doc, _ctx = run_extraction(pdf, filename="schedule_iii.pdf", ontology=build_working_view(cfg),
+                               template=load_template(_template()), line_items=cfg)
+    rows = _serialize_rows(doc)
+    return rollups.figures_as_shown(_template(), rows, "standalone", "current"), rows
+
+
+@pytest.fixture(scope="module")
+def schedule_iii():
+    pytest.importorskip("fitz")
+    pytest.importorskip("reportlab")
+    return _spread(_schedule_iii_pdf())
+
+
+def test_a_schedule_iii_balance_sheet_reaches_every_printed_total(schedule_iii):
+    shown, _rows = schedule_iii
+    assert {k: shown.get(B + k) for k in (
+        "bank_borrowings_applicant_bank", "sundry_creditors_trade", "total_current_liabilities",
+        "rupee_term_loans", "total_term_liabilities", "share_capital", "other_reserves",
+        "net_worth", "total_liabilities_and_net_worth", "receivables", "inventory",
+        "total_current_assets", "net_block", "total_assets", "difference_in_bs")} == {
+        "bank_borrowings_applicant_bank": 1200, "sundry_creditors_trade": 150 + 1050,
+        "total_current_liabilities": 3000, "rupee_term_loans": 1500, "total_term_liabilities": 2000,
+        "share_capital": 1000, "other_reserves": 4300, "net_worth": 5300,
+        "total_liabilities_and_net_worth": 10300, "receivables": 2100, "inventory": 1800,
+        "total_current_assets": 5000, "net_block": 4500, "total_assets": 10300,
+        "difference_in_bs": 0}
+    # The catch-alls took the section leftovers, and nothing a section prints as a total.
+    assert shown[B + "other_current_assets"] == 270 + 200 + 60 + 40
+    assert shown[B + "other_current_liabilities_others"] == 220 + 230 + 100
+    assert shown[B + "total_other_non_current_assets"] == 500 + 80 + 120
+
+
+def test_a_schedule_iii_pnl_reaches_its_lines(schedule_iii):
+    shown, _rows = schedule_iii
+    assert {k: shown.get(P + k) for k in (
+        "total_operating_income", "raw_materials", "changes_in_inventory",
+        "salary_and_staff_expenses", "interest", "depreciation", "sga_others", "misc_income",
+        "current_tax", "deferred_tax", "profit_before_tax", "profit_after_tax")} == {
+        "total_operating_income": 12000, "raw_materials": 6500, "changes_in_inventory": -150,
+        "salary_and_staff_expenses": 1500, "interest": 280, "depreciation": 450,
+        "sga_others": 1920, "misc_income": 300, "current_tax": 330, "deferred_tax": 20,
+        "profit_before_tax": 1800, "profit_after_tax": 1450}
+
+
+@pytest.mark.xfail(strict=True, reason=(
+    "ENGINE, not ICON: classify._looks_like_heading refuses a line carrying more than one number, so "
+    "'Standalone Balance Sheet as at 31 March 2025' is never a title candidate and the page is not "
+    "a face. The Ind AS set loses the page the same way. A classifier change moves every filing, "
+    "so it waits for a measurement on the reference corpus."))
+def test_a_title_printed_with_its_date_is_still_a_statement():
+    pytest.importorskip("fitz")
+    pytest.importorskip("reportlab")
+    shown, _rows = _spread(_schedule_iii_pdf(title_with_date=True))
+    assert shown.get(B + "total_assets") == 10300
+
+
+@pytest.mark.xfail(strict=True, reason=(
+    "ENGINE, not ICON: '(1) Current tax' and '(2) Deferred tax' — Schedule III's own enumerators — "
+    "never reach the matcher; the row is lost in row reconstruction, where '(1)' reads as an amount. "
+    "'(a) Current tax' survives and binds. The Ind AS set loses the rows the same way."))
+def test_a_numbered_tax_row_reaches_its_line():
+    pytest.importorskip("fitz")
+    pytest.importorskip("reportlab")
+    shown, _rows = _spread(_schedule_iii_pdf(current_tax="(1)"))
+    assert shown.get(P + "current_tax") == 330

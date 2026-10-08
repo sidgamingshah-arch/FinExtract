@@ -1950,14 +1950,11 @@
   "note": "Current 'Lease liabilities' is printed under the identical caption to 97 (bs_ncl). 97 owns the label 'Lease Liabilities', so it would win any unconstrained tie (mapping.py:1722-1732)."
  },
  "bs_icon__other_current_liabilities_and_provisions": {
-  "aliases": [
-   "Other current liabilities & provisions",
-   "Other current liabilities and provisions"
-  ],
+  "aliases": [],
   "exclude_hints": [],
   "route": "face",
   "confidence": "medium",
-  "note": "This is a calculated line, so face 'Other current liabilities' bound here would make it validation evidence that disagrees with the computed sum. See unplaced for where those face aggregates go."
+  "note": "This is a calculated line, so face 'Other current liabilities' bound here would make it validation evidence that disagrees with the computed sum. See unplaced for where those face aggregates go. No captions, deliberately. This line is calculated and its last term is the section's catch-all, so a face caption bound here is REPLACED by the computed figure as soon as the sweep fills the catch-all (rollups.figures_as_shown: computed outranks printed). Measured on a Schedule III balance sheet: 'Other current assets' 270 bound here, Investments/Loans/Other financial assets 300 swept beneath it, and the line showed 300 - total current assets short by 270. Unbound, the face row is swept into the catch-all with the others and the group shows 570."
  },
  "bs_icon__creditors_for_expenses": {
   "aliases": [
@@ -2552,13 +2549,13 @@
   ],
   "exclude_hints": [
    "attributable",
-   "liabilities",
+   "liabilities\\s*(?:and|&)|(?:and|&)\\s*liabilities",
    "tangible",
    "adjusted"
   ],
   "route": "face",
   "confidence": "medium",
-  "note": "RSVI consolidated 'Shareholders' funds' EXCLUDES minority interest, which RSVI prints separately, so that alias understates when MI exists. 'Equity attributable to owners' is vetoed for the same reason. Once 118 moves to bs_top_level, bs_equity has no calculated closing line for section reconciliation, because net worth is extracted."
+  "note": "RSVI consolidated 'Shareholders' funds' EXCLUDES minority interest, which RSVI prints separately, so that alias understates when MI exists. 'Equity attributable to owners' is vetoed for the same reason. Once 118 moves to bs_top_level, bs_equity has no calculated closing line for section reconciliation, because net worth is extracted. The 'liabilities' veto names the conjunction ('equity and liabilities', 'liabilities & equity') rather than the word: 'Total equity' with the 'Liabilities' heading glued on by row reconstruction reads 'total equity liabilities', and that row IS net worth."
  },
  "bs_icon__total_liabilities_and_net_worth": {
   "aliases": [
@@ -2690,7 +2687,10 @@
    "Bank deposits with maturity of more than 3 months but less than 12 months",
    "Bank balances other than cash and cash equivalents",
    "Other bank balances",
-   "Bank balances other than above"
+   "Bank balances other than above",
+   "Bank balances other than (ii) above",
+   "Bank balances other than (iii) above",
+   "Bank balances other than (iv) above"
   ],
   "exclude_hints": [
    "(?i)margin|lien|pledg|earmark|unpaid|unclaimed|collateral",
@@ -2699,7 +2699,7 @@
   ],
   "route": null,
   "confidence": "medium",
-  "note": "Routing < 3-month deposits here, as the CMA format asks, makes bs_icon__cash_and_bank_balances smaller than the printed 'Cash and cash equivalents'. Lien-marked and margin deposits are vetoed so they go to bs_icon__fds_under_lien. The face 'Bank balances other than cash and cash equivalents' / 'Other bank balances' is NOT aliased: it mixes these FDs, margin money and earmarked balances."
+  "note": "Routing < 3-month deposits here, as the CMA format asks, makes bs_icon__cash_and_bank_balances smaller than the printed 'Cash and cash equivalents'. Lien-marked and margin deposits are vetoed so they go to bs_icon__fds_under_lien. The face 'Bank balances other than cash and cash equivalents' / 'Other bank balances' / 'Bank balances other than (iii) above' IS aliased here, by convention: that face line mixes these FDs with margin money and earmarked balances, and a filing whose note separates them is read through the note's own captions and vetoes."
  },
  "bs_icon__receivables": {
   "aliases": [
@@ -2910,16 +2910,14 @@
   "note": "Ind AS 'Non-current tax assets (net)' under non-current assets cannot reach this bs_ca line (section gate). It falls to the bs_nca residual."
  },
  "bs_icon__other_current_assets": {
-  "aliases": [
-   "Other current assets"
-  ],
+  "aliases": [],
   "exclude_hints": [
    "(?i)non[-\\s]?current",
    "(?i)\\btotal\\b"
   ],
   "route": null,
   "confidence": "medium",
-  "note": "Ind AS current 'Other financial assets' is NOT aliased. Binding a second face row to this parent defeats the one-face-row decomposition gate (map_ontology.py:278-325), and that caption mixes deposits, unbilled revenue and interest accrued."
+  "note": "Ind AS current 'Other financial assets' is NOT aliased. Binding a second face row to this parent defeats the one-face-row decomposition gate (map_ontology.py:278-325), and that caption mixes deposits, unbilled revenue and interest accrued. No captions, deliberately. This line is calculated and its last term is the section's catch-all, so a face caption bound here is REPLACED by the computed figure as soon as the sweep fills the catch-all (rollups.figures_as_shown: computed outranks printed). Measured on a Schedule III balance sheet: 'Other current assets' 270 bound here, Investments/Loans/Other financial assets 300 swept beneath it, and the line showed 300 - total current assets short by 270. Unbound, the face row is swept into the catch-all with the others and the group shows 570."
  },
  "bs_icon__interest_receivable": {
   "aliases": [
