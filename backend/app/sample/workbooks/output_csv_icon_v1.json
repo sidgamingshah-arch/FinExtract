@@ -1,0 +1,1348 @@
+{
+ "note": "Built by scripts/build_icon_pair.py. Where each ICON line sits in the Company v3 workbook its output is written into: the workbook UUID (column A), the sheet, the row, AUTO_SEQUENCE (column C) and whether the row is an input (unlocked, no formula) or computed by the workbook's own formula.",
+ "template_key": "output_csv_icon_v1",
+ "workbook": "output_csv_icon_v1.xlsx",
+ "sheets": [
+  "Profit and Loss Statement",
+  "Balance Sheet",
+  "Additional Information"
+ ],
+ "header": {
+  "sheet": "Profit and Loss Statement",
+  "first_value_column": "F",
+  "periods": 30,
+  "rows": {
+   "BORROWER_NAME": 1,
+   "BORROWER_CODE": 2,
+   "TEMPLATE_NAME": 3,
+   "PROJECT_NAME": 4,
+   "ACCOUNTING_TYPE": 5,
+   "FINANCIAL_TYPE": 6,
+   "YEAR": 7,
+   "YEAR_TYPE": 8,
+   "STATEMENT_DATE": 9,
+   "NO_OF_MONTHS": 10,
+   "CURRENCY": 11,
+   "DENOMINATION": 12,
+   "AUDITOR_NAME": 13,
+   "VERSION": 14,
+   "CIF_ID": 15,
+   "BASE_YEAR": 16
+  }
+ },
+ "rows": {
+  "pl_icon__domestic_sales": {
+   "uuid": "1fe0fddb-2578-4028-bb64-bd63d70cdd09",
+   "sheet": "Profit and Loss Statement",
+   "row": 21,
+   "sequence": "1.1.1",
+   "input": true
+  },
+  "pl_icon__export_sales": {
+   "uuid": "725d10e1-e2a6-4996-b9d0-4ad6ffc75b68",
+   "sheet": "Profit and Loss Statement",
+   "row": 22,
+   "sequence": "1.1.2",
+   "input": true
+  },
+  "pl_icon__gross_sales_total": {
+   "uuid": "640dbfc9-deeb-44e3-9198-96949e0cae58",
+   "sheet": "Profit and Loss Statement",
+   "row": 23,
+   "sequence": "1.1.3",
+   "input": false
+  },
+  "pl_icon__excise_duty": {
+   "uuid": "59b1facc-2b05-4ef0-bd3c-52d6156b19af",
+   "sheet": "Profit and Loss Statement",
+   "row": 24,
+   "sequence": "1.2",
+   "input": true
+  },
+  "pl_icon__net_sales": {
+   "uuid": "a3c6e8f3-99c4-41a0-adec-acb5ff2f3b00",
+   "sheet": "Profit and Loss Statement",
+   "row": 25,
+   "sequence": "1.3",
+   "input": false
+  },
+  "pl_icon__other_recurring_operating_income": {
+   "uuid": "16c1b0ac-ba37-4ed6-bb75-c0d4993e9ae8",
+   "sheet": "Profit and Loss Statement",
+   "row": 27,
+   "sequence": "1.5",
+   "input": true
+  },
+  "pl_icon__total_operating_income": {
+   "uuid": "758d688a-abd2-4efa-bace-54c0f837efaa",
+   "sheet": "Profit and Loss Statement",
+   "row": 28,
+   "sequence": "1.6",
+   "input": false
+  },
+  "pl_icon__raw_materials": {
+   "uuid": "3d4377af-5b9d-4fc5-8ad3-56f2be931ed3",
+   "sheet": "Profit and Loss Statement",
+   "row": 30,
+   "sequence": "1.7.1",
+   "input": false
+  },
+  "pl_icon__raw_materials_imported": {
+   "uuid": "d4fd265c-aebb-4d35-8d34-fbb90f8879b1",
+   "sheet": "Profit and Loss Statement",
+   "row": 31,
+   "sequence": "1.7.1.1",
+   "input": true
+  },
+  "pl_icon__raw_materials_indigenous": {
+   "uuid": "196afb1b-3271-4e26-8c17-a1687f1442a1",
+   "sheet": "Profit and Loss Statement",
+   "row": 32,
+   "sequence": "1.7.1.2",
+   "input": true
+  },
+  "pl_icon__other_spares": {
+   "uuid": "b5374b98-fbc9-4afd-91a6-687949a4353a",
+   "sheet": "Profit and Loss Statement",
+   "row": 33,
+   "sequence": "1.7.2",
+   "input": true
+  },
+  "pl_icon__power_and_fuel": {
+   "uuid": "f78f861b-e42f-4c79-b4df-5106e411ae92",
+   "sheet": "Profit and Loss Statement",
+   "row": 34,
+   "sequence": "1.7.3",
+   "input": true
+  },
+  "pl_icon__direct_labour": {
+   "uuid": "148302c9-c702-4281-9fb6-424bb1a09513",
+   "sheet": "Profit and Loss Statement",
+   "row": 35,
+   "sequence": "1.7.4",
+   "input": true
+  },
+  "pl_icon__other_manufacturing_expenses": {
+   "uuid": "a8cd1b47-c726-4920-a36e-c957dd5e4e35",
+   "sheet": "Profit and Loss Statement",
+   "row": 36,
+   "sequence": "1.7.5",
+   "input": false
+  },
+  "pl_icon__processing_job_work_charges": {
+   "uuid": "668ded41-a4aa-46a3-9c6a-800d00837629",
+   "sheet": "Profit and Loss Statement",
+   "row": 37,
+   "sequence": "1.7.5.1",
+   "input": true
+  },
+  "pl_icon__freight_and_transportation_charges": {
+   "uuid": "0ad52017-0aff-4518-ab1c-4f3090d51d34",
+   "sheet": "Profit and Loss Statement",
+   "row": 38,
+   "sequence": "1.7.5.2",
+   "input": true
+  },
+  "pl_icon__other_manufacturing_expenses_others": {
+   "uuid": "4920a1ca-7f77-41b8-b737-00b8b1672a4b",
+   "sheet": "Profit and Loss Statement",
+   "row": 39,
+   "sequence": "1.7.5.3",
+   "input": true
+  },
+  "pl_icon__depreciation": {
+   "uuid": "0fe0bf01-2780-473f-9a02-0a0192c5ff6c",
+   "sheet": "Profit and Loss Statement",
+   "row": 40,
+   "sequence": "1.7.6",
+   "input": true
+  },
+  "pl_icon__amortization": {
+   "uuid": "2ac2e554-12a8-4d5f-a550-f4d76440b480",
+   "sheet": "Profit and Loss Statement",
+   "row": 41,
+   "sequence": "1.7.7",
+   "input": true
+  },
+  "pl_icon__changes_in_inventory": {
+   "uuid": "1355a8e0-0532-4764-aaf9-5bcf329b1f83",
+   "sheet": "Profit and Loss Statement",
+   "row": 42,
+   "sequence": "1.7.8",
+   "input": true
+  },
+  "pl_icon__total_cost_of_sales": {
+   "uuid": "36b81d10-11d4-409b-ab6a-458f6aee2219",
+   "sheet": "Profit and Loss Statement",
+   "row": 43,
+   "sequence": "1.7.9",
+   "input": false
+  },
+  "pl_icon__sga_expenses": {
+   "uuid": "d45d21cc-efc2-48d8-9d50-f166592f07f1",
+   "sheet": "Profit and Loss Statement",
+   "row": 44,
+   "sequence": "1.8",
+   "input": false
+  },
+  "pl_icon__salary_and_staff_expenses": {
+   "uuid": "2ef29c6a-8a7b-40e5-99c8-f89d9057243d",
+   "sheet": "Profit and Loss Statement",
+   "row": 45,
+   "sequence": "1.8.1",
+   "input": true
+  },
+  "pl_icon__rent_rates_and_taxes": {
+   "uuid": "2b68097c-b2d9-4814-b640-8029f0ca3ee4",
+   "sheet": "Profit and Loss Statement",
+   "row": 46,
+   "sequence": "1.8.2",
+   "input": true
+  },
+  "pl_icon__lease_rentals": {
+   "uuid": "92aa2ec4-8a3c-4dbd-a197-ac3010cfc6d0",
+   "sheet": "Profit and Loss Statement",
+   "row": 47,
+   "sequence": "1.8.3",
+   "input": true
+  },
+  "pl_icon__bad_debts": {
+   "uuid": "70247812-1813-4670-b601-64da36a5258c",
+   "sheet": "Profit and Loss Statement",
+   "row": 48,
+   "sequence": "1.8.4",
+   "input": true
+  },
+  "pl_icon__travelling_and_conveyance": {
+   "uuid": "95e087db-f388-4a0a-9b9c-a87952212d64",
+   "sheet": "Profit and Loss Statement",
+   "row": 49,
+   "sequence": "1.8.5",
+   "input": true
+  },
+  "pl_icon__advertisement_and_sales_promotion": {
+   "uuid": "5a538d85-7501-4bcb-9624-8aebed73725d",
+   "sheet": "Profit and Loss Statement",
+   "row": 50,
+   "sequence": "1.8.6",
+   "input": true
+  },
+  "pl_icon__commission_discount_and_service_charges": {
+   "uuid": "f67c6972-1353-40e1-bcd7-1f1677bb7d3f",
+   "sheet": "Profit and Loss Statement",
+   "row": 51,
+   "sequence": "1.8.7",
+   "input": true
+  },
+  "pl_icon__legal_and_professional_charges": {
+   "uuid": "1863177f-a897-4a90-9a52-cc92f1986683",
+   "sheet": "Profit and Loss Statement",
+   "row": 52,
+   "sequence": "1.8.8",
+   "input": true
+  },
+  "pl_icon__directors_remuneration": {
+   "uuid": "b5e1aae4-d350-417d-b95a-0c414c79e8e4",
+   "sheet": "Profit and Loss Statement",
+   "row": 53,
+   "sequence": "1.8.9",
+   "input": true
+  },
+  "pl_icon__auditors_remuneration": {
+   "uuid": "09c75130-6fcc-4aba-8999-33139f25d705",
+   "sheet": "Profit and Loss Statement",
+   "row": 54,
+   "sequence": "1.8.10",
+   "input": true
+  },
+  "pl_icon__sga_others": {
+   "uuid": "a8430eea-7c67-48ef-a1fb-72efd678b52b",
+   "sheet": "Profit and Loss Statement",
+   "row": 55,
+   "sequence": "1.8.11",
+   "input": true
+  },
+  "pl_icon__total_operating_expenses": {
+   "uuid": "09ff9a1a-9720-422c-92fa-c3452fe2a4ed",
+   "sheet": "Profit and Loss Statement",
+   "row": 56,
+   "sequence": "1.9",
+   "input": false
+  },
+  "pl_icon__operating_profit_before_interest": {
+   "uuid": "cd32dec1-9487-4fad-b68d-84929baa6c70",
+   "sheet": "Profit and Loss Statement",
+   "row": 57,
+   "sequence": "1.10",
+   "input": false
+  },
+  "pl_icon__interest": {
+   "uuid": "3c191bb5-9e45-49e9-92d8-62eac4a46fee",
+   "sheet": "Profit and Loss Statement",
+   "row": 58,
+   "sequence": "1.11",
+   "input": false
+  },
+  "pl_icon__interest_term_loans": {
+   "uuid": "4ac021e9-a288-49cb-8065-f08ce0d20a4b",
+   "sheet": "Profit and Loss Statement",
+   "row": 59,
+   "sequence": "1.11.1",
+   "input": true
+  },
+  "pl_icon__interest_working_capital_loans": {
+   "uuid": "9d8baeb0-9b8d-4484-a719-47c3465e519d",
+   "sheet": "Profit and Loss Statement",
+   "row": 60,
+   "sequence": "1.11.2",
+   "input": true
+  },
+  "pl_icon__bank_charges": {
+   "uuid": "69206450-c21c-435c-ad96-06f800c1faee",
+   "sheet": "Profit and Loss Statement",
+   "row": 61,
+   "sequence": "1.11.3",
+   "input": true
+  },
+  "pl_icon__operating_profit_after_interest": {
+   "uuid": "ef40fe86-94a1-411c-939f-2c4630b12982",
+   "sheet": "Profit and Loss Statement",
+   "row": 62,
+   "sequence": "1.12",
+   "input": false
+  },
+  "pl_icon__interest_received": {
+   "uuid": "73dec465-413e-426d-a2cc-dafce9007d2f",
+   "sheet": "Profit and Loss Statement",
+   "row": 65,
+   "sequence": "1.14.1",
+   "input": true
+  },
+  "pl_icon__dividends_received": {
+   "uuid": "3c9cb6ec-b0b9-429e-8fb6-cf30cf358322",
+   "sheet": "Profit and Loss Statement",
+   "row": 66,
+   "sequence": "1.14.2",
+   "input": true
+  },
+  "pl_icon__profit_on_sale_of_assets_investments": {
+   "uuid": "f5404e9a-501d-4beb-8c52-a66cf3f2809c",
+   "sheet": "Profit and Loss Statement",
+   "row": 67,
+   "sequence": "1.14.3",
+   "input": true
+  },
+  "pl_icon__misc_income": {
+   "uuid": "ef45beb9-e0f1-4a75-ac2e-cd6ec751b34f",
+   "sheet": "Profit and Loss Statement",
+   "row": 68,
+   "sequence": "1.14.4",
+   "input": true
+  },
+  "pl_icon__non_operating_income_cash_subtotal": {
+   "uuid": "00fb8424-56dd-4bba-ab26-a02941464019",
+   "sheet": "Profit and Loss Statement",
+   "row": 69,
+   "sequence": "1.14.5",
+   "input": false
+  },
+  "pl_icon__non_operating_income_non_cash_others": {
+   "uuid": "fb1d0130-8c1f-414f-9293-03c94a1c0ade",
+   "sheet": "Profit and Loss Statement",
+   "row": 71,
+   "sequence": "1.14.6.1",
+   "input": true
+  },
+  "pl_icon__non_operating_income_non_cash_subtotal": {
+   "uuid": "50e3e6b1-ca92-4e82-b2ca-b0b8426846e5",
+   "sheet": "Profit and Loss Statement",
+   "row": 72,
+   "sequence": "1.14.6.2",
+   "input": false
+  },
+  "pl_icon__non_operating_income_total": {
+   "uuid": "11fa2e28-79b1-4b4e-af42-e071c9bd2d50",
+   "sheet": "Profit and Loss Statement",
+   "row": 73,
+   "sequence": "1.14.6.3",
+   "input": false
+  },
+  "pl_icon__crystallized_forex_loss": {
+   "uuid": "c84141dc-2e53-4610-a1de-49f74b5bd005",
+   "sheet": "Profit and Loss Statement",
+   "row": 76,
+   "sequence": "1.14.8.1",
+   "input": true
+  },
+  "pl_icon__write_off_of_stock_in_process": {
+   "uuid": "06ee36ea-0c23-4f01-a7d0-a0934ac6fd95",
+   "sheet": "Profit and Loss Statement",
+   "row": 77,
+   "sequence": "1.14.8.2",
+   "input": true
+  },
+  "pl_icon__write_off_of_finished_goods": {
+   "uuid": "a839c66b-a310-46bc-a5b7-f502894065cc",
+   "sheet": "Profit and Loss Statement",
+   "row": 78,
+   "sequence": "1.14.8.3",
+   "input": true
+  },
+  "pl_icon__loss_on_sale_of_assets_investments": {
+   "uuid": "5b9635ac-d769-4604-8838-145ae69d8c65",
+   "sheet": "Profit and Loss Statement",
+   "row": 79,
+   "sequence": "1.14.8.4",
+   "input": true
+  },
+  "pl_icon__other_non_operating_cash_expenses": {
+   "uuid": "3eb201cc-56e5-4c0f-a24d-1b1b14fda065",
+   "sheet": "Profit and Loss Statement",
+   "row": 80,
+   "sequence": "1.14.8.5",
+   "input": true
+  },
+  "pl_icon__other_non_operating_cash_expenses_2": {
+   "uuid": "d0da1235-e20b-4bca-9be7-8c9237fbf7bc",
+   "sheet": "Profit and Loss Statement",
+   "row": 81,
+   "sequence": "1.14.8.6",
+   "input": true
+  },
+  "pl_icon__non_operating_expense_cash_subtotal": {
+   "uuid": "f9e04cd8-943b-4010-acdb-bc999d78ce72",
+   "sheet": "Profit and Loss Statement",
+   "row": 82,
+   "sequence": "1.14.8.7",
+   "input": false
+  },
+  "pl_icon__mtm_forex_loss": {
+   "uuid": "0f051e4a-a41b-4a99-88c9-feb2365cc72d",
+   "sheet": "Profit and Loss Statement",
+   "row": 84,
+   "sequence": "1.14.8.8.1",
+   "input": true
+  },
+  "pl_icon__non_operating_expense_non_cash_others": {
+   "uuid": "d8ec163d-78ac-431c-99e1-8ace8169b883",
+   "sheet": "Profit and Loss Statement",
+   "row": 85,
+   "sequence": "1.14.8.8.2",
+   "input": true
+  },
+  "pl_icon__non_operating_expense_non_cash_subtotal": {
+   "uuid": "7544d25b-0a55-4517-9df3-cd49a0af62c2",
+   "sheet": "Profit and Loss Statement",
+   "row": 86,
+   "sequence": "1.14.8.8.3",
+   "input": false
+  },
+  "pl_icon__non_operating_expense_total": {
+   "uuid": "522e2580-1284-415b-8016-2e703f8cee1c",
+   "sheet": "Profit and Loss Statement",
+   "row": 87,
+   "sequence": "1.14.8.8.4",
+   "input": false
+  },
+  "pl_icon__net_non_operating_income": {
+   "uuid": "84430ae4-7ba5-4ad1-a312-88536b3cc13c",
+   "sheet": "Profit and Loss Statement",
+   "row": 88,
+   "sequence": "1.14.8.9",
+   "input": false
+  },
+  "pl_icon__profit_before_tax": {
+   "uuid": "fc317b2b-949e-4375-b1dd-395b77975d15",
+   "sheet": "Profit and Loss Statement",
+   "row": 89,
+   "sequence": "1.15",
+   "input": false
+  },
+  "pl_icon__provision_for_taxes": {
+   "uuid": "bef66092-7c0a-4b22-baf3-56e38869958e",
+   "sheet": "Profit and Loss Statement",
+   "row": 90,
+   "sequence": "1.16",
+   "input": false
+  },
+  "pl_icon__current_tax": {
+   "uuid": "93833f29-6945-4c8d-af99-31a624848bec",
+   "sheet": "Profit and Loss Statement",
+   "row": 91,
+   "sequence": "1.16.1",
+   "input": true
+  },
+  "pl_icon__deferred_tax": {
+   "uuid": "ff1fef25-6e87-4bf7-ada2-bca6a29add91",
+   "sheet": "Profit and Loss Statement",
+   "row": 92,
+   "sequence": "1.16.2",
+   "input": true
+  },
+  "pl_icon__profit_after_tax": {
+   "uuid": "7f24fe60-dfc6-4c6c-b7a4-fed231550438",
+   "sheet": "Profit and Loss Statement",
+   "row": 93,
+   "sequence": "1.17",
+   "input": false
+  },
+  "pl_icon__equity_dividend": {
+   "uuid": "f698f49b-d41b-4833-9daf-e9b2433213db",
+   "sheet": "Profit and Loss Statement",
+   "row": 94,
+   "sequence": "1.18",
+   "input": true
+  },
+  "kpi:dividend_rate": {
+   "uuid": "90548b2b-fa7b-4d84-905a-80961d65a149",
+   "sheet": "Profit and Loss Statement",
+   "row": 95,
+   "sequence": "1.19",
+   "input": true
+  },
+  "pl_icon__retained_profit": {
+   "uuid": "44fbb444-33a1-43f0-83d6-6a66783798d6",
+   "sheet": "Profit and Loss Statement",
+   "row": 96,
+   "sequence": "1.20",
+   "input": false
+  },
+  "kpi:retained_profit_to_net_profit": {
+   "uuid": "f5b4ddaf-88ee-4c00-95d9-5d29d2f84f13",
+   "sheet": "Profit and Loss Statement",
+   "row": 97,
+   "sequence": "1.21",
+   "input": false
+  },
+  "bs_icon__bank_borrowings_applicant_bank": {
+   "uuid": "eadde075-7734-48ef-9470-b8d214b7937d",
+   "sheet": "Balance Sheet",
+   "row": 23,
+   "sequence": "2.1.1.1.1",
+   "input": true
+  },
+  "bs_icon__bank_borrowings_other_banks": {
+   "uuid": "0a8ee552-9b62-4de5-a7ca-3826e5d0b2d4",
+   "sheet": "Balance Sheet",
+   "row": 24,
+   "sequence": "2.1.1.1.2",
+   "input": true
+  },
+  "bs_icon__bank_borrowings_subtotal": {
+   "uuid": "afe14fcf-a84e-4d7d-a5cf-7316ce695da4",
+   "sheet": "Balance Sheet",
+   "row": 25,
+   "sequence": "2.1.1.1.3",
+   "input": false
+  },
+  "bs_icon__short_term_borrowings_others": {
+   "uuid": "d6b57745-686a-4ddf-91b2-5c886f8e567a",
+   "sheet": "Balance Sheet",
+   "row": 26,
+   "sequence": "2.1.1.2",
+   "input": true
+  },
+  "bs_icon__short_term_borrowings_related_parties": {
+   "uuid": "f9680623-61e8-4e11-9328-3655ee3c1840",
+   "sheet": "Balance Sheet",
+   "row": 27,
+   "sequence": "2.1.1.3",
+   "input": true
+  },
+  "bs_icon__sundry_creditors_trade": {
+   "uuid": "2a445707-4b7f-4173-83b0-14a8e82e561d",
+   "sheet": "Balance Sheet",
+   "row": 28,
+   "sequence": "2.1.1.4",
+   "input": true
+  },
+  "bs_icon__advances_from_customers": {
+   "uuid": "801bc503-eff2-4fcd-af1f-8fbd888c91e3",
+   "sheet": "Balance Sheet",
+   "row": 29,
+   "sequence": "2.1.1.5",
+   "input": true
+  },
+  "bs_icon__provision_for_taxation": {
+   "uuid": "a2fd7c99-e51a-4e8a-9619-ffea2ed95393",
+   "sheet": "Balance Sheet",
+   "row": 30,
+   "sequence": "2.1.1.6",
+   "input": true
+  },
+  "bs_icon__dividend_payable": {
+   "uuid": "49b4e462-3a69-4beb-bdd4-49d9f68a147d",
+   "sheet": "Balance Sheet",
+   "row": 31,
+   "sequence": "2.1.1.7",
+   "input": true
+  },
+  "bs_icon__other_statutory_liabilities": {
+   "uuid": "f1ed247e-11bf-41ae-898d-fee1afa02fdb",
+   "sheet": "Balance Sheet",
+   "row": 32,
+   "sequence": "2.1.1.8",
+   "input": true
+  },
+  "bs_icon__cpltd": {
+   "uuid": "d70aad0f-962f-4965-a439-72a29570179e",
+   "sheet": "Balance Sheet",
+   "row": 33,
+   "sequence": "2.1.1.9",
+   "input": false
+  },
+  "bs_icon__cpltd_debentures": {
+   "uuid": "1398600f-6534-4439-b9f8-62e09e9e4a9b",
+   "sheet": "Balance Sheet",
+   "row": 34,
+   "sequence": "2.1.1.9.1",
+   "input": true
+  },
+  "bs_icon__cpltd_preference_shares": {
+   "uuid": "c35f7b5e-c85c-4790-8e55-59328184ae50",
+   "sheet": "Balance Sheet",
+   "row": 35,
+   "sequence": "2.1.1.9.2",
+   "input": true
+  },
+  "bs_icon__cpltd_rupee_term_loans": {
+   "uuid": "b2e9612d-5c39-44fb-866b-a18539f01e4c",
+   "sheet": "Balance Sheet",
+   "row": 36,
+   "sequence": "2.1.1.9.3",
+   "input": true
+  },
+  "bs_icon__cpltd_foreign_currency_loans": {
+   "uuid": "92dcf598-a513-414f-ad4f-174cf6291232",
+   "sheet": "Balance Sheet",
+   "row": 37,
+   "sequence": "2.1.1.9.4",
+   "input": true
+  },
+  "bs_icon__cpltd_others": {
+   "uuid": "aeb0b18d-923d-43c3-a5c8-4477844c9658",
+   "sheet": "Balance Sheet",
+   "row": 38,
+   "sequence": "2.1.1.9.5",
+   "input": true
+  },
+  "bs_icon__other_current_liabilities_and_provisions": {
+   "uuid": "ee760a95-6a92-4837-8442-b1904df695f9",
+   "sheet": "Balance Sheet",
+   "row": 39,
+   "sequence": "2.1.1.10",
+   "input": false
+  },
+  "bs_icon__creditors_for_expenses": {
+   "uuid": "99352122-0c01-4f7f-b9bc-4a04097c3cac",
+   "sheet": "Balance Sheet",
+   "row": 40,
+   "sequence": "2.1.1.10.1",
+   "input": true
+  },
+  "bs_icon__employee_expenses_payable": {
+   "uuid": "49ed1679-76b5-463a-b8d3-92917e4f8108",
+   "sheet": "Balance Sheet",
+   "row": 41,
+   "sequence": "2.1.1.10.2",
+   "input": true
+  },
+  "bs_icon__mtm_forex_loss_liability": {
+   "uuid": "df71b880-a8db-48ae-9fa8-f3eae49c2004",
+   "sheet": "Balance Sheet",
+   "row": 42,
+   "sequence": "2.1.1.10.3",
+   "input": true
+  },
+  "bs_icon__interest_accrued": {
+   "uuid": "877f41bf-f2cc-4f28-a609-73c32a4f633a",
+   "sheet": "Balance Sheet",
+   "row": 43,
+   "sequence": "2.1.1.10.4",
+   "input": true
+  },
+  "bs_icon__outstanding_lease_rentals": {
+   "uuid": "f408af15-73c5-4b4d-853a-4f20291f0acc",
+   "sheet": "Balance Sheet",
+   "row": 44,
+   "sequence": "2.1.1.10.5",
+   "input": true
+  },
+  "bs_icon__other_current_liabilities_others": {
+   "uuid": "6ecc6080-c565-4796-9c90-fdeb3bf71a8f",
+   "sheet": "Balance Sheet",
+   "row": 45,
+   "sequence": "2.1.1.10.6",
+   "input": true
+  },
+  "bs_icon__other_current_liabilities_subtotal": {
+   "uuid": "c60b8f28-78db-4086-b2ca-938725d06a33",
+   "sheet": "Balance Sheet",
+   "row": 46,
+   "sequence": "2.1.1.10.7",
+   "input": false
+  },
+  "bs_icon__total_current_liabilities": {
+   "uuid": "650b7e27-abed-4d8f-a70c-eef1966ff376",
+   "sheet": "Balance Sheet",
+   "row": 47,
+   "sequence": "2.1.1.11",
+   "input": false
+  },
+  "bs_icon__debentures_and_preference_shares": {
+   "uuid": "d7725e28-c20f-476b-a80b-e78e63fdcd52",
+   "sheet": "Balance Sheet",
+   "row": 50,
+   "sequence": "2.1.2.1",
+   "input": true
+  },
+  "bs_icon__lease_liabilities": {
+   "uuid": "40d5ae42-ab48-4303-8f63-50d25dc98d44",
+   "sheet": "Balance Sheet",
+   "row": 51,
+   "sequence": "2.1.2.2",
+   "input": true
+  },
+  "bs_icon__rupee_term_loans": {
+   "uuid": "722d0a4b-7cfa-4889-a658-918bd5348e4e",
+   "sheet": "Balance Sheet",
+   "row": 52,
+   "sequence": "2.1.2.3",
+   "input": true
+  },
+  "bs_icon__foreign_currency_loans": {
+   "uuid": "9eded9ed-f0dd-4ae8-8f1c-8af88a5c8b59",
+   "sheet": "Balance Sheet",
+   "row": 53,
+   "sequence": "2.1.2.4",
+   "input": true
+  },
+  "bs_icon__term_deposits": {
+   "uuid": "9105cbfa-e900-44a9-8825-82014db3ea4c",
+   "sheet": "Balance Sheet",
+   "row": 54,
+   "sequence": "2.1.2.5",
+   "input": true
+  },
+  "bs_icon__long_term_borrowings_related_parties": {
+   "uuid": "4e0027be-38fb-4dd8-af3c-d3e7aaeeba99",
+   "sheet": "Balance Sheet",
+   "row": 55,
+   "sequence": "2.1.2.6",
+   "input": true
+  },
+  "bs_icon__other_term_liabilities_non_debt": {
+   "uuid": "bc776d8e-800d-4b8a-a3ea-f05ac797a2e8",
+   "sheet": "Balance Sheet",
+   "row": 56,
+   "sequence": "2.1.2.7",
+   "input": true
+  },
+  "bs_icon__total_term_liabilities": {
+   "uuid": "992d4dab-95f4-4994-b5d0-eb8b257947ee",
+   "sheet": "Balance Sheet",
+   "row": 57,
+   "sequence": "2.1.2.8",
+   "input": false
+  },
+  "bs_icon__total_outside_liabilities": {
+   "uuid": "03b015fb-f7e8-4e3d-9b6c-8aa4c9410dde",
+   "sheet": "Balance Sheet",
+   "row": 58,
+   "sequence": "2.1.2.9",
+   "input": false
+  },
+  "bs_icon__share_capital": {
+   "uuid": "48ffc5a7-936d-4c88-9cb9-c8d17f8351c4",
+   "sheet": "Balance Sheet",
+   "row": 61,
+   "sequence": "2.1.3.1",
+   "input": true
+  },
+  "bs_icon__general_reserve": {
+   "uuid": "01988d44-db38-444c-8363-c5b4882d5466",
+   "sheet": "Balance Sheet",
+   "row": 62,
+   "sequence": "2.1.3.2",
+   "input": true
+  },
+  "bs_icon__revaluation_reserve": {
+   "uuid": "517da130-76ad-45ca-8694-b075b02b69fc",
+   "sheet": "Balance Sheet",
+   "row": 63,
+   "sequence": "2.1.3.3",
+   "input": true
+  },
+  "bs_icon__other_reserves": {
+   "uuid": "50ad6c75-2d36-4e69-ae9a-fe8ff48952e6",
+   "sheet": "Balance Sheet",
+   "row": 64,
+   "sequence": "2.1.3.4",
+   "input": true
+  },
+  "bs_icon__surplus_or_deficit_in_profit_and_loss": {
+   "uuid": "182bfeef-b204-4747-9d62-352522f0eb38",
+   "sheet": "Balance Sheet",
+   "row": 65,
+   "sequence": "2.1.3.5",
+   "input": true
+  },
+  "bs_icon__share_premium": {
+   "uuid": "e4683308-35d0-4d1c-92f8-1f92dbf24e05",
+   "sheet": "Balance Sheet",
+   "row": 67,
+   "sequence": "2.1.3.6.1",
+   "input": true
+  },
+  "bs_icon__capital_redemption_reserve": {
+   "uuid": "e249325d-e9eb-4bad-8ceb-28910c7479d3",
+   "sheet": "Balance Sheet",
+   "row": 68,
+   "sequence": "2.1.3.6.2",
+   "input": true
+  },
+  "bs_icon__share_application_money": {
+   "uuid": "404bbab2-9a65-4399-a7d9-7cbe58451060",
+   "sheet": "Balance Sheet",
+   "row": 69,
+   "sequence": "2.1.3.6.3",
+   "input": true
+  },
+  "bs_icon__foreign_currency_translation_reserve": {
+   "uuid": "8df8dcd7-4743-4a01-bb22-cd27b1e9add7",
+   "sheet": "Balance Sheet",
+   "row": 70,
+   "sequence": "2.1.3.6.4",
+   "input": true
+  },
+  "bs_icon__minority_interest": {
+   "uuid": "89a69505-99e1-4804-972f-5b7fc342a226",
+   "sheet": "Balance Sheet",
+   "row": 71,
+   "sequence": "2.1.3.6.5",
+   "input": true
+  },
+  "bs_icon__quasi_equity": {
+   "uuid": "f16411d8-6403-4e01-ad0e-63a4c1b1cafb",
+   "sheet": "Balance Sheet",
+   "row": 72,
+   "sequence": "2.1.3.6.6",
+   "input": true
+  },
+  "bs_icon__net_worth_others": {
+   "uuid": "bf6932bf-76c2-4ab6-87b5-29909e7cbe34",
+   "sheet": "Balance Sheet",
+   "row": 73,
+   "sequence": "2.1.3.6.7",
+   "input": true
+  },
+  "bs_icon__net_worth": {
+   "uuid": "a590a497-04de-4fc5-887b-3d226a136654",
+   "sheet": "Balance Sheet",
+   "row": 74,
+   "sequence": "2.1.3.7",
+   "input": false
+  },
+  "bs_icon__total_liabilities_and_net_worth": {
+   "uuid": "045ee751-40cd-4566-b7e7-e823de4b675d",
+   "sheet": "Balance Sheet",
+   "row": 75,
+   "sequence": "2.1.3.8",
+   "input": false
+  },
+  "bs_icon__cash_and_bank_balances": {
+   "uuid": "9d1a08ef-e967-4814-87a0-938bd3b5b6cd",
+   "sheet": "Balance Sheet",
+   "row": 79,
+   "sequence": "2.3.1.1",
+   "input": false
+  },
+  "bs_icon__cash_balance": {
+   "uuid": "2fc39a34-6347-40a6-ac0a-945e629e7d63",
+   "sheet": "Balance Sheet",
+   "row": 80,
+   "sequence": "2.3.1.1.1",
+   "input": true
+  },
+  "bs_icon__bank_balance": {
+   "uuid": "da98dfc4-2e15-433e-8f95-e9dc80fe0c6b",
+   "sheet": "Balance Sheet",
+   "row": 81,
+   "sequence": "2.3.1.1.2",
+   "input": true
+  },
+  "bs_icon__current_investments": {
+   "uuid": "7e59a039-4732-4a16-b96a-3cb340f2730c",
+   "sheet": "Balance Sheet",
+   "row": 82,
+   "sequence": "2.3.1.2",
+   "input": true
+  },
+  "bs_icon__govt_and_trustee_securities": {
+   "uuid": "4e23f959-1091-4697-a2fa-8ac79e1bb81d",
+   "sheet": "Balance Sheet",
+   "row": 83,
+   "sequence": "2.3.1.2.1",
+   "input": true
+  },
+  "bs_icon__fixed_deposits_with_banks": {
+   "uuid": "cf7c44c0-3022-4651-ac01-f305fa06ad15",
+   "sheet": "Balance Sheet",
+   "row": 84,
+   "sequence": "2.3.1.2.2",
+   "input": true
+  },
+  "bs_icon__receivables": {
+   "uuid": "d2dc36c7-db7b-43da-bc14-b65431da7071",
+   "sheet": "Balance Sheet",
+   "row": 85,
+   "sequence": "2.3.1.3",
+   "input": false
+  },
+  "bs_icon__domestic_receivables": {
+   "uuid": "3ae8584a-68c1-477b-8f26-59cab14ad83b",
+   "sheet": "Balance Sheet",
+   "row": 86,
+   "sequence": "2.3.1.3.1",
+   "input": true
+  },
+  "bs_icon__export_receivables": {
+   "uuid": "be0dee3a-96a0-4b5d-932f-ffcc17b58613",
+   "sheet": "Balance Sheet",
+   "row": 87,
+   "sequence": "2.3.1.3.2",
+   "input": true
+  },
+  "bs_icon__deferred_receivables_due_within_1_year": {
+   "uuid": "22bb2195-0b98-482e-bee3-b0e55f095ccb",
+   "sheet": "Balance Sheet",
+   "row": 88,
+   "sequence": "2.3.1.4",
+   "input": true
+  },
+  "bs_icon__inventory": {
+   "uuid": "c651484d-b6f4-4ae1-8ca5-503cb0a657bc",
+   "sheet": "Balance Sheet",
+   "row": 89,
+   "sequence": "2.3.1.5",
+   "input": false
+  },
+  "bs_icon__inventory_raw_materials": {
+   "uuid": "d4babf8a-08ab-4d2c-88d6-02fa6a052534",
+   "sheet": "Balance Sheet",
+   "row": 90,
+   "sequence": "2.3.1.5.1",
+   "input": false
+  },
+  "bs_icon__inventory_raw_materials_imported": {
+   "uuid": "4ecd7297-336d-441b-8f94-98d45accb6bd",
+   "sheet": "Balance Sheet",
+   "row": 91,
+   "sequence": "2.3.1.5.1.1",
+   "input": true
+  },
+  "bs_icon__inventory_raw_materials_indigenous": {
+   "uuid": "c24ac2ab-cff2-4c54-9629-0eaf62632678",
+   "sheet": "Balance Sheet",
+   "row": 92,
+   "sequence": "2.3.1.5.1.2",
+   "input": true
+  },
+  "bs_icon__stocks_in_process": {
+   "uuid": "3d05c545-b582-47d0-ad4a-624704ec6e89",
+   "sheet": "Balance Sheet",
+   "row": 93,
+   "sequence": "2.3.1.5.2",
+   "input": true
+  },
+  "bs_icon__finished_goods": {
+   "uuid": "b242879b-71fd-4e31-b91c-4f4745a320b5",
+   "sheet": "Balance Sheet",
+   "row": 94,
+   "sequence": "2.3.1.5.3",
+   "input": true
+  },
+  "bs_icon__other_consumable_spares": {
+   "uuid": "72a063be-d21c-4574-8e1e-3b6f85c6f4a7",
+   "sheet": "Balance Sheet",
+   "row": 95,
+   "sequence": "2.3.1.5.4",
+   "input": true
+  },
+  "bs_icon__advances_to_suppliers": {
+   "uuid": "5c62c4b3-57f4-4cd1-bb71-22f98201c595",
+   "sheet": "Balance Sheet",
+   "row": 96,
+   "sequence": "2.3.1.6",
+   "input": true
+  },
+  "bs_icon__advance_payment_of_taxes": {
+   "uuid": "c39e1a66-df9a-4c16-8b8d-d721d1913b99",
+   "sheet": "Balance Sheet",
+   "row": 97,
+   "sequence": "2.3.1.7",
+   "input": true
+  },
+  "bs_icon__other_current_assets": {
+   "uuid": "9074a3d5-ccee-4858-bb56-2d32c681ee08",
+   "sheet": "Balance Sheet",
+   "row": 98,
+   "sequence": "2.3.1.8",
+   "input": false
+  },
+  "bs_icon__interest_receivable": {
+   "uuid": "dd86161a-5364-41b6-8869-f8ca48617dd4",
+   "sheet": "Balance Sheet",
+   "row": 99,
+   "sequence": "2.3.1.8.1",
+   "input": true
+  },
+  "bs_icon__prepaid_expenses": {
+   "uuid": "453dec9c-30f0-48dd-abba-9994786209e9",
+   "sheet": "Balance Sheet",
+   "row": 100,
+   "sequence": "2.3.1.8.2",
+   "input": true
+  },
+  "bs_icon__retention_money_current_portion": {
+   "uuid": "1ebe7e66-3873-4bf4-bae2-fa53d460262a",
+   "sheet": "Balance Sheet",
+   "row": 101,
+   "sequence": "2.3.1.8.3",
+   "input": true
+  },
+  "bs_icon__other_advances_recoverable": {
+   "uuid": "4161ba1d-9b8e-4fcb-a910-5ef61a7b4869",
+   "sheet": "Balance Sheet",
+   "row": 102,
+   "sequence": "2.3.1.8.4",
+   "input": true
+  },
+  "bs_icon__other_current_assets_others": {
+   "uuid": "a78498a3-ab8b-4cab-a11b-fd78eb5c8387",
+   "sheet": "Balance Sheet",
+   "row": 103,
+   "sequence": "2.3.1.8.5",
+   "input": true
+  },
+  "bs_icon__total_current_assets": {
+   "uuid": "29c62253-d08a-40df-8db9-a10464f82dd9",
+   "sheet": "Balance Sheet",
+   "row": 104,
+   "sequence": "2.3.1.9",
+   "input": false
+  },
+  "bs_icon__gross_block": {
+   "uuid": "57c75afd-9b56-426a-bbb4-743ddea40f84",
+   "sheet": "Balance Sheet",
+   "row": 107,
+   "sequence": "2.3.1.12",
+   "input": false
+  },
+  "bs_icon__land_building_plant_machinery": {
+   "uuid": "bc64eab7-8182-46f8-b373-2e6be9945b92",
+   "sheet": "Balance Sheet",
+   "row": 108,
+   "sequence": "2.3.1.12.1",
+   "input": true
+  },
+  "bs_icon__capital_work_in_progress": {
+   "uuid": "5f26120e-8382-42ee-b718-9aa2631bb481",
+   "sheet": "Balance Sheet",
+   "row": 109,
+   "sequence": "2.3.1.12.2",
+   "input": true
+  },
+  "bs_icon__accumulated_depreciation": {
+   "uuid": "4f1793b8-a118-44eb-b2d7-2cbf3eebad40",
+   "sheet": "Balance Sheet",
+   "row": 110,
+   "sequence": "2.3.1.13",
+   "input": true
+  },
+  "bs_icon__net_block": {
+   "uuid": "7e19d9c4-7f4e-4986-9fa5-2e2e37217836",
+   "sheet": "Balance Sheet",
+   "row": 111,
+   "sequence": "2.3.1.14",
+   "input": false
+  },
+  "bs_icon__exposure_in_group_entities": {
+   "uuid": "8afb0266-8414-4a3f-a9da-a73ec5561a58",
+   "sheet": "Balance Sheet",
+   "row": 114,
+   "sequence": "2.3.1.17",
+   "input": false
+  },
+  "bs_icon__group_investments": {
+   "uuid": "047e1958-e5b7-480f-bae3-6dc560321d13",
+   "sheet": "Balance Sheet",
+   "row": 115,
+   "sequence": "2.3.1.17.1",
+   "input": true
+  },
+  "bs_icon__group_loans_and_advances": {
+   "uuid": "84a747f1-ce7b-42cc-a1da-bc5ba5f5ac70",
+   "sheet": "Balance Sheet",
+   "row": 116,
+   "sequence": "2.3.1.17.2",
+   "input": true
+  },
+  "bs_icon__other_non_current_investments_and_advances": {
+   "uuid": "db7197b8-8033-4df9-bfdb-d3c84940549f",
+   "sheet": "Balance Sheet",
+   "row": 117,
+   "sequence": "2.3.1.18",
+   "input": true
+  },
+  "bs_icon__advances_to_suppliers_of_capital_goods": {
+   "uuid": "38d219ef-fd32-487a-a251-a2f7d37020a6",
+   "sheet": "Balance Sheet",
+   "row": 118,
+   "sequence": "2.3.1.19",
+   "input": true
+  },
+  "bs_icon__other_non_current_assets": {
+   "uuid": "7f113f04-7967-4fcb-9c2e-95e8b51c0f84",
+   "sheet": "Balance Sheet",
+   "row": 119,
+   "sequence": "2.3.1.20",
+   "input": false
+  },
+  "bs_icon__security_deposits": {
+   "uuid": "04086d51-8dfb-425e-9e3b-59e407007d7c",
+   "sheet": "Balance Sheet",
+   "row": 120,
+   "sequence": "2.3.1.20.1",
+   "input": true
+  },
+  "bs_icon__dues_from_directors_promoters": {
+   "uuid": "fe03ce7a-77c7-456c-9f73-43f1f2337121",
+   "sheet": "Balance Sheet",
+   "row": 121,
+   "sequence": "2.3.1.20.2",
+   "input": true
+  },
+  "bs_icon__fds_under_lien": {
+   "uuid": "06c563e1-8832-406a-8857-0df6b8617e5f",
+   "sheet": "Balance Sheet",
+   "row": 122,
+   "sequence": "2.3.1.20.3",
+   "input": true
+  },
+  "bs_icon__receivables_over_6_months": {
+   "uuid": "63b7ffe9-4f8f-4e6b-96fa-d95387652219",
+   "sheet": "Balance Sheet",
+   "row": 123,
+   "sequence": "2.3.1.20.4",
+   "input": true
+  },
+  "bs_icon__retention_money_non_current_portion": {
+   "uuid": "8d4b9864-670f-4bbf-aeb5-cb843bf01509",
+   "sheet": "Balance Sheet",
+   "row": 124,
+   "sequence": "2.3.1.20.5",
+   "input": true
+  },
+  "bs_icon__other_non_current_assets_others": {
+   "uuid": "6d0ab9f1-b2c6-4f38-8772-7b53b702a79e",
+   "sheet": "Balance Sheet",
+   "row": 125,
+   "sequence": "2.3.1.20.6",
+   "input": true
+  },
+  "bs_icon__total_other_non_current_assets": {
+   "uuid": "275b8b17-e0f4-4de4-96cc-b12b4c70f11a",
+   "sheet": "Balance Sheet",
+   "row": 126,
+   "sequence": "2.3.1.21",
+   "input": false
+  },
+  "bs_icon__intangible_assets": {
+   "uuid": "cf89e6e2-cc85-4d24-b813-ed9fa832f599",
+   "sheet": "Balance Sheet",
+   "row": 128,
+   "sequence": "2.3.1.23",
+   "input": true
+  },
+  "bs_icon__accumulated_amortization": {
+   "uuid": "800fadd1-c052-4553-b59e-e08f95d12bca",
+   "sheet": "Balance Sheet",
+   "row": 129,
+   "sequence": "2.3.1.24",
+   "input": true
+  },
+  "bs_icon__net_intangible_assets": {
+   "uuid": "884a452c-6c52-4718-9674-139c9be2bc1d",
+   "sheet": "Balance Sheet",
+   "row": 130,
+   "sequence": "2.3.1.25",
+   "input": false
+  },
+  "bs_icon__total_assets": {
+   "uuid": "02916d02-d323-4e0a-ba47-1fc56e4d5c15",
+   "sheet": "Balance Sheet",
+   "row": 131,
+   "sequence": "2.3.2",
+   "input": false
+  },
+  "bs_icon__difference_in_bs": {
+   "uuid": "ecb2805e-e823-4fad-a973-7673fdf694cd",
+   "sheet": "Balance Sheet",
+   "row": 134,
+   "sequence": "2.3.5",
+   "input": false
+  },
+  "bs_icon__tangible_net_worth": {
+   "uuid": "27019e02-6bac-46f7-9d19-a1b639d56b8f",
+   "sheet": "Balance Sheet",
+   "row": 136,
+   "sequence": "2.3.7",
+   "input": false
+  },
+  "bs_icon__net_working_capital": {
+   "uuid": "4aeafabb-717f-47c7-a7c7-f1c702657149",
+   "sheet": "Balance Sheet",
+   "row": 137,
+   "sequence": "2.3.8",
+   "input": false
+  },
+  "kpi:current_ratio": {
+   "uuid": "c98236db-e567-4cd8-80b1-6f2351e2fc15",
+   "sheet": "Balance Sheet",
+   "row": 138,
+   "sequence": "2.3.9",
+   "input": false
+  },
+  "kpi:tol_to_tnw": {
+   "uuid": "a5e936bd-395f-4151-b5cb-f426a1d3cb68",
+   "sheet": "Balance Sheet",
+   "row": 139,
+   "sequence": "2.3.10",
+   "input": false
+  },
+  "kpi:ttl_to_tnw": {
+   "uuid": "8331739d-d555-4115-b259-614b232ebe40",
+   "sheet": "Balance Sheet",
+   "row": 140,
+   "sequence": "2.3.11",
+   "input": false
+  },
+  "cov_icon__contingent_liabilities": {
+   "uuid": "b819a9c0-df6d-41e8-a77f-2e13875e4712",
+   "sheet": "Additional Information",
+   "row": 20,
+   "sequence": "3.1",
+   "input": false
+  },
+  "cov_icon__arrears_of_cumulative_dividends": {
+   "uuid": "d721df33-74ba-4cc6-85ef-abefa98e5b85",
+   "sheet": "Additional Information",
+   "row": 21,
+   "sequence": "3.1.1",
+   "input": true
+  },
+  "cov_icon__gratuity_not_provided": {
+   "uuid": "608921b7-1017-40be-9ac7-b0842e96b22d",
+   "sheet": "Additional Information",
+   "row": 22,
+   "sequence": "3.1.2",
+   "input": true
+  },
+  "cov_icon__disputed_excise_customs_tax": {
+   "uuid": "66d2dbbe-de69-408e-9f7f-de4962c2c0e6",
+   "sheet": "Additional Information",
+   "row": 23,
+   "sequence": "3.1.3",
+   "input": true
+  },
+  "cov_icon__other_liabilities_not_provided": {
+   "uuid": "9415d0bd-e759-4de8-bc98-4912a316ff90",
+   "sheet": "Additional Information",
+   "row": 24,
+   "sequence": "3.1.4",
+   "input": true
+  },
+  "cov_icon__outstanding_lcs": {
+   "uuid": "afc4b84c-c2b7-40c5-8e27-1640b795df46",
+   "sheet": "Additional Information",
+   "row": 25,
+   "sequence": "3.1.5",
+   "input": true
+  },
+  "cov_icon__bills_discounted_and_purchased": {
+   "uuid": "f66e3fe5-a767-415b-b422-8bd5172f99ba",
+   "sheet": "Additional Information",
+   "row": 26,
+   "sequence": "3.1.6",
+   "input": true
+  },
+  "cov_icon__outstanding_bgs": {
+   "uuid": "7c3df7a3-c623-4e07-8aa0-9bb150d158c0",
+   "sheet": "Additional Information",
+   "row": 27,
+   "sequence": "3.1.7",
+   "input": true
+  },
+  "cov_icon__financial_guarantees_issued": {
+   "uuid": "1ccd391d-bec6-4510-b53a-54be4cd981bc",
+   "sheet": "Additional Information",
+   "row": 28,
+   "sequence": "3.1.8",
+   "input": true
+  },
+  "cov_icon__redemption_premium_not_provided": {
+   "uuid": "7b9f63a7-81df-4936-843d-b562ab36499b",
+   "sheet": "Additional Information",
+   "row": 29,
+   "sequence": "3.1.9",
+   "input": true
+  },
+  "cov_icon__mtm_loss_on_derivatives_not_provided": {
+   "uuid": "52f8c582-10f5-4d7b-9dae-05c0c9cb0195",
+   "sheet": "Additional Information",
+   "row": 30,
+   "sequence": "3.1.10",
+   "input": true
+  },
+  "cov_icon__losses_crystallized_outside_pl": {
+   "uuid": "56367121-7aaf-430d-8353-418a911ca699",
+   "sheet": "Additional Information",
+   "row": 31,
+   "sequence": "3.2",
+   "input": true
+  },
+  "cov_icon__accumulated_depreciation_on_disposals": {
+   "uuid": "d81c68ed-0f4e-4e71-883f-560fe7f22bd9",
+   "sheet": "Additional Information",
+   "row": 32,
+   "sequence": "3.3",
+   "input": true
+  },
+  "cov_icon__accumulated_amortization_on_disposals": {
+   "uuid": "4749684c-2a79-479c-8ef0-d6f7f8ec7252",
+   "sheet": "Additional Information",
+   "row": 33,
+   "sequence": "3.4",
+   "input": true
+  },
+  "cov_icon__write_off_stock_in_process": {
+   "uuid": "b2eff56f-bbd6-4b5a-8510-05851535a1ba",
+   "sheet": "Additional Information",
+   "row": 34,
+   "sequence": "3.5",
+   "input": false
+  },
+  "cov_icon__write_off_finished_goods": {
+   "uuid": "825f0ef2-92f1-491a-826d-e2645481f1f2",
+   "sheet": "Additional Information",
+   "row": 35,
+   "sequence": "3.6",
+   "input": false
+  }
+ },
+ "printed_only_to": {
+  "bs_icon__receivables": "bs_icon__domestic_receivables",
+  "bs_icon__inventory_raw_materials": "bs_icon__inventory_raw_materials_indigenous"
+ }
+}

@@ -1,7 +1,8 @@
 """Build the ICON template and its line-item set from the Company v3 workbook draft.
 
-ICON is an Indian bank credit-monitoring (CMA-style) spread: a Profit and Loss Statement, an
-Analysis of Balance Sheet, and Contingent Liabilities and Other Information. The workbook it comes
+ICON is an Indian bank credit-monitoring (CMA-style) spread: a Profit and Loss Statement, a
+Balance Sheet, and Additional Information (contingent liabilities and other information) — the
+first three sheets of the Company v3 workbook, which is also its output format. The workbook it comes
 from reached this repository as a DRAFT LINE-ITEM SET (``sample_data/icon/
 company_v3_line_items_draft.json``: 189 items keyed by workbook UUIDs, with each line's Excel
 formula in its definition) and no template. This script is the one place that turns it into the
@@ -121,7 +122,10 @@ KEY_OVERRIDES = {
 # identity, or not expressible.
 NOT_LINES = {6, 68, 70, 167, 171, 172, 173}
 
-# (header key, label, statement, orders, default section_scope, sign expectation).
+# (header key, label, statement, orders, default section_scope, sign expectation). A section the
+# workbook heads with a row of its own carries that row's words ("CURRENT LIABILITIES", "Add: Other
+# non-operating Income"); the others keep a plain name, because the workbook prints no heading
+# over them.
 SECTIONS = [
     ("pl_icon_sales", "Sales", "profit_and_loss", range(1, 9), ["pl_income"], "either"),
     ("pl_icon_cost_of_sales", "Cost of Sales", "profit_and_loss", range(9, 23), ["pl_expenses"], "either"),
@@ -129,22 +133,22 @@ SECTIONS = [
      range(23, 35), ["pl_expenses"], "either"),
     ("pl_icon_operating_profit", "Operating Profit and Interest", "profit_and_loss",
      range(35, 42), ["pl_expenses"], "either"),
-    ("pl_icon_non_operating_income", "Non-operating Income", "profit_and_loss", range(42, 50),
+    ("pl_icon_non_operating_income", "Add: Other non-operating Income", "profit_and_loss", range(42, 50),
      ["pl_income"], "either"),
-    ("pl_icon_non_operating_expenses", "Non-operating Expenses", "profit_and_loss",
+    ("pl_icon_non_operating_expenses", "Deduct: Other non-operating expenses", "profit_and_loss",
      range(50, 62), ["pl_expenses"], "either"),
     ("pl_icon_profit", "Profit and Appropriation", "profit_and_loss", range(62, 71),
      ["pl_tax_expense", "pl_expenses"], "either"),
-    ("bs_icon_current_liabilities", "Current Liabilities", "balance_sheet", range(71, 96),
+    ("bs_icon_current_liabilities", "CURRENT LIABILITIES", "balance_sheet", range(71, 96),
      ["bs_cl"], "positive_expected"),
-    ("bs_icon_term_liabilities", "Term Liabilities", "balance_sheet", range(96, 105),
+    ("bs_icon_term_liabilities", "TERM LIABILITIES", "balance_sheet", range(96, 105),
      ["bs_ncl"], "positive_expected"),
-    ("bs_icon_net_worth", "Net Worth", "balance_sheet", range(105, 119), ["bs_equity"], "either"),
-    ("bs_icon_current_assets", "Current Assets", "balance_sheet", range(119, 145), ["bs_ca"],
+    ("bs_icon_net_worth", "NET WORTH", "balance_sheet", range(105, 119), ["bs_equity"], "either"),
+    ("bs_icon_current_assets", "CURRENT ASSETS", "balance_sheet", range(119, 145), ["bs_ca"],
      "positive_expected"),
-    ("bs_icon_fixed_assets", "Fixed Assets", "balance_sheet", range(145, 150), ["bs_nca"],
+    ("bs_icon_fixed_assets", "FIXED ASSETS", "balance_sheet", range(145, 150), ["bs_nca"],
      "positive_expected"),
-    ("bs_icon_non_current_assets", "Other Non-current Assets", "balance_sheet", range(150, 163),
+    ("bs_icon_non_current_assets", "OTHER NON-CURRENT ASSETS", "balance_sheet", range(150, 163),
      ["bs_nca"], "positive_expected"),
     ("bs_icon_intangible_assets", "Intangible Assets", "balance_sheet", range(163, 166),
      ["bs_nca"], "positive_expected"),
@@ -156,9 +160,11 @@ SECTIONS = [
      range(185, 190), ["bs_top_level"], "either"),
 ]
 
+# THE WORKBOOK'S OWN SHEET NAMES. ICON's output is the Company v3 workbook itself (see
+# `WORKBOOK`), so the template names its three statements the way the workbook's tabs do.
 STATEMENT_LABELS = {"profit_and_loss": "Profit and Loss Statement",
-                    "balance_sheet": "Analysis of Balance Sheet",
-                    "covenants_supplemental": "Contingent Liabilities and Other Information"}
+                    "balance_sheet": "Balance Sheet",
+                    "covenants_supplemental": "Additional Information"}
 
 ALL_PL = ["pl_income", "pl_expenses", "pl_tax_expense", "pl_exceptional_items", "is_pl"]
 # Per-line caption gates that differ from their section's.
@@ -340,6 +346,83 @@ PROMPT = (
     "calculate amounts in a citation-only answer.")
 
 
+# ── the workbook ICON's output is written into ─────────────────────────────────────────────────
+# THE COMPANY V3 WORKBOOK ITSELF, stored in app/sample/workbooks/, is the output format:
+# `services.export_workbook` fills a copy of it. Its first three sheets are the template's three
+# statements; its hidden "Ratios" sheet and its "Financial Spreading & Analysis" sheet are not
+# ICON's and are left as they are. Every row it fills is found by the UUID in its column A, which is
+# the key the draft was written with, so the map below is read off the draft and the workbook
+# together and can be checked against both.
+# Beside the templates rather than among them: `scripts/validate_reference_data.py` reads every
+# JSON file there as reference data, and the workbook and its map are an output layout.
+WORKBOOKS = BACKEND / "app" / "sample" / "workbooks"
+WORKBOOK = WORKBOOKS / f"{TEMPLATE_KEY}.xlsx"
+WORKBOOK_SHEETS = ("Profit and Loss Statement", "Balance Sheet", "Additional Information")
+# The workbook's non-monetary rows that the template carries as KPIs (see NOT_LINES).
+KPI_ORDERS = {68: "dividend_rate", 70: "retained_profit_to_net_profit", 171: "current_ratio",
+              172: "tol_to_tnw", 173: "ttl_to_tnw"}
+# A TOTAL THE WORKBOOK BYPASSES. Total Current Assets adds Domestic and Export Receivables, not the
+# Receivables row above them, and Inventory adds Imported and Indigenous raw materials, not the Raw
+# materials row. So a filing that prints only the group's figure has to enter it on one of the
+# group's own rows to reach those totals — the row the line's definition already names for that
+# case ("all current trade receivables are domestic", "all raw-material stock when no imported /
+# indigenous split is given").
+PRINTED_ONLY_TO = {"bs_icon__receivables": "bs_icon__domestic_receivables",
+                   "bs_icon__inventory_raw_materials": "bs_icon__inventory_raw_materials_indigenous"}
+
+
+def _workbook_map(draft: dict, keys: dict[str, str], labels: dict[str, str]) -> dict:
+    """Where each ICON line, KPI and header field sits in the Company v3 workbook."""
+    import openpyxl
+
+    book = openpyxl.load_workbook(WORKBOOK)
+    head = book[WORKBOOK_SHEETS[0]]
+    header = {}
+    for r in range(1, 17):
+        name = str(head.cell(r, 5).value or "").split(" (")[0].strip()
+        if name:
+            header[name] = r
+    where = {}
+    for title in WORKBOOK_SHEETS:
+        ws = book[title]
+        for r in range(19, ws.max_row + 1):
+            uuid = ws.cell(r, 1).value
+            if not uuid:
+                continue
+            cell = ws.cell(r, 6)
+            formula = isinstance(cell.value, str) and cell.value.startswith("=")
+            where[uuid] = {"sheet": title, "row": r,
+                           "sequence": str(ws.cell(r, 3).value or ""),
+                           "label": re.sub(r"\s+", " ", str(ws.cell(r, 5).value or "")).strip(),
+                           "input": not formula and not cell.protection.locked}
+    rows: dict[str, dict] = {}
+    for item in draft["items"]:
+        spot = where.get(item["key"])
+        assert spot is not None, f"draft row {item['order']} has no row in the workbook"
+        if item["order"] in NOT_LINES:
+            if item["order"] not in KPI_ORDERS:
+                continue
+            name = f"kpi:{KPI_ORDERS[item['order']]}"
+        else:
+            name = keys[item["key"]]
+            assert spot["label"] == labels[name], (name, spot["label"], labels[name])
+        rows[name] = {"uuid": item["key"], **{k: spot[k] for k in ("sheet", "row", "sequence",
+                                                                   "input")}}
+    return {
+        "note": "Built by scripts/build_icon_pair.py. Where each ICON line sits in the Company v3 "
+                "workbook its output is written into: the workbook UUID (column A), the sheet, "
+                "the row, AUTO_SEQUENCE (column C) and whether the row is an input (unlocked, no "
+                "formula) or computed by the workbook's own formula.",
+        "template_key": TEMPLATE_KEY,
+        "workbook": WORKBOOK.name,
+        "sheets": list(WORKBOOK_SHEETS),
+        "header": {"sheet": WORKBOOK_SHEETS[0], "first_value_column": "F", "periods": 30,
+                   "rows": header},
+        "rows": rows,
+        "printed_only_to": PRINTED_ONLY_TO,
+    }
+
+
 def _slug(label: str) -> str:
     label = re.sub(r"\[[^\]]*\]|\((?:\d[^)]*|[ivx]+|A|B|PBT|PAT|% age)\)", "", label)
     label = re.sub(r"^\s*[ivx]+\)\s*", "", label.strip()).replace("&", " and ").replace("%", "pct")
@@ -449,7 +532,7 @@ def _printed_hint(spelling: str) -> str:
     return rf"^\W*{body}\W*$"
 
 
-def build() -> tuple[dict, dict]:
+def build() -> tuple[dict, dict, dict]:
     draft = json.loads((SRC / "company_v3_line_items_draft.json").read_text(encoding="utf-8"))
     captions = json.loads((SRC / "captions.json").read_text(encoding="utf-8"))
     indas = json.loads(INDAS.read_text(encoding="utf-8"))
@@ -671,11 +754,14 @@ def build() -> tuple[dict, dict]:
                                "keys": CROSS_CHECK, "tolerance": 0.5},
         "prose_grammar": copy.deepcopy(indas["prose_grammar"]),
     }
-    return template, line_items
+    workbook_map = _workbook_map(draft, keys, labels)
+    return template, line_items, workbook_map
 
 
 def main() -> None:
-    template, line_items = build()
+    template, line_items, workbook_map = build()
+    (WORKBOOKS / f"{TEMPLATE_KEY}.json").write_text(
+        json.dumps(workbook_map, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
     (OUT / f"{TEMPLATE_KEY}_template.json").write_text(
         json.dumps(template, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
     (OUT / f"{LINE_ITEMS_KEY}_line_items.json").write_text(

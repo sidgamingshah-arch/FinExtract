@@ -520,9 +520,9 @@
     {
      "node_id": "pl_icon_non_operating_income",
      "canonical_key": "pl_icon_non_operating_income",
-     "label": "Non-operating Income",
+     "label": "Add: Other non-operating Income",
      "label_i18n": {
-      "en": "Non-operating Income"
+      "en": "Add: Other non-operating Income"
      },
      "role": "header",
      "children": [
@@ -625,9 +625,9 @@
     {
      "node_id": "pl_icon_non_operating_expenses",
      "canonical_key": "pl_icon_non_operating_expenses",
-     "label": "Non-operating Expenses",
+     "label": "Deduct: Other non-operating expenses",
      "label_i18n": {
-      "en": "Non-operating Expenses"
+      "en": "Deduct: Other non-operating expenses"
      },
      "role": "header",
      "children": [
@@ -882,17 +882,17 @@
   },
   {
    "type": "balance_sheet",
-   "label": "Analysis of Balance Sheet",
+   "label": "Balance Sheet",
    "label_i18n": {
-    "en": "Analysis of Balance Sheet"
+    "en": "Balance Sheet"
    },
    "sections": [
     {
      "node_id": "bs_icon_current_liabilities",
      "canonical_key": "bs_icon_current_liabilities",
-     "label": "Current Liabilities",
+     "label": "CURRENT LIABILITIES",
      "label_i18n": {
-      "en": "Current Liabilities"
+      "en": "CURRENT LIABILITIES"
      },
      "role": "header",
      "children": [
@@ -1175,9 +1175,9 @@
     {
      "node_id": "bs_icon_term_liabilities",
      "canonical_key": "bs_icon_term_liabilities",
-     "label": "Term Liabilities",
+     "label": "TERM LIABILITIES",
      "label_i18n": {
-      "en": "Term Liabilities"
+      "en": "TERM LIABILITIES"
      },
      "role": "header",
      "children": [
@@ -1286,9 +1286,9 @@
     {
      "node_id": "bs_icon_net_worth",
      "canonical_key": "bs_icon_net_worth",
-     "label": "Net Worth",
+     "label": "NET WORTH",
      "label_i18n": {
-      "en": "Net Worth"
+      "en": "NET WORTH"
      },
      "role": "header",
      "children": [
@@ -1447,9 +1447,9 @@
     {
      "node_id": "bs_icon_current_assets",
      "canonical_key": "bs_icon_current_assets",
-     "label": "Current Assets",
+     "label": "CURRENT ASSETS",
      "label_i18n": {
-      "en": "Current Assets"
+      "en": "CURRENT ASSETS"
      },
      "role": "header",
      "children": [
@@ -1753,9 +1753,9 @@
     {
      "node_id": "bs_icon_fixed_assets",
      "canonical_key": "bs_icon_fixed_assets",
-     "label": "Fixed Assets",
+     "label": "FIXED ASSETS",
      "label_i18n": {
-      "en": "Fixed Assets"
+      "en": "FIXED ASSETS"
      },
      "role": "header",
      "children": [
@@ -1827,9 +1827,9 @@
     {
      "node_id": "bs_icon_non_current_assets",
      "canonical_key": "bs_icon_non_current_assets",
-     "label": "Other Non-current Assets",
+     "label": "OTHER NON-CURRENT ASSETS",
      "label_i18n": {
-      "en": "Other Non-current Assets"
+      "en": "OTHER NON-CURRENT ASSETS"
      },
      "role": "header",
      "children": [
@@ -2123,9 +2123,9 @@
   },
   {
    "type": "covenants_supplemental",
-   "label": "Contingent Liabilities and Other Information",
+   "label": "Additional Information",
    "label_i18n": {
-    "en": "Contingent Liabilities and Other Information"
+    "en": "Additional Information"
    },
    "sections": [
     {

@@ -2795,10 +2795,16 @@ def get_document_run(document_id: str, run_id: str | None = Query(None),
     #
     # Read off the run's own rows — the same reading ``basis_values`` filters by, so the selector and
     # the grid cannot disagree about which bases exist. Empty means nothing was extracted.
+    from app.services.export_workbook import has_workbook
+
+    template_def = _template_for_run(session, run)
     return {"run_id": run.id, "status": run.status,
             "rulebook": (run.options or {}).get("rulebook"),
-            "statements": declared_statements(_template_for_run(session, run)),
+            "statements": declared_statements(template_def),
             "bases": bases_present(run.result.get("rows") or []),
+            # Whether the run's template ships its own workbook to export into (ICON's Company v3
+            # workbook): the Export screen offers that format only when it does.
+            "workbook_export": has_workbook(template_def),
             "result": run.result}
 
 
@@ -3687,12 +3693,13 @@ def revert_document_line_item(document_id: str, canonical_key: str,
             dependencies=[Depends(require(Permission.EXPORT_RUN)), Depends(authorized_document)])
 def export_document(
     document_id: str,
-    fmt: str = Query("excel", pattern="^(excel|json|csv)$"),
+    fmt: str = Query("excel", pattern="^(excel|json|csv|workbook)$"),
     layout: str = Query("statement", pattern="^(statement|flat)$"),
     locale: str = Depends(output_locale),
     include: str | None = Query(None),
     units: str | None = Query(None),
     run_id: str | None = Query(None),
+    basis: str | None = Query(None, pattern="^(standalone|consolidated)$"),
     session: Session = Depends(db),
 ) -> Response:
     """Export a real document's extracted, mapped line items as Excel or JSON, built from
@@ -3707,7 +3714,12 @@ def export_document(
     that printed one column of figures, three for one that printed two years, wider again when it
     printed Group and Company as well — for a reader that is another program rather than a person
     (``layout`` and ``include`` do not apply to it: it has no sections to shape and no room for
-    analysis sheets)."""
+    analysis sheets).
+
+    ``workbook`` is the TEMPLATE'S OWN WORKBOOK filled in, for a template that ships one (ICON:
+    the Company v3 workbook; `services.export_workbook`) — one basis per file, ``basis`` choosing
+    which (default: standalone where the run has it), and ``units`` the denomination it is written
+    in. A 404 for a run whose template ships none."""
     from app.db.models import Document
     from app.services.export import (
         build_rows_csv, build_rows_json, build_rows_xlsx, build_statement_workbook, units_scale,
@@ -3729,6 +3741,23 @@ def export_document(
     ccy = (src_units or {}).get("currency")
     caption = (f"Amounts in {ccy + ' ' if ccy else ''}{unit_label}" if unit_label else None)
     narrative = run.result.get("credit_narrative")  # stored LLM narrative, if generated
+    if fmt == "workbook":
+        from app.services.export_workbook import (
+            build_template_workbook, has_workbook, workbook_filename)
+
+        workbook_template = _template_for_run(session, run)
+        if not has_workbook(workbook_template):
+            raise HTTPException(status_code=404,
+                                detail="This run's template has no workbook to fill")
+        data = build_template_workbook(rows, workbook_template,
+                                       line_item_set=_line_item_set_for_run(session, run),
+                                       basis=basis, units=units, source_units=src_units,
+                                       entity=run.result.get("entity"))
+        fname = workbook_filename(name, workbook_template)
+        return Response(
+            content=data,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f'attachment; filename="{fname}"'})
     if fmt == "csv":
         # Branched before the template and coverage are resolved because this format carries
         # neither, and the resolution is not free. It carries no validation caption either: a grid

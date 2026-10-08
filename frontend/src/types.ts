@@ -253,10 +253,14 @@ export type StatementKey =
 /** Views that exist only for a real extraction (there is no demo data behind them). */
 export const DERIVED_STATEMENTS: StatementKey[] = ["kpi"];
 export type RowKind = "section" | "subhead" | "item" | "subtotal" | "total";
-export type ExportFmt = "excel" | "json" | "csv";
+/** `workbook` is the run's TEMPLATE'S OWN workbook filled in (ICON: the Company v3 workbook), offered
+ *  only when the run says its template ships one (`ExtractionRunResponse.workbook_export`). */
+export type ExportFmt = "excel" | "json" | "csv" | "workbook";
 /** File extension and MIME-ish suffix each format is delivered under — ONE mapping, so the
  *  preview caption, the download button and the saved filename cannot name three things. */
-export const EXPORT_EXT: Record<ExportFmt, string> = { excel: "xlsx", json: "json", csv: "csv" };
+export const EXPORT_EXT: Record<ExportFmt, string> = {
+  excel: "xlsx", json: "json", csv: "csv", workbook: "xlsx",
+};
 
 export interface Confidence {
   /** The BAND — the badge's colour, and its text when there is no measurement. */
@@ -727,6 +731,8 @@ export interface ExtractionRunResponse {
    *  cannot say (no template pinned, or a run stored before this field existed) and the caller
    *  falls back to the built-in set — it does NOT mean the template declares no statements. */
   statements?: TemplateStatement[];
+  /** Whether the run's template ships its own workbook to export into — the `workbook` format. */
+  workbook_export?: boolean;
   result: ExtractionResult;
 }
 /** One entry in a document's run history (`GET /documents/{id}/runs`) — light enough for a

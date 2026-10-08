@@ -72,9 +72,11 @@ def test_the_build_is_reproducible():
         "build_icon_pair", TEMPLATES.parents[2] / "scripts" / "build_icon_pair.py")
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
-    template, line_items = mod.build()
+    template, line_items, workbook_map = mod.build()
     assert template == _template()
     assert line_items == _raw()
+    assert workbook_map == json.loads(
+        (TEMPLATES.parent / "workbooks" / "output_csv_icon_v1.json").read_text(encoding="utf-8"))
 
 
 def test_every_template_line_has_one_item_and_no_item_is_outside_it():

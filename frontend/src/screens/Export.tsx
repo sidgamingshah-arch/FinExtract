@@ -157,7 +157,8 @@ function csvPreviewGrid(
 /** Real export preview built from the document's actual extracted rows (no demo data). */
 function RealPreview({ rows, fmt }: { rows: ExtractionRow[]; fmt: ExportFmt }) {
   const t = useT();
-  const isExcel = fmt === "excel";
+  // The template's workbook is a spreadsheet of the same figures, so it previews as the Excel one.
+  const isExcel = fmt === "excel" || fmt === "workbook";
   if (fmt === "csv") {
     const { headers, body } = csvPreviewGrid(
       rows, (b) => t(b === "standalone" ? "ws.standalone" : "ws.consolidated"), t("e.col.value"));
@@ -258,9 +259,13 @@ export default function ExportScreen() {
   const sampleProgress = useProject().data?.project.progress;
   const { data, isPending } = useExportOptions();
   const runQ = useDocumentRun(activeDocumentId ?? undefined);
-  const exportFmt = useUI((s) => s.exportFmt);
+  const chosenFmt = useUI((s) => s.exportFmt);
   const setFmt = useUI((s) => s.setFmt);
   const outputLocale = useUI((s) => s.locale);
+  // The template's own workbook is offered only for a run whose template ships one; a choice made
+  // on another document falls back to Excel rather than downloading a 404.
+  const canWorkbook = usingReal && !!runQ.data?.workbook_export;
+  const exportFmt: ExportFmt = chosenFmt === "workbook" && !canWorkbook ? "excel" : chosenFmt;
   const isExcel = exportFmt === "excel";
   // Interactive Include selection for a real export — drives which analysis sheets are added.
   const [inc, setInc] = useState<Record<string, boolean>>({
@@ -329,6 +334,15 @@ export default function ExportScreen() {
                 selected={exportFmt === "csv"}
                 onClick={() => setFmt("csv")}
               />
+              {canWorkbook && (
+                <FormatCard
+                  glyph="▤"
+                  label={t("e.workbook")}
+                  sub={t("e.workbookSub")}
+                  selected={exportFmt === "workbook"}
+                  onClick={() => setFmt("workbook")}
+                />
+              )}
             </div>
           </Card>
 
@@ -430,7 +444,8 @@ export default function ExportScreen() {
             </span>
             <span style={{ fontSize: 11, color: color.muted }}>{t("e.previewMeta")}</span>
           </div>
-          <div style={{ flex: 1, overflow: "auto", background: isExcel ? "#fff" : "#fbfcfd" }}>
+          <div style={{ flex: 1, overflow: "auto",
+                        background: isExcel || exportFmt === "workbook" ? "#fff" : "#fbfcfd" }}>
             {/* One preview, of the loaded extraction. The sample path used to render a mock built
                 from five hardcoded Reliance rows under an "FY25" header — figures, note refs and
                 confidences belonging to no extraction this product has ever produced, on the screen

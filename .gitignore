@@ -91,6 +91,8 @@ backend/_*.json
 backend/scripts/_*.json
 backend/scripts/_*.py
 *.xlsx
+# ...except the workbooks a template ships as its output layout (services/export_workbook.py).
+!backend/app/sample/workbooks/*.xlsx
 
 # Docling models and offline bundles: fetched or built, never committed (hundreds of MB).
 backend/models/

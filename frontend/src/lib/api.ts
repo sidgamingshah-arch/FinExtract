@@ -782,7 +782,10 @@ export async function downloadDocumentExport(
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `extract.${EXPORT_EXT[format]}`;
+  // The server names a workbook export after the document and the template; the other formats
+  // keep the name they always had.
+  const named = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") ?? "")?.[1];
+  a.download = format === "workbook" && named ? named : `extract.${EXPORT_EXT[format]}`;
   document.body.appendChild(a);
   a.click();
   a.remove();
