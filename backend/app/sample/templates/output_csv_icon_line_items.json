@@ -946,7 +946,7 @@
     "pl_income"
    ],
    "order": 7,
-   "definition": "Operating income incidental to the main business: the 'Other operating revenue(s)' rows of the 'Revenue from operations' note - sale of scrap, export incentives, duty drawback, RoDTEP/MEIS, job-work and processing income, service and royalty income where not the main business. Not 'Other income' (interest, dividends, disposal gains, fair-value gains), which is non-operating.",
+   "definition": "Operating income incidental to the main business: the 'Other operating revenue(s)' rows of the 'Revenue from operations' note - sale of scrap, export incentives, duty drawback, RoDTEP/MEIS, processing and job-work income, hire of equipment. 'Sale of services' printed beside 'Sale of products' is the business's own revenue and belongs to domestic or export sales, not here. Not 'Other income' (interest, dividends, disposal gains, fair-value gains), which is non-operating.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
@@ -7330,7 +7330,7 @@
     "bs_ncl"
    ],
    "order": 103,
-   "definition": "Total Term Liabilities [11 to 16]: the sum of Debentures & Preference Shares (not maturing within 1 year), Lease Liabilities, Rupee Term loans (excl. instalments payable within 1 year), Foreign currency loans (excl. instalments payable within 1 year), Term deposits including mobilization advance (repayable after 1 year), Long term borrowings from Related parties and Other term liabilities not considered as debt (incl. Deferred tax liabilities), as the template computes it. instalments payable within 1 year); add Foreign currency loans (excl. instalments payable within 1 year); add Term deposits including mobilization advance (repayable after 1 year); add Long term borrowings from Related parties; add Other term liabilities not considered as debt (incl. Deferred tax liabilities). Use complete inputs on the same entity basis, reporting date/period, currency and scale. Do not sum both a component and its descendants or treat missing inputs as reported zeros.",
+   "definition": "Total term liabilities as the template computes it: debentures and preference shares, lease liabilities, rupee and foreign-currency term loans excluding current maturities, term deposits, long-term related-party borrowings and other non-debt term liabilities. Ind AS prints it as 'Total non-current liabilities'; Indian GAAP as the total of 'Non-current liabilities'.",
    "temporality": "instant",
    "unit_of_account": "subtotal",
    "sign_convention": "either",
@@ -9643,7 +9643,7 @@
     "bs_ca"
    ],
    "order": 144,
-   "definition": "Total Current Assets (26 to 33): the sum of Cash and Bank Balances, Govt. and other trustee securities, Fixed Deposits with banks, Receivables (incldg. bills purchased and discounted by banks), Instalments of deferred receivables (due within 1 year), Inventory:, Advances to suppliers of raw materials, stores and spares, Advance payment of taxes and Other current assets (specify major items), as the template computes it. and other trustee securities; add Fixed Deposits with banks; add Domestic Receivables; add Export Receivables; add Instalments of deferred receivables (due within 1 year); add Inventory:; add Advances to suppliers of raw materials, stores and spares; add Advance payment of taxes; add Other current assets (specify major items). Use complete inputs on the same entity basis, reporting date/period, currency and scale. Do not sum both a component and its descendants or treat missing inputs as reported zeros.",
+   "definition": "Total current assets on the CMA basis, as the template computes it: cash and bank balances, current investments and fixed deposits, receivables, instalments of deferred receivables, inventory, advances to suppliers, advance payment of taxes and other current assets. The 'Total current assets' face row is its printed figure; once the parts are read the computed figure replaces it, so the printed row is a cross-check.",
    "temporality": "instant",
    "unit_of_account": "subtotal",
    "sign_convention": "either",
@@ -9720,7 +9720,7 @@
     "bs_nca"
    ],
    "order": 145,
-   "definition": "Gross Block: the sum of Land, building, plant, machinery etc. (including ROU asset) and Capital Work in progress, as the template computes it. (including ROU asset); add Capital Work in progress. Use complete inputs on the same entity basis, reporting date/period, currency and scale. Do not sum both a component and its descendants or treat missing inputs as reported zeros.",
+   "definition": "Gross block as the template computes it: the gross carrying amount of land, buildings, plant, machinery and right-of-use assets, plus capital work-in-progress.",
    "temporality": "instant",
    "unit_of_account": "subtotal",
    "sign_convention": "either",
@@ -10651,7 +10651,7 @@
     "bs_nca"
    ],
    "order": 163,
-   "definition": "Gross carrying amount of intangible assets at the year end (software, technical know-how, licences) from the intangible assets note. When only net is printed, cite net.",
+   "definition": "Intangible assets including deferred tax assets, as the label says: the gross carrying amount at the year end of intangible assets (software, technical know-how, licences) from the intangible assets note, plus intangible assets under development, plus the 'Deferred tax assets (net)' and MAT credit entitlement rows - the CMA deducts all of them from tangible net worth. Cite each as a component. When only net intangibles are printed, cite net.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "either",
@@ -10661,6 +10661,7 @@
     "note_terms": [
      "other intangible assets",
      "intangible assets",
+     "deferred tax assets",
      "fixed assets"
     ]
    },

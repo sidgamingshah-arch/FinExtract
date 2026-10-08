@@ -158,7 +158,7 @@
    "disaggregation of revenue",
    "sale of products"
   ],
-  "definition": "Operating income incidental to the main business: the 'Other operating revenue(s)' rows of the 'Revenue from operations' note - sale of scrap, export incentives, duty drawback, RoDTEP/MEIS, job-work and processing income, service and royalty income where not the main business. Not 'Other income' (interest, dividends, disposal gains, fair-value gains), which is non-operating.",
+  "definition": "Operating income incidental to the main business: the 'Other operating revenue(s)' rows of the 'Revenue from operations' note - sale of scrap, export incentives, duty drawback, RoDTEP/MEIS, processing and job-work income, hire of equipment. 'Sale of services' printed beside 'Sale of products' is the business's own revenue and belongs to domestic or export sales, not here. Not 'Other income' (interest, dividends, disposal gains, fair-value gains), which is non-operating.",
   "exclude_criteria": [
    "Interest, dividend and fair-value income in 'Other income'",
    "Sale of products"
@@ -2820,7 +2820,8 @@
   ],
   "route": "face",
   "confidence": "high",
-  "note": "Once 104 moves to bs_top_level, this becomes bs_ncl's highest-priority calculated line. In the draft, 104 (1058) outranks it (1057) and would be read as bs_ncl's closing subtotal."
+  "note": "Once 104 moves to bs_top_level, this becomes bs_ncl's highest-priority calculated line. In the draft, 104 (1058) outranks it (1057) and would be read as bs_ncl's closing subtotal.",
+  "definition": "Total term liabilities as the template computes it: debentures and preference shares, lease liabilities, rupee and foreign-currency term loans excluding current maturities, term deposits, long-term related-party borrowings and other non-debt term liabilities. Ind AS prints it as 'Total non-current liabilities'; Indian GAAP as the total of 'Non-current liabilities'."
  },
  "bs_icon__total_outside_liabilities": {
   "aliases": [
@@ -3672,14 +3673,16 @@
   ],
   "route": "face",
   "confidence": "medium",
-  "note": "The CMA total will NOT equal the printed one. It omits bs_icon__current_investments (not among its terms) and anything the CMA moves to non-current (margin FDs, dues from directors, receivables over 6 months)."
+  "note": "The CMA total will NOT equal the printed one. It omits bs_icon__current_investments (not among its terms) and anything the CMA moves to non-current (margin FDs, dues from directors, receivables over 6 months).",
+  "definition": "Total current assets on the CMA basis, as the template computes it: cash and bank balances, current investments and fixed deposits, receivables, instalments of deferred receivables, inventory, advances to suppliers, advance payment of taxes and other current assets. The 'Total current assets' face row is its printed figure; once the parts are read the computed figure replaces it, so the printed row is a cross-check."
  },
  "bs_icon__gross_block": {
   "aliases": [],
   "exclude_hints": [],
   "route": null,
   "confidence": "low",
-  "note": "Keeping 'Gross Block' here would be a partial-sum trap. With CWIP bound and the leaf empty, rollups.py:446-449 would publish CWIP alone as gross block."
+  "note": "Keeping 'Gross Block' here would be a partial-sum trap. With CWIP bound and the leaf empty, rollups.py:446-449 would publish CWIP alone as gross block.",
+  "definition": "Gross block as the template computes it: the gross carrying amount of land, buildings, plant, machinery and right-of-use assets, plus capital work-in-progress."
  },
  "bs_icon__land_building_plant_machinery": {
   "aliases": [
@@ -4056,9 +4059,10 @@
   "note_terms": [
    "other intangible assets",
    "intangible assets",
+   "deferred tax assets",
    "fixed assets"
   ],
-  "definition": "Gross carrying amount of intangible assets at the year end (software, technical know-how, licences) from the intangible assets note. When only net is printed, cite net."
+  "definition": "Intangible assets including deferred tax assets, as the label says: the gross carrying amount at the year end of intangible assets (software, technical know-how, licences) from the intangible assets note, plus intangible assets under development, plus the 'Deferred tax assets (net)' and MAT credit entitlement rows - the CMA deducts all of them from tangible net worth. Cite each as a component. When only net intangibles are printed, cite net."
  },
  "bs_icon__accumulated_amortization": {
   "aliases": [],
