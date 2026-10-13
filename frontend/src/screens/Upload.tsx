@@ -386,10 +386,14 @@ function LineItemsCard({ canLineItems, onManage }:
                        { canLineItems: boolean; onManage: () => void }) {
   const t = useT();
   const locale = useAppLocale();
-  const { data: rows, isPending } = useLineItemVersions();
+  const { data: rows, isPending, isError } = useLineItemVersions();
   const { data: templates } = useTemplates();
   const selectedId = useUI((s) => s.selectedTemplateId);
   const list: TemplateRef[] = templates ?? [];
+  // A READER WHO CANNOT LIST CONFIGURATIONS (an analyst — the list needs `config:line_items`) was
+  // told "This template has no line items configured yet" while the run applied one. The template
+  // row says whether one is in force (`TemplateRef.configured`), so that is what they are told.
+  const hidden = isError && activeTemplate(list, selectedId)?.configured === true;
   // The same "which template version is active" rule the card above uses — one function, not a
   // second copy of it (`activeTemplate`). A configuration targets ONE template KEY, so that is what
   // is taken from the version; the configuration in force overall would describe a different
@@ -449,14 +453,15 @@ function LineItemsCard({ canLineItems, onManage }:
               meets, and renaming them would only break the assertions that read them. */}
           <div data-testid="u-rulebook" data-rulebook-id={cfg?.id}
                style={{ fontSize: 12.5, fontWeight: 600 }}>
-            {cfg ? cfg.line_items_key : isPending ? t("u.liLoading") : t("u.liNone")}
+            {cfg ? cfg.line_items_key : isPending ? t("u.liLoading")
+              : hidden ? t("u.liHidden") : t("u.liNone")}
           </div>
           <div data-testid="u-rulebook-meta" style={{ fontSize: 11, color: color.muted }}>
             {/* While the list is in flight this line says NOTHING. "This template has no line items
                 configured yet" is a fact, and it is not one that is known until the versions arrive
                 — it read that way under "Loading…", asserting an absence it had not established. */}
             {cfg ? [`v${cfg.version}`, size].filter(Boolean).join(" · ")
-                 : isPending ? "" : t("u.liNoneHint")}
+                 : isPending ? "" : hidden ? t("u.liHiddenHint") : t("u.liNoneHint")}
           </div>
         </div>
         {cfg && (

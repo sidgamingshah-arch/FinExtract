@@ -96,6 +96,7 @@ const TYPE_TONE: Record<LineItemType, { bg: string; fg: string; label: string }>
 const NEW_NOTE_SOURCE: NoteSource = {
   note_title_any: [], row_caption_any: [], row_caption_none: [],
   column_heading_any: [], column_heading_none: [],
+  portion_row_any: [], other_portion_row_any: [],
   prose_any: [], prose_subject: "", prose_landed_in: [],
   note_terms: [], row_terms: [], row_terms_none: [],
 };
@@ -376,7 +377,9 @@ function withheldReason(name: string, sel: {
   if (route === "prose" && (name === "note_source.row_caption_any"
                             || name === "note_source.row_caption_none"
                             || name === "note_source.column_heading_any"
-                            || name === "note_source.column_heading_none")) {
+                            || name === "note_source.column_heading_none"
+                            || name === "note_source.portion_row_any"
+                            || name === "note_source.other_portion_row_any")) {
     return "this line's figure is read from a sentence, so the row search is skipped entirely — "
          + "these patterns would select nothing";
   }
@@ -598,7 +601,8 @@ const GROUP_FIELDS = {
          "note_source"],
   /** Rendered only while the `note_source` switch is on, so counted only then. */
   noteSource: ["note_source.note_title_any", "note_source.row_caption_any",
-               "note_source.row_caption_none", "note_source.column_heading_any",
+               "note_source.row_caption_none", "note_source.portion_row_any",
+               "note_source.other_portion_row_any", "note_source.column_heading_any",
                "note_source.column_heading_none", "note_source.prose_subject",
                "note_source.prose_landed_in", "note_source.prose_any"],
   structure: ["parent", "order"],
@@ -640,6 +644,8 @@ const DETERMINISTIC_FIELDS = new Set([
   // Row selection inside a note. Each of these is one `MatchListEditor` over a regex list and its
   // paired terms list, which is why `row_terms`/`row_terms_none` need no entry of their own.
   "note_source.row_caption_any", "note_source.row_caption_none",
+  // A note's current / non-current split rows — regexes over row captions, like the two above.
+  "note_source.portion_row_any", "note_source.other_portion_row_any",
   // Column selection inside a note's rows — regexes over the printed column headings.
   "note_source.column_heading_any", "note_source.column_heading_none",
   // Prose patterns. The prose ROUTE is an LLM-tab question (`route`); these are how a sentence is
@@ -658,7 +664,8 @@ const CONDITIONAL_FIELDS = [
   // The switch and every control under it, so rolling the group open shows the reason once rather
   // than seven silent inputs.
   "note_source", "note_source.note_title_any", "note_source.row_caption_any",
-  "note_source.row_caption_none", "note_source.column_heading_any",
+  "note_source.row_caption_none", "note_source.portion_row_any",
+  "note_source.other_portion_row_any", "note_source.column_heading_any",
   "note_source.column_heading_none", "note_source.prose_subject",
   "note_source.prose_landed_in", "note_source.prose_any",
   "aliases", "exclude_hints",
@@ -1686,6 +1693,54 @@ function Detail(p: EditorProps) {
                                    idx("note_source.row_caption_none"),
                                  "note_source.row_terms_none":
                                    idx("note_source.row_terms_none") }} />
+            ))}
+            {/* ── A NOTE THAT SPLITS CURRENT FROM NON-CURRENT ───────────────────────────────
+                A Hong Kong note prints its holdings gross, then "Less: Portion classified as
+                current" and "Non-current portion" — so its line items belong to neither side, and
+                a current part and a non-current part summing them both read all of it. These name
+                the split rows; a table that prints neither is read as before. */}
+            {fld("note_source.portion_row_any", (e) => (
+              <MatchListEditor label="This part's own portion row, where the note splits current from non-current"
+                               testid="note_source-portion" editable={editable}
+                               help="Leave empty unless the line is one side of a current /
+                                     non-current split. Filled in, a table that prints a row these
+                                     reach (“Non-current portion”) is read as that row alone — its
+                                     magnitude, since a “Less:” row is printed negative — and none
+                                     of the table's line items."
+                               map={{ exact_loose: "note_source.portion_row_any",
+                                      starts: "note_source.portion_row_any",
+                                      ends: "note_source.portion_row_any",
+                                      pattern: "note_source.portion_row_any" }}
+                               order={["note_source.portion_row_any"]}
+                               values={{ "note_source.portion_row_any":
+                                           noteSource.portion_row_any ?? [] }}
+                               onChange={(next) => setNoteSource({
+                                 portion_row_any: next["note_source.portion_row_any"] })}
+                               emptyText="Nothing said — the note's line items are read."
+                               error={e}
+                               indexErrors={{
+                                 "note_source.portion_row_any": idx("note_source.portion_row_any") }} />
+            ))}
+            {fld("note_source.other_portion_row_any", (e) => (
+              <MatchListEditor label="The other side's portion row"
+                               testid="note_source-other-portion" editable={editable}
+                               help="The row a split note prints for the OTHER side (“Less: Portion
+                                     classified as current” for a non-current part). Where a table
+                                     prints only that one, the part reads its line items less it."
+                               map={{ exact_loose: "note_source.other_portion_row_any",
+                                      starts: "note_source.other_portion_row_any",
+                                      ends: "note_source.other_portion_row_any",
+                                      pattern: "note_source.other_portion_row_any" }}
+                               order={["note_source.other_portion_row_any"]}
+                               values={{ "note_source.other_portion_row_any":
+                                           noteSource.other_portion_row_any ?? [] }}
+                               onChange={(next) => setNoteSource({
+                                 other_portion_row_any: next["note_source.other_portion_row_any"] })}
+                               emptyText="Nothing said."
+                               error={e}
+                               indexErrors={{
+                                 "note_source.other_portion_row_any":
+                                   idx("note_source.other_portion_row_any") }} />
             ))}
             {/* ── WHICH PRINTED COLUMN ──────────────────────────────────────────────────────
                 A fair-value hierarchy prints its levels as COLUMNS, and the reader's period key is

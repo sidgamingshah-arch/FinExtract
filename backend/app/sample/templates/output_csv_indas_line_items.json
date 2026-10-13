@@ -9868,6 +9868,18 @@
      "other\\s+receivables?|其他應收|其他应收",
      "non.?current|^\\s*current\\b|非流[動动]|^\\s*流[動动]|portion"
     ],
+    "portion_row_any": [
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:the\\s+)?current\\s+portion\\b",
+     "^\\s*current(?:\\s+assets?)?\\s*[:：]?\\s*$",
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:the\\s+)?(?:portion|amounts?)\\s+(?:classified|included|shown|presented|reclassified)\\s+(?:as|under|in|to)\\s+current\\b",
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:amounts?\\s+)?(?:due|receivable|recoverable|realisable|realizable)\\s+within\\s+(?:one|1|twelve|12)\\s+(?:years?|months)\\b"
+    ],
+    "other_portion_row_any": [
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:the\\s+)?non.?current\\s+portion\\b",
+     "^\\s*non.?current(?:\\s+assets?)?\\s*[:：]?\\s*$",
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:the\\s+)?(?:portion|amounts?)\\s+(?:classified|included|shown|presented|reclassified)\\s+(?:as|under|in|to)\\s+non.?current\\b",
+     "^\\s*(?:amounts?\\s+)?(?:due|receivable|recoverable)\\s+after\\s+(?:one|1|twelve|12)\\s+(?:years?|months)\\b"
+    ],
     "prose_any": [],
     "prose_subject": "",
     "prose_landed_in": [],
@@ -9912,6 +9924,18 @@
      "^(?!.*(?:structured|結構性|结构性)).*(?:derivative|衍生|forward|遠期|远期|swap|掉期|互换|option|期權|期权)",
      "other\\s+receivables?|其他應收|其他应收",
      "non.?current|^\\s*current\\b|非流[動动]|^\\s*流[動动]|portion"
+    ],
+    "portion_row_any": [
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:the\\s+)?current\\s+portion\\b",
+     "^\\s*current(?:\\s+assets?)?\\s*[:：]?\\s*$",
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:the\\s+)?(?:portion|amounts?)\\s+(?:classified|included|shown|presented|reclassified)\\s+(?:as|under|in|to)\\s+current\\b",
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:amounts?\\s+)?(?:due|receivable|recoverable|realisable|realizable)\\s+within\\s+(?:one|1|twelve|12)\\s+(?:years?|months)\\b"
+    ],
+    "other_portion_row_any": [
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:the\\s+)?non.?current\\s+portion\\b",
+     "^\\s*non.?current(?:\\s+assets?)?\\s*[:：]?\\s*$",
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:the\\s+)?(?:portion|amounts?)\\s+(?:classified|included|shown|presented|reclassified)\\s+(?:as|under|in|to)\\s+non.?current\\b",
+     "^\\s*(?:amounts?\\s+)?(?:due|receivable|recoverable)\\s+after\\s+(?:one|1|twelve|12)\\s+(?:years?|months)\\b"
     ],
     "prose_any": [],
     "prose_subject": "",
@@ -9958,6 +9982,18 @@
      "other\\s+receivables?|其他應收|其他应收",
      "non.?current|^\\s*current\\b|非流[動动]|^\\s*流[動动]|portion"
     ],
+    "portion_row_any": [
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:the\\s+)?current\\s+portion\\b",
+     "^\\s*current(?:\\s+assets?)?\\s*[:：]?\\s*$",
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:the\\s+)?(?:portion|amounts?)\\s+(?:classified|included|shown|presented|reclassified)\\s+(?:as|under|in|to)\\s+current\\b",
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:amounts?\\s+)?(?:due|receivable|recoverable|realisable|realizable)\\s+within\\s+(?:one|1|twelve|12)\\s+(?:years?|months)\\b"
+    ],
+    "other_portion_row_any": [
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:the\\s+)?non.?current\\s+portion\\b",
+     "^\\s*non.?current(?:\\s+assets?)?\\s*[:：]?\\s*$",
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:the\\s+)?(?:portion|amounts?)\\s+(?:classified|included|shown|presented|reclassified)\\s+(?:as|under|in|to)\\s+non.?current\\b",
+     "^\\s*(?:amounts?\\s+)?(?:due|receivable|recoverable)\\s+after\\s+(?:one|1|twelve|12)\\s+(?:years?|months)\\b"
+    ],
     "prose_any": [],
     "prose_subject": "",
     "prose_landed_in": [],
@@ -10000,6 +10036,18 @@
      "other\\s+receivables?|其他應收|其他应收",
      "non.?current|^\\s*current\\b|非流[動动]|^\\s*流[動动]|portion"
     ],
+    "portion_row_any": [
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:the\\s+)?current\\s+portion\\b",
+     "^\\s*current(?:\\s+assets?)?\\s*[:：]?\\s*$",
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:the\\s+)?(?:portion|amounts?)\\s+(?:classified|included|shown|presented|reclassified)\\s+(?:as|under|in|to)\\s+current\\b",
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:amounts?\\s+)?(?:due|receivable|recoverable|realisable|realizable)\\s+within\\s+(?:one|1|twelve|12)\\s+(?:years?|months)\\b"
+    ],
+    "other_portion_row_any": [
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:the\\s+)?non.?current\\s+portion\\b",
+     "^\\s*non.?current(?:\\s+assets?)?\\s*[:：]?\\s*$",
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:the\\s+)?(?:portion|amounts?)\\s+(?:classified|included|shown|presented|reclassified)\\s+(?:as|under|in|to)\\s+non.?current\\b",
+     "^\\s*(?:amounts?\\s+)?(?:due|receivable|recoverable)\\s+after\\s+(?:one|1|twelve|12)\\s+(?:years?|months)\\b"
+    ],
     "prose_any": [],
     "prose_subject": "",
     "prose_landed_in": [],
@@ -10011,7 +10059,9 @@
     "row_terms_none": []
    },
    "statement": "notes",
-   "section_scope": [],
+   "section_scope": [
+    "bs_ca"
+   ],
    "definition": "Sum of all current debt investments and other debt investments, excluding derivatives and other receivables. Only the current portion — not the non-current portion. Exclude derivatives and other receivables from the sum.",
    "route": "note_tables"
   },
@@ -10033,6 +10083,18 @@
      "^(?!.*(?:structured|結構性|结构性)).*(?:derivative|衍生|forward|遠期|远期|swap|掉期|互换|option|期權|期权)",
      "other\\s+receivables?|其他應收|其他应收",
      "non.?current|^\\s*current\\b|非流[動动]|^\\s*流[動动]|portion"
+    ],
+    "portion_row_any": [
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:the\\s+)?current\\s+portion\\b",
+     "^\\s*current(?:\\s+assets?)?\\s*[:：]?\\s*$",
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:the\\s+)?(?:portion|amounts?)\\s+(?:classified|included|shown|presented|reclassified)\\s+(?:as|under|in|to)\\s+current\\b",
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:amounts?\\s+)?(?:due|receivable|recoverable|realisable|realizable)\\s+within\\s+(?:one|1|twelve|12)\\s+(?:years?|months)\\b"
+    ],
+    "other_portion_row_any": [
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:the\\s+)?non.?current\\s+portion\\b",
+     "^\\s*non.?current(?:\\s+assets?)?\\s*[:：]?\\s*$",
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:the\\s+)?(?:portion|amounts?)\\s+(?:classified|included|shown|presented|reclassified)\\s+(?:as|under|in|to)\\s+non.?current\\b",
+     "^\\s*(?:amounts?\\s+)?(?:due|receivable|recoverable)\\s+after\\s+(?:one|1|twelve|12)\\s+(?:years?|months)\\b"
     ],
     "prose_any": [],
     "prose_subject": "",
@@ -10072,6 +10134,18 @@
      "other\\s+receivables?|其他應收|其他应收",
      "non.?current|^\\s*current\\b|非流[動动]|^\\s*流[動动]|portion"
     ],
+    "portion_row_any": [
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:the\\s+)?current\\s+portion\\b",
+     "^\\s*current(?:\\s+assets?)?\\s*[:：]?\\s*$",
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:the\\s+)?(?:portion|amounts?)\\s+(?:classified|included|shown|presented|reclassified)\\s+(?:as|under|in|to)\\s+current\\b",
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:amounts?\\s+)?(?:due|receivable|recoverable|realisable|realizable)\\s+within\\s+(?:one|1|twelve|12)\\s+(?:years?|months)\\b"
+    ],
+    "other_portion_row_any": [
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:the\\s+)?non.?current\\s+portion\\b",
+     "^\\s*non.?current(?:\\s+assets?)?\\s*[:：]?\\s*$",
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:the\\s+)?(?:portion|amounts?)\\s+(?:classified|included|shown|presented|reclassified)\\s+(?:as|under|in|to)\\s+non.?current\\b",
+     "^\\s*(?:amounts?\\s+)?(?:due|receivable|recoverable)\\s+after\\s+(?:one|1|twelve|12)\\s+(?:years?|months)\\b"
+    ],
     "prose_any": [],
     "prose_subject": "",
     "prose_landed_in": [],
@@ -10083,7 +10157,9 @@
     "row_terms_none": []
    },
    "statement": null,
-   "section_scope": [],
+   "section_scope": [
+    "bs_ca"
+   ],
    "definition": "Sum of all current other financial assets, financial assets, and structured deposits with embedded derivatives, excluding derivatives and other receivables. Only the current portion — not the non-current portion. Exclude derivatives and other receivables from the sum.",
    "route": "note_tables"
   },
@@ -10331,6 +10407,18 @@
      "other\\s+receivables?|其他應收|其他应收|associate|joint\\s+venture|related\\s+part|聯營|联营|合營|合营|關聯|关联",
      "(?<!non-)(?<!non )\\bcurrent\\b|(?<!非)流[動动]|portion|within\\s+one\\s+year|一年內|一年内"
     ],
+    "portion_row_any": [
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:the\\s+)?non.?current\\s+portion\\b",
+     "^\\s*non.?current(?:\\s+assets?)?\\s*[:：]?\\s*$",
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:the\\s+)?(?:portion|amounts?)\\s+(?:classified|included|shown|presented|reclassified)\\s+(?:as|under|in|to)\\s+non.?current\\b",
+     "^\\s*(?:amounts?\\s+)?(?:due|receivable|recoverable)\\s+after\\s+(?:one|1|twelve|12)\\s+(?:years?|months)\\b"
+    ],
+    "other_portion_row_any": [
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:the\\s+)?current\\s+portion\\b",
+     "^\\s*current(?:\\s+assets?)?\\s*[:：]?\\s*$",
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:the\\s+)?(?:portion|amounts?)\\s+(?:classified|included|shown|presented|reclassified)\\s+(?:as|under|in|to)\\s+current\\b",
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:amounts?\\s+)?(?:due|receivable|recoverable|realisable|realizable)\\s+within\\s+(?:one|1|twelve|12)\\s+(?:years?|months)\\b"
+    ],
     "prose_any": [],
     "prose_subject": "",
     "prose_landed_in": [],
@@ -10366,6 +10454,18 @@
      "^(?!.*(?:structured|結構性|结构性)).*(?:derivative|衍生|forward|遠期|远期|swap|掉期|互换|option|期權|期权)",
      "other\\s+receivables?|其他應收|其他应收|associate|joint\\s+venture|related\\s+part|聯營|联营|合營|合营|關聯|关联",
      "(?<!non-)(?<!non )\\bcurrent\\b|(?<!非)流[動动]|portion|within\\s+one\\s+year|一年內|一年内"
+    ],
+    "portion_row_any": [
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:the\\s+)?non.?current\\s+portion\\b",
+     "^\\s*non.?current(?:\\s+assets?)?\\s*[:：]?\\s*$",
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:the\\s+)?(?:portion|amounts?)\\s+(?:classified|included|shown|presented|reclassified)\\s+(?:as|under|in|to)\\s+non.?current\\b",
+     "^\\s*(?:amounts?\\s+)?(?:due|receivable|recoverable)\\s+after\\s+(?:one|1|twelve|12)\\s+(?:years?|months)\\b"
+    ],
+    "other_portion_row_any": [
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:the\\s+)?current\\s+portion\\b",
+     "^\\s*current(?:\\s+assets?)?\\s*[:：]?\\s*$",
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:the\\s+)?(?:portion|amounts?)\\s+(?:classified|included|shown|presented|reclassified)\\s+(?:as|under|in|to)\\s+current\\b",
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:amounts?\\s+)?(?:due|receivable|recoverable|realisable|realizable)\\s+within\\s+(?:one|1|twelve|12)\\s+(?:years?|months)\\b"
     ],
     "prose_any": [],
     "prose_subject": "",
@@ -10404,6 +10504,18 @@
      "other\\s+receivables?|其他應收|其他应收|associate|joint\\s+venture|related\\s+part|聯營|联营|合營|合营|關聯|关联",
      "(?<!non-)(?<!non )\\bcurrent\\b|(?<!非)流[動动]|portion|within\\s+one\\s+year|一年內|一年内"
     ],
+    "portion_row_any": [
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:the\\s+)?non.?current\\s+portion\\b",
+     "^\\s*non.?current(?:\\s+assets?)?\\s*[:：]?\\s*$",
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:the\\s+)?(?:portion|amounts?)\\s+(?:classified|included|shown|presented|reclassified)\\s+(?:as|under|in|to)\\s+non.?current\\b",
+     "^\\s*(?:amounts?\\s+)?(?:due|receivable|recoverable)\\s+after\\s+(?:one|1|twelve|12)\\s+(?:years?|months)\\b"
+    ],
+    "other_portion_row_any": [
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:the\\s+)?current\\s+portion\\b",
+     "^\\s*current(?:\\s+assets?)?\\s*[:：]?\\s*$",
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:the\\s+)?(?:portion|amounts?)\\s+(?:classified|included|shown|presented|reclassified)\\s+(?:as|under|in|to)\\s+current\\b",
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:amounts?\\s+)?(?:due|receivable|recoverable|realisable|realizable)\\s+within\\s+(?:one|1|twelve|12)\\s+(?:years?|months)\\b"
+    ],
     "prose_any": [],
     "prose_subject": "",
     "prose_landed_in": [],
@@ -10439,6 +10551,18 @@
      "^(?!.*(?:structured|結構性|结构性)).*(?:derivative|衍生|forward|遠期|远期|swap|掉期|互换|option|期權|期权)",
      "other\\s+receivables?|其他應收|其他应收|associate|joint\\s+venture|related\\s+part|聯營|联营|合營|合营|關聯|关联",
      "(?<!non-)(?<!non )\\bcurrent\\b|(?<!非)流[動动]|portion|within\\s+one\\s+year|一年內|一年内"
+    ],
+    "portion_row_any": [
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:the\\s+)?non.?current\\s+portion\\b",
+     "^\\s*non.?current(?:\\s+assets?)?\\s*[:：]?\\s*$",
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:the\\s+)?(?:portion|amounts?)\\s+(?:classified|included|shown|presented|reclassified)\\s+(?:as|under|in|to)\\s+non.?current\\b",
+     "^\\s*(?:amounts?\\s+)?(?:due|receivable|recoverable)\\s+after\\s+(?:one|1|twelve|12)\\s+(?:years?|months)\\b"
+    ],
+    "other_portion_row_any": [
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:the\\s+)?current\\s+portion\\b",
+     "^\\s*current(?:\\s+assets?)?\\s*[:：]?\\s*$",
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:the\\s+)?(?:portion|amounts?)\\s+(?:classified|included|shown|presented|reclassified)\\s+(?:as|under|in|to)\\s+current\\b",
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:amounts?\\s+)?(?:due|receivable|recoverable|realisable|realizable)\\s+within\\s+(?:one|1|twelve|12)\\s+(?:years?|months)\\b"
     ],
     "prose_any": [],
     "prose_subject": "",
@@ -10476,6 +10600,18 @@
      "other\\s+receivables?|其他應收|其他应收|associate|joint\\s+venture|related\\s+part|聯營|联营|合營|合营|關聯|关联",
      "(?<!non-)(?<!non )\\bcurrent\\b|(?<!非)流[動动]|portion|within\\s+one\\s+year|一年內|一年内"
     ],
+    "portion_row_any": [
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:the\\s+)?non.?current\\s+portion\\b",
+     "^\\s*non.?current(?:\\s+assets?)?\\s*[:：]?\\s*$",
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:the\\s+)?(?:portion|amounts?)\\s+(?:classified|included|shown|presented|reclassified)\\s+(?:as|under|in|to)\\s+non.?current\\b",
+     "^\\s*(?:amounts?\\s+)?(?:due|receivable|recoverable)\\s+after\\s+(?:one|1|twelve|12)\\s+(?:years?|months)\\b"
+    ],
+    "other_portion_row_any": [
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:the\\s+)?current\\s+portion\\b",
+     "^\\s*current(?:\\s+assets?)?\\s*[:：]?\\s*$",
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:the\\s+)?(?:portion|amounts?)\\s+(?:classified|included|shown|presented|reclassified)\\s+(?:as|under|in|to)\\s+current\\b",
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:amounts?\\s+)?(?:due|receivable|recoverable|realisable|realizable)\\s+within\\s+(?:one|1|twelve|12)\\s+(?:years?|months)\\b"
+    ],
     "prose_any": [],
     "prose_subject": "",
     "prose_landed_in": [],
@@ -10511,6 +10647,18 @@
      "^(?!.*(?:structured|結構性|结构性)).*(?:derivative|衍生|forward|遠期|远期|swap|掉期|互换|option|期權|期权)",
      "other\\s+receivables?|其他應收|其他应收|associate|joint\\s+venture|related\\s+part|聯營|联营|合營|合营|關聯|关联",
      "(?<!non-)(?<!non )\\bcurrent\\b|(?<!非)流[動动]|portion|within\\s+one\\s+year|一年內|一年内"
+    ],
+    "portion_row_any": [
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:the\\s+)?non.?current\\s+portion\\b",
+     "^\\s*non.?current(?:\\s+assets?)?\\s*[:：]?\\s*$",
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:the\\s+)?(?:portion|amounts?)\\s+(?:classified|included|shown|presented|reclassified)\\s+(?:as|under|in|to)\\s+non.?current\\b",
+     "^\\s*(?:amounts?\\s+)?(?:due|receivable|recoverable)\\s+after\\s+(?:one|1|twelve|12)\\s+(?:years?|months)\\b"
+    ],
+    "other_portion_row_any": [
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:the\\s+)?current\\s+portion\\b",
+     "^\\s*current(?:\\s+assets?)?\\s*[:：]?\\s*$",
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:the\\s+)?(?:portion|amounts?)\\s+(?:classified|included|shown|presented|reclassified)\\s+(?:as|under|in|to)\\s+current\\b",
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:amounts?\\s+)?(?:due|receivable|recoverable|realisable|realizable)\\s+within\\s+(?:one|1|twelve|12)\\s+(?:years?|months)\\b"
     ],
     "prose_any": [],
     "prose_subject": "",
@@ -10548,6 +10696,18 @@
      "other\\s+receivables?|其他應收|其他应收|associate|joint\\s+venture|related\\s+part|聯營|联营|合營|合营|關聯|关联",
      "(?<!non-)(?<!non )\\bcurrent\\b|(?<!非)流[動动]|portion|within\\s+one\\s+year|一年內|一年内"
     ],
+    "portion_row_any": [
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:the\\s+)?non.?current\\s+portion\\b",
+     "^\\s*non.?current(?:\\s+assets?)?\\s*[:：]?\\s*$",
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:the\\s+)?(?:portion|amounts?)\\s+(?:classified|included|shown|presented|reclassified)\\s+(?:as|under|in|to)\\s+non.?current\\b",
+     "^\\s*(?:amounts?\\s+)?(?:due|receivable|recoverable)\\s+after\\s+(?:one|1|twelve|12)\\s+(?:years?|months)\\b"
+    ],
+    "other_portion_row_any": [
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:the\\s+)?current\\s+portion\\b",
+     "^\\s*current(?:\\s+assets?)?\\s*[:：]?\\s*$",
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:the\\s+)?(?:portion|amounts?)\\s+(?:classified|included|shown|presented|reclassified)\\s+(?:as|under|in|to)\\s+current\\b",
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:amounts?\\s+)?(?:due|receivable|recoverable|realisable|realizable)\\s+within\\s+(?:one|1|twelve|12)\\s+(?:years?|months)\\b"
+    ],
     "prose_any": [],
     "prose_subject": "",
     "prose_landed_in": [],
@@ -10583,6 +10743,18 @@
      "^(?!.*(?:structured|結構性|结构性)).*(?:derivative|衍生|forward|遠期|远期|swap|掉期|互换|option|期權|期权)",
      "other\\s+receivables?|其他應收|其他应收|associate|joint\\s+venture|related\\s+part|聯營|联营|合營|合营|關聯|关联",
      "(?<!non-)(?<!non )\\bcurrent\\b|(?<!非)流[動动]|portion|within\\s+one\\s+year|一年內|一年内"
+    ],
+    "portion_row_any": [
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:the\\s+)?non.?current\\s+portion\\b",
+     "^\\s*non.?current(?:\\s+assets?)?\\s*[:：]?\\s*$",
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:the\\s+)?(?:portion|amounts?)\\s+(?:classified|included|shown|presented|reclassified)\\s+(?:as|under|in|to)\\s+non.?current\\b",
+     "^\\s*(?:amounts?\\s+)?(?:due|receivable|recoverable)\\s+after\\s+(?:one|1|twelve|12)\\s+(?:years?|months)\\b"
+    ],
+    "other_portion_row_any": [
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:the\\s+)?current\\s+portion\\b",
+     "^\\s*current(?:\\s+assets?)?\\s*[:：]?\\s*$",
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:the\\s+)?(?:portion|amounts?)\\s+(?:classified|included|shown|presented|reclassified)\\s+(?:as|under|in|to)\\s+current\\b",
+     "^\\s*(?:less\\s*[:：]?\\s*)?(?:amounts?\\s+)?(?:due|receivable|recoverable|realisable|realizable)\\s+within\\s+(?:one|1|twelve|12)\\s+(?:years?|months)\\b"
     ],
     "prose_any": [],
     "prose_subject": "",
@@ -10654,7 +10826,10 @@
     ],
     "row_caption_none": [
      "非流动|非流動|non.?current|一年以上|over\\s+one\\s+year",
-     "\\bgross\\b|before\\s+(?:loss\\s+)?allowance|账面余额|[賬帳]面餘額|原值"
+     "\\bgross\\b|before\\s+(?:loss\\s+)?allowance|账面余额|[賬帳]面餘額|原值",
+     "^\\s*(?:at\\s+(?:the\\s+)?(?:beginning|start|end)\\s+of\\b|as\\s+at\\s+(?:the\\s+)?(?:beginning|end)\\b|(?:opening|closing)\\s+balance\\b|balance\\s+(?:at|as\\s+at|brought|carried)\\b)",
+     "impairment\\s+loss|write.?back|write.?off|written\\s+off|reversal\\s+of|exchange\\s+realignment|\\b(?:recognised|recognized|utilised|utilized)\\b",
+     "\\bas\\s+follows\\b"
     ],
     "prose_any": [],
     "prose_subject": "",
@@ -10688,7 +10863,10 @@
     ],
     "row_caption_none": [
      "非流动|非流動|non.?current|一年以上|over\\s+one\\s+year",
-     "\\bgross\\b|before\\s+(?:loss\\s+)?allowance|账面余额|[賬帳]面餘額|原值"
+     "\\bgross\\b|before\\s+(?:loss\\s+)?allowance|账面余额|[賬帳]面餘額|原值",
+     "^\\s*(?:at\\s+(?:the\\s+)?(?:beginning|start|end)\\s+of\\b|as\\s+at\\s+(?:the\\s+)?(?:beginning|end)\\b|(?:opening|closing)\\s+balance\\b|balance\\s+(?:at|as\\s+at|brought|carried)\\b)",
+     "impairment\\s+loss|write.?back|write.?off|written\\s+off|reversal\\s+of|exchange\\s+realignment|\\b(?:recognised|recognized|utilised|utilized)\\b",
+     "\\bas\\s+follows\\b"
     ],
     "prose_any": [],
     "prose_subject": "",

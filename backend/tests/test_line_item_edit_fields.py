@@ -245,7 +245,11 @@ _ROUND_TRIP: dict[str, tuple[str, object]] = {
         # needs, because every such table on the reference filings prints its levels as columns.
         # Both non-empty so the round trip proves the screen carries each list on its own.
         "column_heading_any": [r"level\s*3", "第三层次"],
-        "column_heading_none": [r"total|合计"]}),
+        "column_heading_none": [r"total|合计"],
+        # A NOTE THAT SPLITS CURRENT FROM NON-CURRENT — this part's split row and the other
+        # side's. Non-empty, so the round trip proves the screen carries each list on its own.
+        "portion_row_any": [r"^\s*non.?current\s+portion\b"],
+        "other_portion_row_any": [r"portion\s+classified\s+as\s+current"]}),
     # recognition
     "aliases": ("aliases", ["Cash at bank", "Bank balances"]),
     "alias_matching": ("alias_matching", "disabled"),

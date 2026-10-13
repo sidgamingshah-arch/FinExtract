@@ -275,7 +275,8 @@ class _ColumnSelector:
 
 def select_rows(item, notes, periods: set[str] | None = None,
                 note_sections: dict[str, set[str]] | None = None,
-                claimed: dict[str, set[str]] | None = None) -> list[NoteRowHit]:
+                claimed: dict[str, set[str]] | None = None,
+                block_sides: dict[int, dict[int, str]] | None = None) -> list[NoteRowHit]:
     """The note rows THIS item's `note_source` declares, across every note whose title matches.
 
     Three gates, in the order the declaration reads: the note's title must match, the row's caption
@@ -315,6 +316,13 @@ def select_rows(item, notes, periods: set[str] | None = None,
     want_grid = getattr(src, "from_measure_grid", None)
     counts = _compiled(getattr(src, "row_caption_any", None))
     vetoes = _compiled(getattr(src, "row_caption_none", None))
+    # See `NoteSource.portion_row_any`: the row a note that splits current from non-current prints
+    # for THIS part's side, and the one it prints for the other side.
+    portions = _compiled(getattr(src, "portion_row_any", None))
+    other_portions = _compiled(getattr(src, "other_portion_row_any", None))
+    # THIS PART'S SIDE, for a note printed as one block per side — see `block_sides`.
+    scope = [str(x) for x in (getattr(item, "section_scope", None) or ()) if x]
+    own_side = scope[0] if len(scope) == 1 and (portions or other_portions) else ""
     if not (titles or by_meaning) or not counts:
         return []
     # See `NoteSource.column_heading_any`: WHICH PRINTED COLUMN this part reads, by its heading.
@@ -377,7 +385,33 @@ def select_rows(item, notes, periods: set[str] | None = None,
                             for r in (getattr(table, "items", None) or ()))
         rows_here = list(getattr(table, "items", None) or ())
         broken_down = _broken_down(rows_here, counts)
+        # A NOTE THAT SPLITS CURRENT FROM NON-CURRENT. Where the table prints this part's own
+        # portion row, that row is the part's reading and the line items are not; where it prints
+        # only the other side's, the line items are read less it. `forced` carries the sign each
+        # split row enters with — its MAGNITUDE, because a "Less:" row is printed negative.
+        forced: dict[int, tuple[int, str]] = {}
+        only: set[int] | None = None
+        if (portions or other_portions) and not by_column:
+            own_split = {i: m for i, r in enumerate(rows_here)
+                         if (m := _matches_any(getattr(r, "raw_label", "") or "", portions))}
+            other_split = {i: m for i, r in enumerate(rows_here)
+                           if i not in own_split
+                           and (m := _matches_any(getattr(r, "raw_label", "") or "",
+                                                  other_portions))}
+            if own_split:
+                only = set(own_split)
+                forced = {i: (1, m) for i, m in own_split.items()}
+            elif other_split:
+                forced = {i: (-1, m) for i, m in other_split.items()}
+        first_hit = len(hits)
+        sides = (block_sides or {}).get(id(table), {}) if own_side else {}
         for index, row in enumerate(rows_here):
+            if only is not None and index not in only:
+                continue
+            # A ROW OF THE OTHER SIDE'S BLOCK is that side's money.
+            if sides.get(index, own_side) != own_side:
+                continue
+            sign, split_by = forced.get(index, (0, ""))
             # A ROW WITH A 其中 BREAKDOWN UNDER IT is the sum of that breakdown, so where the
             # breakdown is read the row is not read as well. Measured on 688008's 交易性金融资产
             # note and 300319's: "以公允价值计量且其变动计入当期损益的金融资产 1,783,494,750.68"
@@ -385,7 +419,7 @@ def select_rows(item, notes, periods: set[str] | None = None,
             # line items counted the money twice. Reading the breakdown rather than the row is what
             # lets a vetoed component drop out — 300319's 其中：远期结售汇, a forward contract
             # inside the prior-year 181,124,711.32.
-            if index in broken_down:
+            if index in broken_down and not sign:
                 continue
             # A LINE-ITEM SUM IS NOT READ OUT OF A MOVEMENT TABLE: its rows are the year's
             # movements (at 1 January, additions, disposals, at 31 December), and summing them is
@@ -421,12 +455,15 @@ def select_rows(item, notes, periods: set[str] | None = None,
             # group is checked SECOND, so a row that matches on its own caption behaves as it
             # always did.
             group = str(getattr(row, "group_hint", "") or "")
-            matched = _matches_any(caption, counts) or (
-                bool(group) and _matches_any(group, counts))
-            if not matched:
-                continue
-            if _matches_any(caption, vetoes) or (group and _matches_any(group, vetoes)):
-                continue
+            if sign:
+                matched = split_by                # a split row is the table's structure
+            else:
+                matched = _matches_any(caption, counts) or (
+                    bool(group) and _matches_any(group, counts))
+                if not matched:
+                    continue
+                if _matches_any(caption, vetoes) or (group and _matches_any(group, vetoes)):
+                    continue
             # THE COLUMN GATE, ANDed after the row gates. A column-selected part reads the values
             # of this row that stand under a heading its patterns admit, in place of the block's
             # total column or the face's period labels — see `_ColumnSelector.hits`.
@@ -465,6 +502,8 @@ def select_rows(item, notes, periods: set[str] | None = None,
                                   else getattr(value, "value_raw", None))
                     if amount is None:
                         continue
+                    if sign:
+                        amount = abs(amount) * sign
                     hits.append(NoteRowHit(
                         key=item.key, note_number=str(getattr(table, "note_number", "")),
                         note_title=title, caption=caption, matched_by=matched,
@@ -552,6 +591,8 @@ def select_rows(item, notes, periods: set[str] | None = None,
                               else getattr(value, "value_raw", None))
                 if amount is None:
                     continue
+                if sign:
+                    amount = abs(amount) * sign
                 hits.append(NoteRowHit(
                     key=item.key, note_number=str(getattr(table, "note_number", "")),
                     note_title=title, caption=caption, matched_by=matched,
@@ -565,6 +606,15 @@ def select_rows(item, notes, periods: set[str] | None = None,
                     # the allowance was found, summed, and then filed under `current:allowance`,
                     # where the rung that deducts it could not see it.
                     period=label))
+        # THE LINE ITEMS LESS THE OTHER SIDE'S PORTION is a reading only where it leaves something:
+        # a table whose items this part vetoed entirely would publish the other portion as a
+        # negative holding.
+        if forced and only is None:
+            table_hits = hits[first_hit:]
+            totals: dict[tuple[str, str], Decimal] = {}
+            for h in table_hits:
+                totals[(h.basis, h.period)] = totals.get((h.basis, h.period), Decimal(0)) + h.amount
+            hits[first_hit:] = [h for h in table_hits if totals[(h.basis, h.period)] > 0]
     return hits
 
 
@@ -894,6 +944,7 @@ def bad_patterns(item) -> list[str]:
     # stops matching and the line stays empty. The GENERATED patterns need no check; a plain phrase
     # cannot fail to compile, which is the point of generating them.
     for field in ("note_title_any", "row_caption_any", "row_caption_none", "prose_any",
+                  "portion_row_any", "other_portion_row_any",
                   "column_heading_any", "column_heading_none"):
         for raw, rx in _compiled(getattr(src, field, None)):
             if rx is None:
@@ -947,6 +998,127 @@ def _caption_matches(want: str, cap_norm: str) -> bool:
         return False
     shorter, longer = sorted((len(want), len(cap_norm)))
     return shorter >= _CAPTION_SPECIFICITY * longer
+
+
+def block_sides(doc, line_item_set) -> dict[int, dict[int, str]]:
+    """`{id(table): {row index: section scope}}` for note tables printed as ONE BLOCK PER SIDE.
+
+    AN INDIAN NOTE COMMONLY CARRIES BOTH SIDES. "Other financial assets" prints a Non-current table
+    and a Current table under one number, each closed by its own Total, and the face cites the note
+    from both sections. The reader keeps them as one table and drops the two headings, so a part
+    reading the note's line items read both blocks: measured on three Ind AS test filings, the
+    non-current part read 358.20 + 30.35 = 388.55 against the 358.20 the face prints, and the
+    current part the same 388.55.
+
+    WHICH BLOCK IS WHOSE IS DECIDED BY AMOUNTS. A block is the run of rows a total row closes; it
+    is a side's when a face row citing the note prints the block's total — in both periods wherever
+    both are printed — and the side is that face row's section (its concept's `section_scope`, or
+    for a row no line claimed, the section it was printed in). A block two sides claim, or none, is
+    left unassigned and read as before.
+    """
+    from app.core.models.enums import LineRole
+    from app.services.mapping import section_of_banner, section_of_key, section_token_of_scope
+
+    items = list(getattr(line_item_set, "items", None) or ())
+    by_key = {i.key: i for i in items}
+    scopes_by_token: dict[str, set[str]] = {}
+    for i in items:
+        for scope in (getattr(i, "section_scope", None) or ()):
+            token = section_token_of_scope(str(scope))
+            if token:
+                scopes_by_token.setdefault(token, set()).add(str(scope))
+    face_pages = {p.index for p in doc.face_pages()} if hasattr(doc, "face_pages") else set()
+
+    def side_of(row) -> str:
+        key = str(getattr(row, "canonical_key", "") or "")
+        item = by_key.get(key)
+        if item is not None:
+            scopes = [str(x) for x in (getattr(item, "section_scope", None) or ()) if x]
+            return scopes[0] if len(scopes) == 1 else ""
+        token = section_of_banner(getattr(row, "section_hint", None) or "") or section_of_key(key)
+        scopes = scopes_by_token.get(token, set()) if token else set()
+        return next(iter(scopes)) if len(scopes) == 1 else ""
+
+    def figures(row) -> dict[str, Decimal]:
+        out: dict[str, Decimal] = {}
+        for ev in (getattr(row, "values", None) or {}).values():
+            raw = ev.value if ev.value is not None else getattr(ev, "value_raw", None)
+            label = str(getattr(ev, "period_label", "") or "")
+            if raw is not None and label in ("current", "prior"):
+                out.setdefault(label, abs(Decimal(raw)))
+        return out
+
+    face = []
+    for li in getattr(doc, "line_items", None) or ():
+        pages = {ev.provenance.page_index for ev in (li.values or {}).values()
+                 if ev.provenance is not None}
+        if li.derivation or getattr(li, "is_computed", False):
+            continue
+        if face_pages and not (pages & face_pages):
+            continue
+        side = side_of(li)
+        if side:
+            face.append((li, side, figures(li)))
+
+    out: dict[int, dict[int, str]] = {}
+    for table in getattr(doc, "notes", None) or ():
+        rows = list(getattr(table, "items", None) or ())
+        closers = [i for i, r in enumerate(rows)
+                   if getattr(r, "role", None) in (LineRole.TOTAL, LineRole.SUBTOTAL)]
+        if len(closers) < 2:
+            continue
+        number = str(getattr(table, "note_number", "") or "")
+        citing = [(li, side, fig) for li, side, fig in face
+                  if any(same_note(number, c) for c in li.cited_notes() if c)]
+        if not citing:
+            continue
+        assigned: dict[int, str] = {}
+        start = 0
+        for closer in closers:
+            total = figures(rows[closer])
+            claims = {side for _li, side, fig in citing
+                      if total and all(fig.get(p) == v for p, v in total.items() if p in fig)
+                      and any(p in fig for p in total)}
+            if len(claims) == 1:
+                side = next(iter(claims))
+                for i in range(start, closer + 1):
+                    assigned[i] = side
+            start = closer + 1
+        if len(set(assigned.values())) > 1:
+            out[id(table)] = assigned
+    return out
+
+
+def cell_of(prov) -> tuple | None:
+    """A printed figure's position — page and the corner of its value box — or None.
+
+    How a trail input, a citation and a note row are recognised as ONE printed figure: the
+    caption can repeat on a page, the amount can repeat anywhere, the box cannot.
+    """
+    if prov is None:
+        return None
+    get = prov.get if isinstance(prov, dict) else (lambda k, d=None: getattr(prov, k, d))
+    page = get("page_index")
+    box = get("value_bbox") or get("bbox")
+    if page is None or box is None:
+        return None
+    bget = box.get if isinstance(box, dict) else (lambda k, d=None: getattr(box, k, d))
+    try:
+        return (int(page), round(float(bget("x0")), 3), round(float(bget("y0")), 3))
+    except (TypeError, ValueError):
+        return None
+
+
+def note_cells(doc) -> dict[tuple, tuple]:
+    """Every note figure by its position — `(table, row)` — so an input can be found again."""
+    out: dict[tuple, tuple] = {}
+    for table in getattr(doc, "notes", None) or ():
+        for item in getattr(table, "items", None) or ():
+            for ev in (getattr(item, "values", None) or {}).values():
+                cell = cell_of(getattr(ev, "provenance", None))
+                if cell is not None:
+                    out.setdefault(cell, (table, item))
+    return out
 
 
 def _note_key(text) -> str:

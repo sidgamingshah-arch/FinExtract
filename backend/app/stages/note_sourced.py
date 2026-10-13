@@ -77,6 +77,8 @@ class NoteSourcedStage(Stage):
         # because it compares siblings (`line_item_notes.claimed_notes`).
         from app.services.line_item_notes import claimed_notes
         claimed = claimed_notes(items, doc.notes)
+        # WHICH BLOCK OF A TWO-SIDED NOTE IS WHOSE, resolved once — see `note_sourced.block_sides`.
+        sides = note_sourced.block_sides(doc, line_item_set)
         by_key = {li.canonical_key: li for li in doc.line_items if li.canonical_key}
         children_of: dict[str, list] = {}
         filled = touched = 0
@@ -102,7 +104,7 @@ class NoteSourcedStage(Stage):
             # which is the right default for a line whose author said its figure IS tabulated.
             hits = ([] if route_of(item) == "prose"
                     else note_sourced.select_rows(item, doc.notes, periods, note_sections,
-                                                  claimed))
+                                                  claimed, sides))
             if not hits:
                 # A FIGURE THE FILING STATES ONLY IN PROSE, and this is the one route to it.
                 #
@@ -970,6 +972,39 @@ def _row_identity(ev) -> tuple | None:
     return (int(page), caption, cell, str(ev.value))
 
 
+def _column_figures(doc: DocumentModel) -> tuple[dict, dict]:
+    """Every figure in every column by concept, and the printed row each came off.
+
+    What a cascade is evaluated against — `services.line_items.evaluate` wants "every figure known
+    so far" — read once from the document, so `_fill_by_cascade` and the face settlement that runs
+    a calculation again evaluate the same thing.
+
+    THE PRINTED ROW EACH FIGURE CAME OFF, per (slot, key) — see `_row_identity` and
+    `services.line_items._apply_terms`. Two of a rung's terms whose figures came off the SAME row
+    are one quantity found twice, not two quantities, and this is what lets the sum say so.
+    """
+    slots: dict[tuple[str, str], dict] = {}
+    sources: dict[tuple[str, str], dict] = {}
+    for row in doc.line_items:
+        key = row.canonical_key
+        if not key:
+            continue
+        for ev in (row.values or {}).values():
+            if ev.value is None:
+                continue
+            slot = (_basis(ev), str(getattr(ev, "period_label", "") or ""))
+            # FIRST WRITER WINS per (key, slot): several printed rows can carry one concept, and
+            # `concept_value` is what resolves that for publication. A cascade term wants one
+            # number, and taking the first in document order is at least deterministic — where it
+            # matters the contest has already been settled onto a single carrier above.
+            if key not in slots.setdefault(slot, {}):
+                slots[slot][key] = ev.value
+                identity = _row_identity(ev)
+                if identity is not None:
+                    sources.setdefault(slot, {})[key] = identity
+    return slots, sources
+
+
 def _fill_by_cascade(parent_def, kids: list, by_key: dict, doc: DocumentModel,
                      ctx: PipelineContext, defs: dict | None = None) -> int:
     """Evaluate the parent's declared cascade against its note-sourced children, per column.
@@ -1035,28 +1070,7 @@ def _fill_by_cascade(parent_def, kids: list, by_key: dict, doc: DocumentModel,
     # which is what this now supplies. Keyed by canonical_key across every row, because a cascade
     # term names a concept and not a parenthood — and `_children_by_parent` is still what decides
     # which children a parent OWNS, which is a different question.
-    slots: dict[tuple[str, str], dict] = {}
-    # THE PRINTED ROW EACH FIGURE CAME OFF, per (slot, key) — see `_row_identity` and
-    # `services.line_items._apply_terms`. Two of a rung's terms whose figures came off the SAME row
-    # are one quantity found twice, not two quantities, and this is what lets the sum say so.
-    sources: dict[tuple[str, str], dict] = {}
-    for row in doc.line_items:
-        key = row.canonical_key
-        if not key:
-            continue
-        for ev in (row.values or {}).values():
-            if ev.value is None:
-                continue
-            slot = (_basis(ev), str(getattr(ev, "period_label", "") or ""))
-            # FIRST WRITER WINS per (key, slot): several printed rows can carry one concept, and
-            # `concept_value` is what resolves that for publication. A cascade term wants one
-            # number, and taking the first in document order is at least deterministic — where it
-            # matters the contest has already been settled onto a single carrier above.
-            if key not in slots.setdefault(slot, {}):
-                slots[slot][key] = ev.value
-                identity = _row_identity(ev)
-                if identity is not None:
-                    sources.setdefault(slot, {})[key] = identity
+    slots, sources = _column_figures(doc)
     # A COLUMN WITH NO CHILD FIGURE AT ALL IS NOT THIS PARENT'S TO FILL. Widening `known` above
     # also widened the set of columns this loop would attempt, which would have it evaluate a
     # cascade in a column where none of its own parts appear — so the columns are still taken from
@@ -1368,29 +1382,117 @@ def _children_by_parent(all_items) -> dict[str, list[str]]:
 
 # ── A NOTE'S MONEY IS ON THE FACE ONCE ─────────────────────────────────────────────────────────
 #
-# A balance-sheet line filled from a note publishes money the face has ALREADY printed, in the row
-# that cites that note. Where that row is the line's own (or one of its parts) nothing is counted
-# twice. Where it is ANOTHER line's, it was: China SCE 1966 prints "Prepayments, other receivables
-# and other assets 15,062,723", cites note 24, and files it under Other Current Assets; note 24
-# states other receivables at 5,818,375, which Other Receivables (CP) now reads — and the same
-# 5,818,375 stood inside the residual as well, so total current assets rose by exactly that and the
-# section stopped reconciling.
+# A balance-sheet line filled from a note can publish money the face has ALREADY printed in another
+# line's row. China SCE 1966 prints "Prepayments, other receivables and other assets 15,062,723"
+# and files it under Other Current Assets; its note states other receivables at 5,818,375, which
+# Other Receivables (CP) reads — so the same 5,818,375 stood inside the residual as well, total
+# current assets rose by exactly that and the section stopped reconciling.
 #
-# TWO ANSWERS, by what the other line IS:
+# DECIDED BY AMOUNTS, NOT BY NOTE NUMBERS. The first version of this asked "does a face row
+# elsewhere cite a note this line counted?", and a note number is the wrong evidence: one note
+# routinely holds money that belongs to two lines. Lai Sun's note 26 prints its FVTPL holdings,
+# "Less: Portion classified as current (174,822)" and "Non-current portion 788,507"; the face cites
+# it for the CURRENT row, and Securities (LTP) — which read only the non-current portion — was
+# deleted in both years for sharing the citation (366,944 / 847,794, published blank). The
+# question is now whether a face row PRINTS the money: its figure equals an amount the line
+# counted — the line's figure, one of its parts', or a note row it read — or equals a total the
+# note prints over a row the line read. Checked in BOTH periods wherever both are printed, because
+# two amounts agreeing in one year is a coincidence a filing produces; agreeing in both is not.
+#
+# THE CALCULATION STILL RUNS, and that is the other half. The money a face row prints is taken out
+# of the line's own calculation — the cascade is evaluated again with that part reduced by it — and
+# the line publishes what the calculation then comes to, with the deduction in its trail. It used
+# to delete the slot and keep the trail, which is the blank parent above figured parts that a
+# reviewer cannot explain. Two answers, by what the other line IS:
 #   * an `exclusive_residual` in the same section — "whatever is left of the printed money once the
-#     named lines have theirs" — gives the note-sourced figure up: the residual is the face row LESS
-#     it, which is that line's own definition. Refused where the figure exceeds what the row holds.
-#   * a printed leaf, or a row only in ANOTHER section, has committed the money elsewhere: the
-#     note-sourced figure is withheld for that period and the row it would have duplicated is named.
-#     嘉民 kaming prints "Trade and other receivables" as its own printed column, so the other
-#     receivables its note breaks out are in it already; 1966's FVTPL note is cited by a CURRENT
-#     row, so a non-current reading of the same note is the same money in the wrong column.
+#     named lines have theirs" — gives the amount up instead: the residual is the face row LESS it,
+#     which is that line's own definition. Refused where the amount exceeds what the row holds.
+#   * any other row keeps its printed money, and the line's calculation runs without it.
+#
+# ONLY ROWS OF THIS SET. A face row the mapper left unclassified reaches no line and no total, so it
+# duplicates nothing; and a line's own family (its parts, its parents) is never its duplicate.
 #
 # BALANCE SHEET ONLY. A P&L memo line (a depreciation charge inside an expense row) reads a note an
 # expense row cites by design, and is not added into the row it is part of.
 
 
+class _Piece:
+    """One amount a balance-sheet line counted, and where it entered the line's arithmetic.
+
+    `level` is "line" (the published figure), "part" (a cascade term's figure) or "row" (a note row
+    the line or a part read). `owner` is the cascade term the money reached the line through, or
+    None for a line that is not a cascade. `cell` locates a note row in `doc.notes`.
+    """
+
+    __slots__ = ("level", "amount", "owner", "label", "cell", "listed_by", "note")
+
+    def __init__(self, level: str, amount: Decimal, owner: str | None, label: str,
+                 cell: tuple | None = None, listed_by: str = "", note: str = ""):
+        self.level, self.amount, self.owner, self.label, self.cell = (
+            level, amount, owner, label, cell)
+        # For a note row: the line whose trail lists it, and its note — what finds the same row
+        # in the other year's trail when the row itself cannot be found in the note tables.
+        self.listed_by, self.note = listed_by, note
+
+
+def _note_figure(item, basis: str, period: str) -> Decimal | None:
+    for ev in (getattr(item, "values", None) or {}).values():
+        if _basis(ev) == basis and str(getattr(ev, "period_label", "") or "") == period:
+            raw = ev.value if ev.value is not None else ev.value_raw
+            return None if raw is None else Decimal(raw)
+    return None
+
+
+def _note_totals(table, item, basis: str, period: str) -> set[Decimal]:
+    """The totals a note prints OVER this row, in one column.
+
+    A total or subtotal row whose recorded components include the row, or — where the
+    reconstruction recorded none — every total printed below it. A table that prints no total at
+    all is totalled by its line rows, which is the figure a face row citing it states.
+    """
+    from app.core.models.enums import LineRole
+
+    rows = list(getattr(table, "items", None) or ())
+    totals = [r for r in rows if getattr(r, "role", None) in (LineRole.TOTAL, LineRole.SUBTOTAL)]
+    out: set[Decimal] = set()
+    if totals:
+        position = {id(r): i for i, r in enumerate(rows)}
+        for total in totals:
+            members = list(getattr(total, "component_ordinals", None) or ())
+            inside = (getattr(item, "ordinal", None) in members if members
+                      else position.get(id(total), -1) > position.get(id(item), 0))
+            amount = _note_figure(total, basis, period)
+            if inside and amount is not None:
+                out.add(amount)
+        return out
+    figures = [_note_figure(r, basis, period) for r in rows
+               if getattr(r, "role", None) not in (LineRole.HEADER, LineRole.SPACER)]
+    figures = [f for f in figures if f is not None]
+    if len(figures) > 1:
+        out.add(sum(figures, Decimal(0)))
+    return out
+
+
+def _deduction_input(piece: _Piece, face_row: LineItem, face_ev, relation: str) -> dict:
+    """The trail's line for money the line gave up because a face row prints it."""
+    caption = str(face_row.source_label or face_row.canonical_key or "")[:120]
+    why = ("prints this amount" if relation == "identity"
+           else "prints the note total this amount is part of")
+    return {
+        "label": f"Counted on the face in “{caption}”",
+        "canonical_key": face_row.canonical_key,
+        "value": str(piece.amount),
+        "counted": True,
+        "deducted": True,
+        "excerpt": f"{piece.label[:80]} {piece.amount}: the face row {why}, so it is counted "
+                   f"there and not here",
+        "provenance": note_sourced.derivation._json_safe_provenance(
+            getattr(face_ev, "provenance", None)),
+    }
+
+
 def _settle_against_the_face(doc: DocumentModel, ctx: PipelineContext, all_items) -> None:
+    from app.services.line_items import evaluate as evaluate_line
     from app.stages.prune_notes import _is_face_item
 
     defs = {i.key: i for i in all_items}
@@ -1439,79 +1541,336 @@ def _settle_against_the_face(doc: DocumentModel, ctx: PipelineContext, all_items
     for li in doc.line_items:
         if li.canonical_key:
             by_key.setdefault(li.canonical_key, []).append(li)
+    first_row = {k: rows[0] for k, rows in by_key.items()}
+    face_pages = {p.index for p in doc.face_pages()}
 
-    def notes_of(key: str, slot: str, seen: set[str]) -> set[str]:
-        """The notes THIS slot's figure was counted from — its own trail, and the trails of the
-        parts that trail counted, and nothing else. Pooled over the whole family, one part's
-        citation withheld a sibling's printed figure: on the spy route 1966's
-        `bs_ca__secur_and_other_fincl_assets_cp` took 344,135 from its face part, a sibling part
-        cited note 22, and note 22 is the face's completed-properties row."""
-        if key in seen:
-            return set()
-        seen.add(key)
-        found: set[str] = set()
+    # WHAT EVERY FIGURE WAS BEFORE ANY OF THIS RAN. A slot settled in the current year must not
+    # change what the prior-year confirmation compares against, and a residual carved for one line
+    # must still be recognised as the row it was printed as.
+    printed_before = {id(ev): ev.value for li in doc.line_items for ev in (li.values or {}).values()}
+
+    def was(row: LineItem, basis: str, period: str) -> Decimal | None:
+        ev = _slot(row, basis, period)
+        return None if ev is None else printed_before.get(id(ev), ev.value)
+
+    def figure_before(key: str, basis: str, period: str) -> Decimal | None:
         for row in by_key.get(key, ()):
-            for item in ((row.derivation or {}).get(slot) or {}).get("inputs") or ():
-                if not item or item.get("counted") is False or item.get("deducted"):
-                    continue
-                token = str(item.get("note") or "").strip()
-                if token:
-                    found.add(token)
-                part = str(item.get("canonical_key") or item.get("ref") or "")
-                if part:
-                    found |= notes_of(part, slot, seen)
-        return found
+            got = was(row, basis, period)
+            if got is not None:
+                return got
+        return None
 
-    # A FACE ROW is printed and derived from nothing; a filled line carries the trail it came from.
+    # A FACE ROW is printed and derived from nothing, and carries a key of this set.
     face = [li for li in doc.line_items
-            if li.canonical_key and not li.derivation and not li.is_computed
+            if li.canonical_key in defs and not li.derivation and not li.is_computed
             and _is_face_item(li, doc)
             and any(ev.provenance is not None for ev in li.values.values())]
+    cells = note_sourced.note_cells(doc)
+
+    def is_face_part(key: str) -> bool:
+        rows = by_key.get(key, ())
+        return bool(rows) and all(not r.derivation and not r.is_computed for r in rows)
+
+    def row_pieces(trail: dict | None, owner: str | None, seen: set[str], basis: str,
+                   period: str, listed_by: str) -> list[_Piece]:
+        """The note rows a trail counted, following the parts it was built from."""
+        out: list[_Piece] = []
+        for inp in (trail or {}).get("inputs") or ():
+            if not inp or inp.get("counted") is False or inp.get("deducted"):
+                continue
+            ref = str(inp.get("canonical_key") or inp.get("ref") or "")
+            if ref:
+                if ref in seen:
+                    continue
+                seen.add(ref)
+                for r in by_key.get(ref, ()):
+                    out += row_pieces((r.derivation or {}).get(f"{basis}:{period}"), owner, seen,
+                                      basis, period, ref)
+                continue
+            cell = note_sourced.cell_of(inp.get("provenance"))
+            if cell is not None and cell[0] in face_pages:
+                continue                          # a face row cited as an input is the face's own
+            try:
+                amount = Decimal(str(inp.get("value")))
+            except (InvalidOperation, ValueError, TypeError):
+                continue
+            if amount > 0:
+                out.append(_Piece("row", amount, owner, str(inp.get("label") or ""), cell,
+                                  listed_by, str(inp.get("note") or "")))
+        return out
+
+    def listed_then(piece: _Piece, basis: str, period: str) -> Decimal | None:
+        """The same row's figure in another year, read off the trail that listed it."""
+        for r in by_key.get(piece.listed_by, ()):
+            for inp in ((r.derivation or {}).get(f"{basis}:{period}") or {}).get("inputs") or ():
+                if (str(inp.get("label") or "") == piece.label
+                        and str(inp.get("note") or "") == piece.note
+                        and not inp.get("canonical_key")):
+                    try:
+                        return Decimal(str(inp.get("value")))
+                    except (InvalidOperation, ValueError, TypeError):
+                        return None
+        return None
+
+    def consistent(pieces: list[_Piece], total: Decimal) -> list[_Piece]:
+        """Row pieces only where they add up to the figure they explain — an answer whose rows
+        carry signs the trail does not record is checked as a whole, never row by row."""
+        return pieces if pieces and sum((p.amount for p in pieces), Decimal(0)) == total else []
+
+    def cascade_pieces(item, known: dict, sources, basis: str, period: str):
+        """(evaluation, pieces) of a cascade line in one column, from the rung that answers."""
+        got = evaluate_line(item, known, sources)
+        if not got.resolved:
+            return got, []
+        pieces: list[_Piece] = []
+        derived_parts = 0
+        for entry in got.inputs:
+            ref = entry.get("ref")
+            if (not ref or entry.get("role") == "adjustment" or int(entry.get("sign") or 1) < 0
+                    or entry.get("duplicate_of_row") or entry.get("part_is_the_totals_own_row")
+                    or entry.get("selected") is False):
+                continue
+            try:
+                used = Decimal(str(entry.get("used")))
+            except (InvalidOperation, ValueError, TypeError):
+                continue
+            if used <= 0 or is_face_part(ref):
+                continue
+            derived_parts += 1
+            label = str(getattr(defs.get(ref), "label", "") or ref)
+            pieces.append(_Piece("part", used, ref, label))
+            trail = next(((r.derivation or {}).get(f"{basis}:{period}") for r in by_key.get(ref, ())
+                          if (r.derivation or {}).get(f"{basis}:{period}")), None)
+            pieces += consistent(row_pieces(trail, ref, {ref}, basis, period, ref), used)
+        if derived_parts and got.value is not None and got.value > 0:
+            pieces.insert(0, _Piece("line", got.value, "*", str(getattr(item, "label", "") or item.key)))
+        return got, pieces
+
+    def flat_pieces(item, trail: dict, value: Decimal, basis: str, period: str) -> list[_Piece]:
+        rows = consistent(row_pieces(trail, None, {item.key}, basis, period, item.key),
+                          value)
+        if not rows or value <= 0:
+            return []
+        return [_Piece("line", value, None, str(getattr(item, "label", "") or item.key))] + rows
+
+    def relation(amount: Decimal, piece: _Piece, basis: str, period: str) -> str | None:
+        if amount == piece.amount:
+            return "identity"
+        if piece.level == "row" and piece.cell in cells:
+            table, note_row = cells[piece.cell]
+            if amount in _note_totals(table, note_row, basis, period):
+                return "contains"
+        return None
+
+    def other_period(period: str) -> str | None:
+        return {"current": "prior", "prior": "current"}.get(period)
+
+    def confirmed(face_row: LineItem, piece: _Piece, rel: str, line_key: str, basis: str,
+                  period: str) -> bool:
+        """The same relation in the other year, wherever both figures are printed."""
+        other = other_period(period)
+        if other is None:
+            return True
+        face_then = was(face_row, basis, other)
+        if face_then is None:
+            return True
+        if piece.level == "line":
+            then = figure_before(line_key, basis, other)
+        elif piece.level == "part":
+            then = figure_before(piece.owner or "", basis, other)
+        else:
+            located = cells.get(piece.cell)
+            if located is None:
+                then = listed_then(piece, basis, other)
+            else:
+                table, note_row = located
+                if rel == "contains":
+                    return face_then in _note_totals(table, note_row, basis, other)
+                then = _note_figure(note_row, basis, other)
+        return then is None or then == face_then
+
+    def match(piece: _Piece, others: list[LineItem], key: str, home: str, basis: str,
+              period: str, absorbed: dict[int, Decimal]):
+        """(face row, its slot, relation, is_residual) printing this piece, or None — and the row
+        that would have, had it held enough (a refusal to report)."""
+        found, refused = [], None
+        for face_row in others:
+            fev = _slot(face_row, basis, period)
+            printed = was(face_row, basis, period)
+            if fev is None or fev.value is None or not printed:
+                continue
+            rel = relation(printed, piece, basis, period)
+            if rel is None or not confirmed(face_row, piece, rel, key, basis, period):
+                continue
+            if piece.amount > fev.value - absorbed.get(id(fev), Decimal(0)):
+                refused = face_row
+                continue
+            found.append((face_row, fev, rel))
+        if not found:
+            return None, refused
+        here = [f for f in found if section(f[0].canonical_key) == home]
+        residual = next((f for f in here
+                         if scope_of.get(f[0].canonical_key) == "exclusive_residual"), None)
+        chosen = residual or (here[0] if here else found[0])
+        return (*chosen, chosen is residual), None
+
+    def piece_id(piece: _Piece) -> tuple:
+        return (piece.level, piece.owner, piece.cell or piece.label)
+
     for item in all_items:
         key = item.key
         home = section(key)
         if not getattr(item, "in_output", True) or not home.startswith("bs_"):
             continue
-        rows = [li for li in doc.line_items if li.canonical_key == key and li.derivation]
+        rows = [li for li in by_key.get(key, ()) if li.derivation]
         if not rows:
             continue
         mine = family(key)
+        others = [r for r in face if r.canonical_key not in mine
+                  and side(r.canonical_key) == side(key)]
+        if not others:
+            continue
+        is_cascade = bool(getattr(item, "cascade", None) or getattr(item, "terms", None))
         for row in rows:
-            for slot_key, ev in list(row.values.items()):
+            for ev in list(row.values.values()):
                 if ev.value is None:
                     continue
-                notes = notes_of(key, f"{_basis(ev)}:{ev.period_label}", set())
-                if not notes:
+                basis, period = _basis(ev), str(getattr(ev, "period_label", "") or "")
+                slot = f"{basis}:{period}"
+                trail = (row.derivation or {}).get(slot)
+                if not trail:
                     continue
-                citing = [r for r in face if r.canonical_key not in mine
-                          and side(r.canonical_key) == side(key)
-                          and any(note_sourced.same_note(n, c) for n in notes
-                                  for c in (*r.cited_notes(), r.note_number or "") if c)]
-                here = [r for r in citing if section(r.canonical_key) == home]
-                residual = next((r for r in here
-                                 if scope_of.get(r.canonical_key) == "exclusive_residual"), None)
-                committed = ([r for r in here if r is not residual] if residual is None and here
-                             else ([] if here else citing))
-                if residual is None and not committed:
-                    continue
-                if residual is not None:
-                    target = next((t for t in residual.values.values()
-                                   if t.basis == ev.basis and t.period_label == ev.period_label
-                                   and t.value is not None), None)
-                    if target is None or target.value < ev.value:
-                        row.confidence.flags.append(
-                            f"face_settlement_refused:{residual.canonical_key}")
-                        continue
-                    before = target.value
-                    target.value = before - ev.value
-                    residual.confidence.flags.append(f"carved_out:{key}:{ev.value}")
-                    ctx.log(f"note_sourced:face_settlement: {residual.canonical_key}"
-                            f"[{_basis(ev)}:{ev.period_label}] {before} less {key} {ev.value} "
-                            f"= {target.value} (the note it was read from is this row's)")
+                cascade = is_cascade and str(trail.get("method") or "").startswith("cascade:")
+                column, sources_by_slot = _column_figures(doc)
+                known = dict(column.get((basis, period), {}))
+                sources = sources_by_slot.get((basis, period))
+                if cascade:
+                    got, pieces = cascade_pieces(item, known, sources, basis, period)
+                    if not got.resolved or got.value != ev.value:
+                        continue                  # the figure is not this calculation's
                 else:
-                    other = committed[0]
-                    del row.values[slot_key]
-                    row.confidence.flags.append(f"withheld_printed_in:{other.canonical_key}")
-                    ctx.log(f"note_sourced:face_settlement: {key}[{_basis(ev)}:{ev.period_label}] "
-                            f"{ev.value} withheld — its note is printed on the face in "
-                            f"{other.canonical_key} ({other.source_label[:60]!r})")
+                    pieces = flat_pieces(item, trail, ev.value, basis, period)
+                if not pieces:
+                    continue
+
+                taken: list[tuple] = []           # (piece, face row, its slot, relation, residual)
+                done: set[tuple] = set()
+                absorbed: dict[int, Decimal] = {}
+                reduced: dict[str, Decimal] = {}  # cascade part -> money taken out of it
+                whole = False
+                for round_ in range(3):
+                    gave = False
+                    covered: set[str] = set()     # parts already taken whole this pass
+                    for piece in pieces:
+                        if whole:
+                            break
+                        if round_ and piece.level == "line":
+                            continue              # only the published figure is the line's own
+                        if piece_id(piece) in done or (piece.level == "row"
+                                                       and piece.owner in covered):
+                            continue
+                        hit, refused = match(piece, others, key, home, basis, period, absorbed)
+                        if hit is None:
+                            if refused is not None:
+                                row.confidence.flags.append(
+                                    f"face_settlement_refused:{refused.canonical_key}")
+                            continue
+                        face_row, fev, rel, is_residual = hit
+                        done.add(piece_id(piece))
+                        absorbed[id(fev)] = absorbed.get(id(fev), Decimal(0)) + piece.amount
+                        taken.append((piece, face_row, fev, rel, is_residual))
+                        if piece.level == "part":
+                            covered.add(piece.owner)
+                        if is_residual:
+                            if piece.level == "line":
+                                whole = True      # the residual gives the whole figure up
+                            continue
+                        gave = True
+                        if piece.level == "line":
+                            whole = True
+                            for part in pieces:
+                                if part.level == "part" and part.owner:
+                                    reduced[part.owner] = known.get(part.owner) or Decimal(0)
+                        elif piece.owner and piece.owner != "*":
+                            reduced[piece.owner] = (reduced.get(piece.owner, Decimal(0))
+                                                    + piece.amount)
+                    if not gave or not cascade or whole:
+                        break
+                    # A PART REDUCED CAN MOVE THE ANSWER TO ANOTHER RUNG, whose own parts are then
+                    # asked the same question.
+                    got, pieces = cascade_pieces(item, _reduced(known, reduced), sources,
+                                                 basis, period)
+                    if not got.resolved:
+                        break
+
+                for piece, face_row, fev, rel, is_residual in taken:
+                    if not is_residual:
+                        continue
+                    before = fev.value
+                    fev.value = before - piece.amount
+                    face_row.confidence.flags.append(f"carved_out:{key}:{piece.amount}")
+                    ctx.log(f"note_sourced:face_settlement: {face_row.canonical_key}[{slot}] "
+                            f"{before} less {key} {piece.amount} = {fev.value} (the residual "
+                            f"prints the money this line read)")
+                given = [t for t in taken if not t[4]]
+                if not given:
+                    continue
+                before = ev.value
+                deductions = [_deduction_input(p, f, fe, r) for p, f, fe, r, _x in given]
+                if cascade:
+                    trial = _reduced(known, reduced)
+                    got = evaluate_line(item, trial, sources)
+                    if not got.resolved:
+                        for _p, face_row, _f, _r, _x in given:
+                            row.confidence.flags.append(
+                                f"face_settlement_refused:{face_row.canonical_key}")
+                        ctx.log(f"note_sourced:face_settlement: {key}[{slot}] {before} KEPT — no "
+                                f"rung resolves once the money printed elsewhere is taken out")
+                        continue
+                    inputs = [_cascade_input(i, first_row, defs) for i in got.inputs]
+                    for inp in inputs:
+                        ref = inp.get("canonical_key")
+                        if ref in reduced and known.get(ref) is not None:
+                            inp["value"] = str(known[ref])   # its own figure; the cut is below
+                    after = got.value
+                    trail_out = note_sourced.derivation.build(
+                        method=f"cascade:{got.rung_used}",
+                        formula=" + ".join(f"{'-' if i['sign'] < 0 else ''}{i['ref']}"
+                                           for i in got.inputs),
+                        inputs=inputs + deductions, result=after,
+                        flags=[f"rung:{got.rung_used}"]
+                              + ([f"rungs_refused:{len(got.refused_rungs)}"]
+                                 if got.refused_rungs else [])
+                              + ([f"terms_missing:{len(got.missing)}"] if got.missing else [])
+                              + ["settled_against_face"])
+                else:
+                    after = before - sum((p.amount for p, *_rest in given), Decimal(0))
+                    if after < 0:
+                        for _p, face_row, _f, _r, _x in given:
+                            row.confidence.flags.append(
+                                f"face_settlement_refused:{face_row.canonical_key}")
+                        continue
+                    trail_out = dict(trail)
+                    trail_out["inputs"] = list(trail.get("inputs") or []) + deductions
+                    trail_out["result"] = str(after)
+                    trail_out["flags"] = list(trail.get("flags") or []) + ["settled_against_face"]
+                ev.value = after
+                row.derivation = note_sourced.derivation.record(
+                    row.derivation, basis=basis, period_label=period, derivation=trail_out)
+                for piece, face_row, fev, rel, _x in given:
+                    row.confidence.flags.append(
+                        f"counted_on_the_face:{face_row.canonical_key}:{piece.amount}")
+                    ctx.log(f"note_sourced:face_settlement: {key}[{slot}] {piece.label[:60]!r} "
+                            f"{piece.amount} is printed on the face in {face_row.canonical_key} "
+                            f"({str(face_row.source_label)[:60]!r}, {rel}) — the line's "
+                            f"calculation runs without it: {before} -> {after}")
+
+
+def _reduced(known: dict, reduced: dict[str, Decimal]) -> dict:
+    """`known` with the money printed elsewhere taken out of each part it reached the line through."""
+    out = dict(known)
+    for ref, cut in reduced.items():
+        figure = out.get(ref)
+        if figure is not None:
+            out[ref] = max(Decimal(0), figure - cut)
+    return out

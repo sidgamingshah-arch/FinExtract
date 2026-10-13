@@ -47,8 +47,19 @@ def note_sections(doc, line_item_set) -> dict[str, set[str]]:
     multi-section note as open, and that decision belongs to the caller's rule rather than to this
     lookup silently discarding evidence.
     """
+    from app.services.mapping import section_of_banner, section_of_key, section_token_of_scope
+
     by_id = {str(getattr(li, "id", "")): li for li in (getattr(doc, "line_items", None) or ())}
-    by_key = {i.key: i for i in (getattr(line_item_set, "items", None) or ())}
+    items = list(getattr(line_item_set, "items", None) or ())
+    by_key = {i.key: i for i in items}
+    # THE SET'S OWN SCOPE IDS BY THE SECTION EACH NAMES — so a face row the mapper did not claim can
+    # still say which section it was printed in.
+    scopes_by_token: dict[str, set[str]] = {}
+    for i in items:
+        for scope in (getattr(i, "section_scope", None) or ()):
+            token = section_token_of_scope(str(scope))
+            if token:
+                scopes_by_token.setdefault(token, set()).add(str(scope))
     out: dict[str, set[str]] = {}
     for link in (getattr(doc, "links", None) or ()):
         number = str(getattr(link, "note_number", "") or "")
@@ -57,10 +68,24 @@ def note_sections(doc, line_item_set) -> dict[str, set[str]]:
         row = by_id.get(str(getattr(link, "face_item_id", "") or ""))
         if row is None:
             continue
-        item = by_key.get(str(getattr(row, "canonical_key", "") or ""))
-        if item is None:
-            continue
-        scopes = {str(s) for s in (getattr(item, "section_scope", None) or ()) if s}
+        key = str(getattr(row, "canonical_key", "") or "")
+        item = by_key.get(key)
+        if item is not None:
+            scopes = {str(s) for s in (getattr(item, "section_scope", None) or ()) if s}
+        else:
+            # A FACE ROW NO LINE CLAIMED STILL CITES ITS NOTE FROM ONE SECTION. Its banner — or the
+            # section the mapper filed it under, which an unclassified row's key carries — is what
+            # the served row reports as its section (`routes.extractions._section_of_row`), and it
+            # is the same evidence a mapped row's concept gives. Measured on an Ind AS test filing:
+            # "(v) Other financial assets" under current assets cites note 14 and maps to no line,
+            # so note 14 resolved to no section and the NON-CURRENT "other financial assets" part
+            # read it with note 6 — 412 + 96 = 508 against the 412 the face prints. Only a token
+            # naming exactly one of this set's scopes counts.
+            token = (section_of_banner(getattr(row, "section_hint", None) or "")
+                     or section_of_key(key))
+            scopes = scopes_by_token.get(token, set()) if token else set()
+            if len(scopes) != 1:
+                scopes = set()
         if scopes:
             out.setdefault(number, set()).update(scopes)
     return out

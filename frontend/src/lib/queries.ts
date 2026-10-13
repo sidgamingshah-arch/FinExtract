@@ -221,11 +221,17 @@ export function activeTemplate(
   key?: string,
 ): TemplateRef | undefined {
   const rows = (list ?? []).filter((t) => !key || t.template_key === key);
-  // With nothing chosen, a template a run can MAP AGAINST before one that has no configuration:
-  // the first latest row by key is the template-only primary spread, and defaulting to it gave a
-  // reader who cannot list configurations a run that recognised nothing. `configured` absent (an
-  // older server) is not a refusal, so that server's default is unchanged.
+  // With nothing chosen, THE TEMPLATE THE SERVER WILL USE (`is_default`), so what this screen
+  // calls selected is what a run is laid out on. It applied a rule of its own here — the first
+  // latest configured row in key order — and named the HK template "Selected" while a run that
+  // pinned nothing went to ICON, the template stored last.
+  //
+  // Then, for an older server that does not flag a default: a template a run can MAP AGAINST before
+  // one that has no configuration — the first latest row by key is the template-only primary
+  // spread, and defaulting to it gave a reader who cannot list configurations a run that recognised
+  // nothing. `configured` absent is not a refusal, so that server's default is unchanged.
   return rows.find((t) => t.id === selectedId)
+    ?? rows.find((t) => t.is_default)
     ?? rows.find((t) => t.is_latest && t.configured !== false)
     ?? rows.find((t) => t.is_latest)
     ?? rows[0];

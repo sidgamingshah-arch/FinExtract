@@ -303,9 +303,18 @@ def list_templates(session: Session = Depends(db)) -> list[dict]:
     from app.services.config_select import select_for_template
 
     configured = {key for key in latest if select_for_template(session, key) is not None}
+    # THE TEMPLATE A RUN USES WHEN THE READER CHOSE NONE, answered by the rule that decides it
+    # (`resolve_template_id`) rather than re-derived by the client. The Upload screen labelled a
+    # template "Selected" by its own rule — the first latest configured row in this list's KEY
+    # order — while a run that pinned nothing was laid out on the template stored LAST: the screen
+    # showed the HK template selected and the run read the filing against ICON. One flag, one rule.
+    from app.api.routes.extractions import resolve_template_id
+
+    default_id = resolve_template_id(session, None)
     return [{"id": row.id, "template_key": row.template_key, "name": row.name,
              "version": row.version, "is_published": row.is_published,
              "is_latest": row.version == latest[row.template_key],
+             "is_default": row.id == default_id,
              "configured": row.template_key in configured} for row in rows]
 
 @router.get("/{template_id}")

@@ -987,6 +987,11 @@ export interface TemplateRef {
    *  run laid out on it maps against a configuration. Served because a reader without
    *  `config:line_items` cannot list configurations to find out. Absent from an older server. */
   configured?: boolean;
+  /** True for the ONE version a run uses when the reader chose none — the server's own answer
+   *  (`resolve_template_id`), so the screen can label it "Selected" and mean what the run will do.
+   *  The screen used to apply its own rule and showed one template selected while the run used
+   *  another. Absent from an older server. */
+  is_default?: boolean;
 }
 
 export interface IntegrityStat {
@@ -1687,6 +1692,13 @@ export interface NoteSource {
   column_heading_any?: string[];
   /** Headings that must NOT be read, even where the list above admits them. The veto wins. */
   column_heading_none?: string[];
+  /** A NOTE THAT SPLITS ITS HOLDINGS into current and non-current: the row that states THIS
+   *  part's portion ("Non-current portion" for a non-current part). Where a table prints it, the
+   *  part reads that row — as a magnitude — and none of the table's line items. */
+  portion_row_any?: string[];
+  /** The OTHER side's split row ("Less: Portion classified as current"). Where a table prints only
+   *  that one, the part reads its line items less it. Neither printed: read as before. */
+  other_portion_row_any?: string[];
   /** THE RAW ESCAPE HATCH for the prose route — regexes over a note's SENTENCES. Authored in
    *  plain words through the two fields below now; this stays for a sentence shape the grammar
    *  cannot express. Measured over the 28 patterns it replaced, none needed it. */

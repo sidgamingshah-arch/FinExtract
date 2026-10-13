@@ -355,6 +355,23 @@ class NoteSource(BaseModel):
     #: column the reader could not name fails closed. The veto wins.
     column_heading_any: list[str] = Field(default_factory=list)
     column_heading_none: list[str] = Field(default_factory=list)
+    #: A NOTE THAT SPLITS ITS HOLDINGS INTO CURRENT AND NON-CURRENT. A Hong Kong note commonly
+    #: prints the holdings gross, then "Less: Portion classified as current (174,822)" and
+    #: "Non-current portion 788,507" — so its line items belong to NEITHER side alone, and a part
+    #: summing them reads money the other side's part reads too. Measured on Lai Sun's note 26: the
+    #: current and the non-current FVTPL parts both read Listed 36,071 + Unlisted 927,258 = 963,329,
+    #: where the face prints 174,822 under current assets and 788,507 under non-current.
+    #:
+    #: `portion_row_any` names the row that states THIS part's portion ("Non-current portion" for a
+    #: non-current part). Where a table prints one, the part reads it — as a magnitude, since a
+    #: "Less:" row is printed negative — and none of the table's line items. `other_portion_row_any`
+    #: names the OTHER side's row; where a table prints only that one, the part reads its line items
+    #: less it. A table that prints neither is read exactly as before, which is every note that
+    #: belongs to one side (a PRC 交易性金融资产 note is current by what it is). Matched against the
+    #: row's own caption only, and ahead of `row_caption_any`/`row_caption_none`: a split row is a
+    #: statement of the table's structure, not a line item those patterns choose between.
+    portion_row_any: list[str] = Field(default_factory=list)
+    other_portion_row_any: list[str] = Field(default_factory=list)
     # THE SEMANTIC HALF, and the two levels are the SAME two levels as the patterns above. That
     # parallel is the whole design: which note, then which rows inside it, are different questions
     # searched against different text, and they need different vocabularies.

@@ -290,6 +290,12 @@ def test_every_reported_line_resolves_a_gate_and_parts_deliberately_do_not():
         "sub__fa_cp_fvtpl_note_total", "sub__fa_cp_fvtoci_note_total",
         "sub__fa_cp_afs_htm_note_total",
         "sub__fa_cp_investment_and_money_market_securities_note_total",
+        # DEBT INVESTMENTS AND OTHER FINANCIAL ASSETS, the last two current securities parts, scoped
+        # like their four siblings and their two non-current twins. Unscoped, they read a note the
+        # face cites only from a NON-CURRENT row: on three Ind AS test filings the current and the
+        # non-current "other financial assets" parts both read one note's 388.55, and the current
+        # line published it beside the non-current one once settlement stopped hiding it.
+        "sub__fa_cp_debt_investments_note_total", "sub__fa_cp_other_fincl_assets_note_total",
         # THE EIGHT SECURITIES (LTP) FIND 1 PARTS, scoped to `bs_nca` for the reason their current
         # twins are scoped to `bs_ca`: a note the face cites under current assets (1966's note 26)
         # is closed to them, so it is not read into both sections.

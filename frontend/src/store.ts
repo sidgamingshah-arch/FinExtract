@@ -15,8 +15,8 @@ import { create } from "zustand";
 
 import {
   getStoredActiveDoc, getStoredLiListCollapsed, getStoredNavCollapsed, getStoredPinnedRun,
-  getToken, setStoredActiveDoc, setStoredLiListCollapsed, setStoredNavCollapsed,
-  setStoredPinnedRun, setStoredToken,
+  getStoredSelectedTemplate, getToken, setStoredActiveDoc, setStoredLiListCollapsed,
+  setStoredNavCollapsed, setStoredPinnedRun, setStoredSelectedTemplate, setStoredToken,
 } from "./lib/api";
 import type { Basis, ExportFmt, ExtractMode, Locale, StatementKey } from "./types";
 
@@ -104,7 +104,8 @@ export const useUI = create<UIState>((set, get) => ({
   note: "12",
   openCheck: "bs",
   tplSel: "trade_recv",
-  selectedTemplateId: null,
+  // Restored, so the choice survives a reload — see `getStoredSelectedTemplate`.
+  selectedTemplateId: getStoredSelectedTemplate(),
   // Restored only for the document that is actually active — see `getStoredPinnedRun`.
   pinnedRunId: getStoredPinnedRun(getStoredActiveDoc()),
   exportFmt: "excel",
@@ -141,7 +142,10 @@ export const useUI = create<UIState>((set, get) => ({
   setNote: (note) => set({ note }),
   toggleCheck: (id) => set((s) => ({ openCheck: s.openCheck === id ? "" : id })),
   setTpl: (tplSel) => set({ tplSel }),
-  setSelectedTemplateId: (selectedTemplateId) => set({ selectedTemplateId }),
+  setSelectedTemplateId: (selectedTemplateId) => {
+    setStoredSelectedTemplate(selectedTemplateId);
+    set({ selectedTemplateId });
+  },
   setPinnedRunId: (pinnedRunId) => {
     setStoredPinnedRun(get().activeDocumentId, pinnedRunId);
     set({ pinnedRunId });

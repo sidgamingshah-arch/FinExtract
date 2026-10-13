@@ -63,6 +63,21 @@ export function setStoredNavCollapsed(v: boolean): void {
   localStorage.setItem(NAV_KEY, v ? "1" : "0");
 }
 
+const TEMPLATE_KEY = "finex.template.selected";
+/** The template VERSION the reader chose for their runs. Remembered, because a choice that a reload
+ *  forgets hands the next run to the server's default — a template the reader did not pick, on a
+ *  screen that no longer says they picked anything. A stored id the server no longer serves is
+ *  harmless: `activeTemplate` finds no row for it and falls back to the default. */
+export function getStoredSelectedTemplate(): string | null {
+  if (typeof localStorage === "undefined") return null;
+  return localStorage.getItem(TEMPLATE_KEY) || null;
+}
+export function setStoredSelectedTemplate(id: string | null): void {
+  if (typeof localStorage === "undefined") return;
+  if (id) localStorage.setItem(TEMPLATE_KEY, id);
+  else localStorage.removeItem(TEMPLATE_KEY);
+}
+
 const LI_LIST_KEY = "finex.lineItems.listCollapsed";
 /** Whether the Line Items screen's list pane is put away. OPEN is the default, and the asymmetry
  *  with the nav rail above is deliberate: the rail is a menu, and a menu hidden on a first visit

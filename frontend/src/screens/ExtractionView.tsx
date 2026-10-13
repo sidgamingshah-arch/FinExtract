@@ -843,9 +843,16 @@ export default function ExtractionView() {
   // adopted throughout, and the new pick's run starts when that one ends rather than racing it
   // (`!inFlight`).
   const startBlocked = !!mine && mine.pin === pinnedId;
+  // NO TEMPLATE, NO RUN — until the list has settled. A POST naming no template is laid out on the
+  // server's default, which is not necessarily the one the reader selected: the run started before
+  // the selection resolved went to the template stored last, and the POST that followed with the
+  // selected one was refused as a second run in flight. Starting without one is still right where
+  // the settled list holds no template this run could use.
+  const tplSettled = !!tpl || (tplQ.isFetched
+                               && !activeTemplate(tplQ.data, null, cfg?.target_template_key));
   // NO ANSWER, NO RUN. A read that has not landed — or that failed — cannot say whether a pipeline
   // is already working on this document, and starting one on that basis is the duplicate above.
-  const starting = ready && canRun && answered && !inFlight && !startBlocked;
+  const starting = ready && canRun && answered && !inFlight && !startBlocked && tplSettled;
   // `cfg.id` IS the pin the run records: it travels as `line_item_version_id` on the POST, and the
   // sentence under the picker reads the id back off the run. The two must be the same id or the
   // screen names one configuration while the run reads another.

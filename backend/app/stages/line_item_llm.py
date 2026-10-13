@@ -213,6 +213,9 @@ class LineItemLlmStage(Stage):
         # on — settled after the last request by `_settle_shared_printed_rows`.
         face_claims: dict[str, list[str]] = {}
         cited_by_key: dict[str, list[str | None]] = {}
+        # EVERY NOTE ROW each line was given, by its printed position — settled after the last
+        # request by `_settle_shared_note_rows`.
+        note_cells: dict[str, list[tuple | None]] = {}
         kept_printed: list[tuple[str, LineItem]] = []
         # WHAT THE MODEL PLACED OUT OF EACH NOTE, per basis, period and section — see
         # `_explain_swept_rows`. Indian filings only.
@@ -427,6 +430,9 @@ class LineItemLlmStage(Stage):
                         on_face = bool(entry.get("on_face") and entry.get("row_id"))
                         cited_by_key.setdefault(item.key, []).append(
                             str(entry["row_id"]) if on_face else None)
+                        if not on_face and not entry.get("prose"):
+                            note_cells.setdefault(item.key, []).append(
+                                note_sourced.cell_of(entry.get("provenance")))
                         if not on_face:
                             continue
                         rid = str(entry["row_id"])
@@ -458,6 +464,7 @@ class LineItemLlmStage(Stage):
         blanked = self._reconcile_claimed_printed_rows(kept_printed, claimed_face_rows, ctx)
         blanked += self._settle_shared_printed_rows(doc, face_claims, cited_by_key, by_concept,
                                                     ctx)
+        blanked += self._settle_shared_note_rows(doc, note_cells, by_concept, line_item_set, ctx)
         # THE RUN'S ONE-LINE TOKEN SUMMARY. `cached` is part of `input`, not added to it.
         hit = (100.0 * tok["cached"] / tok["input"]) if tok["input"] else 0.0
         ctx.log(f"line_item_llm:tokens document_context={doc_context} requests={calls} "
@@ -813,6 +820,73 @@ class LineItemLlmStage(Stage):
                         f"{where or 'no recognised section'} and goes to {owner}; this line is "
                         f"left empty" + (f" (was {figures[0]})" if figures else ""))
         return blanked
+
+    @staticmethod
+    def _settle_shared_note_rows(doc, note_cells: dict[str, list[tuple | None]], by_concept: dict,
+                                 line_item_set, ctx) -> int:
+        """One note row, one part: when the model gave the SAME note row to two parts of a parent.
+
+        THE CASE, from a Lai Sun run. Note 26 prints the FVTPL holdings and their "Non-current
+        portion 788,507"; the model cited that row for the non-current FVTPL part AND for the
+        non-current "other financial assets" part. The parent counted it once (`_apply_terms`
+        adds one printed row once), but the second part published 788,507 as other financial
+        assets that the filing does not have, and the export showed it twice under the parent.
+
+        The row-pattern filters that keep two parts apart on the deterministic route are not sent
+        to the model and do not grade its answer, so the separation is made here, from what the
+        configuration already says about each part: its `note_terms`, through the same
+        one-note-one-sibling claim the deterministic route reads (`line_item_notes.claimed_notes`).
+
+        WHO KEEPS IT: the part whose claim covers the row's note; where none or several do, the
+        part declared first. THE OTHERS ARE EMPTIED, trail and all — a part whose only reading was
+        a sibling's row has no reading of its own — unless its figure also rests on other rows, in
+        which case it is left as it is and said so.
+        """
+        from app.services.line_item_notes import claimed_notes
+
+        items = list(getattr(line_item_set, "items", None) or ())
+        order = {i.key: n for n, i in enumerate(items)}
+        parent_of = {i.key: str(getattr(i, "parent", "") or "") for i in items}
+        shared: dict[tuple, list[str]] = {}
+        for key, cells in note_cells.items():
+            parent = parent_of.get(key, "")
+            if not parent:
+                continue
+            for cell in {c for c in cells if c}:
+                shared.setdefault((parent, cell), []).append(key)
+        shared = {k: v for k, v in shared.items() if len(set(v)) > 1}
+        if not shared:
+            return 0
+        claims = claimed_notes([i for i in items if getattr(i, "note_source", None)], doc.notes)
+        located = note_sourced.note_cells(doc)
+        emptied = 0
+        for (parent, cell), keys in shared.items():
+            keys = sorted(set(keys), key=lambda k: order.get(k, len(order)))
+            table, note_row = located.get(cell, (None, None))
+            note = str(getattr(table, "note_number", "") or "")
+            owners = [k for k in keys if note and note in claims.get(k, ())]
+            owner = owners[0] if len(owners) == 1 else keys[0]
+            caption = str(getattr(note_row, "raw_label", "") or "")[:48]
+            for key in keys:
+                row = by_concept.get(key)
+                if key == owner or row is None:
+                    continue
+                if any(c and c != cell for c in note_cells.get(key, ())):
+                    ctx.log(f"line_item_llm:{key}: shares note {note} row {caption!r} with "
+                            f"{owner}, but its figure also rests on other rows — left as is")
+                    continue
+                figures = sorted({str(ev.value) for ev in (row.values or {}).values()
+                                  if getattr(ev, "value", None) is not None})
+                row.values = {}
+                row.derivation = None
+                row.confidence.flags.append(f"llm_note_row_claimed_by:{owner}")
+                if figures:
+                    row.confidence.flags.append(f"llm_note_row_withheld:{','.join(figures[:4])}")
+                emptied += 1
+                ctx.log(f"line_item_llm:{key}: note {note} row {caption!r} goes to {owner}, whose "
+                        f"note it is; this part is left empty"
+                        + (f" (was {figures[0]})" if figures else ""))
+        return emptied
 
     @staticmethod
     def _write_prose(row, doc, amount, resolved: list[dict], ctx, item) -> int:

@@ -103,3 +103,33 @@ def test_each_row_says_whether_a_run_on_it_maps_against_a_configuration(client):
         with SessionLocal() as s:
             s.query(TemplateVersion).filter(TemplateVersion.template_key == bare).delete()
             s.commit()
+
+
+def test_exactly_one_template_is_the_default_and_it_is_the_one_an_unpinned_run_uses(client):
+    """THE SCREEN AND THE RUN ANSWER "WHICH TEMPLATE?" WITH ONE RULE.
+
+    The Upload screen labelled a template "Selected" by a rule of its own — the first latest,
+    configured row in this list's key order — while a run that pinned nothing was laid out on the
+    template stored LAST (`resolve_template_id`). Measured in the running app: HK shown selected,
+    the run read against ICON. The default is now the server's to state, once, on the row it will
+    use; the screen shows that row as selected when the reader chose none.
+    """
+    from app.api.routes.extractions import resolve_template_id
+    from app.db.base import SessionLocal
+
+    key = f"tk-default-{uuid.uuid4().hex[:8]}"
+    from app.db.models import TemplateVersion
+
+    with SessionLocal() as s:
+        newest = _publish(s, key, 1)
+        s.commit()
+    try:
+        rows = client.get("/api/v1/templates").json()
+        defaults = [r for r in rows if r.get("is_default")]
+        assert len(defaults) == 1, [(r["template_key"], r["version"]) for r in defaults]
+        with SessionLocal() as s:
+            assert defaults[0]["id"] == resolve_template_id(s, None) == newest
+    finally:
+        with SessionLocal() as s:
+            s.delete(s.get(TemplateVersion, newest))
+            s.commit()
