@@ -841,6 +841,12 @@ def _trail_input(hit: NoteRowHit, *, counted: bool) -> dict:
         "excerpt": f"note '{hit.note_title}' row matched /{hit.matched_by}/" + _column_excerpt(hit),
         "deducted": False,
         "counted": counted,
+        # WHAT THE ROW PUT INTO THE FIGURE, for the trail's arithmetic (`derivation.working`): its
+        # signed amount when the rollup took it, nothing when an `alternatives` rollup took another
+        # row. A split row of the other side arrives as a negative amount and is a deduction.
+        "used": str(hit.amount) if counted else "0",
+        "status": ("deducted" if hit.amount < 0 else "used") if counted else "not_used",
+        **({} if counted else {"reason": "alternative"}),
         # THE PRINTED COLUMN, for a column-selected part only — so every other trail is unchanged.
         **({"column": hit.column} if getattr(hit, "column", None) else {}),
     }
@@ -908,7 +914,11 @@ def method_of(rollup: str, count: int) -> str:
     return f"note_sourced:sum_of_{count}_rows"
 
 
-def trail(*, rollup: str, item_label: str, amount: Decimal, inputs: list[dict]) -> dict:
+def trail(*, rollup: str, item_label: str, amount: Decimal, inputs: list[dict],
+          display: dict | None = None) -> dict:
+    # `display` IS HOW THE INPUTS COMBINE, for the trail's arithmetic — see `derivation.build`.
+    # Without it the payload is the legacy shape, which the reader shows and never judges.
+    #
     # A CITED ROW IS ALWAYS COUNTED. `counted` marks which of a declared selection's candidate rows
     # were actually added (`_trail_input`), a distinction the row route needs because a
     # `alternatives` rollup offers several and takes one. A citation carries no such candidacy: the
@@ -924,7 +934,8 @@ def trail(*, rollup: str, item_label: str, amount: Decimal, inputs: list[dict]) 
         formula=formula, inputs=inputs, result=amount,
         flags=[f"note_rows:{len(counted)}"]
              + ([f"alternatives_not_taken:{len(inputs) - len(counted)}"]
-                if len(inputs) > len(counted) else []))
+                if len(inputs) > len(counted) else []),
+        display=display)
 
 
 def bad_patterns(item) -> list[str]:

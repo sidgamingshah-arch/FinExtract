@@ -145,6 +145,11 @@ class Evaluation:
     # WHY THIS RUNG'S OWN INPUTS CONTRADICT EACH OTHER, when they do — see `_apply_terms`. A cascade
     # treats it as it treats a negative rung: passed over, reported, and the next rung tried.
     contradiction: str | None = None
+    # THE SAME REFUSALS AS `refused_rungs`, as records rather than sentences: `{rung, why:
+    # "negative", value}` or `{rung, why: "contradiction", detail}`. The trail carries these so the
+    # inspector and the export can say "rule LTP_P1 came to −549,975 and was passed over" in the
+    # reader's language without parsing an English string. Nothing in the arithmetic reads them.
+    refusals: list[dict] = field(default_factory=list)
 
     @property
     def resolved(self) -> bool:
@@ -304,6 +309,43 @@ def _apply_terms(terms: list[Term], known: dict[str, Decimal | None],
     return Evaluation(total + adjustments, inputs, missing)
 
 
+def term_statuses(inputs: list[dict], op: str = "sum") -> list[tuple[str, Decimal, str | None]]:
+    """What each entry of an `Evaluation` put into the figure: ``(status, adds, reason)``, in order.
+
+    DISPLAY ONLY. `_apply_terms` decides the figure; this reads the entries it left behind so a
+    trail can show the same arithmetic, and it never changes an entry. The sum of ``adds`` over the
+    entered terms (status ``used`` or ``deducted``) equals `Evaluation.value` for every operator —
+    `sum`, `max`, `min` and `first` — and `abs` terms need nothing extra, because ``used`` is already
+    the signed contribution after `abs`.
+
+      * ``same_row``  — `duplicate_of_row`: the row was read by an earlier term and added once.
+      * ``not_used``  — `part_is_the_totals_own_row` (only ever in a refused rung, reason
+        ``contradiction``); or a base candidate a `max`/`min`/`first` rung did not take (reason
+        ``not_selected``). A TIE marks every tying candidate `selected`, so only the FIRST selected
+        one is entered — counting each would double the figure.
+      * ``deducted`` / ``used`` — an entered term, by the sign of what it adds.
+    """
+    out: list[tuple[str, Decimal, str | None]] = []
+    taken = False
+    for entry in inputs:
+        if entry.get("duplicate_of_row") is not None:
+            out.append(("same_row", Decimal(0), None))
+            continue
+        if entry.get("part_is_the_totals_own_row") is not None:
+            out.append(("not_used", Decimal(0), "contradiction"))
+            continue
+        if entry.get("role") != "adjustment" and op != "sum":
+            if entry.get("selected") and not taken:
+                taken = True
+            else:
+                out.append(("not_used", Decimal(0), "not_selected"))
+                continue
+        adds = _dec(entry.get("used")) or Decimal(0)
+        sign = int(entry.get("sign") or 1)
+        out.append(("deducted" if sign < 0 or adds < 0 else "used", adds, None))
+    return out
+
+
 def evaluate(d: LineItemDef, known: dict[str, Decimal | None],
              sources: dict[str, tuple] | None = None) -> Evaluation:
     """One line's value from the values already known.
@@ -352,10 +394,13 @@ def evaluate(d: LineItemDef, known: dict[str, Decimal | None],
 
     if d.type == "derived":
         refused: list[str] = []
+        refusals: list[dict] = []
         for rung in d.cascade:
             got = _apply_terms(rung.terms, known, getattr(rung, "terms_op", "sum"), sources)
             if got.contradiction:
                 refused.append(f"{rung.id}: {got.contradiction}")
+                refusals.append({"rung": str(rung.id), "why": "contradiction",
+                                 "detail": got.contradiction})
                 continue
             if not got.resolved:
                 continue
@@ -367,11 +412,13 @@ def evaluate(d: LineItemDef, known: dict[str, Decimal | None],
             # see which rung was passed over and why the answer came from further down.
             if rung.refuse_negative and got.value is not None and got.value < 0:
                 refused.append(f"{rung.id} computed {got.value}")
+                refusals.append({"rung": str(rung.id), "why": "negative", "value": str(got.value)})
                 continue
             got.rung_used = rung.id
             got.refused_rungs = refused
+            got.refusals = refusals
             return got
-        return Evaluation(None, [], [], None, refused_rungs=refused)
+        return Evaluation(None, [], [], None, refused_rungs=refused, refusals=refusals)
 
     # extracted — the document supplies it; this layer only reports what it was given
     return Evaluation(_dec(known.get(d.key)))

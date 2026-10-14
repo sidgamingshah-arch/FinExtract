@@ -15,6 +15,7 @@ import { exportScreen } from "./i18n/screens/export";
 import { commentary } from "./i18n/screens/commentary";
 import { extraction } from "./i18n/screens/extraction";
 import { audit } from "./i18n/screens/audit";
+import { trail } from "./i18n/screens/trail";
 
 export type Dict = Record<string, string>;
 export type LocaleDicts = Record<Locale, Dict>;
@@ -473,7 +474,7 @@ const core: LocaleDicts = {
   },
 };
 
-const SCREEN_DICTS: LocaleDicts[] = [upload, integrity, scope, extraction, review, notes, template, exportScreen, commentary, settingsScreen, audit];
+const SCREEN_DICTS: LocaleDicts[] = [upload, integrity, scope, extraction, review, notes, template, exportScreen, commentary, settingsScreen, audit, trail];
 
 const DICT: LocaleDicts = { en: {}, zh: {}, ar: {}, fr: {} };
 (Object.keys(DICT) as Locale[]).forEach((loc) => {

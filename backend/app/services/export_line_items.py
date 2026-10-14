@@ -32,8 +32,9 @@ literal is written and the reason goes in the cell comment instead. `_terms_form
 """
 from __future__ import annotations
 
+from app.services import derivation
 from app.services.derivation import merge_for_basis
-from app.services.periods import concept_value
+from app.services.periods import concept_value, edited_for, slot_for
 
 SHEET = "Line Items"
 SHEET_REF = "'" + SHEET + "'!"
@@ -209,6 +210,38 @@ def _sum_formula(contributions: list[dict], period: str, col: str, first_row: in
     return "=" + "+".join(refs)
 
 
+def _amount_text(value: float | None) -> str:
+    """A figure in a cell comment: whole units without decimals, anything else to the cent."""
+    if value is None:
+        return "—"
+    return f"{value:,.0f}" if float(value).is_integer() else f"{value:,.2f}"
+
+
+def _trail_how(contribution: dict, locale: str) -> str:
+    """What a trail row did to the figure, per period — "added", "same row, added once" — or
+    "<current> / <prior>" where the two years differ. A legacy trail says only whether it counted."""
+    st1, st2 = contribution.get("status"), contribution.get("status2")
+    if not st1 and not st2:
+        return "counted" if contribution.get("counted") is not False else "not taken"
+    first = derivation.status_text(st1, contribution.get("why1"), locale) if st1 else ""
+    second = derivation.status_text(st2, contribution.get("why2"), locale) if st2 else ""
+    if first and second and first != second:
+        return f"{first} / {second}"
+    return first or second
+
+
+def _trail_comment(contribution: dict, locale: str, fmt) -> str:
+    """The words behind a trail row: the filing's, the model's (said to be the model's), the
+    pattern a note row matched, and why the row reads as it does."""
+    why = contribution.get("why1") or contribution.get("why2")
+    lines = [f"“{contribution['quote']}”" if contribution.get("quote") else "",
+             derivation.model_quote_text(contribution["model_quote"], locale)
+             if contribution.get("model_quote") else "",
+             str(contribution.get("matched") or ""),
+             derivation.why_text(why, fmt, locale)]
+    return "\n".join(line for line in lines if line)
+
+
 def _where(prov: dict | None) -> str:
     """One provenance as a reader's citation: the folio the publisher printed, else the sheet."""
     if not prov:
@@ -280,6 +313,15 @@ def build_line_items_sheet(wb, line_item_set, rows: list[dict], *, period_cols, 
 
     plan = _tree(items)
 
+    def carrier(key: str, basis: str) -> dict | None:
+        """The row holding this line's trail for a basis — where a line is carried by several
+        printed rows and a cascade wrote onto one of them, that one — else the first row."""
+        group = by_key.get(key) or []
+        return next((x for x in group
+                     if any(str(slot).startswith(f"{basis}:")
+                            for slot in (x.get("derivation") or {}))),
+                    group[0] if group else None)
+
     def contributions_of(key: str) -> tuple[str | None, list[dict]]:
         """``(basis, note rows)`` for a line — the FIRST basis that has a block, and whose it is.
 
@@ -297,7 +339,7 @@ def build_line_items_sheet(wb, line_item_set, rows: list[dict], *, period_cols, 
         if not group:
             return None, []
         for (basis, _period) in period_cols:
-            got = _contributions(group[0], basis)
+            got = _contributions(carrier(key, basis), basis)
             if len(got) > 1:
                 return basis, got
         return None, []
@@ -324,8 +366,30 @@ def build_line_items_sheet(wb, line_item_set, rows: list[dict], *, period_cols, 
             return None
         return round(value * scale) if scale != 1.0 else value
 
+    def figure_text(value: float | None) -> str:
+        return _amount_text(presented(value))
+
+    def working_of(key: str, basis: str, period: str) -> dict | None:
+        """How this line's figure adds up in one column, where its trail records the arithmetic
+        — `services.derivation.working`, the same reader the inspector uses."""
+        row = carrier(key, basis)
+        store = (row or {}).get("derivation") or {}
+        slot = store.get(f"{basis}:{period}")
+        if not isinstance(slot, dict) or not slot.get("version"):
+            return None
+        value = slot_for(row, basis, period)
+        return derivation.working(
+            store, basis, period, shown=value_of(key, basis, period),
+            edited=any(edited_for(x, basis, period) for x in by_key.get(key) or []),
+            flags=list(row.get("flags") or [])
+            + list(((value or {}).get("confidence") or {}).get("flags") or []))
+
     # ── PASS 2: write ────────────────────────────────────────────────────────────────────────
     r = hdr + 1
+    # THE KEYS THE LAST TOP-LEVEL LINE'S ANSWERING RUNG READ, when its trail records them — so a
+    # sub-line beneath it that has a figure the rung did not use can say so.
+    used_by_parent: set[str] | None = None
+    parent_basis_of_children: str | None = None
     for item, depth in plan:
         key = getattr(item, "key", "")
         group = by_key.get(key) or []
@@ -368,11 +432,35 @@ def build_line_items_sheet(wb, line_item_set, rows: list[dict], *, period_cols, 
             cell.alignment = right
             if depth == 0:
                 cell.font = Font(bold=True)
+            # HOW THE FIGURE ADDS UP rides on the figure itself, in the reader's language and the
+            # sheet's units: "788,507 + 128,412 − 549,975 = 366,944 — adds up." A comment rather
+            # than a column, so the sheet's columns stay where every reader of it expects them.
+            w = working_of(key, basis, period)
+            if w is not None:
+                cell.comment = Comment(derivation.working_text(w, figure_text, locale),
+                                       "FinExtract", width=360, height=140)
 
-        ws.cell(r, how_col, (row or {}).get("mapping_method")
-                or _derived_how(row, contrib_basis)
-                or ("" if row else "not extracted")
-                ).font = Font(size=9, color="8A94A6")
+        how = ((row or {}).get("mapping_method")
+               or _derived_how(row, contrib_basis)
+               or ("" if row else "not extracted"))
+        if depth == 0:
+            parent_basis = contrib_basis or next(
+                (b for b, _p in period_cols
+                 if ((carrier(key, b) or {}).get("derivation") or {}).get(f"{b}:current")), None)
+            trail = (((carrier(key, parent_basis) or {}).get("derivation") or {})
+                     .get(f"{parent_basis}:current") if parent_basis else None)
+            used_by_parent = ({str(i.get("canonical_key")) for i in (trail.get("inputs") or [])
+                               if isinstance(i, dict) and i.get("canonical_key")}
+                              if isinstance(trail, dict) and trail.get("version") else None)
+            parent_basis_of_children = parent_basis
+        elif (used_by_parent is not None and key not in used_by_parent
+              and value_of(key, parent_basis_of_children, "current") is not None):
+            # A SUB-LINE WITH A FIGURE THE ANSWERING RUNG DID NOT READ — a part of another rung,
+            # or one the cascade passed over. Said beside it, so its figure is not read as part of
+            # the line's.
+            how = " · ".join(x for x in (how, derivation.word("not used by the winning rung",
+                                                               locale)) if x)
+        ws.cell(r, how_col, how).font = Font(size=9, color="8A94A6")
         if row:
             values_list = row.get("values") or []
             ws.cell(r, src_col,
@@ -384,7 +472,12 @@ def build_line_items_sheet(wb, line_item_set, rows: list[dict], *, period_cols, 
 
         # The individual printed rows, each addressable and each with its own page.
         for contribution in contributions:
-            caption = ws.cell(r, 1, str(contribution.get("label") or ""))
+            why = contribution.get("why1") or contribution.get("why2") or {}
+            # Money a face row prints is named in the reader's language, like every other word
+            # the trail adds; a printed caption stays as it was printed.
+            text = (derivation.face_label(str(why["caption"]), locale) if why.get("caption")
+                    else str(contribution.get("label") or ""))
+            caption = ws.cell(r, 1, text)
             caption.alignment = Alignment(indent=_INDENT[2])
             caption.font = Font(size=9, color="4B5563", italic=True)
             ws.cell(r, 3, "note row").font = Font(size=8, color="8A94A6")
@@ -399,16 +492,17 @@ def build_line_items_sheet(wb, line_item_set, rows: list[dict], *, period_cols, 
                 cell.number_format = num_fmt
                 cell.alignment = right
                 cell.font = Font(size=9, color="4B5563")
-            counted = contribution.get("counted") is not False
             # "not taken" is not a footnote: an `alternatives` rollup lists rows it did NOT add,
-            # and a reader adding the column up needs to know which ones those are.
-            ws.cell(r, how_col, "counted" if counted else "not taken").font = Font(size=8,
-                                                                                  color="8A94A6")
+            # and a reader adding the column up needs to know which ones those are. A trail that
+            # records its arithmetic says which: added, deducted, the same row added once.
+            ws.cell(r, how_col, _trail_how(contribution, locale)).font = Font(size=8,
+                                                                             color="8A94A6")
             ws.cell(r, src_col, _where(contribution.get("source")
                                        or contribution.get("source2"))
                     ).font = Font(size=9, color="8A94A6")
-            if contribution.get("excerpt"):
-                caption.comment = Comment(str(contribution["excerpt"]), "FinExtract")
+            comment = _trail_comment(contribution, locale, figure_text)
+            if comment:
+                caption.comment = Comment(comment, "FinExtract")
             r += 1
 
     cells: dict[tuple[str, str, str], tuple[str, float | None]] = {}

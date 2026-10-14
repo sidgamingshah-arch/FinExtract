@@ -13,6 +13,7 @@ import { useNavigate } from "react-router-dom";
 import { Button, ConfidencePill, NoteChip, Segmented, StatusIcon, confReadout } from "../components/ui";
 import { EmptyState } from "../components/EmptyState";
 import { ExcelGrid, PageStack, toPicked, type Picked } from "../components/SourceViewer";
+import { TrailFooter, TrailTitle, isEntered, statusOf, statusPill, trailSentence, whyOf, whyText } from "../components/TrailWorking";
 import { color, confStyle, font, layout, radius, shadow, fmtIN, fmtPlain, parseAccounting } from "../theme";
 import { DERIVED_STATEMENTS } from "../types";
 import type { Basis, FxRateResolution, LineItemTrace, RowContribution, StatementColumn, StatementKey, StatementResponse, StatementRow, SupersededTemplate } from "../types";
@@ -423,6 +424,10 @@ function TraceRows({
   path: string;
   seen?: string[];
 }) {
+  const t = useT();
+  // The operator column reads as the arithmetic of the figure: no sign on the first input that
+  // entered it, "+" or "−" on the rest, "=" on a row read twice and "·" on one that added nothing.
+  const enteredIdx = contributions.findIndex((c) => isEntered(c, period));
   return (
     <>
       {contributions.map((c, i) => {
@@ -435,6 +440,30 @@ function TraceRows({
         // in the list — it is a real place in the document a reviewer can check — but showing it
         // with a "+" would make the column not add up.
         const counted = (period === "current" ? c.counted : c.counted2) !== false;
+        // WHAT THE INPUT DID, on a trail that records it: added, deducted, the same row read
+        // twice, a candidate not taken, a term not found. A trail stored before that keeps
+        // `counted` and the old reading.
+        const st = statusOf(c, period);
+        const entered = isEntered(c, period);
+        const why = whyOf(c, period);
+        // AN INPUT OF THE OTHER YEAR'S TRAIL ONLY — last year's rule read a row this year's did not
+        // — added nothing to this year's figure: "·", not the "=" of a row read twice.
+        const otherYearOnly = !st && !!(period === "current" ? c.status2 : c.status);
+        const op = st
+          ? (!entered ? (st === "same_row" ? "=" : "·")
+            : st === "deducted" ? "−" : i === enteredIdx ? "" : "+")
+          : otherYearOnly ? "·"
+            : (!counted ? "=" : c.deducted ? "−" : i === 0 ? "" : "+");
+        const pill = statusPill(c, period, t);
+        const reason = whyText(why, present, t);
+        // A deducted input carries the "−" in its operator column, so the amount is its magnitude
+        // — a prose input's too, which is stated in full rather than in the reader's units.
+        const magnitude = v == null ? null
+          : (st ? entered && st === "deducted" : !!c.deducted) ? Math.abs(v) : v;
+        // Money a face row prints is named in the reader's language; a printed caption as printed.
+        const label = why?.caption
+          ? t("trail.label.countedOnFace").replace("{caption}", why.caption)
+          : c.label;
 
         const key = c.canonical_key ?? "";
         // A hop is only offered where there is something behind it: a key, a trail for that key,
@@ -457,14 +486,14 @@ function TraceRows({
             >
               <span style={{ fontFamily: font.mono, fontSize: 10.5, color: color.muted,
                              minWidth: 14 }}>
-                {!counted ? "=" : c.deducted ? "−" : i === 0 ? "" : "+"}
+                {op}
               </span>
               <span style={{ flex: 1, minWidth: 0 }}>
                 <span
                   onClick={() => (deeper ? onToggle(at) : jump && onPick(jump))}
                   title={deeper
-                    ? (open ? "Hide what this is made of" : "Show what this is made of")
-                    : jump ? "Show " + src + " in the document" : undefined}
+                    ? t(open ? "trail.hop.hide" : "trail.hop.show")
+                    : jump ? t("trail.jump").replace("{src}", src ?? "") : undefined}
                   style={{
                     fontSize: 11.5, color: color.ink, display: "block",
                     cursor: deeper || jump ? "pointer" : "default",
@@ -480,36 +509,58 @@ function TraceRows({
                       {open ? "▾" : "▸"}
                     </span>
                   ) : null}
-                  {c.label}
+                  {label}
                 </span>
-                {/* An input read out of PROSE has no printed row to point at, so the filing's own
-                    sentence is the trace — shown here rather than left to a page number the
-                    reader cannot check anything against. */}
-                {c.excerpt ? (
+                {/* WHOSE WORDS, said: the filing's own (a printed caption, or the sentence an
+                    earlier run read) in quotation marks; the model's quote labelled as the
+                    model's; the configuration pattern a note row matched as plain code, not as a
+                    quotation; and why the row reads as it does. */}
+                {c.quote ? (
                   <span style={{ fontSize: 10.5, color: color.muted, fontStyle: "italic",
                                  display: "block", marginTop: 2, lineHeight: 1.45 }}>
-                    {"“" + c.excerpt + "”"}
+                    {"“" + c.quote + "”"}
+                  </span>
+                ) : null}
+                {c.model_quote ? (
+                  <span style={{ fontSize: 10.5, color: color.muted, fontStyle: "italic",
+                                 display: "block", marginTop: 2, lineHeight: 1.45 }}>
+                    {t("trail.modelQuote") + ": “" + c.model_quote + "”"}
+                  </span>
+                ) : null}
+                {c.matched ? (
+                  <span title={t("trail.matched")}
+                        style={{ fontSize: 10, color: color.muted, fontFamily: font.mono,
+                                 display: "block", marginTop: 2, lineHeight: 1.45,
+                                 wordBreak: "break-word" }}>
+                    {c.matched}
+                  </span>
+                ) : null}
+                {reason ? (
+                  <span style={{ fontSize: 10.5, color: color.muted, display: "block",
+                                 marginTop: 2, lineHeight: 1.45 }}>
+                    {reason}
                   </span>
                 ) : null}
               </span>
-              {!counted ? (
-                <span style={{ fontSize: 9.5, fontWeight: 600, padding: "1px 6px",
+              {pill ? (
+                <span data-testid={`trail-status-${st || "legacy"}`}
+                      style={{ fontSize: 9.5, fontWeight: 600, padding: "1px 6px",
                                borderRadius: radius.pill, background: color.amberBg,
-                               color: color.amberFg }}>
-                  printed twice
+                               color: color.amberFg, whiteSpace: "nowrap" }}>
+                  {pill}
                 </span>
               ) : c.residual ? (
                 <span style={{ fontSize: 9.5, fontWeight: 600, padding: "1px 6px",
                                borderRadius: radius.pill, background: color.amberBg,
                                color: color.amberFg }}>
-                  {v == null ? "absent" : "routed"}
+                  {v == null ? t("trail.residual.absent") : t("trail.residual.routed")}
                 </span>
               ) : null}
               {/* THE PAGE STAYS ITS OWN TARGET even on a row that expands, so "show me where this
                   is printed" is never lost to "show me what this is made of". */}
               <span
                 onClick={() => jump && onPick(jump)}
-                title={jump ? "Show " + src + " in the document" : undefined}
+                title={jump ? t("trail.jump").replace("{src}", src ?? "") : undefined}
                 style={{ fontFamily: font.mono, fontSize: 11,
                          color: jump ? color.sec2 : color.muted,
                          minWidth: 46, textAlign: "right",
@@ -519,23 +570,40 @@ function TraceRows({
                 {src || ""}
               </span>
               <span style={{ fontFamily: font.mono, fontSize: 11.5, fontWeight: 600,
-                             color: counted ? color.ink : color.muted, minWidth: 92,
+                             color: entered ? color.ink : color.muted, minWidth: 92,
                              textAlign: "right" }}>
                 {/* A deducted input carries the "−" in its operator column, so the amount shows
-                    its magnitude: "− 529,841" rather than "+ -529,841". */}
-                {v == null ? "—" : present(c.deducted ? Math.abs(v) : v)}
+                    its magnitude: "− 529,841" rather than "+ -529,841". A prose input is stated in
+                    full, as the sentence states it — the working shows the division. */}
+                {magnitude == null ? "—" : c.scale ? fmtIN(magnitude) : present(magnitude)}
               </span>
             </div>
             {open && deeper ? (
               <>
                 {/* The sub-line's own arithmetic, named before its parts are listed — the same
-                    thing the inspector prints above a top-level contributions block. */}
-                {deeper.formula ? (
-                  <div style={{ padding: "2px 10px 4px " + (10 + (depth + 1) * 14) + "px",
-                                fontFamily: font.mono, fontSize: 10, color: color.muted }}>
-                    {deeper.formula}
-                  </div>
-                ) : null}
+                    thing the inspector prints above a top-level contributions block: its verdict
+                    where its trail records the arithmetic, else its formula. */}
+                {(() => {
+                  const hop = period === "current" ? deeper.working1 : deeper.working2;
+                  const pad = "2px 10px 4px " + (10 + (depth + 1) * 14) + "px";
+                  if (hop) {
+                    return (
+                      <div data-testid="trail-hop-verdict"
+                           style={{ padding: pad, fontSize: 10.5, lineHeight: 1.5,
+                                    color: hop.how === "adds_up" ? color.greenFg
+                                      : hop.how === "differs" ? color.redFg
+                                        : hop.how === "not_recorded" ? color.sec2 : color.amberFg }}>
+                        {trailSentence(hop, present, (n) => (n == null ? "—" : fmtIN(n)), t)}
+                      </div>
+                    );
+                  }
+                  return deeper.formula ? (
+                    <div style={{ padding: pad, fontFamily: font.mono, fontSize: 10,
+                                  color: color.muted }}>
+                      {deeper.formula}
+                    </div>
+                  ) : null;
+                })()}
                 <TraceRows
                   contributions={deeper.contributions}
                   traces={traces}
@@ -1512,23 +1580,39 @@ export default function WorkspaceScreen() {
    *  document" is a fact about the filing; omitting it would make the list look like the whole of
    *  what the subtotal is defined as, which is the opposite of a citation.
    *
-   *  A FACT PRINTED TWICE GETS NO SIGN. `counted === false` marks evidence for the figure rather
-   *  than an addend of it — the same rule `TraceRows` applies — so it is listed without a "+" that
-   *  would make the line not add up. */
-  const citation = (selRowObj?.contributions ?? []).map((c, i) => {
-    const prov = inspPeriod === "current" ? c.source : c.source2;
-    const raw = inspPeriod === "current" ? c.v1 : c.v2;
-    const counted = (inspPeriod === "current" ? c.counted : c.counted2) !== false;
-    return {
-      at: (c.canonical_key ?? c.label ?? "") + "#" + i,
-      label: c.label ?? c.canonical_key ?? "",
-      figure: raw == null ? "not in this document" : present(raw),
-      absent: raw == null,
-      deducted: !!c.deducted || !counted,
-      src: (inspPeriod === "current" ? c.src : c.src2) ?? "",
-      jump: usingReal ? toPicked(prov ?? null, c.label ?? "") : null,
-    };
-  });
+   *  ONLY WHAT ENTERED THE FIGURE IS CITED. An input that added nothing in this period — a fact
+   *  printed twice, the same row read by a second part, a candidate a rule did not take, a citation
+   *  that corroborates the first — is shown in the list below, not in the arithmetic: it used to be
+   *  written here with a " − ", which made "788,507 + 128,412 − 788,507 − 549,975 = 366,944", a sum
+   *  that is false. A deducted input is cited at its magnitude after its "−". */
+  const citation = (selRowObj?.contributions ?? [])
+    .filter((c) => isEntered(c, inspPeriod))
+    .map((c, i) => {
+      const prov = inspPeriod === "current" ? c.source : c.source2;
+      const raw = inspPeriod === "current" ? c.v1 : c.v2;
+      const st = statusOf(c, inspPeriod);
+      const deducted = st ? st === "deducted" : !!c.deducted;
+      const why = whyOf(c, inspPeriod);
+      const magnitude = raw == null ? null : deducted ? Math.abs(raw) : raw;
+      return {
+        at: (c.canonical_key ?? c.label ?? "") + "#" + i,
+        label: why?.caption
+          ? t("trail.label.countedOnFace").replace("{caption}", why.caption)
+          : c.label ?? c.canonical_key ?? "",
+        figure: magnitude == null ? t("trail.notInDocument")
+          : c.scale ? fmtIN(magnitude) : present(magnitude),
+        absent: raw == null,
+        deducted,
+        src: (inspPeriod === "current" ? c.src : c.src2) ?? "",
+        jump: usingReal ? toPicked(prov ?? null, c.label ?? "") : null,
+      };
+    });
+  // A FIGURE READ OUT OF PROSE is its sentences' amounts, stated in full, divided by the
+  // statement's scale — so the citation says the division, as the working below does, rather
+  // than "1,200,000 + 1,300,000 = 2,500".
+  const citeScale = (selRowObj?.contributions ?? []).find((c) => c.scale)?.scale ?? null;
+  // How the figure on show adds up, when its trail records the arithmetic.
+  const inspWorking = inspPeriod === "current" ? selRowObj?.working1 : selRowObj?.working2;
   const onPickCitation = setPicked;
   // A calculated line's divergence from the printed figure is a finding, so the inspector states
   // it. The printed figure is never the line's value, but silence would hide the disagreement.
@@ -2266,18 +2350,25 @@ export default function WorkspaceScreen() {
                         so the citation is built from those and each name stays clickable through to
                         where it was printed. The figures-only rendering stays as the fallback,
                         for a row that carries no contributions at all. */}
+                    {citation.length > 0 && citeScale && citation.length > 1 ? (
+                      <span style={{ fontFamily: font.mono, color: color.muted }}>{"("}</span>
+                    ) : null}
                     {citation.length > 0
                       ? citation.map((c, i) => (
                           <span key={c.at}>
-                            {i > 0 && (
+                            {i > 0 ? (
                               <span style={{ fontFamily: font.mono, color: color.muted }}>
                                 {c.deducted ? " − " : " + "}
                               </span>
-                            )}
+                            ) : c.deducted ? (
+                              <span style={{ fontFamily: font.mono, color: color.muted }}>
+                                {"− "}
+                              </span>
+                            ) : null}
                             <span
                               onClick={() => c.jump && onPickCitation(c.jump)}
-                              title={c.jump ? "Show " + c.src + " in the document"
-                                            : c.absent ? "Not found in this document" : undefined}
+                              title={c.jump ? t("trail.jump").replace("{src}", c.src)
+                                            : c.absent ? t("trail.notInDocument") : undefined}
                               style={{
                                 cursor: c.jump ? "pointer" : "default",
                                 color: c.absent ? color.muted : color.ink,
@@ -2293,6 +2384,11 @@ export default function WorkspaceScreen() {
                           </span>
                         ))
                       : (selRowObj?.arithmetic ?? selRowObj?.formula ?? "")}
+                    {citation.length > 0 && citeScale ? (
+                      <span style={{ fontFamily: font.mono, color: color.muted }}>
+                        {(citation.length > 1 ? ")" : "") + " ÷ " + fmtIN(citeScale)}
+                      </span>
+                    ) : null}
                   </span>
                   <span style={{ fontFamily: font.mono, fontSize: 12, fontWeight: 600, color: color.indigo }}>
                     = {(inspPeriod === "current" ? selRowObj?.display1 : selRowObj?.display2)
@@ -2356,7 +2452,9 @@ export default function WorkspaceScreen() {
 
                 {/* A combined figure matches no single line on the page, so every line that went
                     into it is listed with its own amount and its own page — click one to jump
-                    the viewer straight to where it was printed. */}
+                    the viewer straight to where it was printed. A derived figure whose trail
+                    records its arithmetic is the "How it adds up" box: the same rows, each saying
+                    what it did, and the working beneath them in the reader's units. */}
                 {inspOrigin !== "reported_uncomputed" && selRowObj?.contributions?.length ? (
                   <div
                     style={{
@@ -2367,6 +2465,7 @@ export default function WorkspaceScreen() {
                       overflow: "hidden",
                     }}
                   >
+                    {inspWorking ? <TrailTitle /> : null}
                     <TraceRows
                       contributions={selRowObj.contributions}
                       traces={d.traces}
@@ -2385,6 +2484,7 @@ export default function WorkspaceScreen() {
                       depth={0}
                       path=""
                     />
+                    {inspWorking ? <TrailFooter working={inspWorking} present={present} /> : null}
                   </div>
                 ) : null}
               </>

@@ -213,8 +213,16 @@ class NoteSourcedStage(Stage):
                                                     if scale and scale != 1 else "")),
                                      # THE PAGE. Without it a prose citation is an amount a reader
                                      # cannot go and look at — see `ProseHit.provenance`.
-                                     "provenance": hit.provenance}
-                                    for hit, was_counted in zip(sentences, counted)]))
+                                     "provenance": hit.provenance,
+                                     # What the sentence put into the figure, stated in full; the
+                                     # trail's `scale` is the division that follows.
+                                     "used": str(hit.amount) if was_counted else "0",
+                                     "status": (("deducted" if hit.amount < 0 else "used")
+                                                if was_counted else "not_used"),
+                                     **({} if was_counted else {"reason": "alternative"})}
+                                    for hit, was_counted in zip(sentences, counted)],
+                            display={"op": "first" if rollup == "alternatives" else "sum",
+                                     "scale": str(scale) if scale and scale != 1 else None}))
                     filled += 1
                     prose_filled += 1
                 row.is_computed = True
@@ -268,8 +276,11 @@ class NoteSourcedStage(Stage):
                        unit_ctx=_statement_unit(doc, basis))
                 row.derivation = note_sourced.derivation.record(
                     row.derivation, basis=basis, period_label=period,
-                    derivation=note_sourced.trail(rollup=rollup, item_label=item.label or item.key,
-                                                  amount=amount, inputs=inputs))
+                    derivation=note_sourced.trail(
+                        rollup=rollup, item_label=item.label or item.key, amount=amount,
+                        inputs=inputs,
+                        # An `alternatives` rollup takes the first row; any other adds them.
+                        display={"op": "first" if rollup == "alternatives" else "sum"}))
                 filled += 1
             row.is_computed = True
             row.confidence.flags.append(f"note_sourced:{len(hits)}")
@@ -992,15 +1003,11 @@ def _cascade_input(term: dict, by_key: dict, defs: dict | None) -> dict:
     """
     ref = str(term.get("ref") or "")
     row = by_key.get(ref) if ref else None
-    definition = (defs or {}).get(ref) if ref else None
-    label = (getattr(definition, "label", "") or getattr(row, "source_label", "") or ref
-             or "fixed number")
     out = {
-        "label": label,
+        "label": _label_of(ref, by_key, defs),
         "value": term.get("value"),
         "counted": True,
         "deducted": term.get("sign", 1) < 0,
-        "excerpt": f"role={term.get('role')}",
     }
     if ref:
         # WHAT MAKES THE HOP CLICKABLE. The inspector renders a contribution with a
@@ -1012,6 +1019,92 @@ def _cascade_input(term: dict, by_key: dict, defs: dict | None) -> dict:
         if prov is not None:
             out["provenance"] = note_sourced.derivation._json_safe_provenance(prov)
     return out
+
+
+def _label_of(ref: str, by_key: dict, defs: dict | None) -> str:
+    """A referenced line's name: its definition's label, the extracted row's printed caption, the
+    bare key — or "fixed number" for a term that refers to no line."""
+    row = by_key.get(ref) if ref else None
+    definition = (defs or {}).get(ref) if ref else None
+    return (getattr(definition, "label", "") or getattr(row, "source_label", "") or ref
+            or "fixed number")
+
+
+def _json_list(value) -> list:
+    """A row identity as JSON keeps it: a list, with the cell corner as a list too."""
+    return [list(v) if isinstance(v, tuple) else v for v in value]
+
+
+def _cascade_inputs(got, op: str, by_key: dict, defs: dict | None, sources: dict | None,
+                    cells: dict | None) -> list[dict]:
+    """A cascade's trail inputs, each saying what it put into the figure.
+
+    `_cascade_input` per term, plus what the evaluation already knew and the trail used to drop:
+    the term's sign and role, what it ADDED (`used`) and why (`status`, `reason` — see
+    `services.line_items.term_statuses`), the earlier term that already counted a row read twice
+    (`via`), and the cell the part printed in THIS period (`period_provenance`, from `cells`).
+
+    ADDED FIELDS ONLY. `label`, `value`, `counted`, `deducted`, `canonical_key` and `provenance` are
+    exactly `_cascade_input`'s, because the face settlement follows them (`row_pieces`) and the
+    shared-figure detector compares them; and no field is named `ref`, which `row_pieces` follows
+    as it follows `canonical_key`. The evaluation's entries are not changed.
+    """
+    from app.services.line_items import term_statuses
+
+    out: list[dict] = []
+    for idx, (entry, (status, adds, reason)) in enumerate(
+            zip(got.inputs, term_statuses(got.inputs, op))):
+        inp = _cascade_input(entry, by_key, defs)
+        inp["sign"] = int(entry.get("sign") or 1)
+        inp["role"] = entry.get("role")
+        inp["used"] = str(adds)
+        inp["status"] = status
+        if reason is not None:
+            inp["reason"] = reason
+        if entry.get("abs"):
+            inp["abs"] = True
+        if "selected" in entry:
+            inp["selected"] = bool(entry["selected"])
+        duplicate = entry.get("duplicate_of_row")
+        if duplicate is not None:
+            inp["duplicate_of_row"] = _json_list(duplicate)
+            row = tuple(duplicate)
+            first = next((e for e in got.inputs[:idx]
+                          if e.get("duplicate_of_row") is None and e.get("ref")
+                          and (sources or {}).get(e["ref"]) == row), None)
+            if first is not None:
+                inp["via_key"] = first["ref"]
+                inp["via"] = _label_of(first["ref"], by_key, defs)
+        ref = entry.get("ref")
+        if ref and cells is not None:
+            cell = cells.get(ref) or {}
+            # The KEY is written even when the part's figure has no page, so the reader knows not
+            # to fall back to `provenance` — which is the part's first figure, possibly last year's.
+            inp["period_provenance"] = cell.get("provenance")
+            caption = str(cell.get("caption") or "")
+            if caption and caption != inp["label"]:
+                inp["caption"] = caption
+        out.append(inp)
+    return out
+
+
+def _cascade_display(got, parent_def, defs: dict | None) -> dict:
+    """How the answering rung combines its terms, which of its terms the filing did not print, and
+    which rungs above it were passed over — the trail-level half of a cascade's arithmetic."""
+    rung = next((r for r in (getattr(parent_def, "cascade", None) or ())
+                 if str(getattr(r, "id", "")) == str(got.rung_used)), None)
+    if rung is not None:
+        op = str(getattr(rung, "terms_op", None) or "sum")
+        terms = list(getattr(rung, "terms", None) or ())
+    else:
+        op = str(getattr(parent_def, "terms_op", None) or "sum")
+        terms = list(getattr(parent_def, "terms", None) or ())
+    role_of = {t.ref: t.role for t in terms if getattr(t, "ref", None)}
+    missing = [{"key": ref,
+                "label": str(getattr((defs or {}).get(ref), "label", "") or ref),
+                "role": str(role_of.get(ref, "") or "")}
+               for ref in got.missing if ref != "fixed number"]
+    return {"op": op, "missing": missing, "refused": list(getattr(got, "refusals", None) or [])}
 
 
 def _row_identity(ev) -> tuple | None:
@@ -1086,6 +1179,36 @@ def _column_figures(doc: DocumentModel) -> tuple[dict, dict]:
     return slots, sources
 
 
+def _column_provenance(doc: DocumentModel) -> dict:
+    """``{(basis, period): {key: {"provenance", "caption"}}}`` — where each figure a cascade reads
+    was printed, IN ITS OWN COLUMN.
+
+    The same first writer as `_column_figures` — the first row in document order with a figure in
+    that column, with a page or without — so the cell named is the one whose figure the rung used.
+    For the trail's display only: `_cascade_input`'s `provenance` is the referenced row's first
+    figure of any column, which put last year's input on this year's cell, and it stays as it was
+    because the engine reads it.
+    """
+    out: dict[tuple[str, str], dict] = {}
+    for row in doc.line_items:
+        key = row.canonical_key
+        if not key:
+            continue
+        for ev in (row.values or {}).values():
+            if ev.value is None:
+                continue
+            slot = (_basis(ev), str(getattr(ev, "period_label", "") or ""))
+            cells = out.setdefault(slot, {})
+            if key in cells:
+                continue
+            prov = getattr(ev, "provenance", None)
+            cells[key] = {
+                "provenance": note_sourced.derivation._json_safe_provenance(prov),
+                "caption": str(getattr(prov, "text_snippet", None) or "") if prov is not None
+                           else ""}
+    return out
+
+
 def _fill_by_cascade(parent_def, kids: list, by_key: dict, doc: DocumentModel,
                      ctx: PipelineContext, defs: dict | None = None) -> int:
     """Evaluate the parent's declared cascade against its note-sourced children, per column.
@@ -1152,6 +1275,8 @@ def _fill_by_cascade(parent_def, kids: list, by_key: dict, doc: DocumentModel,
     # term names a concept and not a parenthood — and `_children_by_parent` is still what decides
     # which children a parent OWNS, which is a different question.
     slots, sources = _column_figures(doc)
+    # Where each of those figures was printed, per column — for the trail's page chips only.
+    cells = _column_provenance(doc)
     # A COLUMN WITH NO CHILD FIGURE AT ALL IS NOT THIS PARENT'S TO FILL. Widening `known` above
     # also widened the set of columns this loop would attempt, which would have it evaluate a
     # cascade in a column where none of its own parts appear — so the columns are still taken from
@@ -1271,6 +1396,12 @@ def _fill_by_cascade(parent_def, kids: list, by_key: dict, doc: DocumentModel,
         # `target_row` is the one whose slot the rung wrote into; where a line is carried by
         # several printed rows those differ, and a trail on a row with no figure is a trail
         # nobody opening the number can find.
+        #
+        # AND IT RECORDS THE RUNG'S ARITHMETIC — what each term added, how the rung combines them,
+        # which of its terms the filing did not print and which rungs were passed over — so the
+        # inspector can show the trail adding up to the figure. Display fields only: the method,
+        # the raw-key formula, the result and the flags below are exactly what they were.
+        display = _cascade_display(got, parent_def, defs)
         target_row.derivation = note_sourced.derivation.record(
             target_row.derivation, basis=basis, period_label=period,
             derivation=note_sourced.derivation.build(
@@ -1295,7 +1426,8 @@ def _fill_by_cascade(parent_def, kids: list, by_key: dict, doc: DocumentModel,
                 # carried, the human label is looked up, and the referenced row's own provenance
                 # rides along so the contribution is clickable to the page as well as navigable to
                 # the line. A `const` term has no `ref` and stays a plain labelled number.
-                inputs=[_cascade_input(i, by_key, defs) for i in got.inputs],
+                inputs=_cascade_inputs(got, display["op"], by_key, defs,
+                                       sources.get((basis, period)), cells.get((basis, period))),
                 result=got.value,
                 flags=[f"rung:{got.rung_used}"]
                      + ([f"rungs_refused:{len(got.refused_rungs)}"] if got.refused_rungs else [])
@@ -1303,7 +1435,8 @@ def _fill_by_cascade(parent_def, kids: list, by_key: dict, doc: DocumentModel,
                      # The figure this rung replaced, in the trail and not only in a flag: the
                      # trail is what a reviewer opens to ask why a number is what it is, and
                      # "it displaced 128,412" is the first thing they need to see.
-                     + ([f"displaced_printed:{displaced}"] if displaced is not None else [])))
+                     + ([f"displaced_printed:{displaced}"] if displaced is not None else []),
+                display=display))
         target_row.confidence.flags.append(f"cascade_rung:{got.rung_used}")
         # Per SLOT, not per row: one basis may be read out of the face's captions and another
         # printed as a line of its own. See `CascadeRung.carved_from_face`.
@@ -1580,6 +1713,17 @@ def _deduction_input(piece: _Piece, face_row: LineItem, face_ev, relation: str) 
                    f"there and not here",
         "provenance": note_sourced.derivation._json_safe_provenance(
             getattr(face_ev, "provenance", None)),
+        # FOR THE TRAIL'S WORDING: the face row by its caption (the label above, translated), how
+        # it prints the money, and whether it is the line's WHOLE figure. What the deduction took
+        # out of the arithmetic (`used`) is set by the caller, which knows the cut.
+        "face_caption": caption,
+        "relation": relation,
+        "whole_line": piece.level == "line",
+        "face_amount": str(piece.amount),
+        # AN ADJUSTMENT, as a cascade's deduction term is: it applies to the figure the trail's
+        # rule reached, and is never one of the figures a `first`, `max` or `min` chose between —
+        # read as one, the working said "first(4,444; 4,444; -4,444) = 0".
+        "role": "adjustment",
     }
 
 
@@ -1919,11 +2063,14 @@ def _settle_against_the_face(doc: DocumentModel, ctx: PipelineContext, all_items
                         ctx.log(f"note_sourced:face_settlement: {key}[{slot}] {before} KEPT — no "
                                 f"rung resolves once the money printed elsewhere is taken out")
                         continue
-                    inputs = [_cascade_input(i, first_row, defs) for i in got.inputs]
+                    display = _cascade_display(got, item, defs)
+                    inputs = _cascade_inputs(got, display["op"], first_row, defs, sources,
+                                             _column_provenance(doc).get((basis, period)))
                     for inp in inputs:
                         ref = inp.get("canonical_key")
                         if ref in reduced and known.get(ref) is not None:
                             inp["value"] = str(known[ref])   # its own figure; the cut is below
+                    _allocate_cuts(inputs, deductions, given, known, reduced, trial)
                     after = got.value
                     trail_out = note_sourced.derivation.build(
                         method=f"cascade:{got.rung_used}",
@@ -1934,7 +2081,8 @@ def _settle_against_the_face(doc: DocumentModel, ctx: PipelineContext, all_items
                               + ([f"rungs_refused:{len(got.refused_rungs)}"]
                                  if got.refused_rungs else [])
                               + ([f"terms_missing:{len(got.missing)}"] if got.missing else [])
-                              + ["settled_against_face"])
+                              + ["settled_against_face"],
+                        display=display)
                 else:
                     after = before - sum((p.amount for p, *_rest in given), Decimal(0))
                     if after < 0:
@@ -1942,6 +2090,14 @@ def _settle_against_the_face(doc: DocumentModel, ctx: PipelineContext, all_items
                             row.confidence.flags.append(
                                 f"face_settlement_refused:{face_row.canonical_key}")
                         continue
+                    # EACH DEDUCTION TAKES ITS PIECE OUT, in the trail's own terms: a prose trail's
+                    # inputs are stated in full, so its piece is multiplied back by the scale the
+                    # figure was divided by.
+                    scale = Decimal(str(trail.get("scale") or 1))
+                    for deduction, (piece, *_rest) in zip(deductions, given):
+                        deduction["used"] = _negated(piece.amount * scale)
+                        deduction["status"] = "deducted"
+                        deduction["reason"] = "counted_on_face"
                     trail_out = dict(trail)
                     trail_out["inputs"] = list(trail.get("inputs") or []) + deductions
                     trail_out["result"] = str(after)
@@ -1966,3 +2122,61 @@ def _reduced(known: dict, reduced: dict[str, Decimal]) -> dict:
         if figure is not None:
             out[ref] = max(Decimal(0), figure - cut)
     return out
+
+
+def _negated(amount: Decimal) -> str:
+    """``-amount`` as a trail stores it — "0" rather than Decimal's "-0"."""
+    return str(-amount) if amount else "0"
+
+
+def _allocate_cuts(inputs: list[dict], deductions: list[dict], given: list[tuple], known: dict,
+                   reduced: dict[str, Decimal], trial: dict) -> None:
+    """A settled cascade's trail, as each part's own figure less the money the face prints.
+
+    The rung was re-run on the REDUCED figures, so its entries say what each part added once the
+    face's money was taken out. The trail shows each reduced part at its own figure instead
+    (`used`, with the cut in `reduced_by`) and gives the cut to the deduction rows that caused it:
+    a part's or a row's piece takes up to its own amount out of its part's cut, and a piece that is
+    the line's WHOLE figure takes every cut. The cut is the clamped one `_reduced` applied, so a
+    piece can take less than it printed (`partial`), and a deduction whose part the answering rung
+    no longer uses takes nothing (`not_needed`). By construction the inputs and the deductions add
+    up to the settled figure. Display fields only: `value` and `deducted` are the caller's.
+
+    A CANDIDATE A `max`, `min` OR `first` NO LONGER TAKES was compared at what the face left of
+    it, so its cut is recorded too (`reduced_by`, its `used` still nothing) — the working shows it
+    at that figure. Shown at its own, MAX_VALID read "max(900; 1,650; 1,200) = 1,200" for a
+    reading the face had taken all of.
+    """
+    cuts: dict[str, tuple[int, Decimal]] = {}
+    for inp in inputs:
+        ref = inp.get("canonical_key")
+        if not ref or ref in cuts or ref not in reduced or known.get(ref) is None:
+            continue
+        own = abs(known[ref]) if inp.get("abs") else known[ref]
+        left = abs(trial[ref]) if inp.get("abs") else trial[ref]
+        if inp.get("status") not in note_sourced.derivation.ENTERED:
+            if inp.get("status") == "not_used" and own - left:
+                inp["reduced_by"] = str(own - left)
+            continue
+        sign = int(inp.get("sign") or 1)
+        cuts[ref] = (sign, own - left)
+        inp["used"] = str(sign * own)
+        inp["reduced_by"] = str(own - left)
+    remaining = {ref: cut for ref, (_sign, cut) in cuts.items()}
+    for deduction, (piece, *_rest) in zip(deductions, given):
+        if piece.level == "line":
+            taken = sum((cuts[ref][0] * left for ref, left in remaining.items()), Decimal(0))
+            remaining = {ref: Decimal(0) for ref in remaining}
+            partial = False
+        else:
+            sign = cuts.get(piece.owner, (1, Decimal(0)))[0]
+            left = remaining.get(piece.owner, Decimal(0))
+            amount = min(piece.amount, left)
+            if piece.owner in remaining:
+                remaining[piece.owner] = left - amount
+            taken = sign * amount
+            partial = Decimal(0) < amount < piece.amount
+        deduction["used"] = _negated(taken)
+        deduction["status"] = "deducted" if taken else "not_used"
+        deduction["reason"] = "counted_on_face" if taken else "not_needed"
+        deduction["partial"] = partial

@@ -185,6 +185,20 @@ _TR.update({
 })
 
 
+# The inspector's note on a figure whose trail records its arithmetic. The working itself — each
+# input's status and the verdict — is built client-side from `working1`/`working2`, so that it
+# follows the units selector; this is the one sentence about it the server writes.
+_TR.update({
+    "Assembled by the {method} rule from the inputs below; each keeps its own figure and page — "
+    "click one to jump to it in the document.":
+        {"zh": "按 {method} 规则由下列各项组装；每一项都保留自己的数字和页码——点击即可跳转到文档中的位置。",
+         "ar": "جُمِّع بقاعدة {method} من المدخلات أدناه؛ ويحتفظ كل منها برقمه وصفحته — انقر أيًّا "
+               "منها للانتقال إليه في المستند.",
+         "fr": "Assemblé par la règle {method} à partir des éléments ci-dessous ; chacun conserve "
+               "son chiffre et sa page — cliquez sur l'un d'eux pour y accéder dans le document."},
+})
+
+
 # The Current/Prior fallback used when a filing's columns carry no printed header. Copied verbatim
 # from services/export.py:36-37 so the two modules cannot drift: without these entries
 # ``_t("Current", "zh")`` returned English, so a zh/ar/fr reader saw an English column header on
@@ -5039,6 +5053,12 @@ def _build_statement(rows: list[dict], template_def: dict | None, statement_type
 
         row["v1"], o1 = resolve("current", c1, row["reported1"])
         row["v2"], o2 = resolve("prior", c2, row["reported2"])
+        # A PERIOD THE ROLLUP COMPUTED shows the rollup's arithmetic, so a trail's working would
+        # describe a figure the line no longer shows.
+        if o1 == "calculated":
+            row["working1"] = None
+        if o2 == "calculated":
+            row["working2"] = None
         row["calculated1"] = c1.value if (c1 and c1.computable) else None
         row["calculated2"] = c2.value if (c2 and c2.computable) else None
         row["origin1"], row["origin2"] = o1, o2
@@ -5108,6 +5128,9 @@ def _build_statement(rows: list[dict], template_def: dict | None, statement_type
                 "src2": _prov_label(provs.get(comp.canonical_key, (None, None))[1]),
                 "source2": provs.get(comp.canonical_key, (None, None))[1],
             } for i, comp in enumerate(source.components)]
+            # The rows listed are now the rollup's components, not the trail's inputs, so no
+            # period may show the trail's working beside them.
+            row["working1"] = row["working2"] = None
         diff = None
         if row.get("origin1") == "calculated" and row["v1"] is not None \
                 and row["reported1"] is not None:
@@ -5144,8 +5167,28 @@ def _build_statement(rows: list[dict], template_def: dict | None, statement_type
         on the first contributing line, which is where click-to-source lands — carried for BOTH
         periods, because last year's figure is printed somewhere too and is just as much a
         number a reviewer needs to check against the page.
+
+        A LINE CARRIED BY SEVERAL ROWS IS STILL A DERIVED LINE when one of them holds this basis's
+        trail and the rest show no figure: a cascade that outranks the printed rows writes onto
+        one of them and silences the others (`superseded_by_cascade`). That row is the line's, and
+        its trail is the explanation — "Combined from 2 printed lines" with "366,944 + —" was the
+        printed rows the rung replaced, not the arithmetic of the figure shown. A trail for the
+        OTHER basis explains nothing here.
         """
-        r = group[0]
+        def has_trail(x: dict) -> bool:
+            return any(str(slot).startswith(f"{basis}:") for slot in (x.get("derivation") or {}))
+
+        def silent(x: dict) -> bool:
+            return all((v or {}).get("value") is None for v in _cur_prior(x, basis))
+
+        trail_rows = [x for x in group if has_trail(x)]
+        if len(group) == 1 and trail_rows:
+            trail_row = group[0]
+        elif len(trail_rows) == 1 and all(silent(x) for x in group if x is not trail_rows[0]):
+            trail_row = trail_rows[0]
+        else:
+            trail_row = None
+        r = trail_row or group[0]
         cur, prior = _cur_prior(r, basis)
         cat, pct = _conf_cat(min((x.get("mapping_confidence") or 0) for x in group)
                              if len(group) > 1 else r.get("mapping_confidence"))
@@ -5160,7 +5203,10 @@ def _build_statement(rows: list[dict], template_def: dict | None, statement_type
         formula = (edited_row or r).get("formula")
         arithmetic: str | None = None      # display-only rendering of how the figure was reached
         contributions: list[dict] = []
-        if len(group) > 1:
+        # HOW THE FIGURE ADDS UP, per period — `services.derivation.working`. Only a derived
+        # line has one; the client renders it in the reader's units.
+        working1 = working2 = None
+        if len(group) > 1 and trail_row is None:
             # A combined figure has to be auditable line by line: each contributing caption with
             # its OWN values and its OWN source location, so every part can be traced back to the
             # page it was printed on. A prose summary cannot be clicked.
@@ -5215,24 +5261,46 @@ def _build_statement(rows: list[dict], template_def: dict | None, statement_type
                                   f"click one to jump to it in the document.")
                                  + (f" A manual value replaces the combined figure; the printed "
                                     f"lines still add to {printed}." if edited else "")}
-        elif r.get("derivation"):
+        elif trail_row is not None:
             # A figure assembled from note datasets rather than read off a caption — see
             # services.derivation. One printed line never carried it, so the combined-lines
             # branch above cannot explain it, and without this the reviewer got the winning
             # priority and a single page reference. Same contribution shape, same renderer,
             # same click-to-source.
-            derived_formula, contributions = _merge_derivation(r["derivation"], basis)
+            from app.services import derivation as _derivation
+
+            store = r["derivation"]
+            derived_formula, contributions = _merge_derivation(store, basis)
             arithmetic = derived_formula or arithmetic
-            counted = [c for c in contributions if c["counted"] and c["v1"] is not None]
+            slot = store.get(f"{basis}:current") or store.get(f"{basis}:prior") or {}
+            if slot.get("version"):
+                # A TRAIL THAT RECORDS ITS ARITHMETIC says so in the working below, input by
+                # input; the note names the rule and nothing it would have to count.
+                note = _t("Assembled by the {method} rule from the inputs below; each keeps its "
+                          "own figure and page — click one to jump to it in the document.",
+                          locale).replace("{method}", str(slot.get("method") or "extraction"))
+            else:
+                counted = [c for c in contributions if c["counted"] and c["v1"] is not None]
+                note = (f"Assembled from {len(counted)} note "
+                        f"{'line' if len(counted) == 1 else 'lines'} by the "
+                        f"{store.get(f'{basis}:current', {}).get('method') or 'extraction'} "
+                        f"rule. Each input below keeps its own figure and page — click "
+                        f"one to jump to it in the document.")
             inspector = {**inspector, "tag": "computed",
                          "formula": derived_formula or "",
                          "result": "" if v1 is None else f"{v1:,.0f}",
                          "src": " · ".join(_places_once(contributions)),
-                         "note": (f"Assembled from {len(counted)} note "
-                                  f"{'line' if len(counted) == 1 else 'lines'} by the "
-                                  f"{r['derivation'].get(f'{basis}:current', {}).get('method') or 'extraction'} "
-                                  f"rule. Each input below keeps its own figure and page — click "
-                                  f"one to jump to it in the document.")}
+                         "note": note}
+
+            def working_for(period: str, shown):
+                value = slot_for(r, basis, period)
+                return _derivation.working(
+                    store, basis, period, shown=shown,
+                    edited=any(_edited_for(x, basis, period) for x in group),
+                    flags=list(r.get("flags") or [])
+                    + list(((value or {}).get("confidence") or {}).get("flags") or []))
+
+            working1, working2 = working_for("current", v1), working_for("prior", v2)
         notes = {}
         for x in group:
             for slot, meta in (x.get("edit_comments") or {}).items():
@@ -5278,6 +5346,7 @@ def _build_statement(rows: list[dict], template_def: dict | None, statement_type
             "formula": formula, "arithmetic": arithmetic, "inspector": inspector,
             # Present only when more than one printed line was combined into this figure.
             "contributions": contributions or None,
+            "working1": working1, "working2": working2,
             "v1": v1, "v2": v2,
             # Structured source location of each period's value, so the Workspace's live viewer
             # can hyperlink BOTH figures in the row to the page+bbox (PDF) or sheet+cell (Excel)
@@ -5403,10 +5472,15 @@ def _build_statement(rows: list[dict], template_def: dict | None, statement_type
                 r["v1"] = _to_num(nc["net"])
                 if "printed1" in r:
                     r["printed1"] = None
+                # …and the working, which explains the figure the netting replaced.
+                if "working1" in r:
+                    r["working1"] = None
             if np:
                 r["v2"] = _to_num(np["net"])
                 if "printed2" in r:
                     r["printed2"] = None
+                if "working2" in r:
+                    r["working2"] = None
             r["formula"] = info["formula"]
             r["status"] = "recon"
             raw = info["raw"]
@@ -5432,6 +5506,18 @@ def _build_statement(rows: list[dict], template_def: dict | None, statement_type
     # ONLY ROWS WITH A TRAIL. A row read straight off one caption explains itself through its
     # own provenance, and an entry for it would say nothing.
     traces: dict[str, dict] = {}
+    from app.services import derivation as _derivation
+
+    def trace_working(tr: dict, carriers: list[dict], period: str) -> dict | None:
+        """One hop's working, against the figure its line shows — so a sub-line opened in the
+        inspector says, in one line, whether its own inputs add up to it."""
+        value = slot_for(tr, basis, period)
+        return _derivation.working(
+            tr["derivation"], basis, period, shown=_concept_value(carriers, basis, period),
+            edited=any(_edited_for(x, basis, period) for x in carriers),
+            flags=list(tr.get("flags") or [])
+            + list(((value or {}).get("confidence") or {}).get("flags") or []))
+
     for tr in rows:
         trace_key = tr.get("canonical_key")
         if not trace_key or trace_key in traces or not tr.get("derivation"):
@@ -5439,12 +5525,15 @@ def _build_statement(rows: list[dict], template_def: dict | None, statement_type
         trace_formula, trace_contributions = _merge_derivation(tr["derivation"], basis)
         if not trace_contributions:
             continue
+        carriers = by_key.get(trace_key, [tr])
         traces[trace_key] = {
             "label": tr.get("source_label") or trace_key,
             "formula": trace_formula or "",
             "method": tr.get("mapping_method"),
             "printed_in": tr.get("printed_in"),
             "contributions": trace_contributions,
+            "working1": trace_working(tr, carriers, "current"),
+            "working2": trace_working(tr, carriers, "prior"),
         }
 
     basis_label = _BASIS_LABEL_I18N.get(basis, {}).get(locale, basis.title())

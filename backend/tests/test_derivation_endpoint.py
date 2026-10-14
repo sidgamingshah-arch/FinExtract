@@ -150,3 +150,97 @@ def test_a_row_with_no_derivation_is_unaffected(client):
     # unchanged by this feature rather than gaining an empty explanation panel.
     assert not row["contributions"]
     assert row["inspector"]["tag"] != "computed"
+
+
+# ── a trail that records its arithmetic ─────────────────────────────────────────────────────
+
+def _doc_with_rows(client, rows: list[dict]) -> str:
+    """`_doc_with_derived_row` for several rows carrying one line."""
+    from app.db.base import SessionLocal, init_db
+    from app.db.models import Document, ExtractionRun, TemplateVersion
+
+    init_db()
+    with SessionLocal() as s:
+        doc = Document(filename="d.pdf", fmt="pdf", byte_size=1, page_count=1,
+                       content_hash=uuid.uuid4().hex, object_key="k", owner="admin")
+        s.add(doc)
+        s.flush()
+        tv = TemplateVersion(template_key=f"d-{uuid.uuid4().hex[:8]}", name="D", version=1,
+                             definition=TEMPLATE)
+        s.add(tv)
+        s.flush()
+        s.add(ExtractionRun(document_id=doc.id, status="succeeded",
+                            options={"template_version_id": tv.id},
+                            result={"rows": rows, "filename": "d.pdf"}))
+        s.commit()
+        return doc.id
+
+
+def _cascade_v2(basis: str = "consolidated") -> dict:
+    """The shape `stages.note_sourced._fill_by_cascade` writes: a rung over two parts, the second
+    deducted, each input saying what it added."""
+    from app.services import derivation
+
+    return {f"{basis}:current": derivation.build(
+        method="cascade:P3", formula="sub__pbt_depreciation + -sub__cos_depreciation",
+        result="500",
+        inputs=[{"label": "PBT note — total depreciation", "canonical_key": "sub__pbt_depreciation",
+                 "value": "700", "counted": True, "deducted": False, "used": "700",
+                 "status": "used", "sign": 1, "role": "required",
+                 "provenance": {"source_kind": "native", "page_index": 12}},
+                {"label": "Cost of sales — depreciation", "canonical_key": "sub__cos_depreciation",
+                 "value": "200", "counted": True, "deducted": True, "used": "-200",
+                 "status": "deducted", "sign": -1, "role": "adjustment",
+                 "provenance": {"source_kind": "native", "page_index": 30}}],
+        flags=["rung:P3"], display={"op": "sum", "missing": [], "refused": []})}
+
+
+def _line(derivation: dict | None, values: list[dict], label: str = "Depreciation") -> dict:
+    return {"canonical_key": "is_pl__deprec_and_impairment_oper_exp", "source_label": label,
+            "mapping_method": None, "values": values,
+            **({"derivation": derivation} if derivation else {})}
+
+
+def test_a_derived_row_serves_how_it_adds_up(client):
+    doc_id = _doc_with_rows(client, [_line(_cascade_v2(), [_value("current", 500)])])
+    row = _row(client, doc_id)
+    w = row["working1"]
+    assert w["how"] == "adds_up" and w["sum"] == 500.0 and w["shown"] == 500.0
+    assert [t["status"] for t in w["terms"]] == ["used", "deducted"]
+    assert row["working2"] is None, "the prior year has no trail"
+    assert row["inspector"]["formula"] == row["arithmetic"] == (
+        "PBT note — total depreciation − Cost of sales — depreciation")
+    assert row["inspector"]["note"].startswith("Assembled by the cascade:P3 rule")
+
+
+def test_the_trail_on_one_of_two_carriers_is_the_one_shown(client):
+    """A cascade that outranks the printed rows writes onto one of them and silences the other.
+    The line used to read "Combined from 2 printed lines" with "366,944 + —"; it is the derived
+    line it is, explained by its trail."""
+    silenced = _line(None, [{**_value("current", 0), "value": None}], label="Financial assets (FVTPL)")
+    carrier = _line(_cascade_v2(), [_value("current", 500)], label="Financial assets (FVOCI)")
+    doc_id = _doc_with_rows(client, [silenced, carrier])
+    row = _row(client, doc_id)
+    assert row["inspector"]["tag"] == "computed"
+    assert [c["canonical_key"] for c in row["contributions"]] == [
+        "sub__pbt_depreciation", "sub__cos_depreciation"]
+    assert row["working1"]["how"] == "adds_up"
+
+
+def test_a_trail_for_the_other_basis_does_not_assemble_this_one_from_nothing(client):
+    doc_id = _doc_with_rows(client, [_line(_cascade_v2("standalone"), [_value("current", 500)])])
+    row = _row(client, doc_id)
+    assert row["inspector"]["tag"] != "computed"
+    assert "Assembled from 0" not in (row["inspector"]["note"] or "")
+    assert not row["working1"]
+
+
+def test_the_trail_note_is_translated(client):
+    doc_id = _doc_with_rows(client, [_line(_cascade_v2(), [_value("current", 500)])])
+    english = _row(client, doc_id)["inspector"]["note"]
+    body = client.get(f"/api/v1/documents/{doc_id}/statement",
+                      params={"statement": "profit_and_loss", "basis": "consolidated",
+                              "locale": "zh"}).json()
+    chinese = next(r for r in body["rows"]
+                   if r["id"] == "is_pl__deprec_and_impairment_oper_exp")["inspector"]["note"]
+    assert chinese != english and "cascade:P3" in chinese

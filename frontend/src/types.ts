@@ -309,10 +309,91 @@ export interface RowContribution {
    *  less the cost-of-sales share" consumes one of its inputs negatively, so the row renders with
    *  a "−" and its own magnitude — the column has to add up to the figure above it as read. */
   deducted?: boolean;
-  /** The filing's own words, for an input read out of PROSE rather than off a table row. A
-   *  printed row is traceable by its caption; a figure stated in a sentence is traceable only by
-   *  the sentence. Absent for every table-row input. */
+  /** The filing's own words only — a sentence an earlier run's service read. Never the engine's
+   *  own text, and never the model's (that is `model_quote`). */
   excerpt?: string | null;
+  /** What this input did to the figure in each period, on a trail that records its arithmetic —
+   *  see `TrailWorking`. Absent (null) on a trail stored before that, which keeps `counted`. */
+  status?: TrailStatus | null;
+  status2?: TrailStatus | null;
+  /** Why it reads that way, per period. */
+  why1?: TrailWhy | null;
+  why2?: TrailWhy | null;
+  /** The term's role and sign in the rule that answered (`any_of`, `required`, `adjustment`). */
+  role?: string | null;
+  sign?: number | null;
+  /** False for a figure the model stated that no row of the note confirmed. */
+  located?: boolean;
+  /** A prose trail's divisor: the amounts here are stated in full, and the figure is their sum
+   *  divided by this. */
+  scale?: number | null;
+  /** The filing's own words for this input: the printed caption of the row it was read off, or
+   *  the sentence an earlier run's service read. */
+  quote?: string | null;
+  /** The sentence the MODEL quoted for a figure it read from prose — its words, not verified as
+   *  the filing's. */
+  model_quote?: string | null;
+  /** The configuration pattern a note row matched, which is why it was read. */
+  matched?: string | null;
+}
+
+/** What one input of a trail did to the figure. */
+export type TrailStatus = "used" | "deducted" | "same_row" | "not_used" | "missing";
+
+/** Why an input reads the way it does, as a code the screen puts into words. */
+export interface TrailWhy {
+  code: string;
+  /** For `same_row`: the input that already counted the row. */
+  line?: string | null;
+  /** For a deduction: the face row that prints the money. */
+  caption?: string | null;
+  amount?: string | null;
+  /** The face prints the line's WHOLE figure. */
+  whole?: boolean;
+  /** Only part of the piece was still in the part it was taken out of. */
+  partial?: boolean;
+}
+
+export interface TrailTerm {
+  label: string;
+  canonical_key?: string | null;
+  status: TrailStatus | null;
+  /** What the term added to the figure (before any prose scale); 0 when it added nothing. */
+  used: number | null;
+  value: number | null;
+  sign?: number | null;
+  role?: string | null;
+  why?: TrailWhy | null;
+  located?: boolean;
+}
+
+/** HOW A DERIVED FIGURE ADDS UP, for one period — `services.derivation.working`.
+ *
+ *  `how` is the verdict: the inputs reach the figure the line shows (`adds_up`), they do not reach
+ *  the trail's own result (`differs`), the line shows another figure (`changed`) or none
+ *  (`withheld`), an analyst typed it (`edited`), or the trail did not record its arithmetic
+ *  (`not_recorded`). The sentence is built client-side so it is in the reader's units. */
+export interface TrailWorking {
+  version: number | null;
+  how: "adds_up" | "differs" | "changed" | "edited" | "withheld" | "not_recorded";
+  op: "sum" | "max" | "min" | "first";
+  method?: string | null;
+  combine?: "whole" | "component" | null;
+  terms: TrailTerm[];
+  sum: number | null;
+  scale: number | null;
+  result: number | null;
+  shown: number | null;
+  difference: number | null;
+  /** The answering rung's terms the filing did not print. */
+  missing: { key: string; label: string; role: string }[];
+  /** The rungs above it that were passed over. */
+  refused: { rung: string; why: "negative" | "contradiction"; value?: string; detail?: string }[];
+  /** The printed figures the rule replaced. */
+  displaced: number[] | null;
+  settled: boolean;
+  reason?: string | null;
+  formula: string;
 }
 
 export interface StatementRow {
@@ -345,6 +426,10 @@ export interface StatementRow {
   inspector?: Inspector;
   /** Present only when more than one printed line was combined into this figure. */
   contributions?: RowContribution[] | null;
+  /** How a derived figure adds up, per period — null for a line with no trail, and for a period
+   *  whose figure the template's rollup computed. */
+  working1?: TrailWorking | null;
+  working2?: TrailWorking | null;
   v1: number | null;
   v2: number | null;
   /** Matrix layouts only: the row's figures keyed by column name (see StatementResponse.layout).
@@ -429,6 +514,9 @@ export interface LineItemTrace {
   /** Face or note, so a reader knows whether they are being sent to a statement or a note. */
   printed_in?: string | null;
   contributions: RowContribution[];
+  /** This hop's own working, per period, so an opened sub-line says whether it adds up. */
+  working1?: TrailWorking | null;
+  working2?: TrailWorking | null;
 }
 
 export interface StatementResponse {

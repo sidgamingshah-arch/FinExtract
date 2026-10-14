@@ -558,6 +558,73 @@ def combine_terms(resolved: list[dict], unresolved: list[dict], signs: list[int]
     return out, unverified
 
 
+def explain_terms(resolved: list[dict], unresolved: list[dict], signs: list[int],
+                  component: bool, fallback_period: str) -> list[dict]:
+    """What each cited term put into the figure, per period — the walk `combine_terms` makes.
+
+    DISPLAY ONLY, and a second copy of that walk on purpose: `combine_terms` decides the published
+    figure and stays exactly as it is, while this records what it computed and discards. The same
+    term list, the same order, the same skips and the same stated-amount fallback, so the sum of
+    ``used`` over the entered terms of a period equals ``combine_terms(...)[0][period]``
+    (`tests/test_unverified_terms.py` holds the two together).
+
+    One record per term that carries a figure, in `at` order::
+
+        {"at", "source": "resolved" | "unresolved", "index": position in its own list,
+         "located": whether the citation resolved to a row,
+         "periods": {period: {"status", "used": Decimal, "sign", "reason"}}}
+
+      * COMPONENT — every term is added with its sign: ``used = value * sign``.
+      * WHOLE — the FIRST term with a figure in a period is the figure (``used``, no sign applied)
+        and every later one corroborates it (``not_used``, reason ``corroborates``), across the
+        resolved and the stated-but-unresolved terms alike.
+      * A stated amount the note does not contain is counted where `combine_terms` counts it, with
+        reason ``stated_not_located``.
+
+    SIGNS ARE POSITIONAL BY `at`, never by the index into `resolved`: dropping or refusing one
+    citation must not hand its sign to the next.
+    """
+    terms: list[tuple[int, dict, bool, int]] = [(int(e.get("at", i)), e, True, i)
+                                                for i, e in enumerate(resolved)]
+    terms += [(int(e.get("at", 10_000 + i)), e, False, i) for i, e in enumerate(unresolved)]
+    terms.sort(key=lambda x: x[0])
+
+    out: list[dict] = []
+    first_whole: set[str] = set()
+    for at, entry, was_resolved, index in terms:
+        sign = signs[at] if at < len(signs) and signs[at] in (1, -1) else 1
+        figures = dict(entry.get("figures") or {})
+        stated = False
+        if not figures and not was_resolved:
+            amount = _amount(entry.get("amount"))
+            if amount is None:
+                continue
+            figures = {fallback_period: str(amount)}
+            stated = True
+        if not figures:
+            continue
+        periods: dict[str, dict] = {}
+        for period, raw in figures.items():
+            value = _amount(raw)
+            if value is None:
+                continue
+            if component:
+                used = value * sign
+                periods[period] = {"status": "deducted" if (sign < 0 or used < 0) else "used",
+                                   "used": used, "sign": sign,
+                                   "reason": "stated_not_located" if stated else None}
+            elif period not in first_whole:
+                first_whole.add(period)
+                periods[period] = {"status": "used", "used": value, "sign": 1,
+                                   "reason": "stated_not_located" if stated else None}
+            else:
+                periods[period] = {"status": "not_used", "used": Decimal(0), "sign": 1,
+                                   "reason": "corroborates"}
+        out.append({"at": at, "source": "resolved" if was_resolved else "unresolved",
+                    "index": index, "located": was_resolved, "periods": periods})
+    return out
+
+
 def ask(provider, system: str, request: dict, *, max_tokens: int,
         document: str | None = None) -> LineItemReply:
     """One provider call. Raises whatever the provider raises — the caller records it per request.

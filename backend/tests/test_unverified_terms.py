@@ -33,6 +33,8 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+import pytest
+
 from app.services.line_item_llm import combine_terms
 
 
@@ -136,3 +138,75 @@ def test_signs_shorter_than_the_citations_default_to_addition():
         [], [1], component=True, fallback_period="current")
 
     assert figures == {"current": Decimal("600")}
+
+
+# ── the trail's reading of the same walk ──────────────────────────────────────────────────────
+
+def _cited(at: int, note: str, caption: str, current: str | None, prior: str | None = None) -> dict:
+    figures = {k: v for k, v in (("current", current), ("prior", prior)) if v is not None}
+    return {"at": at, "note": note, "caption": caption, "figures": figures}
+
+
+_CASES = {
+    "component, nothing refused": (
+        [_row(0, "Depreciation charge", "500000"), _row(1, "Amortisation", "120000")], [],
+        [1, -1], True),
+    "a refused caption is still counted": (
+        [_row(0, "Depreciation charge", "500000"),
+         _row(1, "Other operating expenses", "120000", refused="no subject word")], [],
+        [1, -1], True),
+    "the sign stays with its term": (
+        [_row(0, "Other operating expenses", "500000", refused="no subject word"),
+         _row(1, "Amortisation", "120000")], [], [1, -1], True),
+    "a stated amount at the fallback period": (
+        [_row(0, "Depreciation charge", "500000")], [_stated(1, "120000")], [1, -1], True),
+    "a citation that names nothing": (
+        [_row(0, "Depreciation charge", "500000")],
+        [{"at": 1, "note": "7", "caption": "Depreciation charge for the year", "why": "no row"}],
+        [1, -1], True),
+    "whole, the first figure": (
+        [_row(0, "Total depreciation", "587417"), _row(1, "Depreciation", "587417")], [],
+        [1, 1], False),
+    "signs shorter than the citations": (
+        [_row(0, "A", "100"), _row(1, "B", "200"), _row(2, "C", "300")], [], [1], True),
+    "whole and a corroborating row": (
+        [_cited(0, "13", "Loans to employees", "54.20", "48.65"),
+         _cited(1, "13", "Total", "54.20", "48.65")], [], [], False),
+    "component, only the deduction resolved": (
+        [_cited(1, "10", "Trade receivables include", "1773.70")],
+        [{"at": 0, "note": "10", "caption": "Total", "why": "no row"}], [1, -1], True),
+    "component, total less a part": (
+        [_cited(0, "10", "Total", "13281.26", "12000"), _cited(1, "10", "Overseas", "1773.70", "1500")],
+        [], [1, -1], True),
+    "component, a stated amount not found": (
+        [_cited(0, "7", "Gross", "500000")],
+        [{"at": 1, "note": "7", "caption": "Less", "amount": "120000"}], [1, -1], True),
+    "whole, the first citation prints one year": (
+        [_cited(0, "8", "WIP", None, "3108.77"), _cited(1, "28", "Closing WIP", "3412.20", "3108.77")],
+        [], [], False),
+    "whole, stated first": (
+        [_cited(1, "8", "WIP", "3412.20")],
+        [{"at": 0, "note": "8", "caption": "", "amount": "3400"}], [], False),
+}
+
+
+@pytest.mark.parametrize("name", sorted(_CASES))
+def test_explain_terms_agrees_with_combine_terms(name):
+    """`explain_terms` is the trail's copy of the walk `combine_terms` makes, and the two must not
+    drift: what the entered terms add, per period, is the published figure. And the sign a term
+    is recorded with is the one the model gave at ITS position."""
+    from app.services.line_item_llm import explain_terms
+
+    resolved, unresolved, signs, component = _CASES[name]
+    figures, _unverified = combine_terms(resolved, unresolved, signs, component=component,
+                                         fallback_period="current")
+    records = explain_terms(resolved, unresolved, signs, component, "current")
+    periods = {p for r in records for p in r["periods"]} | set(figures)
+    for period in periods:
+        added = sum((got["used"] for r in records for p, got in r["periods"].items()
+                     if p == period and got["status"] in ("used", "deducted")), Decimal(0))
+        assert added == figures.get(period, Decimal(0)), (period, records)
+    for record in records:
+        at = record["at"]
+        expected = (signs[at] if component and at < len(signs) and signs[at] in (1, -1) else 1)
+        assert {got["sign"] for got in record["periods"].values()} <= {expected}, record

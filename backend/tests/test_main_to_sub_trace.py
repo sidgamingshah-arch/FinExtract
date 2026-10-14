@@ -181,3 +181,32 @@ def test_the_whole_chain_on_a_real_filing():
     _f2, child_contributions = derivation.merge_for_basis(child["derivation"], "consolidated")
     assert any(c.get("source") for c in child_contributions), (
         f"{child_key} names its inputs but none carries a page: {child_contributions}")
+
+
+def test_a_cascade_input_no_longer_quotes_its_role():
+    """"role=any_of" reached the inspector in quotation marks, as though the filing had said it.
+    The term's role is carried as a field of its own (`_cascade_inputs`)."""
+    from app.stages.note_sourced import _cascade_input
+
+    got = _cascade_input({"ref": "sub__x", "value": Decimal("5"), "sign": 1, "role": "any_of"},
+                         by_key={}, defs={})
+    assert "excerpt" not in got
+
+
+def test_cascade_inputs_record_what_each_term_added():
+    """Beside each input's own figure: what it put into the result, its sign and its role. The
+    engine's fields — `value`, `counted`, `deducted`, `canonical_key` — are `_cascade_input`'s."""
+    from app.services.line_items import Evaluation
+    from app.stages.note_sourced import _cascade_inputs
+
+    got = Evaluation(Decimal("400"), inputs=[
+        {"ref": "sub__a", "const": None, "sign": 1, "abs": False, "role": "required",
+         "value": "500", "used": "500"},
+        {"ref": "sub__b", "const": None, "sign": -1, "abs": False, "role": "adjustment",
+         "value": "100", "used": "-100"}])
+    a, b = _cascade_inputs(got, "sum", {}, {}, None, None)
+    assert (a["used"], a["status"], a["sign"], a["role"]) == ("500", "used", 1, "required")
+    assert (b["used"], b["status"], b["sign"], b["role"]) == ("-100", "deducted", -1, "adjustment")
+    assert (b["value"], b["counted"], b["deducted"], b["canonical_key"]) == ("100", True, True,
+                                                                           "sub__b")
+    assert "period_provenance" not in a, "no cells were given, so none is claimed"

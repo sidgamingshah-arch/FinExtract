@@ -765,6 +765,44 @@ def _folio_lookup(doc_model):
     return folios.get
 
 
+def _derivation_with_folios(store: dict | None, folio_of) -> dict | None:
+    """A row's trail as it is served: each input's page carries the folio printed on it.
+
+    The trail's provenance is a stored dict that never passed through `_prov_dict`, so the page
+    chips in the inspector could only print the sheet position. A COPY: the stored trail is the
+    engine's, and it is not changed here.
+    """
+    if not store or folio_of is None:
+        return store
+
+    def with_folio(prov):
+        if (isinstance(prov, dict) and isinstance(prov.get("page_index"), int)
+                and not prov.get("printed_page")):
+            folio = folio_of(prov["page_index"])
+            if folio:
+                return {**prov, "printed_page": folio}
+        return prov
+
+    def item(entry):
+        if not isinstance(entry, dict):
+            return entry
+        out = dict(entry)
+        for key in ("provenance", "period_provenance"):
+            if key in out:
+                out[key] = with_folio(out[key])
+        return out
+
+    served = {}
+    for slot, trail in store.items():
+        if not isinstance(trail, dict):
+            served[slot] = trail
+            continue
+        served[slot] = {**trail, **{key: [item(e) for e in trail[key]]
+                                    for key in ("inputs", "unlocated")
+                                    if isinstance(trail.get(key), list)}}
+    return served
+
+
 def _serialize_rows(doc_model, working_view=None) -> list[dict]:
     """Extracted line items in a view-friendly shape, each value with its provenance
     (sheet+cell for Excel, page+bbox for PDF) so the UI can show click-to-source.
@@ -881,8 +919,10 @@ def _serialize_rows(doc_model, working_view=None) -> list[dict]:
             "mapping_confidence": li.confidence.mapping,
             "flags": list(li.confidence.flags),
             # How a service-computed figure was reached, per basis:period. Absent for a row read
-            # off a caption, which needs no explanation beyond its provenance.
-            **({"derivation": li.derivation} if li.derivation else {}),
+            # off a caption, which needs no explanation beyond its provenance. Each input's page
+            # carries its folio, as every other citation's does (`_prov_dict`).
+            **({"derivation": _derivation_with_folios(li.derivation, folio_of)}
+               if li.derivation else {}),
             "values": values,
         })
     return rows

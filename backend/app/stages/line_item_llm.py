@@ -419,8 +419,11 @@ class LineItemLlmStage(Stage):
                                                kept_printed)
                         continue
                     answered += 1
+                    # The SAME unresolved citations and fallback `combine_terms` was given, so the
+                    # trail can show every term the figure counted — and every one it could not.
                     filled += self._write(doc, by_concept, item, answer, resolved, figures, ctx,
-                                          unverified)
+                                          unverified, unresolved=unresolved,
+                                          fallback_period=_current_period(doc) or "current")
                     if indian:
                         _record_explained(explained, item, resolved, list(answer.signs or ()),
                                           component)
@@ -505,8 +508,13 @@ class LineItemLlmStage(Stage):
         return doc
 
     def _write(self, doc, by_concept: dict, item, answer, resolved: list[dict],
-               figures: dict, ctx, unverified: list[dict] | None = None) -> int:
-        """Write one line item's located figure, with the trail that says where it came from."""
+               figures: dict, ctx, unverified: list[dict] | None = None,
+               unresolved: list[dict] | None = None, fallback_period: str = "current") -> int:
+        """Write one line item's located figure, with the trail that says where it came from.
+
+        `unresolved` and `fallback_period` are what `combine_terms` was given; they are read only
+        to record the arithmetic in the trail (`line_item_llm.explain_terms`).
+        """
         row = by_concept.get(item.key)
         if row is None:
             row = LineItem(source_label=item.label or item.key, canonical_key=item.key)
@@ -608,13 +616,20 @@ class LineItemLlmStage(Stage):
                 row.confidence.flags.append(
                     "llm_cited_rows_disagree_on_basis:" + ",".join(sorted(row_bases)))
         written = 0
+        # HOW THE ANSWER'S TERMS MAKE THE FIGURE, per period — the walk `combine_terms` made, for
+        # the trail. A whole answer takes its first figure and the other citations corroborate it;
+        # a component answer adds every term with the sign the model gave it at its position.
+        component = str(answer.role or "").lower() == "component"
+        explained = {(e["source"], e["index"]): e for e in line_item_llm.explain_terms(
+            resolved, unresolved or [], list(answer.signs or ()), component, fallback_period)}
         # A CITED FIGURE ON A BASIS THE STATEMENTS DO NOT PRINT IS REFUSED, as on the declared route
         # (`services.face_bases`): written, it would sit on a tab the filing never printed. Read
         # once per line, not per period.
         faces = printed_bases(doc)
         for period, amount in figures.items():
             if period == "prose":
-                written += self._write_prose(row, doc, amount, resolved, ctx, item)
+                written += self._write_prose(row, doc, amount, resolved, ctx, item,
+                                             explained=explained, component=component)
                 continue
             if period not in _FILED:
                 continue
@@ -636,12 +651,22 @@ class LineItemLlmStage(Stage):
                     # numbers; the two routes simply disagreed about the key. Nothing warned,
                     # because a missing key is indistinguishable from an input whose period
                     # printed no figure.
+                    #
+                    # WHAT EACH CITATION PUT INTO THE FIGURE is added beside it — position, sign,
+                    # `used`, `status` — and NOT as `deducted`: the face settlement skips a
+                    # deducted input (`row_pieces`), so marking one would change what it settles.
                     inputs=[{"label": _input_label(e),
                              "value": str(e.get("figures", {}).get(period, "")),
                              "note": e.get("note"),
                              "counted": True,
-                             "provenance": e.get("provenance")}
-                            for e in resolved]))
+                             "provenance": e.get("provenance"),
+                             **_explained_fields(explained.get(("resolved", i)), period,
+                                                 component, at=e.get("at"))}
+                            for i, e in enumerate(resolved)],
+                    display={"op": "sum" if component else "first",
+                             "combine": "component" if component else "whole",
+                             "unlocated": _unlocated(unresolved or [], explained, period,
+                                                     component) or None}))
             written += 1
             ctx.log(f"line_item_llm:{item.key}[{basis}:{period}] = {amount} "
                     f"from {len(resolved)} cited row(s)")
@@ -897,7 +922,8 @@ class LineItemLlmStage(Stage):
         return emptied
 
     @staticmethod
-    def _write_prose(row, doc, amount, resolved: list[dict], ctx, item) -> int:
+    def _write_prose(row, doc, amount, resolved: list[dict], ctx, item, explained=None,
+                     component: bool = False) -> int:
         """A figure the filing states only in a SENTENCE, and the three things that makes special.
 
         CARRIED OVER FROM `map_ontology._apply_prose_value`, which was reachable only from the
@@ -948,8 +974,12 @@ class LineItemLlmStage(Stage):
                 target.value_raw = printed if printed is not None else value
             target.value = value
 
-        prose = [e for e in resolved if e.get("prose")]
-        best = prose[0] if prose else {}
+        prose = [(i, e) for i, e in enumerate(resolved) if e.get("prose")]
+        best = prose[0][1] if prose else {}
+        if explained is None:
+            # A caller with no answer to hand: every sentence counted, the first taken as a whole.
+            explained = {(e["source"], e["index"]): e for e in line_item_llm.explain_terms(
+                resolved, [], [], component, target_period)}
         row.derivation = note_sourced.derivation.record(
             row.derivation, basis=basis, period_label=target_period,
             derivation=note_sourced.derivation.build(
@@ -960,10 +990,19 @@ class LineItemLlmStage(Stage):
                          "provenance": e.get("provenance"),
                          # THE SENTENCE, verbatim. It is the only evidence for this figure, so the
                          # inspector shows a reviewer the words rather than asking them to trust it.
+                         # They are the MODEL's words: `resolve_sources` verified the amount against
+                         # the note's text, not the sentence around it, and the trail says so.
                          "excerpt": e.get("quote") or "",
-                         "counted": True, "deducted": False}
-                        for e in prose],
-                result=value, flags=["prose_sourced", f"note:{best.get('note')}"]))
+                         "counted": True, "deducted": False,
+                         # What the sentence put into the figure, stated in full; `scale` below is
+                         # the division that follows.
+                         **_explained_fields(explained.get(("resolved", i)), "prose", component,
+                                             at=e.get("at"))}
+                        for i, e in prose],
+                result=value, flags=["prose_sourced", f"note:{best.get('note')}"],
+                display={"op": "sum" if component else "first",
+                         "combine": "component" if component else "whole",
+                         "scale": str(scale) if scale and scale != 1 else None}))
         row.confidence.flags.append(f"prose_sourced_value:{best.get('note')}")
         row.is_computed = True
         ctx.log(f"line_item_llm:{item.key}[{basis}:{target_period}] = {value} from prose in "
@@ -979,6 +1018,75 @@ def _input_label(entry: dict) -> str:
     col = entry.get("column") or {}
     heading = str(col.get("heading") or col.get("key") or "")
     return f"{label} [{heading[:80]}]" if heading else label
+
+
+def _unlocated_label(entry: dict) -> str:
+    """A citation that resolved to no row, named as the model gave it."""
+    note = str(entry.get("note") or "").strip()
+    if str(entry.get("caption") or "").strip():
+        return _input_label(entry) if note else str(entry.get("caption"))[:160]
+    return f"note {note}" if note else str(entry.get("statement") or "")
+
+
+def _amount_text(amount) -> str:
+    """A trail amount as stored — "0" rather than Decimal's "-0"."""
+    return str(amount) if amount else "0"
+
+
+def _explained_fields(record: dict | None, period: str, component: bool, *, at=None) -> dict:
+    """What one cited row put into this period's figure, as fields of its trail input — see
+    `services.line_item_llm.explain_terms`. A row that prints no figure in this period added
+    nothing to it. The sign is recorded only for a component answer: a whole answer applies none."""
+    out: dict = {} if at is None else {"at": at}
+    got = ((record or {}).get("periods") or {}).get(period)
+    if got is None:
+        out.update({"status": "missing" if component else "not_used", "reason": "no_figure",
+                    "used": "0"})
+        return out
+    out["status"] = got["status"]
+    out["used"] = _amount_text(got["used"])
+    if component:
+        out["sign"] = got["sign"]
+    if got.get("reason"):
+        out["reason"] = got["reason"]
+    return out
+
+
+def _unlocated(unresolved: list[dict], explained: dict, period: str, component: bool) -> list[dict]:
+    """The citations no row confirmed, for the trail of one period: a stated amount the figure
+    COUNTED (`combine_terms` counts it at the reporting period), and a citation that named nothing
+    the note holds — which is how a component answer whose total did not resolve says that its
+    published figure is the deduction alone.
+
+    TRAIL-LEVEL, NEVER AN INPUT. The face settlement and the note pruner walk `inputs`, and neither
+    may see a figure no row printed.
+    """
+    from app.services.line_item_llm import _amount
+
+    out: list[dict] = []
+    for index, entry in enumerate(unresolved):
+        record = explained.get(("unresolved", index))
+        base = {"label": _unlocated_label(entry), "note": entry.get("note"),
+                **({"at": entry["at"]} if entry.get("at") is not None else {}),
+                "located": False}
+        if record is None:
+            # Named nothing a figure could come from: no row matched and no amount was stated, or
+            # the citation was refused.
+            out.append({**base, "value": None, "used": "0", "status": "missing",
+                        "reason": "refused" if entry.get("refused") else "not_located"})
+            continue
+        got = (record.get("periods") or {}).get(period)
+        if got is None:
+            # A stated amount is counted in one period only; in this one it added nothing.
+            out.append({**base, "value": None, "used": "0",
+                        "status": "missing" if component else "not_used", "reason": "no_figure"})
+            continue
+        stated = _amount(entry.get("amount"))
+        out.append({**base, "value": None if stated is None else str(stated),
+                    **({"sign": got["sign"]} if component else {}),
+                    "used": _amount_text(got["used"]), "status": got["status"],
+                    "reason": got.get("reason") or "stated_not_located"})
+    return out
 
 
 def _cited_provenance(resolved: list[dict]):
@@ -1221,7 +1329,10 @@ def _refuse_derivative_citations(item, resolved: list[dict]) -> tuple[list[dict]
         if any(v.search(t) for v in vetoes for t in texts if t):
             refused.append({"at": entry.get("at"), "note": entry.get("note"),
                             "caption": entry.get("caption"),
-                            "why": "this line excludes derivatives, and the cited row is one"})
+                            "why": "this line excludes derivatives, and the cited row is one",
+                            # For the trail, which names the citation as refused rather than as
+                            # one that was not found.
+                            "refused": "derivative"})
         else:
             kept.append(entry)
     return kept, refused

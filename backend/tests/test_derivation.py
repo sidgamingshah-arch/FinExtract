@@ -55,7 +55,8 @@ def test_one_period_yields_one_figure_per_contribution():
     assert len(contributions) == 1
     assert contributions[0]["v1"] == 700.0
     assert contributions[0]["v2"] is None
-    assert contributions[0]["src"] == "p.12"
+    # The sheet position is 0-based; the label is the page a reader looks up, counted from 1.
+    assert contributions[0]["src"] == "p.13"
 
 
 def test_both_periods_fold_into_one_row_per_input():
@@ -181,4 +182,95 @@ def test_a_provenance_model_survives_the_json_column_the_run_is_stored_in():
                                     inputs=[row], result="529841"))
     _, contributions = merge_for_basis(store, "consolidated")
     json.dumps(contributions)
-    assert contributions[0]["src"] == "p.7", "the page label reads the coerced dict"
+    assert contributions[0]["src"] == "p.8", "the page label reads the coerced dict"
+
+
+# ── the page, the label and the words, as a reader is shown them ────────────────────────────
+
+def _one(item: dict, method: str = "cascade:P1", display: dict | None = None) -> dict:
+    store = record(None, basis="consolidated", period_label="current",
+                   derivation=build(method=method, formula=None, inputs=[item], result="1",
+                                    display=display))
+    _, contributions = merge_for_basis(store, "consolidated")
+    return contributions[0]
+
+
+def test_the_page_label_is_the_folio_when_the_page_prints_one():
+    """The page a reader can look up: the folio the publisher printed, else the sheet position
+    counted from 1 — so the first page is "p.1", not no page at all."""
+    from app.services.derivation import _src_label
+
+    assert _src_label({"page_index": 185, "printed_page": "184"}) == "p.184"
+    assert _src_label({"page_index": 0}) == "p.1"
+    assert _src_label({"source_kind": "spreadsheet", "sheet": "BS", "cell": "C14"}) == "BS!C14"
+    assert _src_label(None) == "" and _src_label({}) == ""
+    assert _one({"label": "a", "value": "1", "provenance": {"page_index": 0}})["src"] == "p.1"
+
+
+def test_a_label_already_naming_its_note_is_not_named_twice():
+    """A cited row is named "note 26: Non-current portion"; suffixing its note again read
+    "note 26: Non-current portion — note 26"."""
+    from app.services.derivation import _label
+
+    assert _label({"label": "note 26: Non-current portion", "note": "26"}) == (
+        "note 26: Non-current portion")
+    assert _label({"label": "note 2: x", "note": "26"}) == "note 2: x — note 26"
+    assert _label({"label": "Depreciation", "note": "28", "note_heading": "Note 28"}) == (
+        "Depreciation — note 28 (Note 28)")
+
+
+def test_a_role_string_is_not_served_as_a_quotation():
+    """A cascade input's excerpt was "role=any_of", and the inspector printed it in quotation
+    marks as though the filing had said it."""
+    got = _one({"label": "FVTPL", "canonical_key": "sub__x", "value": "1", "counted": True,
+                "excerpt": "role=any_of"})
+    assert got["excerpt"] is None and got["quote"] is None
+
+
+def test_a_model_quote_is_marked_as_the_models():
+    """The model's quoted sentence is its own words — only the amount in it was checked against
+    the note — so it is served as the model's, not as the filing's. A note row's selection
+    pattern is served as the pattern it is."""
+    prose = _one({"label": "note 9", "value": "529841000", "counted": True,
+                  "excerpt": "Depreciation charges of approximately HK$529,841,000"},
+                 method="prose_sourced")
+    assert prose["model_quote"].startswith("Depreciation charges") and prose["excerpt"] is None
+    row = _one({"label": "Depreciation", "note": "6", "value": "1", "counted": True,
+                "excerpt": "note 'PPE' row matched /depreciation/"},
+               method="note_sourced:sum_of_1_rows")
+    assert row["matched"] == "note 'PPE' row matched /depreciation/"
+    assert row["excerpt"] is None and row["quote"] is None
+    legacy = _one({"label": "x", "value": "1", "counted": True,
+                   "excerpt": "stated in the filing's own words"}, method=STORED_METHOD)
+    assert legacy["quote"] == legacy["excerpt"] == "stated in the filing's own words"
+
+
+def test_a_v2_trail_serves_status_and_the_added_amount():
+    """The row read twice is shown at its own figure, marked as the same row, and adds nothing."""
+    inputs = [{"label": "FVTPL", "canonical_key": "a", "value": "788507", "counted": True,
+               "used": "788507", "status": "used"},
+              {"label": "Other", "canonical_key": "b", "value": "788507", "counted": True,
+               "used": "0", "status": "same_row", "via": "FVTPL"},
+              {"label": "Overshoot", "canonical_key": "c", "value": "549975", "counted": True,
+               "deducted": True, "used": "-549975", "status": "deducted", "sign": -1}]
+    store = record(None, basis="consolidated", period_label="current",
+                   derivation=build(method="cascade:LTP_P1", formula="a + b + -c",
+                                    inputs=inputs, result="238532", display={"op": "sum"}))
+    formula, contributions = merge_for_basis(store, "consolidated")
+    dup = contributions[1]
+    assert (dup["v1"], dup["counted"], dup["status"]) == (788507.0, False, "same_row")
+    assert dup["why1"] == {"code": "same_row", "line": "FVTPL"}
+    assert contributions[2]["v1"] == -549975.0 and contributions[2]["deducted"] is True
+    assert sum(c["v1"] for c in contributions if c["counted"]) == 238532.0
+    assert formula == "FVTPL − Overshoot"
+
+
+def test_inputs_with_one_label_and_different_keys_stay_apart():
+    """Two inputs can carry one label — two parts named alike, two citations of one caption — and
+    pairing the periods by label alone matched both to the same prior input."""
+    from app.services.derivation import _identity
+
+    assert _identity({"label": "Total", "canonical_key": "a"}) != _identity(
+        {"label": "Total", "canonical_key": "b"})
+    assert _identity({"label": "Total", "at": 0}) != _identity({"label": "Total", "at": 1})
+    assert _identity({"label": "Total"}) == ("", "", "Total", "", "")
