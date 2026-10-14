@@ -216,3 +216,52 @@ def test_the_review_fixtures_reconciliation_entry_is_the_shape_the_stage_emits()
     assert real - set(_untied(20, face=1000, face_key="k")) == {
         "face_item_id", "reconciled", "subtracted", "relationship"}
     assert "tie_status" not in _recon(20) and "tie_status" in _untied(20, face=1, face_key="k")
+
+
+def test_a_split_component_is_not_graded_against_its_whole_note():
+    """The §20 split proved the components account for the aggregate; grading one component
+    against the whole note leaves its siblings behind as a false residual — an Ind AS test filing's
+    bank balance 394 "did not tie" to note 12's 412, the 18 being cash on hand split out beside it."""
+    from decimal import Decimal
+
+    from app.core.models.document import DocumentModel
+    from app.core.models.enums import Basis
+    from app.core.models.line_item import (ExtractedValue, FaceNoteLink, LineItem, NoteItem,
+                                           NotesTable)
+    from app.core.stage import PipelineContext
+    from app.stages.reconcile import ReconcileStage
+
+    def value(amount):
+        return ExtractedValue(basis=Basis.STANDALONE, period_label="current",
+                              value=Decimal(amount), value_raw=Decimal(amount))
+
+    def note(number, rows):
+        table = NotesTable(note_number=number)
+        for caption, amount in rows:
+            item = NoteItem(raw_label=caption)
+            item.set_value(value(amount))
+            table.items.append(item)
+        return table
+
+    bank = LineItem(source_label="In current accounts", canonical_key="bs_icon__bank_balance")
+    bank.set_value(value("394"))
+    bank.confidence.flags.append("split_from:bs_icon__cash_and_bank_balances")
+    cash = LineItem(source_label="Cash on hand", canonical_key="bs_icon__cash_balance")
+    cash.set_value(value("18"))
+    receivables = LineItem(source_label="Trade receivables", canonical_key="bs_icon__receivables")
+    receivables.set_value(value("500"))
+    note_12 = note("12", [("In current accounts", "394"), ("Cash on hand", "18")])
+    note_13 = note("13", [("Secured, considered good", "300"), ("Unsecured", "200")])
+    doc = DocumentModel(filename="f.pdf")
+    doc.line_items = [bank, cash, receivables]
+    doc.notes = [note_12, note_13]
+    doc.links = [FaceNoteLink(face_item_id=bank.id, notes_table_id=note_12.id, note_number="12"),
+                 FaceNoteLink(face_item_id=receivables.id, notes_table_id=note_13.id,
+                              note_number="13")]
+    ctx = PipelineContext()
+
+    ReconcileStage().run(doc, ctx)
+
+    graded = {e.face_key for e in doc.reconciliation.entries}
+    assert graded == {"bs_icon__receivables"}, graded
+    assert "reconcile:split_rows_not_graded=1" in ctx.logs

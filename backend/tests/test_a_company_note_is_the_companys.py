@@ -179,3 +179,27 @@ def test_notes_that_disagree_fall_back_to_the_group() -> None:
 def test_a_filing_with_no_group_files_under_the_company() -> None:
     assert _prose_basis(_doc({"standalone": 40})) == "standalone"
     assert _prose_basis(_doc({})) == "consolidated"
+
+
+def test_a_prose_figure_on_a_company_only_filing_is_the_companys() -> None:
+    """f1 / f5 of the Indian test filings: every statement is the company's, and a note page the
+    classifier read as a P&L face carries the row builder's consolidated default. The face's own
+    pages decide (`services.face_bases`), so a sentence is filed under standalone — it used to go
+    to consolidated because a consolidated value existed somewhere in the document."""
+    from app.core.models.document import PageSource
+    from app.core.models.enums import PageKind, PrintedIn
+    from app.core.models.geometry import Provenance
+
+    doc = _doc({"standalone": 3})
+    doc.pages = [PageSource(index=0, kind=PageKind.FACE, statement="balance_sheet",
+                            scope="company"),
+                 PageSource(index=1, kind=PageKind.NOTES),
+                 PageSource(index=2, kind=PageKind.FACE, statement="profit_and_loss")]
+    misread = LineItem(source_label="Current tax", canonical_key="k_misread",
+                       printed_in=PrintedIn.FACE)
+    misread.set_value(ExtractedValue(basis=Basis.CONSOLIDATED, period_label="current",
+                                     value=Decimal("7"), value_raw=Decimal("7"),
+                                     provenance=Provenance(page_index=2)))
+    doc.line_items.append(misread)
+
+    assert _prose_basis(doc) == "standalone"

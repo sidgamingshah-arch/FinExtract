@@ -73,3 +73,28 @@ def test_the_control_totals_read_the_output_template_keys():
 def test_scale_names():
     assert [_scale_name(x) for x in (1, 1000, Decimal("1E5"), 1000000, None)] == [
         "units", "thousands", "lakhs", "millions", None]
+
+
+def test_a_company_only_filings_setup_rows_are_its_own():
+    """The setup and supplemental rows are written into every run. On a filing whose statements are
+    all the company's, consolidated rows were the only figures on a Consolidated tab the filing never
+    printed, and their controls were computed from derived lines unrelated to the statements."""
+    from app.core.models.document import PageSource
+    from app.core.models.enums import PageKind
+    from app.services.periods import bases_present
+
+    template = json.loads(TPL.read_text(encoding="utf-8"))
+    doc = SimpleNamespace(unit_context=UnitContext(currency="INR", scale_factor=Decimal(100000)),
+                          notes=[], fmt=None, line_items=[],
+                          pages=[PageSource(index=0, kind=PageKind.FACE, statement="balance_sheet",
+                                            scope="company")])
+    base = [{"canonical_key": key, "values": [{"period_label": "current", "value": "39554",
+                                               "basis": "standalone"}]}
+            for key in ("bs_ca__total_assets", "bs_cl__total_equity_and_liabilities")]
+    out = _build_supplemental_rows(template_def=template, base_rows=base, disclosures=[],
+                                   entity_name="X", doc_model=doc, ctx=None, options={})
+    rows = {r["canonical_key"]: r for r in out}
+
+    assert {v["basis"] for r in out for v in r["values"]} == {"standalone"}
+    assert Decimal(_value(rows["statement_setup_controls__total_assets"])) == Decimal("39554")
+    assert bases_present(base + out) == ["standalone"]

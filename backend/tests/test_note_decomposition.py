@@ -878,3 +878,143 @@ def test_a_doubled_units_caption_does_not_scope_the_rows_under_it(awkward_tax):
     doc, _ctx = awkward_tax
     hints = {li.section_hint for li in doc.line_items}
     assert not any(h and ("000" in h or "RMB" in h) for h in hints), hints
+
+
+# --- a split may not move a total the template computes from it ----------------------------------
+#
+# Measured on an Ind AS test filing (f4) once its notes were read on the face's standalone basis:
+# the inventories split filed stock-in-trade under the inventories line, whose template node is a
+# residual that total current assets counts alone, so total assets fell from the printed 39,554 to
+# 38,458; and the finance-cost split left lease interest +24 beside the interest-expense line the
+# template reads as a deduction, moving net interest from -1,800 to -1,752. Both are declined;
+# a split that keeps every total, like ICON's other-income reclassification, still publishes.
+
+def _split_doc(statement: str, faces: list, notes: list):
+    from app.core.models.document import PageSource
+    from app.core.models.enums import PageKind
+
+    doc = DocumentModel(filename="f.pdf")
+    doc.pages = [PageSource(index=0, kind=PageKind.FACE, statement=statement, scope="company"),
+                 PageSource(index=1, kind=PageKind.NOTES)]
+    doc.line_items = list(faces)
+    doc.notes = list(notes)
+    return doc
+
+
+def _standalone(value, period: str, page: int):
+    from app.core.models.enums import Basis
+    from app.core.models.geometry import Provenance
+    from app.core.models.line_item import ExtractedValue
+
+    return ExtractedValue(value=Decimal(str(value)), value_raw=Decimal(str(value)),
+                          basis=Basis.STANDALONE, period_label=period,
+                          provenance=Provenance(page_index=page))
+
+
+def _face_line(caption: str, key: str, current, prior, note: str | None = None):
+    from app.core.models.line_item import LineItem, NoteRef
+
+    li = LineItem(source_label=caption, canonical_key=key, printed_in=PrintedIn.FACE,
+                  note_number=note, note_refs=[NoteRef(raw=note, numbers=[note])] if note else [])
+    li.set_value(_standalone(current, "current", 0))
+    li.set_value(_standalone(prior, "prior", 0))
+    return li
+
+
+def _note_table(number: str, title: str, rows):
+    from app.core.models.enums import Basis
+    from app.core.models.line_item import NoteItem, NotesTable
+
+    table = NotesTable(note_number=number, title=title, basis=Basis.STANDALONE, source_pages=[1])
+    for caption, current, prior in rows:
+        item = NoteItem(raw_label=caption)
+        item.set_value(_standalone(current, "current", 1))
+        item.set_value(_standalone(prior, "prior", 1))
+        table.items.append(item)
+    return table
+
+
+def _split(doc, ontology_file: str, template_file: str, *, line_items: bool = False):
+    from app.config import get_settings
+    from app.schemas.line_items import load_line_item_set
+    from app.services.mapping import OntologyMatcher
+    from app.services.working_view import build_working_view
+    from app.stages.map_ontology import MapOntologyStage
+
+    raw = json.loads((_SAMPLES / ontology_file).read_text(encoding="utf-8"))
+    ontology = (build_working_view(load_line_item_set(raw, resolve=True)) if line_items
+                else load_ontology(raw, resolve=True))
+    ctx = PipelineContext(raw_bytes=b"", settings=get_settings())
+    ctx.ontology = ontology
+    ctx.template = load_template(json.loads((_SAMPLES / template_file).read_text(encoding="utf-8")))
+    matcher = OntologyMatcher(ontology, settings=ctx.settings)
+    return MapOntologyStage()._split_from_disclosure(doc, ontology, matcher, ctx), ctx
+
+
+def test_a_split_that_would_move_a_printed_total_is_declined():
+    doc = _split_doc("balance_sheet", [
+        _face_line("Inventories", "bs_ca__inventories", 14320, 12180, "9"),
+        _face_line("Total current assets", "bs_ca__total_current_assets", 35745, 31258)],
+        [_note_table("9", "Inventories", [("Raw materials", 486, 412),
+                                          ("Finished goods", 610, 520),
+                                          ("Stock-in-trade", 13224, 11248)])])
+
+    added, ctx = _split(doc, "output_csv_hk_ontology.json", "output_csv_hk_v1_template.json")
+
+    assert added == 0, ctx.logs
+    (inventories,) = [li for li in doc.line_items if li.source_label == "Inventories"]
+    assert inventories.canonical_key == "bs_ca__inventories"
+    assert {ev.period_label: ev.value for ev in inventories.values.values()} == {
+        "current": Decimal("14320"), "prior": Decimal("12180")}
+    assert not any(li.canonical_key == "bs_ca__raw_materials" for li in doc.line_items)
+    assert any(line.startswith("map_line_items:split_declined(bs_ca__inventories): the "
+                               "template's bs_ca__total_current_assets would show")
+               for line in ctx.logs), ctx.logs
+
+
+def test_a_split_whose_parts_disagree_on_sign_is_declined():
+    """The face prints finance costs unsigned; the template reads interest expense as a deduction
+    and lease interest as a signed line, so lease interest split out at +24 moves net interest."""
+    doc = _split_doc("profit_and_loss", [
+        _face_line("Finance costs", "is_pl__interest_expense", 1800, 1654, "34")],
+        [_note_table("34", "Finance costs", [("Interest on borrowings", 1776, 1626),
+                                             ("Interest on lease liabilities", 24, 28)])])
+
+    added, ctx = _split(doc, "output_csv_hk_ontology.json", "output_csv_hk_v1_template.json")
+
+    assert added == 0, ctx.logs
+    assert [li.canonical_key for li in doc.line_items] == ["is_pl__interest_expense"]
+    assert any("split_declined(is_pl__interest_expense)" in line
+               and "is_pl__net_interest_income_expense" in line for line in ctx.logs), ctx.logs
+
+
+def test_a_reclassification_that_keeps_its_total_is_published():
+    """ICON reads other income into its own lines; every total above them still adds up."""
+    from app.services.rollups import evaluate
+
+    doc = _split_doc("profit_and_loss", [
+        _face_line("Other income", "pl_icon__misc_income", 405, 341, "29")],
+        [_note_table("29", "Other income", [
+            ("Interest on income tax refund", 6, 4),
+            ("Profit on sale of property, plant and equipment (net)", 3, 2),
+            ("Liabilities no longer required written back", 18, 9),
+            ("Interest income on fixed deposits with banks", 378, 326)])])
+    template = json.loads((_SAMPLES / "output_csv_icon_v1_template.json").read_text(
+        encoding="utf-8"))
+
+    def total(period: str):
+        def reported(key):
+            values = [ev.value for li in doc.line_items if li.canonical_key == key
+                      for ev in li.values.values() if ev.period_label == period]
+            return float(sum(values)) if values else None
+        return evaluate(template, reported)["pl_icon__non_operating_income_total"].value
+
+    before = (total("current"), total("prior"))
+    added, ctx = _split(doc, "output_csv_icon_line_items.json", "output_csv_icon_v1_template.json",
+                        line_items=True)
+
+    assert added > 0, ctx.logs
+    assert {li.canonical_key for li in doc.line_items if li.canonical_key} >= {
+        "pl_icon__interest_received", "pl_icon__profit_on_sale_of_assets_investments",
+        "pl_icon__non_operating_income_non_cash_others", "pl_icon__misc_income"}
+    assert (total("current"), total("prior")) == before == (405.0, 341.0)

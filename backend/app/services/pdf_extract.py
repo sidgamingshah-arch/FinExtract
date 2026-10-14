@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import re
 
-from app.core.models.enums import PageKind, PageSourceKind, PrintedIn
+from app.core.models.enums import Basis, PageKind, PageSourceKind, PrintedIn
 from app.core.models.geometry import BBox
 from app.core.stage import PipelineContext
 from app.services.mapping import known_captions
@@ -451,6 +451,19 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
             reporting[0], reporting[1] = len(doc.line_items), face_reporting_year(doc.line_items)
         return reporting[1]
 
+    # WHOSE THE NOTES ARE, decided before the first notes page is read: a note that prints no basis
+    # of its own is read on the one basis the face statements print (`services.face_bases`). Over
+    # `doc.pages` — every page the classifier read, after a person's overrides — and not over
+    # `targets`, so the Page Scope screen narrows which pages are read but never whose the notes
+    # are. Only STANDALONE is applied: on a face that prints only consolidated statements the row
+    # builder's default already is the face's basis, and the notes are left exactly as they were.
+    from app.services.face_bases import face_bases
+    faces = face_bases(doc.pages)
+    notes_basis = Basis.STANDALONE if faces.sole == "standalone" else None
+    ctx.log(f"extract:face_bases={faces.describe()}"
+            + (" (a note that prints no basis of its own is read as standalone)"
+               if notes_basis else ""))
+
     def _read_notes(region: list, page_index: int, source_kind: str, fold,
                     carry_note, carry_grid, carry_group, carry_header=None):
         """Read ``region`` as note text and return the carries the next page continues with."""
@@ -467,6 +480,7 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
                                      chapter=notes_chapter,
                                      known_captions=captions, page_fold=fold,
                                      carry_header=carry_header, header_out=headers,
+                                     default_basis=notes_basis,
                                      reporting_year=_reporting_year())
         doc.notes.extend(tables)
         # The BASIS travels with the note, so a note continued onto the page where the
@@ -730,6 +744,9 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
     # fragment carrying the rows was raised on the one before it.
     doc.notes[:] = without_empty_duplicates(doc.notes)
     ctx.log(f"extract:pdf_line_items={added} note_tables={len(doc.notes)}")
+    if notes_basis is not None:
+        ctx.log(f"extract:notes_on_face_basis="
+                f"{sum(1 for t in doc.notes if t.basis == Basis.STANDALONE)}(standalone)")
     return added
 
 

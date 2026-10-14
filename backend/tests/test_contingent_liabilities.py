@@ -377,3 +377,65 @@ def test_the_consolidated_current_period_is_the_one_explained():
     working = disclosure_explanation(record)
     assert working["basis_period"] == "consolidated:current"
     assert working["breakdown"][0]["amount"] == "2"
+
+
+def test_a_standalone_only_filing_explains_its_current_year():
+    """With no consolidated period the pick used to fall back to whichever key a set yielded first —
+    measured, a company-only filing's explanation described last year. Standalone current is the
+    period explained, in whichever order the periods were stored."""
+    from app.services.contingent_liabilities import disclosure_explanation
+
+    def period(text, amount):
+        return {"summary_paragraph": text, "unclassified_items": [], "qa_flags": [],
+                "classified_summary": [{"type": "Bank guarantees", "amount": amount}]}
+
+    prior, current = period("prior", "980"), period("current", "1120")
+    for record in ({"standalone:prior": prior, "standalone:current": current},
+                   {"standalone:current": current, "standalone:prior": prior}):
+        working = disclosure_explanation(record)
+        assert working["basis_period"] == "standalone:current"
+        assert working["breakdown"][0]["amount"] == "1120"
+
+
+def _explained(text: str, amount: str) -> dict:
+    return {"summary_paragraph": text, "unclassified_items": [], "qa_flags": [],
+            "classified_summary": [{"type": "Bank guarantees", "amount": amount}]}
+
+
+def test_standalone_current_is_explained_before_a_column_the_run_could_not_date():
+    """A note column the reader could not date is stored under an empty period, and
+    "standalone:" sorts ahead of "standalone:current". Standalone current is explained because it
+    is named as the period to explain, not because of where it sorts."""
+    from app.services.contingent_liabilities import disclosure_explanation
+
+    record = {"standalone:": _explained("undated", "7"),
+              "standalone:prior": _explained("prior", "980"),
+              "standalone:current": _explained("current", "1120")}
+
+    assert disclosure_explanation(record)["basis_period"] == "standalone:current"
+
+
+def test_with_no_named_period_the_choice_does_not_depend_on_the_storage_order():
+    """With no period the pick names, the explanation is the first period in sorted order, so
+    the same record explains the same period however its periods were stored."""
+    from app.services.contingent_liabilities import disclosure_explanation
+
+    undated_group, undated_company = _explained("group", "5"), _explained("company", "3")
+    for record in ({"standalone:": undated_company, "consolidated:": undated_group},
+                   {"consolidated:": undated_group, "standalone:": undated_company}):
+        working = disclosure_explanation(record)
+        assert working["basis_period"] == "consolidated:"
+        assert working["breakdown"][0]["amount"] == "5"
+
+
+def test_a_narrative_only_note_on_a_company_only_filing_is_filed_under_standalone():
+    from app.core.models.document import PageSource
+    from app.core.models.enums import PageKind
+
+    doc = _doc(NotesTable(note_number="28", title="Contingent liabilities",
+                          source_text="The Company has given bank guarantees on behalf of its "
+                                      "customers; the amount is not quantified."))
+    doc.pages = [PageSource(index=0, kind=PageKind.FACE, statement="balance_sheet",
+                            scope="company")]
+
+    assert set(compute(doc)) == {("standalone", "current")}

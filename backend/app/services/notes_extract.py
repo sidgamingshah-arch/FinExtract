@@ -1011,7 +1011,8 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
                         page_fold=DETECT_FOLD,
                         carry_header=None,
                         header_out: list | None = None,
-                        reporting_year: int | None = None) -> list[NotesTable]:
+                        reporting_year: int | None = None,
+                        default_basis: Basis | None = None) -> list[NotesTable]:
     """Split a notes page into note sections and reconstruct each note's detail rows.
 
     ``scope``/``normalisation`` are the run's own rulebook blocks; a note's columns are read by
@@ -1065,6 +1066,14 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
     "1.以公允价值计量且…", leaving its four Level 2 rows under no header) — and in either case only
     when those rows print no header of their own and their figures fit the carried one; see
     `row_reconstruct._name_note_columns`. ``reporting_year`` places a dated column heading.
+
+    ``default_basis`` is the basis the document's face statements print, when they print only one
+    (`services.face_bases`; the caller passes STANDALONE alone). A note that prints no basis of its
+    own is then read on it: the row builder reads such a note as the GROUP's, and on a filing whose
+    statements are all the company's that put every note figure on a consolidated tab holding
+    nothing else. Only a table whose every value is that no-band default takes it — a Group|Company
+    band, a company-only chapter and a basis carried from the previous page all win. None keeps
+    the reading every caller has always had.
     """
     # The same page-derived tolerance the face uses: a note's detail lines are set as tightly as a
     # statement's, and two of them merged into one row interleave their captions (row_reconstruct.
@@ -1280,6 +1289,14 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
                          if sec_chapter_title and _COMPANY_CHAPTER.search(sec_chapter_title)
                          else None)
         sec_basis = sec["basis"] if "basis" in sec else chapter_basis
+        # A NOTE THAT SAYS NOTHING OF WHOSE IT IS TAKES THE FACE'S ONE BASIS — see
+        # ``default_basis``. Only a table whose values are uniformly the row builder's no-band
+        # CONSOLIDATED default: a note printing Group and Company columns carries both bases and
+        # keeps them, and a carried note's own basis was decided where it began.
+        if (sec_basis is None and default_basis is not None
+                and all(ev.basis == Basis.CONSOLIDATED
+                        for li in items for ev in (li.values or {}).values())):
+            sec_basis = default_basis
         table = NotesTable(note_number=qualified_note_number(sec_numeral, sec["no"]),
                            title=sec["title"], basis=sec_basis, source_pages=[page_index],
                            # THE CHAPTER'S OWN HEADING, carried rather than discarded. `read_chapter`

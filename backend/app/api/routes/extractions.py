@@ -288,13 +288,20 @@ def _build_supplemental_rows(*, template_def: dict | None, base_rows: list[dict]
         return []
 
     from app.services.derived import compute_ratios
+    from app.services.face_bases import printed_bases
     from app.services.rollups import evaluate_rows
 
     current_display = _period_display(base_rows, "current")
     prior_display = _period_display(base_rows, "prior")
     periods_text = " / ".join([x for x in [current_display, prior_display] if x]) or None
 
-    computed = evaluate_rows(template_def, base_rows, "consolidated", "current", "en") if template_def else {}
+    # THE BASIS THE FILING'S STATEMENTS PRINT, for every control, ratio and row below. These rows
+    # are written into every run, so on a filing that prints only the company's statements a
+    # consolidated row was the one figure on a Consolidated tab the filing never printed — and its
+    # controls were computed from derived lines that had nothing to do with the statements.
+    basis = printed_bases(doc_model).sole or "consolidated"
+
+    computed = evaluate_rows(template_def, base_rows, basis, "current", "en") if template_def else {}
 
     def _control(*keys: str) -> Decimal | None:
         # THE TEMPLATE'S OWN KEY FOR THE TOTAL, whichever template this is. These controls named
@@ -314,7 +321,7 @@ def _build_supplemental_rows(*, template_def: dict | None, base_rows: list[dict]
 
     # Ratios keyed by their standard derived identifiers for covenant/supplemental fields.
     ratio_map: dict[str, dict] = {}
-    for r in compute_ratios(base_rows, basis="consolidated", period="current", locale="en",
+    for r in compute_ratios(base_rows, basis=basis, period="current", locale="en",
                             template_def=template_def):
         k = str(r.get("key") or "").strip()
         if k:
@@ -414,7 +421,7 @@ def _build_supplemental_rows(*, template_def: dict | None, base_rows: list[dict]
                         break
 
         out.append(_supp_row(key, label, value=value, period=period,
-                             period_display=period_display, basis="consolidated"))
+                             period_display=period_display, basis=basis))
     return out
 
 

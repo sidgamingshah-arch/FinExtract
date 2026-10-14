@@ -196,6 +196,130 @@ def _orientation_accounting_for(parent, hits: dict, tol: Decimal) -> tuple[int, 
     return 0, as_disclosed
 
 
+def _totals_the_split_would_move(doc: DocumentModel, template_def, nodes: dict, parent,
+                                 aggregate: str, assignments: dict, orientation: int,
+                                 tol: Decimal, *, drop_parent: bool
+                                 ) -> list[tuple[str, str, float | None, float | None]]:
+    """The template totals a split would change: ``(node, "basis/period", before, after)`` each.
+
+    A SPLIT RE-PRESENTS A PRINTED FIGURE, so it may not change any total the template computes from
+    it. The arithmetic gate above proves the components add up to the aggregate; it does not prove
+    the TEMPLATE adds them up the same way. Measured on an Ind AS test filing (f4) once its notes
+    were read on the face's basis: the inventories split filed stock-in-trade 13,224 under the
+    inventories line, whose template node is a residual the HK template's total current assets
+    counts alone, so raw materials 486 and finished goods 610 dropped out of every total above it —
+    total assets 38,458 against a printed 39,554. And the finance-cost split left lease interest +24
+    beside the interest-expense line the template reads as a deduction, moving net interest from
+    -1,800 to -1,752.
+
+    WHICH TOTALS ARE WATCHED: those above both the aggregate and every component (where the money
+    is still meant to be counted), and those above the aggregate that the face prints as a line of
+    its own — a printed total must still show what was printed. A node that is its own reported
+    total less its components (`reported_total_key` naming itself) is not watched: it is the
+    residual the split is meant to change.
+
+    Read as `normalize` will read it later in the run: a `natural_negative` line carries -|v|
+    unless its sign is already settled, and a split component of one is negated the same way when
+    the split kept the note's orientation. Each node shows its computed figure where it is
+    computable and its reported one otherwise, as the grid does.
+    """
+    if not nodes:
+        return []
+    from app.services.rollups import evaluate
+    from app.stages.normalize import _natural_negative_keys
+
+    negative = _natural_negative_keys(template_def or {})
+    parents_of: dict[str, set[str]] = {}
+    for key, node in nodes.items():
+        for child in (node.get("rollup") or {}).get("children") or []:
+            parents_of.setdefault(child, set()).add(key)
+
+    def ancestors(key: str) -> set[str]:
+        out, todo = set(), [key]
+        while todo:
+            for up in parents_of.get(todo.pop(), ()):
+                if up not in out:
+                    out.add(up)
+                    todo.append(up)
+        return out
+
+    def residual_of_itself(key: str) -> bool:
+        return (nodes[key].get("rollup") or {}).get("reported_total_key") == key
+
+    # How many rollups above the aggregate each total sits, so the nearest one a split would move
+    # is the one the log names first.
+    distance: dict[str, int] = {aggregate: 0}
+    frontier = [aggregate]
+    while frontier:
+        nxt = []
+        for key in frontier:
+            for up in parents_of.get(key, ()):
+                if up not in distance:
+                    distance[up] = distance[key] + 1
+                    nxt.append(up)
+        frontier = nxt
+
+    above = ancestors(aggregate)
+    common = set(above)
+    for key in assignments:
+        if key != aggregate:
+            common &= ancestors(key)
+    rows_by_key: dict[str, list] = {}
+    for li in doc.line_items:
+        if li.canonical_key:
+            rows_by_key.setdefault(li.canonical_key, []).append(li)
+    printed = {key for key, rows in rows_by_key.items()
+               if any(li is not parent and li.printed_in == PrintedIn.FACE
+                      and any(ev.value is not None for ev in li.values.values())
+                      for li in rows)}
+    watch = ({k for k in common if not residual_of_itself(k)}
+             | {k for k in above if k in printed and not residual_of_itself(k)}) - {aggregate}
+    if not watch:
+        return []
+
+    moved: list[tuple[str, str, float | None, float | None]] = []
+    columns = sorted({(ev.basis.value, ev.period_label or "") for ev in parent.values.values()
+                      if ev.value is not None})
+    for basis, period in columns:
+        extra: dict[str, Decimal] = {}
+        for key, sources in assignments.items():
+            summed = _summed_columns(sources).get((basis, period))
+            if summed is not None:
+                extra[key] = summed[0] * orientation
+
+        def reported(key: str, after: bool) -> float | None:
+            total: Decimal | None = None
+            for li in rows_by_key.get(key, ()):
+                if after and drop_parent and li is parent:
+                    continue
+                for ev in li.values.values():
+                    if (ev.column_index is not None or ev.value is None
+                            or ev.basis.value != basis or (ev.period_label or "") != period):
+                        continue
+                    value = Decimal(ev.value)
+                    if key in negative and not ev.sign_normalised:
+                        value = -abs(value)
+                    total = value if total is None else total + value
+            if after and key in extra:
+                value = extra[key]
+                if key in negative and orientation > 0:
+                    value = -abs(value)
+                total = value if total is None else total + value
+            return None if total is None else float(total)
+
+        before = evaluate(template_def, lambda k: reported(k, False))
+        after = evaluate(template_def, lambda k: reported(k, True))
+        for key in sorted(watch, key=lambda k: (distance.get(k, len(distance)), k)):
+            was, now = before.get(key), after.get(key)
+            shown_before = was.value if was is not None and was.computable else reported(key, False)
+            shown_after = now.value if now is not None and now.computable else reported(key, True)
+            if ((shown_before is None) != (shown_after is None)
+                    or (shown_before is not None
+                        and abs(float(shown_before) - float(shown_after)) > float(tol))):
+                moved.append((key, f"{basis}/{period}", shown_before, shown_after))
+    return moved
+
+
 def _same_section_decompositions(ontology) -> list[tuple[str, list[str], str]]:
     """(aggregate, children, section) for every declared containment whose children ALL sit in the
     aggregate's OWN section.
@@ -1336,6 +1460,17 @@ class MapOntologyStage:
                 continue
             tables, hits, residual_items, orientation = qualified[0]
             assignments = {**hits, **({aggregate: residual_items} if residual_items else {})}
+            # NO TEMPLATE TOTAL MAY MOVE — see `_totals_the_split_would_move`.
+            moved = _totals_the_split_would_move(
+                doc, template_def, calculated_nodes_by_key, parent, aggregate, assignments,
+                orientation, tol,
+                drop_parent=not (aggregate in calculated and aggregate not in calculated_residuals))
+            if moved:
+                node, column, before, after = moved[0]
+                ctx.log(f"map_line_items:split_declined({aggregate}): the template's {node} "
+                        f"would show {after} for {column}, not {before}"
+                        + (f" (+{len(moved) - 1} more)" if len(moved) > 1 else ""))
+                continue
             for key, sources in assignments.items():
                 src = sources[0].raw_label or key
                 if key == aggregate and aggregate.startswith("is_pl__interest_"):

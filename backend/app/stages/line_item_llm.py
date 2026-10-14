@@ -41,6 +41,7 @@ from app.core.stage import PipelineContext, Stage
 from app.ports.registry import registry
 from app.services import (face_context, line_item_llm, line_item_notes, line_item_requests,
                           line_item_routes, note_columns, note_sourced)
+from app.services.face_bases import printed_bases, refuse_unprinted
 from app.services.mapping import authored_guidance
 from app.services.working_view import build_working_view
 # ONE WRITER FOR A FIGURE, so the two routes into a line cannot disagree about what writing one
@@ -607,11 +608,18 @@ class LineItemLlmStage(Stage):
                 row.confidence.flags.append(
                     "llm_cited_rows_disagree_on_basis:" + ",".join(sorted(row_bases)))
         written = 0
+        # A CITED FIGURE ON A BASIS THE STATEMENTS DO NOT PRINT IS REFUSED, as on the declared route
+        # (`services.face_bases`): written, it would sit on a tab the filing never printed. Read
+        # once per line, not per period.
+        faces = printed_bases(doc)
         for period, amount in figures.items():
             if period == "prose":
                 written += self._write_prose(row, doc, amount, resolved, ctx, item)
                 continue
             if period not in _FILED:
+                continue
+            if refuse_unprinted(doc, row, item.key, basis, period, amount, by="line_item_llm",
+                                log=ctx.log, bases=faces):
                 continue
             _write(row, basis, period, amount, by="line_item_llm",
                    provenance=_cited_provenance(resolved))
@@ -921,6 +929,15 @@ class LineItemLlmStage(Stage):
         target = next((ev for ev in slots
                        if str(getattr(ev, "period_label", "") or "") == target_period),
                       slots[0] if slots else None)
+        if target is not None:
+            # The slot the figure goes into decides its column, so it is the slot's basis and
+            # period that are asked about below.
+            basis = str(getattr(getattr(target, "basis", ""), "value",
+                                getattr(target, "basis", "")) or "") or basis
+            target_period = str(getattr(target, "period_label", "") or "") or target_period
+        if refuse_unprinted(doc, row, item.key, basis, target_period, value,
+                            by="line_item_llm", log=ctx.log):
+            return 0
         if target is None:
             _write(row, basis, target_period, value)
         else:
@@ -930,9 +947,6 @@ class LineItemLlmStage(Stage):
             if target.value_raw is None:
                 target.value_raw = printed if printed is not None else value
             target.value = value
-            basis = str(getattr(getattr(target, "basis", ""), "value",
-                                getattr(target, "basis", "")) or "") or basis
-            target_period = str(getattr(target, "period_label", "") or "") or target_period
 
         prose = [e for e in resolved if e.get("prose")]
         best = prose[0] if prose else {}

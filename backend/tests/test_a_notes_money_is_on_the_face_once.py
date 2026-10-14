@@ -197,6 +197,57 @@ def test_a_note_figure_is_written_in_the_statements_units():
     assert _doc_unit(DocumentModel(filename="g.pdf")) is None
 
 
+def test_a_note_figure_takes_the_unit_its_statements_face_carries():
+    """An Indian filing prints "(₹ in lakhs)" as page chrome: the face rows carry scale 1 while
+    the document reads INR×100000, and a note figure written at the document's unit beside them
+    made the balance sheet's section reconciliations `mixed_scale`. The face's scale wins; with no
+    face rows the document's unit; and on 1966 the two are the same RMB'000.
+
+    THE CURRENCY IS THE DOCUMENT'S WHERE THE FACE NAMES NONE. No check compares currencies, so
+    taking the face's empty one bought nothing and lost the label: the Disclosures amount read
+    "1,120.00" where it had read "INR 1,120.00", and on a mainland filing (face rows at no
+    currency, the document at CNY) every note-route figure stopped carrying the document's unit."""
+    from app.core.models.enums import PrintedIn
+    from app.core.models.line_item import UnitContext
+    from app.stages.note_sourced import _doc_unit, _statement_unit
+
+    def doc_with(face_unit: UnitContext | None,
+                 declared: UnitContext | None = None) -> DocumentModel:
+        doc = DocumentModel(filename="f.pdf")
+        doc.unit_context = declared or UnitContext(currency="INR", scale_factor=Decimal(100000))
+        if face_unit is not None:
+            row = LineItem(source_label="Cash", canonical_key="bs_ca__cash",
+                           printed_in=PrintedIn.FACE)
+            row.set_value(ExtractedValue(basis=Basis.STANDALONE, period_label="current",
+                                         value=Decimal("300"), value_raw=Decimal("300"),
+                                         unit_ctx=face_unit))
+            doc.line_items = [row]
+        return doc
+
+    chrome = _statement_unit(doc_with(UnitContext()), "standalone")
+    assert chrome.scale_factor == Decimal(1) and chrome.currency == "INR"
+
+    # A mainland filing: 单位：元 names the currency, the face rows carry none. The note-route unit
+    # is the document's, exactly as it was before the face's unit was read.
+    cas = doc_with(UnitContext(), declared=UnitContext(currency="CNY", scale_factor=Decimal(1)))
+    assert _statement_unit(cas, "standalone") == _doc_unit(cas)
+
+    # A face that names its own currency keeps it.
+    hkd = _statement_unit(doc_with(UnitContext(currency="HKD", scale_factor=Decimal(1000))),
+                          "standalone")
+    assert (hkd.currency, hkd.scale_factor) == ("HKD", Decimal(1000))
+
+    declared = _statement_unit(doc_with(None), "standalone")
+    assert declared.scale_factor == Decimal(100000) and declared.currency == "INR"
+
+    thousands = _statement_unit(
+        doc_with(UnitContext(currency="CNY", scale_factor=Decimal(1000))), "standalone")
+    assert thousands.scale_factor == Decimal(1000) and thousands.currency == "CNY"
+
+    # A basis the face carries no row for falls back to the document's unit.
+    assert _statement_unit(doc_with(UnitContext()), "consolidated").scale_factor == Decimal(100000)
+
+
 def test_a_siblings_citation_does_not_withhold_a_figure_taken_from_the_face():
     """1966 on the spy route: Securities (CP) took 344,135 from its face part while a sibling part
     cited note 22, which is the face's completed-properties row. Only the money a slot was

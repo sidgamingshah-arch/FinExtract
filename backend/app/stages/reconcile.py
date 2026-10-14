@@ -163,12 +163,27 @@ class ReconcileStage:
         # One question per (face line, note number): a note spanning several tables must not
         # ask it once per table.
         tables_by_link: dict[tuple, list] = {}
+        # A ROW THE §20 SPLIT MADE OUT OF A NOTE IS NOT GRADED AGAINST THAT NOTE. The split's own
+        # arithmetic gate already proved, in every column, that the components account for the
+        # aggregate; a component compared with its whole note always leaves the other components
+        # behind as a false residual — on an Ind AS test filing a bank balance of 394 "did not tie"
+        # to its note's 412, the other 18 being cash on hand split out beside it. The aggregate the
+        # split un-filed IS still graded: it is what the whole note accounts for, and its tie is
+        # how a note's own total row is shown not to be counted as one of its details.
+        split_rows = {li.id for li in doc.line_items
+                      if any(str(f).startswith("split_from:") for f in li.confidence.flags)}
+        not_graded = 0
         for link in doc.links:
             note = note_by_id.get(link.notes_table_id)
             if note is None or link.face_item_id not in face_by_id:
                 continue
+            if link.face_item_id in split_rows:
+                not_graded += 1
+                continue
             tables_by_link.setdefault((link.face_item_id, link.note_number), []).append(
                 (note, link))
+        if not_graded:
+            ctx.log(f"reconcile:split_rows_not_graded={not_graded}")
 
         def _details(face, note, ev) -> list[NoteDetail]:
             details: list[NoteDetail] = []

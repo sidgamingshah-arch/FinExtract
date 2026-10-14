@@ -29,6 +29,7 @@ from app.core.models.document import DocumentModel
 from app.core.models.line_item import ExtractedValue, LineItem
 from app.core.stage import PipelineContext, Stage
 from app.services import note_sourced
+from app.services.face_bases import printed_bases, refuse_unprinted
 
 
 class NoteSourcedStage(Stage):
@@ -40,6 +41,7 @@ class NoteSourcedStage(Stage):
         if not items:
             ctx.log("note_sourced: no line item declares a note_source")
             return doc
+        logs_at = len(ctx.logs)
 
         # WHICH SECTION EACH NOTE IS ALIGNED TO, resolved once for the run rather than per line:
         # the map is built from `doc.links` and every line is then narrowed against the same
@@ -80,6 +82,10 @@ class NoteSourcedStage(Stage):
         # WHICH BLOCK OF A TWO-SIDED NOTE IS WHOSE, resolved once — see `note_sourced.block_sides`.
         sides = note_sourced.block_sides(doc, line_item_set)
         by_key = {li.canonical_key: li for li in doc.line_items if li.canonical_key}
+        # THE BASES THE FACE STATEMENTS PRINT, read once for the run (`services.face_bases`). A
+        # figure for any other basis has no statement to sit on, so every write below asks first.
+        # Each helper further down reads the same answer for itself.
+        bases = printed_bases(doc)
         children_of: dict[str, list] = {}
         filled = touched = 0
         prose_filled = 0
@@ -175,6 +181,9 @@ class NoteSourcedStage(Stage):
                     stated, counted = note_sourced.take_by_rollup(
                         [h.amount for h in sentences], rollup)
                     amount = stated / scale if scale and scale != 1 else stated
+                    if refuse_unprinted(doc, row, item.key, basis, period, amount,
+                                        by="note_sourced", log=ctx.log, bases=bases):
+                        continue
                     # THE MODEL'S ANSWER STANDS HERE TOO — see `_llm_holds`. It is not a correction
                     # of an answer the model gave from the same notes.
                     if _llm_holds(row, basis, period):
@@ -238,6 +247,9 @@ class NoteSourcedStage(Stage):
                 by_key[item.key] = row
             touched += 1
             for (basis, period), (amount, inputs) in sorted(resolved.items()):
+                if refuse_unprinted(doc, row, item.key, basis, period, amount,
+                                    by="note_sourced", log=ctx.log, bases=bases):
+                    continue
                 # THE MODEL'S ANSWER STANDS — see `_llm_holds`. A `note_source` declaration is one
                 # route to this row's figure and the model's reading of the notes is another; where
                 # the model has answered, this fills nothing and the figure it gave feeds the
@@ -250,8 +262,10 @@ class NoteSourcedStage(Stage):
                 # A NOTE TABLE IS STATED IN THE STATEMENTS' UNITS (`normalize` scales both by the
                 # document's `unit_context`), so the figure is written in them. Written without,
                 # it took scale 1 beside RMB'000 siblings: China SCE 1966's other receivables
-                # (note 24, 5,818,375) made `bs_ca`'s reconciliation `mixed_scale`.
-                _write(row, basis, period, amount, by="note_source", unit_ctx=_doc_unit(doc))
+                # (note 24, 5,818,375) made `bs_ca`'s reconciliation `mixed_scale`. The unit is the
+                # one THIS BASIS'S FACE carries — see `_statement_unit`.
+                _write(row, basis, period, amount, by="note_source",
+                       unit_ctx=_statement_unit(doc, basis))
                 row.derivation = note_sourced.derivation.record(
                     row.derivation, basis=basis, period_label=period,
                     derivation=note_sourced.trail(rollup=rollup, item_label=item.label or item.key,
@@ -348,6 +362,15 @@ class NoteSourcedStage(Stage):
         # settled above is not recomputed here.
         standalone += _fill_childless_internal(all_items, children_of, by_key, doc, ctx)
         _settle_against_the_face(doc, ctx, all_items)
+        # EVERY FIGURE THIS STAGE REFUSED FOR A BASIS THE STATEMENTS DO NOT PRINT, once per
+        # (line, basis, period). Counted off this stage's own refusal lines rather than off the
+        # `basis_not_printed:` flags: the model's route flags the same rows before this stage runs,
+        # and an internal line refused before it was ever written has no row to carry a flag.
+        refused = {line.split("] REFUSED ", 1)[0] for line in ctx.logs[logs_at:]
+                   if line.startswith("note_sourced:") and "] REFUSED " in line}
+        if refused:
+            ctx.log(f"note_sourced:basis_refused={len(refused)} "
+                    f"(face bases: {bases.describe()})")
         ctx.log(f"note_sourced: {touched} item(s) filled from notes, {filled} figure(s), "
                 f"{parents} parent(s) resolved, {standalone} standalone line(s) computed")
         return doc
@@ -449,6 +472,51 @@ def _doc_unit(doc):
     if uc is not None and (uc.currency or uc.scale_factor != 1):
         return uc
     return None
+
+
+def _statement_unit(doc, basis: str):
+    """The unit the FACE figures of this basis carry, and the document's unit when there are none.
+
+    A note figure joins the statement's own rows in every check that adds them, so it takes their
+    unit. The document's unit is not always theirs: on an Indian filing the "(₹ in lakhs)" line is
+    page chrome, so the face rows carry scale 1 while `normalize` reads the document as INR×100000,
+    and a note figure written at INR×100000 beside them made `structural_checks` skip the balance
+    sheet's section reconciliations as `mixed_scale`. On China SCE 1966 the face carries RMB'000,
+    which is the document's unit, so the two answers agree. The most common unit wins; a tie goes
+    to the first seen.
+
+    THE CURRENCY IS THE DOCUMENT'S WHERE THE FACE NAMES NONE. What the checks compare is the scale;
+    no check compares currencies. Those same Indian face rows name no currency, and taking their
+    empty one dropped the document's from every note-route figure — the Disclosures amount read
+    "1,120.00" where it had read "INR 1,120.00" — and on a mainland filing (face rows at no
+    currency, the document at CNY) changed the unit of every note-route figure where the face's
+    scale already agreed with the document's.
+    """
+    from app.core.models.enums import PrintedIn
+
+    counts: dict[tuple[str, str], int] = {}
+    first: dict[tuple[str, str], object] = {}
+    for li in getattr(doc, "line_items", None) or ():
+        if getattr(li, "printed_in", None) != PrintedIn.FACE:
+            continue
+        for ev in (li.values or {}).values():
+            if (getattr(ev, "column_index", None) is not None or ev.value is None
+                    or _basis(ev) != basis):
+                continue
+            uc = getattr(ev, "unit_ctx", None)
+            if uc is None:
+                continue
+            key = (uc.currency or "", str(uc.scale_factor))
+            counts[key] = counts.get(key, 0) + 1
+            first.setdefault(key, uc)
+    declared = _doc_unit(doc)
+    if not counts:
+        return declared
+    best = max(counts.values())
+    unit = first[next(k for k in first if counts[k] == best)]
+    if not unit.currency and declared is not None and declared.currency:
+        unit = unit.model_copy(update={"currency": declared.currency})
+    return unit
 
 
 def _unit_of_terms(inputs, by_key: dict, basis: str, period: str):
@@ -619,11 +687,14 @@ def _prose_basis(doc, notes_cited=()) -> str:
       1. THE NOTE'S OWN BASIS, where every note the figure was read from agrees on one. A
          company-only chapter (母公司财务报表主要项目注释) is tagged STANDALONE by
          `notes_extract`, and a sentence in it describes the company's figures.
-      2. CONSOLIDATED, when the filing prints a consolidated statement at all. A note under no
-         company-only heading describes the GROUP: that is how both CAS and HKFRS number their
-         notes, the group's first and the parent's in a chapter of their own.
-      3. Otherwise the face's own prevailing basis — a filing with no group prints only its
-         company statements, and a note there can only be describing those.
+      2. THE SOLE BASIS THE FACE STATEMENTS PRINT, when the document is known to print one
+         (`services.face_bases`); CONSOLIDATED when it prints both. A note under no company-only
+         heading describes the GROUP wherever there is one: that is how both CAS and HKFRS number
+         their notes, the group's first and the parent's in a chapter of their own. Read off the
+         classifier's page verdicts rather than off the values, because a note page misread as a
+         statement carries consolidated figures on a filing that prints only the company's.
+      3. For a document whose pages say nothing (no classified page): CONSOLIDATED when any
+         consolidated figure exists, otherwise the face's own prevailing basis.
 
     THE PREVIOUS RULE WAS STEP 3 ALONE, a majority vote over the FACE's values, and it asked the
     wrong population. A mainland filing prints the parent company's statements beside the
@@ -646,6 +717,10 @@ def _prose_basis(doc, notes_cited=()) -> str:
                 bases.add(value(getattr(table, "basis", None)) or "consolidated")
         if len(bases) == 1:
             return next(iter(bases))
+
+    faces = printed_bases(doc)
+    if faces.known:
+        return faces.sole or "consolidated"
 
     seen: dict[str, int] = {}
     for li in doc.line_items:
@@ -792,6 +867,7 @@ def _fill_parents(children_of: dict[str, list], by_key: dict, doc: DocumentModel
     # `done` makes re-entry impossible. A cycle therefore stops rather than spinning.
     resolved = 0
     done: set[str] = set()
+    bases = printed_bases(doc)
     for _pass in range(len(children_of) + 2):
         ordered = [(k, kids) for k, kids in _in_dependency_order(children_of, defs)
                    if k and k not in done]
@@ -880,6 +956,11 @@ def _fill_parents(children_of: dict[str, list], by_key: dict, doc: DocumentModel
                             f"note_sourced_differs_from_printed:{offers[0][0].key}")
                         ctx.log(f"note_sourced:{parent_key}: printed {existing.value} kept over "
                                 f"note-derived {taken}")
+                    continue
+                if refuse_unprinted(doc, parent, parent_key, basis, period,
+                                    offers[0][1].value if rollup == "alternatives" else sum(
+                                        (o[1].value for o in offers), Decimal(0)),
+                                    by="note_sourced", log=ctx.log, bases=bases):
                     continue
                 if rollup == "alternatives":
                     item, ev = offers[0]
@@ -1081,6 +1162,7 @@ def _fill_by_cascade(parent_def, kids: list, by_key: dict, doc: DocumentModel,
     slots = {slot: known for slot, known in slots.items() if slot in child_slots}
 
     filled = 0
+    bases = printed_bases(doc)
     for (basis, period), known in sorted(slots.items()):
         got = evaluate_line(parent_def, known, sources.get((basis, period)))
         if not got.resolved:
@@ -1110,6 +1192,11 @@ def _fill_by_cascade(parent_def, kids: list, by_key: dict, doc: DocumentModel,
                     f"({len(llm_answered)} row(s)); the declared cascade does not overrule it")
             for li in llm_answered:
                 li.confidence.flags.append(f"cascade_deferred_to_llm:{got.rung_used}:{got.value}")
+            continue
+        # A COLUMN THE STATEMENTS DO NOT PRINT IS NOT THIS CASCADE'S TO FILL — and, refused here,
+        # it neither writes nor supersedes the printed carriers below.
+        if refuse_unprinted(doc, parent, parent_def.key, basis, period, got.value,
+                            by="note_sourced", log=ctx.log, bases=bases):
             continue
         # THE CONTEST IS ACROSS EVERY CARRIER, because the figure a reader sees is
         # `concept_value` over all of them — deciding it against one row would leave the others
@@ -1331,6 +1418,7 @@ def _fill_childless_internal(all_items, children_of: dict[str, list], by_key: di
     # already does the real ordering and a second implementation of that graph is a second thing
     # to drift.
     filled = 0
+    bases = printed_bases(doc)
     for item in sorted(candidates, key=lambda i: (int(getattr(i, "order", 0) or 0), i.key)):
         row = next((li for li in doc.line_items if li.canonical_key == item.key), None)
         wrote = []
@@ -1350,6 +1438,10 @@ def _fill_childless_internal(all_items, children_of: dict[str, list], by_key: di
                     ctx.log(f"note_sourced:{item.key}: no rung resolved in {basis}/{period}"
                             + (f", refused (below zero, or inputs that contradict each "
                                f"other): {ev.refused_rungs}" if ev.refused_rungs else ""))
+                continue
+            # Asked before the row exists, so a line refused in every column is never created.
+            if refuse_unprinted(doc, row, item.key, basis, period, ev.value,
+                                by="note_sourced", log=ctx.log, bases=bases):
                 continue
             if row is None:
                 row = LineItem(source_label=item.label or item.key, canonical_key=item.key)

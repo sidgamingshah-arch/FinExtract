@@ -782,21 +782,25 @@ _QUANTIFIED_DISCLOSURE = {"contingent_liabilities": "notes__contingent_liabiliti
 def _with_quantified_amounts(disclosures: list[dict], rows: list[dict]) -> list[dict]:
     """`disclosures` with `amount`/`currency` added wherever the pipeline computed a figure.
 
-    Only the CURRENT period of the consolidated basis, which is what the presence scan is about,
-    and only a value that is genuinely numeric — a concept left empty because the rulebook forbids
-    inferring a zero from silence must stay empty here too, not become a confident 0.
+    The amount beside the explanation is the amount of the period the explanation describes:
+    `contingent_liabilities.disclosure_explanation` names it in `basis_period` — consolidated
+    current, or standalone current on a filing that prints only the company's statements — and an
+    entry that names none is read on consolidated current, as the presence scan is. Only a value
+    that is genuinely numeric — a concept left empty because the rulebook forbids inferring a zero
+    from silence must stay empty here too, not become a confident 0.
     """
     out: list[dict] = []
     for d in disclosures:
         key = _QUANTIFIED_DISCLOSURE.get(str(d.get("key") or ""))
         amount = currency = None
+        basis, _, period = str(d.get("basis_period") or "consolidated:current").partition(":")
         if key:
             for r in rows:
                 if r.get("canonical_key") != key:
                     continue
                 for v in r.get("values") or []:
-                    if (v.get("basis") == "consolidated"
-                            and (v.get("period_label") or "") == "current"
+                    if (v.get("basis") == basis
+                            and (v.get("period_label") or "") == period
                             and v.get("value") not in (None, "")):
                         try:
                             Decimal(str(v["value"]))       # numeric, not a "Yes"/"No" leftover

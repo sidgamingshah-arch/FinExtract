@@ -1743,3 +1743,100 @@ def make_cas_cash_flow_supplement_in_notes_pdf(chapter: str = "七、合并财�
     c.showPage()
     c.save()
     return buf.getvalue()
+
+
+def make_indian_standalone_with_notes_pdf() -> bytes:
+    """An Indian company that prints only its OWN statements, followed by their notes.
+
+    Page 0 is a cover, page 1 the STANDALONE BALANCE SHEET (Schedule III layout, "(Rupees in
+    lakhs)"), page 2 the notes to the standalone financial statements. No note prints a basis
+    column, so the row builder reads every note as the GROUP's — and on this filing there is no
+    group: the figures of note 3 (other financial assets 412 / 368, the balance sheet's own
+    non-current row) and of note 28 (bank guarantees 1,120 / 980) belong on the standalone tab.
+
+    Ground truth: TOTAL ASSETS 4,308 / 3,952; note 3 = security deposits 300 / 270 + bank deposits
+    maturing after twelve months 112 / 98. The notes print no column heading: a dated heading inside
+    a note is read as a row of figures, which is not what this fixture is about.
+    """
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas
+
+    w, h = A4
+
+    def head(c, title, period):
+        y = h - 60
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(50, y, "SAMPLE TRADERS LIMITED")
+        c.drawString(50, y - 16, title)
+        c.setFont("Helvetica", 9)
+        c.drawString(50, y - 30, period)
+        c.drawRightString(w - 50, y - 30, "(Rupees in lakhs)")
+        return y - 50
+
+    def columns(c, y):
+        c.setFont("Helvetica-Bold", 9)
+        c.drawString(50, y, "Particulars")
+        c.drawRightString(385, y, "Note")
+        c.drawRightString(470, y, "31 March 2025")
+        c.drawRightString(w - 50, y, "31 March 2024")
+        return y - 14
+
+    def rows(c, y, lines):
+        for kind, label, *figures in lines:
+            c.setFont("Helvetica-Bold" if kind in "ht" else "Helvetica", 8.5)
+            c.drawString(50 if kind != "r" or not label.startswith(("(", "-")) else 62, y, label)
+            if figures:
+                note, cy, py = figures
+                if note:
+                    c.drawRightString(385, y, note)
+                c.drawRightString(470, y, f"{cy:,}")
+                c.drawRightString(w - 50, y, f"{py:,}")
+            y -= 13
+        return y
+
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    c.setFont("Helvetica-Bold", 22)
+    c.drawCentredString(w / 2, h / 2, "SAMPLE TRADERS LIMITED")
+    c.setFont("Helvetica", 12)
+    c.drawCentredString(w / 2, h / 2 - 28, "Annual Report 2024-25")
+    c.showPage()
+
+    y = columns(c, head(c, "STANDALONE BALANCE SHEET", "As at 31 March 2025"))
+    rows(c, y, [
+        ("h", "ASSETS"), ("h", "Non-current assets"),
+        ("r", "(a) Property, plant and equipment", "2", 1500, 1450),
+        ("h", "(b) Financial assets"),
+        ("r", "(i) Other financial assets", "3", 412, 368),
+        ("t", "Total non-current assets", "", 1912, 1818),
+        ("h", "Current assets"),
+        ("r", "(a) Inventories", "5", 2000, 1800),
+        ("h", "(b) Financial assets"),
+        ("r", "(i) Cash and cash equivalents", "6", 300, 250),
+        ("r", "(ii) Other financial assets", "4", 96, 84),
+        ("t", "Total current assets", "", 2396, 2134),
+        ("t", "TOTAL ASSETS", "", 4308, 3952),
+        ("h", "EQUITY AND LIABILITIES"), ("h", "Equity"),
+        ("r", "(a) Equity share capital", "7", 1000, 1000),
+        ("r", "(b) Other equity", "8", 2308, 2152),
+        ("t", "Total equity", "", 3308, 3152),
+        ("h", "Current liabilities"),
+        ("r", "(a) Trade payables", "9", 1000, 800),
+        ("t", "Total current liabilities", "", 1000, 800),
+        ("t", "TOTAL EQUITY AND LIABILITIES", "", 4308, 3952),
+    ])
+    c.showPage()
+
+    y = head(c, "NOTES TO THE STANDALONE FINANCIAL STATEMENTS",
+             "for the year ended 31 March 2025")
+    c.setFont("Helvetica-Bold", 10)
+    c.drawString(50, y, "3. Other financial assets")
+    y = rows(c, y - 18, [("r", "Security deposits", "", 300, 270),
+                         ("r", "Bank deposits maturing after twelve months", "", 112, 98),
+                         ("t", "Total", "", 412, 368)])
+    c.setFont("Helvetica-Bold", 10)
+    c.drawString(50, y - 20, "28. Contingent liabilities")
+    rows(c, y - 38, [("r", "Bank guarantees", "", 1120, 980)])
+    c.showPage()
+    c.save()
+    return buf.getvalue()

@@ -568,23 +568,26 @@ class ContingentLiabilitiesResult:
 # builders and two routes: `disclosures` is one list that ALREADY flows to every one of those
 # places, so enriching the entry puts the working in front of every reader at one insertion point.
 # Additive keys only — a consumer that does not know about them is unaffected.
-_PREFERRED_PERIODS = ("consolidated:current", "consolidated:prior")
+_PREFERRED_PERIODS = ("consolidated:current", "consolidated:prior",
+                      "standalone:current", "standalone:prior")
 
 
 def _pick_period(record: dict) -> tuple[str | None, dict]:
     """The one period a DOCUMENT-level disclosure is about.
 
-    Consolidated current first, because that is the basis and period the presence scan and
-    `_with_quantified_amounts` both speak about — the amount beside the explanation must be the
-    amount the explanation explains. Anything else only if that is absent, and the period actually
-    used is returned so the caller can say which one it is rather than implying "the filing".
+    Consolidated current first, because that is the basis and period the presence scan speaks
+    about; on a filing that prints only the company's statements, standalone current. The period
+    actually used is returned and `documents._with_quantified_amounts` reads the amount from it,
+    so the amount beside the explanation is the amount the explanation explains rather than
+    "the filing". Anything else only if none of those is present, taken in sorted order so the
+    choice cannot depend on the order a set yielded the keys in.
     """
     for key in _PREFERRED_PERIODS:
         if isinstance(record.get(key), dict):
             return key, record[key]
-    for key, value in record.items():                      # a run that could not label its columns
-        if isinstance(value, dict):
-            return key, value
+    for key in sorted(record):                             # a run that could not label its columns
+        if isinstance(record[key], dict):
+            return key, record[key]
     return None, {}
 
 
@@ -754,6 +757,11 @@ def _result_from(items: list[ContingentItem], extra_flags: list[str]
 def compute(doc: DocumentModel,
             page_texts: list[tuple[int, str]] | None = None
             ) -> dict[PeriodKey, ContingentLiabilitiesResult]:
+    # THE BASIS A DISCLOSURE WITH NO COLUMN OF ITS OWN IS FILED UNDER: the one the face statements
+    # print, when they print one (`services.face_bases`), and consolidated otherwise.
+    from app.services.face_bases import printed_bases
+
+    default = (printed_bases(doc).sole or "consolidated", "current")
     matching_notes = [t for t in doc.notes if _NOTE_HEADING_RE.search(t.title or "")]
     if not matching_notes:
         # Before giving up, look in the document's own prose. On the measured CSRC filing the
@@ -768,12 +776,12 @@ def compute(doc: DocumentModel,
         # NO_NOTES_FOUND RESULT here instead — which would finally make the unreachable branch
         # below fire — broke both of those tests, and turning "not found" into a published row is a
         # contract change, not a bug fix. Only a sweep that actually finds an exposure returns one.
-        swept = _zh_document_sweep(page_texts or [], ("consolidated", "current"))
+        swept = _zh_document_sweep(page_texts or [], default)
         if not swept:
             return {}
         # Flagged for review on the face of it: read from loose page prose rather than from an
         # identified note, which is a weaker provenance and has to say so.
-        return {("consolidated", "current"): _result_from(
+        return {default: _result_from(
             _dedupe(swept), ["DISCLOSURE_READ_FROM_PAGE_PROSE",
                              "MISSING_CONTINGENT_LIABILITY_NOTES"])}
     keys: set[PeriodKey] = set()
@@ -784,10 +792,10 @@ def compute(doc: DocumentModel,
     # A note with no numeric column at all (a pure narrative disclosure) still needs a result, so
     # a matching note with nothing to iterate for it otherwise contributes a default key.
     if not keys:
-        keys.add(("consolidated", "current"))
+        keys.add(default)
 
     out: dict[PeriodKey, ContingentLiabilitiesResult] = {}
-    for pk in keys:
+    for pk in sorted(keys):
         raw_items, found_note = _extract_items(doc, pk)
         if not found_note:
             out[pk] = ContingentLiabilitiesResult(

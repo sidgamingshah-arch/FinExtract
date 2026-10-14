@@ -34,6 +34,7 @@ from decimal import Decimal, InvalidOperation
 
 from app.core.models.document import DocumentModel
 from app.services import derivation
+from app.services.face_bases import printed_bases, refuse_unprinted
 
 # The flags `stages.map_ontology._apply_result` leaves on a declared component.
 _OF = "component_of:"
@@ -101,6 +102,9 @@ def assemble(doc: DocumentModel, *, log=None) -> int:
             whole.setdefault(key, []).append(item)
 
     filled = 0
+    # The bases the face statements print (`services.face_bases`): an assembled total for any other
+    # basis has no statement to sit on and is refused like every other derived figure.
+    bases = printed_bases(doc)
     for key, rows in sorted(components.items()):
         if key in whole:
             # THE ONE CASE THIS REFUSES. Reported on every row involved so a reviewer sees it on
@@ -125,6 +129,9 @@ def assemble(doc: DocumentModel, *, log=None) -> int:
         target = rows[0]
         for (basis, period), parts in sorted(by_slot.items()):
             total = sum((amount * sign for _row, amount, sign in parts), Decimal(0))
+            if refuse_unprinted(doc, target, key, basis, period, total, by="assemble", log=log,
+                                bases=bases):
+                continue
             inputs = []
             for row, amount, sign in parts:
                 inputs.append({

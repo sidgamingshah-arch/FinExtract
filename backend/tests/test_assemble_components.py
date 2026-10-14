@@ -176,3 +176,33 @@ def test_a_filing_that_prints_every_line_directly_assembles_nothing():
 
     assert assemble(doc) == 0
     assert doc.line_items[0].derivation is None
+
+
+def test_a_total_on_a_basis_the_statements_do_not_print_is_not_assembled():
+    """A filing whose statements are all the company's prints no consolidated column, so an
+    assembled consolidated total has no statement to sit on: refused, and the row says why
+    (`services.face_bases`). The same components on standalone are assembled."""
+    from app.core.models.document import PageSource
+    from app.core.models.enums import PageKind
+    from app.services.face_bases import REFUSED_FLAG
+
+    def company_only(*rows: LineItem) -> DocumentModel:
+        doc = _doc(*rows)
+        doc.pages = [PageSource(index=0, kind=PageKind.FACE, statement="profit_and_loss",
+                                scope="company"),
+                     PageSource(index=1, kind=PageKind.NOTES)]
+        return doc
+
+    logs: list[str] = []
+    doc = company_only(_row("R&D depreciation", KEY, "100", component_of=KEY),
+                       _row("G&A depreciation", KEY, "60", component_of=KEY))
+    assert assemble(doc, log=logs.append) == 0
+    assert doc.line_items[0].derivation is None
+    assert f"{REFUSED_FLAG}:consolidated:current" in doc.line_items[0].confidence.flags
+    assert any(line.startswith(f"assemble:{KEY}[consolidated:current] REFUSED 160")
+               for line in logs), logs
+
+    doc = company_only(_row("R&D depreciation", KEY, "100", component_of=KEY, basis="standalone"),
+                       _row("G&A depreciation", KEY, "60", component_of=KEY, basis="standalone"))
+    assert assemble(doc) == 1
+    assert doc.line_items[0].derivation["standalone:current"]["result"] == "160"
