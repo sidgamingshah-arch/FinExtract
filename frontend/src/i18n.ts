@@ -103,6 +103,18 @@ const core: LocaleDicts = {
     "ws.printedRef": "printed",
     "ws.printedRef.help":
       "The filing printed {printed}. The figure shown is what this line's components come to ({shown}), and it is the figure the spread and the export publish. Difference: {diff}.",
+    // The printed row nothing mapped that accounts for a calculated line's difference, named
+    // inside the divergence block (server: `explained_by`). The sentence itself is the server's.
+    "ws.explained.head": "Explained by a printed row nothing mapped",
+    "ws.explained.showRow": "Show this row in the document",
+    "ws.explained.sections": "Lines this total is built from, under:",
+    "ws.explained.remainder": "Still unexplained:",
+    "ws.explained.mapInQueue": "Map it in the review queue",
+    // The inspector's divergence sentence, whole in each locale with the figures filled in.
+    "ws.divergence.printed": "The document printed {printed}.",
+    "ws.divergence.shown": "This line shows what its components come to. The difference is {diff}.",
+    "ws.divergence.queued":
+      "This line shows what its components come to. The difference is {diff}, and it is in the review queue.",
     "ws.noRate": "No FX rate configured for",
     "ws.rateFailed": "Could not look up the FX rate for",
     "ws.rateFailedHint":
@@ -214,6 +226,14 @@ const core: LocaleDicts = {
     "ws.printedRef": "原文",
     "ws.printedRef.help":
       "报表原文列示为 {printed}。此处显示的是本行各组成项目的合计（{shown}），表格与导出均发布该计算值。差额：{diff}。",
+    "ws.explained.head": "由一行未被映射的印刷行解释",
+    "ws.explained.showRow": "在文档中显示此行",
+    "ws.explained.sections": "构成该合计的项目位于：",
+    "ws.explained.remainder": "仍未解释：",
+    "ws.explained.mapInQueue": "在审核队列中映射此行",
+    "ws.divergence.printed": "报表原文列示为 {printed}。",
+    "ws.divergence.shown": "此处显示的是本行各组成项目的合计。差额为 {diff}。",
+    "ws.divergence.queued": "此处显示的是本行各组成项目的合计。差额为 {diff}，已列入审核队列。",
     "ws.rateLoading": "正在查询汇率…",
     "ws.noRate": "未配置汇率：",
     "ws.rateFailed": "无法查询汇率：",
@@ -322,6 +342,14 @@ const core: LocaleDicts = {
     "ws.printedRef": "المطبوع",
     "ws.printedRef.help":
       "طبع التقرير {printed}. الرقم المعروض هو مجموع مكونات هذا البند ({shown})، وهو الرقم الذي ينشره الجدول والتصدير. الفرق: {diff}.",
+    "ws.explained.head": "يفسّره سطر مطبوع لم يُربط بأي بند",
+    "ws.explained.showRow": "اعرض هذا السطر في المستند",
+    "ws.explained.sections": "البنود التي يتكوّن منها هذا الإجمالي، ضمن:",
+    "ws.explained.remainder": "ما يزال دون تفسير:",
+    "ws.explained.mapInQueue": "اربطه في قائمة المراجعة",
+    "ws.divergence.printed": "طبع التقرير {printed}.",
+    "ws.divergence.shown": "يعرض هذا البند مجموع مكوناته. الفرق {diff}.",
+    "ws.divergence.queued": "يعرض هذا البند مجموع مكوناته. الفرق {diff}، وهو مدرج في قائمة المراجعة.",
     "ws.rateLoading": "جارٍ البحث عن سعر الصرف…",
     "ws.noRate": "لا يوجد سعر صرف مُهيّأ لـ",
     "ws.rateFailed": "تعذّر الاستعلام عن سعر الصرف لـ",
@@ -431,6 +459,15 @@ const core: LocaleDicts = {
     "ws.printedRef": "publié",
     "ws.printedRef.help":
       "Le document publie {printed}. Le chiffre affiché est la somme des composantes de cette ligne ({shown}) ; c'est lui que le tableau et l'export publient. Écart : {diff}.",
+    "ws.explained.head": "Expliqué par une ligne imprimée que rien n'a rattachée",
+    "ws.explained.showRow": "Afficher cette ligne dans le document",
+    "ws.explained.sections": "Postes qui composent ce total, sous :",
+    "ws.explained.remainder": "Reste inexpliqué :",
+    "ws.explained.mapInQueue": "La rattacher dans la file de révision",
+    "ws.divergence.printed": "Le document publie {printed}.",
+    "ws.divergence.shown": "Cette ligne affiche la somme de ses composantes. L'écart est de {diff}.",
+    "ws.divergence.queued":
+      "Cette ligne affiche la somme de ses composantes. L'écart est de {diff}, et il figure dans la file de révision.",
     "ws.noRate": "Aucun taux de change configuré pour",
     "ws.rateFailed": "Impossible de récupérer le taux de change pour",
     "ws.rateFailedHint":

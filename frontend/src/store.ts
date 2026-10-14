@@ -40,6 +40,13 @@ interface UIState {
   editing: boolean; // inspector edit mode
   note: string; // selected note (All Notes), as the filing numbers it ("16(b)")
   openCheck: string; // expanded review check
+  /** A printed row the Review screen should open the unmapped card of, by its re-map handle
+   *  (`row_ref`) — set by "Map it" on an explanation, consumed and cleared by the Review screen.
+   *  "" when nothing is pending. Navigation goes through the store, not the URL. */
+  focusRowRef: string;
+  /** Set by "Open in workspace" on an explained card: once the selected line has loaded, the
+   *  Workspace shows the explaining row in the viewer, then clears this. */
+  focusExplained: boolean;
   tplSel: string; // selected template node
   // The template VERSION chosen for the next run (null = whatever the server says is latest).
   // A key was stored here once, which could not name a version: the picker set the key it already
@@ -78,6 +85,10 @@ interface UIState {
   stopEditing: () => void;
   setNote: (n: string) => void;
   toggleCheck: (id: string) => void;
+  /** Open a review check, whatever its state was — a deep link must not toggle it shut. */
+  expandCheck: (id: string) => void;
+  setFocusRowRef: (ref: string) => void;
+  setFocusExplained: (v: boolean) => void;
   setTpl: (id: string) => void;
   setSelectedTemplateId: (id: string | null) => void;
   setPinnedRunId: (id: string | null) => void;
@@ -103,6 +114,8 @@ export const useUI = create<UIState>((set, get) => ({
   editing: false,
   note: "12",
   openCheck: "bs",
+  focusRowRef: "",
+  focusExplained: false,
   tplSel: "trade_recv",
   // Restored, so the choice survives a reload — see `getStoredSelectedTemplate`.
   selectedTemplateId: getStoredSelectedTemplate(),
@@ -141,6 +154,9 @@ export const useUI = create<UIState>((set, get) => ({
   stopEditing: () => set({ editing: false }),
   setNote: (note) => set({ note }),
   toggleCheck: (id) => set((s) => ({ openCheck: s.openCheck === id ? "" : id })),
+  expandCheck: (openCheck) => set({ openCheck }),
+  setFocusRowRef: (focusRowRef) => set({ focusRowRef }),
+  setFocusExplained: (focusExplained) => set({ focusExplained }),
   setTpl: (tplSel) => set({ tplSel }),
   setSelectedTemplateId: (selectedTemplateId) => {
     setStoredSelectedTemplate(selectedTemplateId);

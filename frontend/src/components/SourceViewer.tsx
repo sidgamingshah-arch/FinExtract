@@ -88,6 +88,9 @@ function PageSlot({ documentId, index, picked, pickedRef, printed }: {
 }) {
   const t = useT();
   const [url, setUrl] = useState<string | null>(null);
+  // Whether the image at `url` has DECODED — not the same moment as `url` being set: see the
+  // re-centring effect below.
+  const [loaded, setLoaded] = useState(false);
   const isPicked = picked?.page_index === index;
   // Eagerly load the first pages; also load the picked page immediately (don't wait for the
   // scroll→IntersectionObserver chain — that's what made far-page click-to-source look dead).
@@ -113,18 +116,28 @@ function PageSlot({ documentId, index, picked, pickedRef, printed }: {
     let objUrl: string | null = null;
     let cancelled = false;
     api.fetchPageImage(documentId, index)
-      .then((blob) => { if (!cancelled) { objUrl = URL.createObjectURL(blob); setUrl(objUrl); } })
+      .then((blob) => {
+        if (!cancelled) { objUrl = URL.createObjectURL(blob); setLoaded(false); setUrl(objUrl); }
+      })
       .catch(() => {});
     return () => { cancelled = true; if (objUrl) URL.revokeObjectURL(objUrl); };
   }, [visible, documentId, index]);
 
   // Once the picked page's real image is in (its true height is known), re-center on it so the
   // highlight lands in view — the first scroll only had the placeholder's height to go on.
+  //
+  // ON THE IMAGE'S LOAD, not on `url` being set. Between the two an <img> with no intrinsic size
+  // is 0px tall, so the page collapsed out of the stack: arriving on a pick while the pages were
+  // still loading (the Workspace opened from a review card, on a row printed on sheet 2), this
+  // fired while the picked page itself was 0px tall, its smooth scroll was clamped to what was then
+  // the bottom of the stack and replaced the one already heading for the row, and the highlight
+  // was drawn below the fold. The image keeps the placeholder's box until then, too (`aspectRatio`
+  // below), so no page moves the ones after it while it decodes.
   useEffect(() => {
-    if (isPicked && url && holder.current) {
+    if (isPicked && loaded && holder.current) {
       holder.current.scrollIntoView({ block: "center", behavior: "smooth" });
     }
-  }, [isPicked, url]);
+  }, [isPicked, loaded]);
 
   const b = isPicked ? picked!.bbox : null;
   return (
@@ -147,7 +160,9 @@ function PageSlot({ documentId, index, picked, pickedRef, printed }: {
         {pageNames(t, index, printed).badge}
       </div>
       {url
-        ? <img src={url} alt="" style={{ display: "block", width: "100%" }} />
+        // `auto 1 / 1.414`: the page's own proportions once decoded, the placeholder's until then.
+        ? <img src={url} alt="" onLoad={() => setLoaded(true)}
+               style={{ display: "block", width: "100%", aspectRatio: "auto 1 / 1.414" }} />
         // Reserve page-shaped space (A4 portrait ≈ 1:1.414) so the panel doesn't grow/shift as
         // images stream in — a page slot occupies its final footprint before its PNG arrives.
         : <div style={{ width: "100%", aspectRatio: "1 / 1.414", background: color.rowAltBg }} />}

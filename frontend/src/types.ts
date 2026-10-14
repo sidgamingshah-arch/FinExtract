@@ -482,6 +482,17 @@ export interface StatementRow {
    *  on a row that is not a calculated line. The published figure stays `v1`/`v2`. */
   printed1?: number | null;
   printed2?: number | null;
+  /** Whether the CURRENT column's difference is a review finding — the line is one the
+   *  configuration compares and it differs beyond the tolerance. Current only, because the
+   *  calculated card is evaluated for that column alone; apart from `status`, because a line that
+   *  carries a typed value keeps "edited" while its card is still in the queue. Absent on a row
+   *  that is not a calculated line, and on an older payload. */
+  queued1?: boolean;
+  /** The printed row nothing mapped whose figures account for this line's difference from the
+   *  document in both periods — read-time only: the server recomputes it on every request and
+   *  nothing moves until the analyst re-maps the row (POST /review/remap). Null on a calculated
+   *  line no row explains, absent on a line that is not calculated (the shape printed1/2 has). */
+  explained_by?: ExplainedBy | null;
   /** What the components come to, present even when a manual value is displayed instead. */
   calculated1?: number | null;
   calculated2?: number | null;
@@ -1429,6 +1440,55 @@ export interface ReviewCheck {
   inputs_edited_keys: string[];
   inputs_edited_note: string;
   judgement: CheckJudgement | null;
+  /** Calculated and structural cards only: the printed row nothing mapped that accounts for the
+   *  difference this card reports. Read-time only — recomputed on every request, outside the
+   *  card's subject and evidence, and nothing moves until the analyst re-maps the row
+   *  (POST /review/remap). Optional: the sample payload does not carry it. */
+  explained_by?: ExplainedBy | null;
+}
+
+/** The printed row that explains a calculated line's difference, as the statement row and the
+ *  review card serve it. Figures are the row's own, AS PRINTED (`v1`/`v2`); `remainder1`/`2` are
+ *  what the total would still differ by once the row is mapped (computed minus printed). The
+ *  `*_display` strings are formatted by the server, which is where every card's figures are. */
+export interface ExplainedBy {
+  /** The POST /review/remap handle of the explaining row. */
+  row_ref: string;
+  label: string;
+  src: string;
+  src2: string;
+  source?: ExtractionProvenance | null;
+  source2?: ExtractionProvenance | null;
+  v1: number;
+  v2: number;
+  v1_display: string;
+  v2_display: string;
+  remainder1: number;
+  remainder2: number;
+  remainder1_display: string;
+  remainder2_display: string;
+  /** True when mapping the row leaves nothing unexplained in either period. */
+  closes: boolean;
+  /** Template section labels of the lines the row may be mapped onto; [] when its section is
+   *  not known or the run's configuration names no sections. */
+  sections: string[];
+  statement: StatementKey;
+  basis: Basis;
+  /** The calculated line explained. */
+  target: string;
+  target_label: string;
+  /** The server's sentence, localized. */
+  note: string;
+}
+
+/** One calculated line that mapping a row would close, listed on that row's own re-map offer. */
+export interface RemapExplains {
+  target: string;
+  target_label: string;
+  basis: Basis;
+  statement: StatementKey;
+  closes: boolean;
+  sections: string[];
 }
 /** A template line a printed row may be re-mapped onto. Served ONCE per review payload
  *  (`remap_targets`), never per card: it is the same 180-odd concepts for every finding.
@@ -1457,6 +1517,10 @@ export interface RemapOffer {
    *  answered has left the queue. */
   remapped: { from: string; to: string; reason: string; by: string; at: string } | null;
   remapped_note: string;
+  /** The calculated lines whose printed difference this row accounts for — read-time only, and
+   *  nothing moves until the re-map below is applied. [] when the row explains nothing; absent on
+   *  an older payload. Nothing is preselected from it: arithmetic cannot choose the line. */
+  explains?: RemapExplains[];
 }
 
 export interface ReviewResponse {

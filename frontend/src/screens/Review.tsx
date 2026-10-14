@@ -65,7 +65,7 @@
  * review:resolve — the endpoint's own two conditions — and says out loud that these acceptances
  * are still in force, because the caption "corrected, or no longer raised" reads as finished
  * with. */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { Button } from "../components/ui";
@@ -81,7 +81,10 @@ import { useAppLocale, useUI } from "../store";
 import { useT } from "../i18n";
 import { useCan } from "../lib/rbac";
 import { color, font } from "../theme";
-import type { RemapTarget, ReviewCheck } from "../types";
+import type { Basis, RemapExplains, RemapTarget, ReviewCheck, StatementKey } from "../types";
+
+/** Where "Open in workspace" lands: the line, on its statement and basis. */
+type LineLink = { basis: Basis; statement: StatementKey; target: string };
 
 /** The judgement states this build knows how to render, and the subset a control may be offered
  *  on. A WHITELIST, deliberately: the server grew `conflict` (two findings sharing one identity
@@ -183,9 +186,15 @@ function FigureRows({ rows, accent }: { rows: [string, string, boolean?][]; acce
  *  The empty option is a REAL choice, not a placeholder — "" un-maps the row, which is the only
  *  route back from a re-map that started from unmapped. So the placeholder is a separate disabled
  *  option and the button is gated on a pick having been MADE, not on the pick being non-empty.
+ *
+ *  A ROW THAT EXPLAINS A DIFFERENCE says which lines mapping it would close (`offer.explains`),
+ *  each one a link to that line in the Workspace, and the sections it may be mapped into are listed
+ *  first. Nothing is preselected: on the measured filings all 47 HK current-liability lines close
+ *  the same total, and 28 of 33 ICON expense lines close profit before tax, so the arithmetic
+ *  cannot say which one the row belongs on — the analyst does.
  */
 function RemapPanel({
-  offer, targets, picked, onPick, reason, onReason, onApply, busy, canEdit, t,
+  offer, targets, picked, onPick, reason, onReason, onApply, busy, canEdit, onOpenLine, t,
 }: {
   offer: NonNullable<ReviewCheck["remap"]>;
   targets: RemapTarget[];
@@ -196,19 +205,51 @@ function RemapPanel({
   onApply: () => void;
   busy: boolean;
   canEdit: boolean;
+  onOpenLine: (line: LineLink) => void;
   t: (k: string) => string;
 }) {
-  const groups: { label: string; items: RemapTarget[] }[] = [];
+  const explains: RemapExplains[] = offer.explains ?? [];
+  const built: { label: string; items: RemapTarget[] }[] = [];
   for (const tgt of targets) {
     const label = `${tgt.statement} · ${tgt.section}`;
-    const last = groups[groups.length - 1];
+    const last = built[built.length - 1];
     if (last && last.label === label) last.items.push(tgt);
-    else groups.push({ label, items: [tgt] });
+    else built.push({ label, items: [tgt] });
   }
+  // The row's printed sections first, the rest in template order behind them.
+  const lead = new Set(explains.flatMap((x) => x.sections.map((s) => `${x.statement} · ${s}`)));
+  const groups = [...built.filter((g) => lead.has(g.label)),
+                  ...built.filter((g) => !lead.has(g.label))];
   const head = { fontSize: 10.5, fontWeight: 600, letterSpacing: 0.4, color: color.muted } as const;
   return (
     <div data-testid="rv-remap" style={{ marginBottom: 13 }}>
       <div style={{ ...head, marginBottom: 8 }}>{t("r.remapHead")}</div>
+      {explains.length > 0 && (
+        <div data-testid="rv-remap-explains" style={{ marginBottom: 9 }}>
+          <div style={{ ...head, marginBottom: 4 }}>{t("r.explainsHead")}</div>
+          {explains.map((x) => {
+            const open = () => onOpenLine({ basis: x.basis, statement: x.statement,
+                                            target: x.target });
+            return (
+              <div
+                key={`${x.basis}:${x.target}`}
+                data-testid="rv-remap-explains-item"
+                role="button"
+                tabIndex={0}
+                onClick={open}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); }
+                }}
+                style={{ fontSize: 11.5, color: color.indigo, cursor: "pointer", lineHeight: 1.6,
+                         textDecoration: "underline dotted" }}
+              >
+                {x.target_label} · {t(`ws.${x.basis}`)}
+                {!x.closes ? ` — ${t("r.explainsPartial")}` : ""}
+              </div>
+            );
+          })}
+        </div>
+      )}
       {/* Where the row sits now, so the pick is made against a known starting point rather than
           against a caption alone. */}
       <div style={{ fontSize: 11.5, color: color.sec2, marginBottom: 8, fontFamily: font.mono }}>
@@ -295,6 +336,14 @@ export default function ReviewScreen() {
   const isPending = usingReal ? realQ.isPending : demoQ.isPending;
   const openCheck = useUI((s) => s.openCheck);
   const toggleCheck = useUI((s) => s.toggleCheck);
+  const expandCheck = useUI((s) => s.expandCheck);
+  // The two deep links an explanation carries — see `openInWorkspace` and the effect below.
+  const focusRowRef = useUI((s) => s.focusRowRef);
+  const setFocusRowRef = useUI((s) => s.setFocusRowRef);
+  const setFocusExplained = useUI((s) => s.setFocusExplained);
+  const setDataset = useUI((s) => s.setDataset);
+  const setStatement = useUI((s) => s.setStatement);
+  const selRow = useUI((s) => s.selRow);
   const navigate = useNavigate();
   const acceptMut = useAcceptFinding(activeDocumentId ?? undefined);
   const withdrawMut = useWithdrawAcceptance(activeDocumentId ?? undefined);
@@ -338,6 +387,31 @@ export default function ReviewScreen() {
   // sentence: "wrong concept, this is trade receivables" filed as the justification for letting the
   // figure stand.
   const [remapReasons, setRemapReasons] = useState<Record<string, string>>({});
+  // The card a deep link opened, to scroll to once it has rendered open.
+  const [scrollToRef, setScrollToRef] = useState("");
+
+  // "MAP IT": open the explaining row's own unmapped card — on a tab that shows it, expanded, in
+  // view. Matched on the row handle the re-map posts, never on the card id (a render key).
+  useEffect(() => {
+    if (!focusRowRef || !data) return;
+    const card = data.checks.find((x) => x.remap?.row_ref === focusRowRef);
+    if (card) {
+      const cur = data.tabs[tab];
+      if (cur?.types && !cur.types.includes(card.type)) {
+        const i = data.tabs.findIndex((tb) => !!tb.types?.includes(card.type));
+        setTab(i >= 0 ? i : 0);
+      }
+      expandCheck(card.id);
+      setScrollToRef(focusRowRef);
+    }
+    setFocusRowRef("");
+  }, [focusRowRef, data]);
+  // After the render that opened it, so the card is on the page to scroll to.
+  useEffect(() => {
+    if (!scrollToRef) return;
+    document.querySelector(`[data-row-ref="${scrollToRef}"]`)?.scrollIntoView({ block: "center" });
+    setScrollToRef("");
+  }, [scrollToRef, tab, openCheck]);
 
   // No real document and no admin-seeded demo → greenfield guidance.
   if (!usingReal && !loaded) return <EmptyState />;
@@ -377,6 +451,19 @@ export default function ReviewScreen() {
 
   const failed = (id: string, err: unknown) =>
     setErrors((s) => ({ ...s, [id]: judgementErrorText(err, t) }));
+
+  /** The Workspace, on the explained line when there is one: basis, then statement, then line —
+   *  in that order, because choosing a statement clears the selected line. The Workspace then shows
+   *  the explaining row in the viewer (`focusExplained`). Without a line it is the plain link. */
+  const openInWorkspace = (line?: LineLink | null) => {
+    if (usingReal && line) {
+      setDataset(line.basis);
+      setStatement(line.statement);
+      selRow(line.target);
+      setFocusExplained(true);
+    }
+    navigate(SCREENS.workspace.path);
+  };
 
   return (
     <div style={{ maxWidth: 1080, margin: "0 auto", padding: "26px 30px 60px" }}>
@@ -568,12 +655,16 @@ export default function ReviewScreen() {
         const fixBusy = fixMut.isPending && !!fa && fixMut.variables?.key === fa.canonical_key
                         && fixMut.variables?.basis === fa.basis
                         && fixMut.variables?.period === fa.period;
+        // The printed row nothing mapped that accounts for this card's difference, when one does.
+        const eb = c.explained_by ?? null;
         return (
           <div
             key={c.id}
             data-testid="rv-check"
             data-status={c.status}
             data-subject-key={c.subject_key ?? ""}
+            // The row handle a deep link looks for — "Map it" lands on the row's own card by it.
+            data-row-ref={c.remap?.row_ref ?? ""}
             style={{
               background: "#fff",
               border: `1px solid ${open ? (accepted ? color.greenFg : ac) : color.cardBorder}`,
@@ -813,7 +904,7 @@ export default function ReviewScreen() {
                         sides, and overwriting a computed subtotal with the printed figure would
                         hide the component that caused it. Said in a sentence: a greyed-out button
                         still advertises a capability that does not exist. */}
-                    {!c.fix_action && !c.remap && (
+                    {!c.fix_action && !c.remap && !eb && (
                       <div style={{ fontSize: 11, color: color.muted, marginTop: 7, lineHeight: 1.5 }}>
                         {t("r.manualFixOnly")}
                       </div>
@@ -832,6 +923,70 @@ export default function ReviewScreen() {
                   </div>
                 </div>
 
+                {/* THE ROW THAT EXPLAINS THE DIFFERENCE, named with its page and its own printed
+                    figures, and the way to it: its unmapped card is where it is mapped. Every
+                    string is the server's or a key — the browser formats no figure here either. */}
+                {eb && (
+                  <div
+                    data-testid="rv-explained-by"
+                    style={{
+                      marginBottom: 13, padding: "10px 12px", borderRadius: 9,
+                      background: color.amberBg, border: `1px solid ${color.amberFg}44`,
+                    }}
+                  >
+                    <div style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: 0.4,
+                                  color: color.muted, marginBottom: 6 }}>
+                      {t("r.explainedHead")}
+                    </div>
+                    {/* Caption, page and figures each isolated, so a right-to-left interface
+                        keeps the quotes and a leading "(B)" on the caption they belong to. */}
+                    <div data-testid="rv-explained-row" style={{ fontSize: 12, color: color.ink }}>
+                      <bdi data-testid="rv-explained-label">“{eb.label}”</bdi> ·{" "}
+                      <bdi>{eb.src}</bdi> ·{" "}
+                      <span style={{ fontFamily: font.mono, unicodeBidi: "isolate" }}>
+                        {eb.v1_display} / {eb.v2_display}
+                      </span>
+                    </div>
+                    <div
+                      data-testid="rv-explained-note"
+                      style={{ fontSize: 11.5, color: color.ink2, marginTop: 4, lineHeight: 1.5 }}
+                    >
+                      {eb.note}
+                    </div>
+                    {eb.sections.length > 0 && (
+                      <div
+                        data-testid="rv-explained-sections"
+                        style={{ fontSize: 11.5, color: color.sec, marginTop: 4, lineHeight: 1.5 }}
+                      >
+                        {t("r.explainedSections")} {eb.sections.join(" · ")}
+                      </div>
+                    )}
+                    {!eb.closes && (
+                      <div
+                        data-testid="rv-explained-remainder"
+                        style={{ fontSize: 11.5, color: color.amberFg, marginTop: 4 }}
+                      >
+                        {t("r.explainedRemainder")}{" "}
+                        <span style={{ fontFamily: font.mono, unicodeBidi: "isolate" }}>
+                          {eb.remainder1_display} / {eb.remainder2_display}
+                        </span>
+                      </div>
+                    )}
+                    {checks.some((x) => x.remap?.row_ref === eb.row_ref) && (
+                      <div style={{ marginTop: 9 }}>
+                        <Button
+                          variant="secondary"
+                          testid="rv-explained-map"
+                          onClick={() => setFocusRowRef(eb.row_ref)}
+                          style={{ fontSize: 12, padding: "7px 13px", borderRadius: 8 }}
+                        >
+                          {t("r.explainedMapIt")}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* THE FIX FOR A ROW-SHAPED FINDING. Both cards' prose has always told the analyst
                     to pick the right line ("Pick the correct template line item", "Confirm the
                     concept is correct or reassign it"); this is the control that does it. Rendered
@@ -846,6 +1001,7 @@ export default function ReviewScreen() {
                     onReason={(text) => setRemapReasons((s) => ({ ...s, [rr]: text }))}
                     busy={remapBusy}
                     canEdit={canEdit}
+                    onOpenLine={openInWorkspace}
                     t={t}
                     onApply={() => {
                       setErrors((s) => ({ ...s, [sk]: "" }));
@@ -974,9 +1130,12 @@ export default function ReviewScreen() {
                       </span>
                     </>
                   )}
+                  {/* On an explained card this lands on the line, with the explaining row shown in
+                      the viewer; on every other card it opens the Workspace as it was. */}
                   <Button
                     variant="secondary"
-                    onClick={() => navigate(SCREENS.workspace.path)}
+                    testid="rv-open-workspace"
+                    onClick={() => openInWorkspace(eb)}
                     style={{ fontSize: 12, padding: "8px 15px", borderRadius: 8 }}
                   >
                     {t("r.openInWorkspace")}

@@ -117,3 +117,27 @@ def test_every_sentence_the_queue_serves_is_translated(locale):
     assert localized["checks"], "the localized fixture must raise something to check"
 
     assert not untranslated, "\n".join(sorted(set(untranslated)))
+
+
+@pytest.mark.parametrize("locale", LOCALES)
+def test_an_explained_card_speaks_every_locale(locale):
+    """The sentence naming the printed row that explains a card is a whole-string table entry, and
+    the queue served in the locale carries it translated. The caption and the figures travel beside
+    it as data, so no caption read off a page ever enters a translated string."""
+    import tests.test_gap_explanation as gx
+    from app.api.routes.documents import (
+        _EXPLAINED_CLOSES, _EXPLAINED_PARTIAL, _REMAPPED_INPUT_NOTE, _TR, _build_review)
+
+    def explained_note(served_locale: str) -> str:
+        review = _build_review(gx._rows(total_expenses=None), "f.pdf", served_locale,
+                               template_def=gx.TEMPLATE, explain=True)
+        card = next(c for c in review["checks"] if c.get("explained_by"))
+        assert card["explained_by"]["label"] == "Purchases of stock-in-trade"
+        return card["explained_by"]["note"]
+
+    english = explained_note("en")
+    assert english == _EXPLAINED_CLOSES
+    assert english in _TR and _TR[english].get(locale)
+    assert explained_note(locale) == _TR[english][locale]
+    for sentence in (_EXPLAINED_PARTIAL, _REMAPPED_INPUT_NOTE):
+        assert _TR[sentence].get(locale), sentence

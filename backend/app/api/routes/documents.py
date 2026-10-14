@@ -373,6 +373,37 @@ _TR.update({
 })
 
 
+# The printed row that explains a calculated line's difference (services/gap_explanation.py), and
+# the re-mapped-input caveat beside the edited one above. WHOLE SENTENCES with no interpolation: the
+# row's caption, page and figures travel as data beside them (`explained_by`), so a caption read off
+# the page never enters a translated string.
+_EXPLAINED_CLOSES = (
+    "This printed row reaches no line of the template, and its figures account for the whole of "
+    "this difference in both periods. Map it to a line this total is built from and the total is "
+    "computed again.")
+_EXPLAINED_PARTIAL = (
+    "This printed row reaches no line of the template, and its figures account for most of this "
+    "difference in both periods; the remainder shown is not explained by it. Map it to a line this "
+    "total is built from and the total is computed again.")
+_REMAPPED_INPUT_NOTE = (
+    "A row this relation uses has been re-mapped since it was evaluated. The relation is "
+    "re-evaluated on the next extraction.")
+_TR.update({
+    _EXPLAINED_CLOSES:
+        {"zh": "这一印刷行未进入模板的任何项目，而它的数值在两个期间都完整解释了这一差额。将其映射到构成该合计的某一项目后，合计会重新计算。",
+         "ar": "هذا السطر المطبوع لا يصل إلى أي بند في القالب، وتفسّر أرقامه هذا الفرق بالكامل في الفترتين. اربطه ببند يتكوّن منه هذا الإجمالي فيُعاد حساب الإجمالي.",
+         "fr": "Cette ligne imprimée n'atteint aucun poste du modèle, et ses montants expliquent la totalité de cet écart sur les deux périodes. Rattachez-la à un poste qui compose ce total, et le total est recalculé."},
+    _EXPLAINED_PARTIAL:
+        {"zh": "这一印刷行未进入模板的任何项目，它的数值在两个期间都解释了这一差额的大部分；所示余额不能由它解释。将其映射到构成该合计的某一项目后，合计会重新计算。",
+         "ar": "هذا السطر المطبوع لا يصل إلى أي بند في القالب، وتفسّر أرقامه معظم هذا الفرق في الفترتين؛ أما المتبقي المعروض فلا يفسّره. اربطه ببند يتكوّن منه هذا الإجمالي فيُعاد حساب الإجمالي.",
+         "fr": "Cette ligne imprimée n'atteint aucun poste du modèle, et ses montants expliquent l'essentiel de cet écart sur les deux périodes ; le reliquat indiqué ne s'explique pas par elle. Rattachez-la à un poste qui compose ce total, et le total est recalculé."},
+    _REMAPPED_INPUT_NOTE:
+        {"zh": "该关系所用的某一行在其评估之后被重新映射过。该关系将在下一次提取时重新评估。",
+         "ar": "أُعيد ربط سطر تستخدمه هذه العلاقة بعد تقييمها. يُعاد تقييم العلاقة في الاستخراج التالي.",
+         "fr": "Une ligne utilisée par cette relation a été réattribuée depuis son évaluation. La relation sera réévaluée lors de la prochaine extraction."},
+})
+
+
 # A failed rulebook guard, and the one state in which the queue refuses to answer. Both are card
 # vocabulary, so both belong here: an untranslated string on a review card is a zh/ar/fr reader
 # being shown English, which is how several of the live check labels were reaching them before.
@@ -1100,7 +1131,7 @@ def _remap_targets(template_def: dict | None, locale: str = "en") -> list[dict]:
     return out
 
 
-def _remap_offer(r: dict, locale: str = "en") -> dict:
+def _remap_offer(r: dict, locale: str = "en", explains: list[dict] | None = None) -> dict:
     """What a row-shaped finding needs to offer "map this to a different line item".
 
     The candidate list is NOT in here — it is served once per payload as ``remap_targets``, because
@@ -1110,6 +1141,10 @@ def _remap_offer(r: dict, locale: str = "en") -> dict:
     A row already re-mapped by hand says so, with who and when: the finding it answered is gone from
     the queue on the next fetch, so without this the only trace of a human decision would be the
     absence of a card.
+
+    ``explains`` lists the calculated lines whose printed difference this row accounts for (see
+    ``_explains_for_row``), so the card can say what mapping it would close. Always present, and []
+    when the row explains nothing. It preselects nothing: arithmetic cannot choose the line.
     """
     prior = r.get("remap") or {}
     note = ""
@@ -1122,7 +1157,129 @@ def _remap_offer(r: dict, locale: str = "en") -> dict:
             "label": r.get("source_label") or "",
             "current_key": r.get("canonical_key") or "",
             "remapped": prior or None,
-            "remapped_note": note}
+            "remapped_note": note,
+            "explains": explains or []}
+
+
+def _gap_explanations(rows: list[dict], template_def: dict | None, basis: str, *,
+                      cross_check: "_CrossCheck", line_item_set=None,
+                      pages: list[dict] | None = None, targets=None,
+                      netted_cur: dict | None = None, netted_prior: dict | None = None,
+                      calc_cur: dict | None = None, calc_prior: dict | None = None,
+                      locale: str = "en", stats: dict | None = None) -> dict:
+    """The printed rows that explain this basis's calculated differences — see
+    ``services.gap_explanation``. {} without a template.
+
+    The candidates are exactly the rows that raise an unmapped card (``_unmapped_card_positions``),
+    so a named row always has a card to be mapped from, and the destinations are exactly what the
+    card's select offers (``_remap_targets``). Read time only: nothing is stored.
+    """
+    if template_def is None:
+        return {}
+    from app.services.gap_explanation import explain_gaps, section_tokens
+
+    return explain_gaps(
+        rows, template_def, basis,
+        candidates=_unmapped_card_positions(rows, template_def),
+        remap_targets=[t["canonical_key"] for t in _remap_targets(template_def, locale)],
+        tolerance=cross_check.tolerance, section_of_key=section_tokens(line_item_set),
+        pages=pages or [], targets=targets, netted_cur=netted_cur, netted_prior=netted_prior,
+        calc_cur=calc_cur, calc_prior=calc_prior, stats=stats)
+
+
+def _whole(v: float) -> str:
+    """A figure as every card prints it — whole units, the way ``judgement.q`` quantizes them, so a
+    remainder of -0.2 reads "0" rather than "-0"."""
+    from app.services import judgement
+
+    return f"{judgement.q(v):,.0f}"
+
+
+def _explained_sections(ex, targets_by_key: dict[str, dict]) -> list[str]:
+    """The template section labels, in order and once each, of the lines in the explaining row's
+    printed section that the total is built from — [] when the destinations were not drawn from
+    the row's section (it is unknown, or the run has no section vocabulary), because the pool is
+    then every line of the total and naming its sections would say nothing."""
+    out: list[str] = []
+    if ex.section:
+        for k in ex.pool:
+            label = (targets_by_key.get(k) or {}).get("section") or ""
+            if label and label not in out:
+                out.append(label)
+    return out
+
+
+def _explanation_payload(ex, rows: list[dict], template_def: dict | None, locale: str,
+                         targets_by_key: dict[str, dict]) -> dict:
+    """One explanation as the statement row and the review card serve it.
+
+    ``v1``/``v2`` are the row's figures AS PRINTED; ``remainder1``/``remainder2`` are what the total
+    would still differ by once it is mapped, as computed minus printed (a card's delta convention).
+    """
+    from app.services.rollups import node_labels
+
+    row = rows[ex.row_index]
+    return {
+        "row_ref": _row_ref(row),
+        "label": row.get("source_label") or "",
+        "src": _prov_label(ex.source), "src2": _prov_label(ex.source2),
+        "source": ex.source, "source2": ex.source2,
+        "v1": ex.v1, "v2": ex.v2,
+        "v1_display": _whole(ex.v1), "v2_display": _whole(ex.v2),
+        "remainder1": ex.remainder1, "remainder2": ex.remainder2,
+        "remainder1_display": _whole(ex.remainder1), "remainder2_display": _whole(ex.remainder2),
+        "closes": ex.closes,
+        "sections": _explained_sections(ex, targets_by_key),
+        "statement": ex.statement,
+        "basis": ex.basis,
+        "target": ex.target,
+        "target_label": node_labels(template_def, locale).get(ex.target, ex.target),
+        "note": _t(_EXPLAINED_CLOSES if ex.closes else _EXPLAINED_PARTIAL, locale),
+    }
+
+
+def _attach_explanations(checks: list[dict], explanations_by_basis: dict[str, dict],
+                         rows: list[dict], template_def: dict | None, locale: str,
+                         targets_by_key: dict[str, dict]) -> None:
+    """Put the explanation on the card that REPORTS the difference it explains.
+
+    Matched on ``_assertion_of`` — the same (target, basis, period, |difference|) equality the
+    suppression uses — so it lands on whichever card is actually served for the line: the
+    calculated card, or the structural card that suppressed it (Total current liabilities on the HK
+    and Ind AS sets is a section reconciliation). A guard asserts no difference and gets none.
+    ``explained_by`` is outside ``subject`` and ``evidence``, so no card's identity moves.
+    """
+    from app.services import judgement
+
+    for card in checks:
+        if card.get("type") not in ("calculated_mismatch", "structural"):
+            continue
+        a = _assertion_of(card)
+        if a is None or a[2] not in ("current", "prior"):
+            continue
+        ex = (explanations_by_basis.get(a[1]) or {}).get(a[0])
+        if ex is None:
+            continue
+        if abs(judgement.q(ex.gap1 if a[2] == "current" else ex.gap2)) == a[3]:
+            card["explained_by"] = _explanation_payload(ex, rows, template_def, locale,
+                                                        targets_by_key)
+
+
+def _explains_for_row(i: int, explanations_by_basis: dict[str, dict],
+                      template_def: dict | None, locale: str,
+                      targets_by_key: dict[str, dict]) -> list[dict]:
+    """The calculated lines row ``i`` explains, for its unmapped card: consolidated before
+    standalone, then template order."""
+    from app.services.rollups import node_labels
+
+    mine = [ex for basis in ("consolidated", "standalone")
+            for ex in (explanations_by_basis.get(basis) or {}).values() if ex.row_index == i]
+    if not mine:
+        return []
+    labels = node_labels(template_def, locale)
+    return [{"target": ex.target, "target_label": labels.get(ex.target, ex.target),
+             "basis": ex.basis, "statement": ex.statement, "closes": ex.closes,
+             "sections": _explained_sections(ex, targets_by_key)} for ex in mine]
 
 
 def _low_conf_threshold() -> float:
@@ -1280,10 +1437,28 @@ def _structural_inputs_edited(d: dict, rows: list[dict], locale: str) -> dict:
     edited = sorted({r.get("canonical_key") for r in rows
                      if r.get("canonical_key") in keys and r.get("canonical_key")
                      and _edited_for(r, basis, period)})
-    note = _t("A figure this relation uses has been edited since it was evaluated. The relation "
-              "is re-evaluated on the next extraction.", locale) if edited else ""
-    return {"inputs_edited": bool(edited), "inputs_edited_keys": edited,
-            "inputs_edited_note": note}
+    # A ROW RE-MAPPED ONTO OR OFF ONE OF THESE LINES changes the relation's inputs just as an edit
+    # does, and the relation is not recomputed either: after "Map it" the calculated and unmapped
+    # cards go at read time while this one stays until the next extraction. The flag the remap
+    # writes names both ends ("remapped_by_reviewer:<from>-><to>"). A row with no figure on this
+    # relation's basis moved nothing in it.
+    remapped: set[str] = set()
+    for r in rows:
+        if not _basis_values(r, basis):
+            continue
+        for flag in r.get("flags") or []:
+            if str(flag).startswith("remapped_by_reviewer:"):
+                ends = str(flag).split(":", 1)[1].split("->")
+                remapped |= {k for k in ends if k and k in keys}
+    notes = []
+    if edited:
+        notes.append(_t("A figure this relation uses has been edited since it was evaluated. The "
+                        "relation is re-evaluated on the next extraction.", locale))
+    if remapped:
+        notes.append(_t(_REMAPPED_INPUT_NOTE, locale))
+    return {"inputs_edited": bool(edited or remapped),
+            "inputs_edited_keys": sorted(set(edited) | remapped),
+            "inputs_edited_note": " ".join(notes)}
 
 
 def _guard_violation_label(v: dict) -> str:
@@ -2395,6 +2570,38 @@ def _conflict_note(subject: dict, count: int, withheld: bool, locale: str) -> st
     return note
 
 
+def _raises_unmapped_card(i: int, r: dict, declared_keys: set[str], on_a_matrix: set[int],
+                          templated: bool) -> bool:
+    """Whether row ``i`` raises the row-shaped ``unmapped`` card — ONE spelling of it.
+
+    Read by the queue and by the gap explanation, so the explanation can only ever name a row that
+    has a card to map it from, and the two cannot drift apart. A row reaches no line of the output
+    when nothing claimed its caption, when it was claimed for a concept the template declares
+    nowhere, or when it carries an engine key; and it is exempt when it is a demoted gross parent, a
+    matrix row, or a row printed in the notes — see ``_build_review`` for why each one is.
+    """
+    from app.stages.face_mapping_contract import is_unclassified_face_key
+
+    key = r.get("canonical_key")
+    off_template = bool(key and templated and key not in declared_keys and i not in on_a_matrix)
+    if key and not off_template and not is_unclassified_face_key(key):
+        return False
+    if _demoted_parent(r) is not None:
+        return False
+    if any(v.get("column_index") is not None for v in (r.get("values") or [])):
+        return False
+    return str(r.get("printed_in") or "").lower() != "notes"
+
+
+def _unmapped_card_positions(rows: list[dict], template_def: dict | None) -> list[int]:
+    """The positions of the rows that raise an ``unmapped`` card, in row order."""
+    declared_keys = _declared_line_keys(template_def)
+    on_a_matrix = _rows_on_a_matrix_face(rows, template_def)
+    templated = template_def is not None
+    return [i for i, r in enumerate(rows)
+            if _raises_unmapped_card(i, r, declared_keys, on_a_matrix, templated)]
+
+
 def _build_review(rows: list[dict], filename: str, locale: str = "en",
                   reconciliation: list[dict] | None = None,
                   structural: list[dict] | None = None,
@@ -2402,7 +2609,10 @@ def _build_review(rows: list[dict], filename: str, locale: str = "en",
                   judgements: list[dict] | None = None,
                   run_id: str = "",
                   coverage_block: dict | None = None,
-                  cross_check: "_CrossCheck | None" = None) -> dict:
+                  cross_check: "_CrossCheck | None" = None,
+                  line_item_set=None,
+                  pages: list[dict] | None = None,
+                  explain: bool = False) -> dict:
     """Derive the human-in-the-loop review queue from a real extraction — the QA the analyst works
     before export. No demo data involved.
 
@@ -2452,6 +2662,14 @@ def _build_review(rows: list[dict], filename: str, locale: str = "en",
     * ``details.assumed_zero`` and ``details.tolerance``, because they are not displayed on the
       card today. Fingerprinting an invisible field would withdraw an acceptance for a reason the
       human was never shown; the honest order is to display them first, then fingerprint them.
+    * ``explained_by`` — the printed row that accounts for a calculated or structural card's
+      difference, and the ``remap.explains`` list on that row's own card. Both are recomputed on
+      every read (``services/gap_explanation.py``), and an acceptance made before an explanation
+      appeared must not go stale because of it.
+
+    ``explain`` turns those on. GET /review asks for them; the accept route and the commentary
+    render no card, so they do not pay for the evaluation. ``line_item_set`` gives the explanation
+    its section vocabulary and ``pages`` the classifier's statement for each page.
     """
     from app.services import judgement
 
@@ -2470,6 +2688,18 @@ def _build_review(rows: list[dict], filename: str, locale: str = "en",
     accounting = _accounting_checks(rows, reconciliation or [], locale, structural or [],
                                     template_def, stats=stats, cross_check=cross_check)
     checks: list[dict] = list(accounting)
+    remap_targets = _remap_targets(template_def, locale)
+    # WHICH PRINTED ROW EXPLAINS A DIFFERENCE, per basis the document presented. Un-netted, like
+    # `_calculated_checks`, so the explanation describes the arithmetic the card states.
+    explanations: dict[str, dict] = {}
+    targets_by_key: dict[str, dict] = {}
+    if explain and template_def is not None:
+        targets_by_key = {t["canonical_key"]: t for t in remap_targets}
+        explanations = {
+            b: _gap_explanations(rows, template_def, b, cross_check=cross_check or _CrossCheck(),
+                                 line_item_set=line_item_set, pages=pages, locale=locale)
+            for b in ("consolidated", "standalone") if any(_basis_values(r, b) for r in rows)}
+        _attach_explanations(checks, explanations, rows, template_def, locale, targets_by_key)
     # The extracted lines the accounting findings NAME, each contributed by the builder that knows
     # which lines its card indicts. The header's third tile counts the rows in none of them.
     named = {k for c in accounting for k in (c.get("names") or []) if k}
@@ -2546,39 +2776,36 @@ def _build_review(rows: list[dict], filename: str, locale: str = "en",
         off_template = bool(key and templated and key not in declared_keys
                             and i not in on_a_matrix)
 
-        if not key or off_template or engine_unclassified:
-            # A DEMOTED GROSS PARENT IS NOT A MAPPING FAILURE. It mapped — often exactly — and was
-            # then un-filed on purpose, because its components are on the face too and filing both
-            # would count the money twice (`map_line_items._enforce_containment`). Its money IS on the
-            # face, through those components. Reporting it here told the reader "nothing recognised
-            # this caption" about a caption recognised at 1.0, and on the real filing it was 5 of the
-            # 12 cards in this category. Where the components do NOT add up to it, that IS a finding
-            # and `_containment_checks` raises it as what it is: a printed total the lines that
-            # replaced it do not account for.
-            if _demoted_parent(r) is not None:
-                continue
-            # ON THE FACE OF THE STATEMENTS, which is the whole of this category. Two positive
-            # signals exclude a row, and both are POSITIVE on purpose — a row the extraction could
-            # not place anywhere is judged as before, so an unstamped row cannot fall out of the
-            # queue for want of a stamp:
-            #
-            # * `column_index` says the row came off a MATRIX. It is set in exactly one place
-            #   (``row_reconstruct``'s matrix path, where it holds the printed left-to-right
-            #   position of a component column), so a row carrying it is an equity-statement
-            #   movement served through the matrix view rather than a template line. Those rows were
-            #   never candidates for a canonical key. Measured on the China SCE 2023 filing: 32 of
-            #   44 unmapped rows were that one statement, and it has no mapped rows at all — left
-            #   in, the queue's largest category is noise and the one thing it is FOR is buried.
-            # * `printed_in is NOTES` says the row was printed in the NOTES rather than on a face
-            #   statement. A note's detail lines are served through the Notes tab and the note-detail
-            #   routes; they are not lines of the spread and were never going to be, so an unplaced
-            #   one is not the defect this category names. (On the real filing every unplaced row is
-            #   already a face row, so this changes no count today — it is here so a filing whose
-            #   notes carry unplaceable captions cannot fill the queue with them.)
-            if any(v.get("column_index") is not None for v in (r.get("values") or [])):
-                continue
-            if str(r.get("printed_in") or "").lower() == "notes":
-                continue
+        # THE EXEMPTIONS, decided by `_raises_unmapped_card` — the one spelling the gap explanation
+        # reads too, so it can only name a row that has a card here:
+        #
+        # * A DEMOTED GROSS PARENT IS NOT A MAPPING FAILURE. It mapped — often exactly — and was
+        #   then un-filed on purpose, because its components are on the face too and filing both
+        #   would count the money twice (`map_line_items._enforce_containment`). Its money IS on the
+        #   face, through those components. Reporting it here told the reader "nothing recognised
+        #   this caption" about a caption recognised at 1.0, and on the real filing it was 5 of the
+        #   12 cards in this category. Where the components do NOT add up to it, that IS a finding
+        #   and `_containment_checks` raises it as what it is: a printed total the lines that
+        #   replaced it do not account for.
+        # * ON THE FACE OF THE STATEMENTS, which is the whole of this category. Two positive
+        #   signals exclude a row, and both are POSITIVE on purpose — a row the extraction could
+        #   not place anywhere is judged as before, so an unstamped row cannot fall out of the
+        #   queue for want of a stamp:
+        #
+        #   - `column_index` says the row came off a MATRIX. It is set in exactly one place
+        #     (``row_reconstruct``'s matrix path, where it holds the printed left-to-right
+        #     position of a component column), so a row carrying it is an equity-statement
+        #     movement served through the matrix view rather than a template line. Those rows were
+        #     never candidates for a canonical key. Measured on the China SCE 2023 filing: 32 of
+        #     44 unmapped rows were that one statement, and it has no mapped rows at all — left
+        #     in, the queue's largest category is noise and the one thing it is FOR is buried.
+        #   - `printed_in is NOTES` says the row was printed in the NOTES rather than on a face
+        #     statement. A note's detail lines are served through the Notes tab and the note-detail
+        #     routes; they are not lines of the spread and were never going to be, so an unplaced
+        #     one is not the defect this category names. (On the real filing every unplaced row is
+        #     already a face row, so this changes no count today — it is here so a filing whose
+        #     notes carry unplaceable captions cannot fill the queue with them.)
+        if _raises_unmapped_card(i, r, declared_keys, on_a_matrix, templated):
             unmapped += 1
             indicted.add(i)
             checks.append({
@@ -2628,7 +2855,9 @@ def _build_review(rows: list[dict], filename: str, locale: str = "en",
                 "evidence": {"value": str(val) if val is not None else None},
                 # …and the fix the sentence above promises. `_UNMAPPED_FIX` has always said "Pick the
                 # correct template line item"; until this there was nothing on the card that could.
-                "remap": _remap_offer(r, locale),
+                # It names the calculated lines mapping this row would close, when it explains any.
+                "remap": _remap_offer(r, locale, explains=_explains_for_row(
+                    i, explanations, template_def, locale, targets_by_key)),
             })
     for c in checks:
         c["subject_key"] = judgement.subject_key(c["subject"])
@@ -2649,6 +2878,9 @@ def _build_review(rows: list[dict], filename: str, locale: str = "en",
         # re-mapped. An accounting finding is about a relation between several concepts; offering to
         # re-map it would have to guess which of them the analyst meant.
         c.setdefault("remap", None)
+        # Explicit on every card, like the keys above: null unless a printed row explains the
+        # difference this card reports (see `_attach_explanations`).
+        c.setdefault("explained_by", None)
     applied = judgement.apply_judgements(
         checks, judgements or [],
         label_fn=lambda subj: _subject_label(subj, locale),
@@ -2733,7 +2965,7 @@ def _build_review(rows: list[dict], filename: str, locale: str = "en",
         # card: 180-odd concepts repeated on every unmapped row is the same list served forty times.
         # Empty when the run named no template, which is also when the offer is refused — there is
         # nothing to map onto and a select with no options is worse than no control.
-        "remap_targets": _remap_targets(template_def, locale),
+        "remap_targets": remap_targets,
     }
 
 
@@ -3089,6 +3321,7 @@ def get_document_review(document_id: str, locale: str = Depends(output_locale),
         return _build_review([], doc.filename or "document", locale, [], [], None, [], "",
                              coverage_block=_coverage_unavailable("not_extracted", locale))
     template_def = _template_for_run(session, run)
+    lis = _line_item_set_for_run(session, run)
     return _build_review(run.result.get("rows", []), doc.filename or "document", locale,
                          run.result.get("reconciliation", []),
                          run.result.get("structural", []), template_def,
@@ -3097,7 +3330,10 @@ def get_document_review(document_id: str, locale: str = Depends(output_locale),
                          # WHICH PRINTED SUBTOTALS THIS RUN'S CONFIGURATION ASKS TO BE COMPARED,
                          # and how tightly. Read off the set the run actually used, so a
                          # re-published configuration changes the comparison and not the code.
-                         cross_check=_CrossCheck.of(_line_item_set_for_run(session, run)))
+                         cross_check=_CrossCheck.of(lis),
+                         # The printed row that explains a card's difference: the set's sections
+                         # and the classifier's statement per page are what scope it.
+                         line_item_set=lis, pages=run.result.get("pages") or [], explain=True)
 
 
 class JudgementBody(BaseModel):
@@ -5050,11 +5286,16 @@ def _build_statement(rows: list[dict], template_def: dict | None, statement_type
                      units_ctx: dict | None = None, company: str | None = None,
                      doc_format: str = "", page_count: int = 0,
                      netting_rules: list | None = None,
-                     cross_check: "_CrossCheck | None" = None) -> dict:
+                     cross_check: "_CrossCheck | None" = None,
+                     line_item_set=None,
+                     pages: list[dict] | None = None) -> dict:
     """Group the real extracted rows into one statement (by the template's sections), so the
     Workspace grid renders real data with its provenance-backed values. Only rows that
     carry a value for the requested `basis` (consolidated / standalone) are shown. Labels are
-    resolved in the output `locale` from the template's label_i18n (input=output parity)."""
+    resolved in the output `locale` from the template's label_i18n (input=output parity).
+
+    ``line_item_set`` and ``pages`` scope the printed row a calculated line's difference is
+    explained by (``explained_by``, see ``services/gap_explanation.py``)."""
     _check = cross_check or _CrossCheck()
     prefix = _stmt_prefix(template_def, statement_type)
     # WHICH BASIS THIS VIEW CAN ACTUALLY SHOW. Asking for a basis the document never labelled used
@@ -5134,6 +5375,18 @@ def _build_statement(rows: list[dict], template_def: dict | None, statement_type
     calc_prior = _calculated(rows, template_def, basis, "prior", locale, netted_prior)
     from app.services.rollups import calculated_nodes
     template_calc_nodes = calculated_nodes(template_def)
+    # THE PRINTED ROW THAT EXPLAINS A LINE'S DIFFERENCE, for this statement's calculated lines —
+    # from this request's own evaluation and netting, so the row named is the one this grid's
+    # arithmetic is short of. Read time only; see `services.gap_explanation`.
+    explain_targets = {n["canonical_key"] for kind, n in
+                       _template_skeleton(_stmt_node(template_def, statement_type))
+                       if kind == "line"} & set(template_calc_nodes)
+    explanations = _gap_explanations(
+        rows, template_def, basis, cross_check=_check, line_item_set=line_item_set, pages=pages,
+        targets=explain_targets, netted_cur=netted_cur, netted_prior=netted_prior,
+        calc_cur=calc_cur, calc_prior=calc_prior, locale=locale) if explain_targets else {}
+    explained_targets = ({t["canonical_key"]: t for t in _remap_targets(template_def, locale)}
+                         if explanations else {})
 
     # A template child's presentation kind (subtotal / total rows are styled differently in
     # the grid); anything else is a plain line item.
@@ -5217,6 +5470,13 @@ def _build_statement(rows: list[dict], template_def: dict | None, statement_type
 
         row["printed1"] = printed_reference(o1, row["v1"], row["reported1"])
         row["printed2"] = printed_reference(o2, row["v2"], row["reported2"])
+        # The printed row nothing mapped whose figures account for the difference, in both periods.
+        # Only on a line computed in both: a manual or fallback period is not the arithmetic the
+        # explanation was measured against. Present on every calculated line, like printed1/2.
+        ex = explanations.get(key)
+        row["explained_by"] = (
+            _explanation_payload(ex, rows, template_def, locale, explained_targets)
+            if ex is not None and o1 == o2 == "calculated" else None)
         # The row-level chip summarises the two: a manual value is the most important thing to
         # say about the line, then that anything on it was computed.
         row["origin"] = ("manual" if "manual" in (o1, o2)
@@ -5281,8 +5541,23 @@ def _build_statement(rows: list[dict], template_def: dict | None, statement_type
                                          len(source.components) if source else 0, locale,
                                          _check.tolerance),
             }
-        if diff is not None and abs(diff) > _check.tolerance and _check.compares(row.get("k") or ""):
-            # A divergence is the finding; the review queue carries it with the arithmetic.
+        # A divergence is the finding; the review queue carries it with the arithmetic — for a line
+        # the cross-check compares. Asked of the LINE'S OWN KEY: this read `row.get("k")`, a field no
+        # row carries, so under any configured master the status was never set and the inspector's
+        # ", and it is in the review queue." never appeared.
+        #
+        # A LINE CARRYING AN ANALYST'S VALUE STAYS "edited". One period typed over and the other
+        # computed and diverging is a real state (the prior year corrected by hand), and "edited" is
+        # what the inspector's revert control, its "Edited" tag and the grid's glyph read: replaced
+        # by "recon", the analyst's own value could no longer be reverted from the line.
+        #
+        # So WHETHER THE DIFFERENCE IS IN THE QUEUE travels on its own, `queued1`, and it is the
+        # CURRENT column's: the calculated card is evaluated for that column alone
+        # (`_calculated_checks`). The inspector names the queue from it, so an edited line still
+        # says where its card is, and last year's difference is never told it has one.
+        queued = bool(diff is not None and abs(diff) > _check.tolerance and _check.compares(key))
+        row["queued1"] = queued
+        if queued and row.get("status") != "edited":
             row["status"] = "recon"
         row["confidence"] = row.get("confidence")
         return row
@@ -5609,12 +5884,17 @@ def _build_statement(rows: list[dict], template_def: dict | None, statement_type
                 # …and the working, which explains the figure the netting replaced.
                 if "working1" in r:
                     r["working1"] = None
+                if "queued1" in r:
+                    r["queued1"] = False
             if np:
                 r["v2"] = _to_num(np["net"])
                 if "printed2" in r:
                     r["printed2"] = None
                 if "working2" in r:
                     r["working2"] = None
+            # …and neither is it the difference an explanation accounted for.
+            if "explained_by" in r:
+                r["explained_by"] = None
             r["formula"] = info["formula"]
             r["status"] = "recon"
             raw = info["raw"]
@@ -5721,6 +6001,7 @@ def get_document_statement(
     template_def = _template_for_run(session, run)
     # Consolidated and standalone are extracted in one pass; the grid shows the requested
     # basis (empty if the source didn't present that basis).
+    lis = _line_item_set_for_run(session, run)
     spread = _build_statement(run.result.get("rows", []), template_def, statement,
                               doc.filename or "document", basis, locale,
                               run.result.get("units"), company=run.result.get("entity"),
@@ -5729,8 +6010,10 @@ def get_document_statement(
                               # Apply only the netting the LLM confirmed for this document (cached at
                               # extraction); the configured netting policies are candidates, not results.
                               netting_rules=run.result.get("netting") or [],
-                              cross_check=_CrossCheck.of(
-                                  _line_item_set_for_run(session, run)))
+                              cross_check=_CrossCheck.of(lis),
+                              # What scopes the printed row a calculated line's difference is
+                              # explained by: the set's sections and the classified pages.
+                              line_item_set=lis, pages=run.result.get("pages") or [])
     # Which template version this spread's SHAPE came from, and whether a newer one exists. Added
     # here rather than inside `_build_statement`, which is a pure function of a definition and has no
     # session to ask the question with — and the question is about the row in the table, not about

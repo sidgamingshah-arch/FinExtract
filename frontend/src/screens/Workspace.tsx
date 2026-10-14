@@ -1296,6 +1296,11 @@ export default function WorkspaceScreen() {
   const t = useT();
   const { locale, dataset, setDataset, statement, setStatement, sel, selRow, editing, startEdit,
           cancelEdit, stopEditing, setNote } = useUI();
+  // The two deep links an explanation carries: arriving from a review card ("Open in workspace"),
+  // and leaving for the explaining row's unmapped card ("Map it in the review queue").
+  const focusExplained = useUI((s) => s.focusExplained);
+  const setFocusExplained = useUI((s) => s.setFocusExplained);
+  const setFocusRowRef = useUI((s) => s.setFocusRowRef);
   // Which period the inspector is describing — its origin, its arithmetic, the page each
   // contribution was printed on, and the comment an edit is filed against. Per-period, because
   // last year's figure has its own provenance and its own reason for having been restated.
@@ -1423,6 +1428,18 @@ export default function WorkspaceScreen() {
   // A highlight belongs to one statement/basis; clear it when either changes so the viewer
   // never keeps pointing at a page/cell from the statement the user just navigated away from.
   useEffect(() => { setPicked(null); }, [statement, effectiveDataset]);
+  // ARRIVING FROM AN EXPLAINED CARD: the card set the basis, the statement and the line, and this
+  // shows the explaining row's page in the viewer once that statement has loaded — after the
+  // clear above, which runs on the statement change the deep link itself made.
+  useEffect(() => {
+    if (!focusExplained || !data || data.statement !== effectiveStatement) return;
+    const eb = data.rows.find((r) => r.id === sel)?.explained_by;
+    if (eb) {
+      setInspPeriod("current");
+      setPicked(toPicked(eb.source ?? null, eb.label));
+    }
+    setFocusExplained(false);
+  }, [focusExplained, data, sel]);
   // The FX lookup is resolved here, above the loading/empty early-returns, because hooks
   // cannot be called conditionally. `converting` is false until a real target is picked, so
   // the query stays disabled and no request goes out in the default (no conversion) case.
@@ -1624,6 +1641,21 @@ export default function WorkspaceScreen() {
     ? inspPrinted != null && inspShown != null
     : inspOrigin === "calculated" && inspReported != null && inspShown != null
       && Math.abs(inspShown - inspReported) > 0.5;
+  // Whether the difference the block states is in the review queue: the CURRENT column's only,
+  // because the calculated card is evaluated for that column alone (the server's `queued1`; an
+  // older payload has only the status, which a typed-over line keeps as "edited").
+  const inspQueued = inspPeriod === "current"
+    && (selRowObj?.queued1 ?? selRowObj?.status === "recon");
+  // The printed row nothing mapped that accounts for the difference, in both periods — shown in
+  // the divergence block, which is always on screen when this is set (both periods differ).
+  const explainedBy = selRowObj?.explained_by ?? null;
+  // Its caption drives the viewer to where it was printed, for the period the inspector describes.
+  const showExplainingRow = () => {
+    if (explainedBy) {
+      setPicked(toPicked(inspPeriod === "current" ? explainedBy.source : explainedBy.source2,
+                         explainedBy.label));
+    }
+  };
   const inspNote = selRowObj?.comments?.[inspPeriod];
 
   /** Save an edit: the retyped columns, the stored formula, and the reason.
@@ -2404,16 +2436,97 @@ export default function WorkspaceScreen() {
                              borderRadius: radius.control, fontSize: 11.5, color: color.amberFg,
                              lineHeight: 1.5 }}
                   >
+                    {/* Whole sentences in every locale, the figures filled in: the queue clause
+                        cannot be translated apart from the sentence it ends. */}
                     <strong style={{ fontWeight: 600 }}>
-                      The document printed {present(inspPrinted ?? inspReported ?? null)}.
+                      {t("ws.divergence.printed")
+                        .replace("{printed}", present(inspPrinted ?? inspReported ?? null))}
                     </strong>{" "}
                     {/* No parentheses of its own: `present` already brackets a negative, and a
-                        shortfall read "((386))". */}
-                    This line shows what its components come to. The difference is{" "}
-                    {present((inspShown ?? 0) - (inspPrinted ?? inspReported ?? 0))}
-                    {/* Only a key the cross-check compares becomes a finding; the printed figure
-                        is shown regardless, so the sentence names the queue only when it is so. */}
-                    {selRowObj?.status === "recon" ? ", and it is in the review queue." : "."}
+                        shortfall read "((386))". Only a key the cross-check compares becomes a
+                        finding; the printed figure is shown regardless, so the sentence names the
+                        queue only when it is so — and only for the current column (`inspQueued`):
+                        read off the line's status, last year's difference was told it was in the
+                        queue when no card carried it, and a typed-over line, which keeps
+                        "edited", was never told its card was there. */}
+                    {t(inspQueued ? "ws.divergence.queued" : "ws.divergence.shown")
+                      .replace("{diff}",
+                               present((inspShown ?? 0) - (inspPrinted ?? inspReported ?? 0)))}
+                    {/* THE ROW THAT EXPLAINS IT, when one printed row nothing mapped accounts for the
+                        difference in both periods (the server's `explained_by`). Inside this block
+                        because the block replaces the line's note whenever it shows, so anything
+                        said elsewhere would be hidden exactly when it matters. The figures are the
+                        row's own as printed, in the grid's units. */}
+                    {explainedBy && (
+                      <div
+                        data-testid="explained-by"
+                        style={{ marginTop: 7, paddingTop: 7,
+                                 borderTop: `1px dashed ${color.amberFg}55` }}
+                      >
+                        <div style={{ fontWeight: 600 }}>{t("ws.explained.head")}</div>
+                        {/* Caption, page and figures are each ISOLATED: in a right-to-left
+                            interface an unisolated Latin caption tore its opening quote and a
+                            leading "(B)" off to the far end of the line, after the figures. The
+                            figure pair keeps the paragraph's direction, like the remainder below. */}
+                        <div>
+                          <span
+                            data-testid="explained-by-row"
+                            dir="auto"
+                            role="button"
+                            tabIndex={0}
+                            title={t("ws.explained.showRow")}
+                            onClick={showExplainingRow}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                showExplainingRow();
+                              }
+                            }}
+                            style={{ cursor: "pointer", textDecoration: "underline dotted" }}
+                          >
+                            “{explainedBy.label}”
+                          </span>{" "}
+                          <bdi>({inspPeriod === "current" ? explainedBy.src : explainedBy.src2})</bdi>
+                          {" "}
+                          <span data-testid="explained-by-figures"
+                                style={{ fontFamily: font.mono, unicodeBidi: "isolate" }}>
+                            {present(explainedBy.v1)} / {present(explainedBy.v2)}
+                          </span>
+                        </div>
+                        <div data-testid="explained-by-note" style={{ marginTop: 3 }}>
+                          {explainedBy.note}
+                        </div>
+                        {explainedBy.sections.length > 0 && (
+                          <div data-testid="explained-by-sections" style={{ marginTop: 3 }}>
+                            {t("ws.explained.sections")} {explainedBy.sections.join(" · ")}
+                          </div>
+                        )}
+                        {!explainedBy.closes && (
+                          <div data-testid="explained-by-remainder" style={{ marginTop: 3 }}>
+                            {t("ws.explained.remainder")}{" "}
+                            <span style={{ fontFamily: font.mono, unicodeBidi: "isolate" }}>
+                              {present(explainedBy.remainder1)} / {present(explainedBy.remainder2)}
+                            </span>
+                          </div>
+                        )}
+                        {/* The queue is always the latest run's, so a pinned past run offers no
+                            way into it from here. */}
+                        {usingReal && !viewingHistorical && (
+                          <button
+                            data-testid="explained-by-map"
+                            onClick={() => {
+                              setFocusRowRef(explainedBy.row_ref);
+                              navigate(SCREENS.review.path);
+                            }}
+                            style={{ marginTop: 5, padding: 0, border: "none", background: "none",
+                                     color: color.indigo, fontSize: 11.5, fontWeight: 600,
+                                     cursor: "pointer", textDecoration: "underline" }}
+                          >
+                            {t("ws.explained.mapInQueue")}
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
                 {inspOrigin === "manual" && inspComputed != null && (

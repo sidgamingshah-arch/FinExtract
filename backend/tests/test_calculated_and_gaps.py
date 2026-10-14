@@ -158,6 +158,63 @@ def test_the_printed_reference_reaches_the_payload_the_workspace_reads(client):
     assert (row["printed1"], row["printed2"]) == (999, None)
 
 
+def test_a_compared_line_that_differs_is_marked_for_the_queue_under_a_real_master():
+    # The line's status is what makes the inspector say ", and it is in the review queue." It was
+    # decided by `compares(row.get("k"))`, a field no row carries — so under any configured master
+    # (every shipped set has one) it was never set. Tests passed because they used the empty
+    # master, which compares everything, including "".
+    from app.api.routes.documents import _CrossCheck
+
+    rows = [_row("bs_ca__inventories", "Inventories", 100, 90),
+            _row("bs_ca__cash", "Cash", 30, 20),
+            _row("bs_ca__total", "Total current assets", 999, 110)]
+    compared = _row_of(_stmt(rows, cross_check=_CrossCheck(["bs_ca__total"], 0.5)), "bs_ca__total")
+    assert compared["status"] == "recon"
+    assert compared["queued1"] is True
+    other = _row_of(_stmt(rows, cross_check=_CrossCheck(["bs_cl__total"], 0.5)), "bs_ca__total")
+    assert other["status"] is None
+    assert other["queued1"] is False
+    # The printed reference is a fact about the page either way; only the queue clause is gated.
+    assert other["printed1"] == 999
+
+
+def test_a_line_with_a_typed_over_period_stays_edited_when_the_other_period_differs():
+    # Last year's total typed over by hand, this year's computed and differing from the page, on a
+    # line the master compares. "edited" is what the inspector's revert control and the grid's
+    # glyph read, so the queue marker must not replace it: the analyst would lose the way back.
+    from app.api.routes.documents import _CrossCheck
+
+    rows = [_row("bs_ca__inventories", "Inventories", 100, 90),
+            _row("bs_ca__cash", "Cash", 30, 20),
+            _row("bs_ca__total", "Total current assets", 999, 115)]
+    rows[-1]["edited_slots"] = ["consolidated/prior"]
+    row = _row_of(_stmt(rows, cross_check=_CrossCheck(["bs_ca__total"], 0.5)), "bs_ca__total")
+    assert (row["origin1"], row["origin2"]) == ("calculated", "manual")
+    assert row["printed1"] == 999          # this year still differs from the page…
+    assert row["status"] == "edited"       # …and the line still says it carries a typed value…
+    assert row["queued1"] is True          # …while the inspector can still say its card is queued
+
+
+def test_only_the_current_column_difference_is_said_to_be_in_the_queue():
+    # Both years differ from the page, but the calculated card is the current column's alone, so
+    # the queue flag is the current column's: last year's difference has no card of its own.
+    from app.api.routes.documents import _CrossCheck
+
+    rows = [_row("bs_ca__inventories", "Inventories", 100, 90),
+            _row("bs_ca__cash", "Cash", 30, 20),
+            _row("bs_ca__total", "Total current assets", 999, 888)]
+    row = _row_of(_stmt(rows, cross_check=_CrossCheck(["bs_ca__total"], 0.5)), "bs_ca__total")
+    assert (row["printed1"], row["printed2"]) == (999, 888)
+    assert row["queued1"] is True
+    assert "queued2" not in row
+    # This year ties: the prior difference is still stated, and nothing is queued.
+    rows[-1] = _row("bs_ca__total", "Total current assets", 130, 888)
+    row = _row_of(_stmt(rows, cross_check=_CrossCheck(["bs_ca__total"], 0.5)), "bs_ca__total")
+    assert (row["printed1"], row["printed2"]) == (None, 888)
+    assert row["queued1"] is False
+    assert row["status"] is None
+
+
 def test_a_nested_total_rolls_up_the_computed_subtotals_not_the_printed_ones():
     rows = [_row("bs_ca__inventories", "Inventories", 100),
             _row("bs_ca__cash", "Cash", 30),

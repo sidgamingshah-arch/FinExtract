@@ -89,6 +89,15 @@ export const review: Record<Locale, Record<string, string>> = {
     "r.remapNoTargets": "This run named no template, so there is no line to map onto.",
     "r.remapCurrent": "Now mapped to",
     "r.remapNowUnmapped": "not mapped",
+    // The printed row nothing mapped that accounts for a card's difference (`explained_by`), and
+    // on that row's own card the lines mapping it would close (`remap.explains`). Keys only: the
+    // caption, figures and line names are composed from the payload, the sentence is the server's.
+    "r.explainedHead": "EXPLAINED BY A PRINTED ROW NOTHING MAPPED",
+    "r.explainedSections": "Lines this total is built from, under:",
+    "r.explainedRemainder": "Still unexplained:",
+    "r.explainedMapIt": "Map it…",
+    "r.explainsHead": "MAPPING THIS ROW CLOSES",
+    "r.explainsPartial": "most of it; a remainder stays",
     "r.evidenceChanged":
       "The figures changed while this card was open, so the acceptance was refused. Reload the queue and judge the figures as they now stand.",
     "r.cov.title": "Relation coverage",
@@ -160,6 +169,12 @@ export const review: Record<Locale, Record<string, string>> = {
     "r.remapNoTargets": "本次运行未指定模板，因此没有可映射的行项目。",
     "r.remapCurrent": "当前映射到",
     "r.remapNowUnmapped": "未映射",
+    "r.explainedHead": "由一行未被映射的印刷行解释",
+    "r.explainedSections": "构成该合计的项目位于：",
+    "r.explainedRemainder": "仍未解释：",
+    "r.explainedMapIt": "映射此行……",
+    "r.explainsHead": "映射此行可消除以下差额",
+    "r.explainsPartial": "大部分差额；仍有余额",
     "r.evidenceChanged":
       "本卡片打开期间数字已发生变化，因此认可被拒绝。请重新加载队列，并针对当前数字作出判断。",
     "r.cov.title": "关系式覆盖情况",
@@ -231,6 +246,12 @@ export const review: Record<Locale, Record<string, string>> = {
     "r.remapNoTargets": "لم تحدّد هذه العملية أي قالب، فلا يوجد بند للربط به.",
     "r.remapCurrent": "مربوط حاليًا بـ",
     "r.remapNowUnmapped": "غير مربوط",
+    "r.explainedHead": "يفسّره سطر مطبوع لم يُربط بأي بند",
+    "r.explainedSections": "البنود التي يتكوّن منها هذا الإجمالي، ضمن:",
+    "r.explainedRemainder": "ما يزال دون تفسير:",
+    "r.explainedMapIt": "اربطه…",
+    "r.explainsHead": "ربط هذا السطر يسدّ الفرق في",
+    "r.explainsPartial": "معظمه؛ ويبقى جزء منه",
     "r.evidenceChanged":
       "تغيّرت الأرقام أثناء فتح هذه البطاقة، لذا رُفض القبول. أعد تحميل القائمة واحكم على الأرقام كما هي الآن.",
     "r.cov.title": "تغطية العلاقات",
@@ -304,6 +325,12 @@ export const review: Record<Locale, Record<string, string>> = {
     "r.remapNoTargets": "Cette exécution n'a désigné aucun modèle : il n'y a donc aucun poste de rattachement.",
     "r.remapCurrent": "Rattachée à",
     "r.remapNowUnmapped": "non rattachée",
+    "r.explainedHead": "EXPLIQUÉ PAR UNE LIGNE IMPRIMÉE QUE RIEN N'A RATTACHÉE",
+    "r.explainedSections": "Postes qui composent ce total, sous :",
+    "r.explainedRemainder": "Reste inexpliqué :",
+    "r.explainedMapIt": "La rattacher…",
+    "r.explainsHead": "RATTACHER CETTE LIGNE RÉSORBE L'ÉCART DE",
+    "r.explainsPartial": "en grande partie ; un reliquat subsiste",
     "r.evidenceChanged":
       "Les chiffres ont changé pendant que cette fiche était ouverte : l'acceptation a été refusée. Rechargez la file et jugez les chiffres tels qu'ils sont désormais.",
     "r.cov.title": "Couverture des relations",

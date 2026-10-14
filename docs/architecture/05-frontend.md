@@ -268,6 +268,26 @@ suggested fix, and up to three controls:
   belongs to no template concept. The accounting findings carry no offer — a relation
   between several concepts gives no answer to which one to re-map.
 
+**A difference can name its cause.** When a calculated line's printed figure differs from what
+its components come to, and exactly one printed row that reached no line of the template
+accounts for the difference in both periods with one orientation, the server names that row as
+`explained_by` (`services/gap_explanation.py`): its caption, page and both figures as printed, a
+sentence saying it accounts for the whole difference or for most of it with the remainder shown,
+and the template sections it may be mapped into. The claim is proved by simulation — the row is
+mapped, in memory, onto a line of its printed section that the total is built from, and the
+rollup is evaluated again — because the sign a section takes in a total depends on the template's
+own arithmetic. It shows in three places: inside the Workspace inspector's "The document printed
+…" block, on the calculated or structural card that reports that difference (matched on the same
+assertion the suppression uses), and on the row's own unmapped card as `remap.explains` — the
+lines mapping it would close, whose sections the re-map select lists first. Two deep links carry
+it: **Map it** opens the row's unmapped card (switching tab, expanding it), and **Open in
+workspace** on an explained card lands on the line with the row shown in the viewer. Nothing is
+persisted and nothing is preselected: the explanation is recomputed on every read, it is outside
+every card's `subject` and `evidence` so no judgement goes stale because it appeared, and it is
+never a plug — the only write is the analyst's own re-map. A structural card whose input row was
+re-mapped says so (`inputs_edited_note`), because relations are re-evaluated only on the next
+extraction.
+
 ## Configuration authoring (admin)
 
 There is **no Template & Ontology screen** — no ontology picker, no ontology editor, no

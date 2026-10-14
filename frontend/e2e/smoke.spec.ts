@@ -1444,6 +1444,19 @@ test("real extraction: prior-year links, an edit that sticks, KPIs and Additiona
   await expect(page.getByText("Units", { exact: true })).toBeVisible({ timeout: 15_000 });
 });
 
+/** Choose, on the Upload screen, the template the analyst's next run is laid out on.
+ *
+ *  A run that pins nothing is laid out on the LATEST template stored
+ *  (`extractions.resolve_template_id`), and on a fresh database that is the last one seeded — the
+ *  ICON spread, whose keys are not the ones the tests below read. Choosing is what an analyst does
+ *  on this screen, and it is the lever an analyst has: `extractFixture` pins the configuration by
+ *  id off `GET /line-items/versions`, which an analyst is refused (403). */
+async function chooseTemplate(page: Page, templateKey: string) {
+  await page.getByRole("button", { name: "Choose another" }).click();
+  await page.getByTestId("tpl-option").filter({ hasText: `${templateKey} · ` }).first().click();
+  await expect(page.getByTestId("tpl-active-meta")).toContainText(`${templateKey} · `);
+}
+
 test("a calculated total shows what the filing printed beside it, where the two differ",
      async ({ page }) => {
   // `printed-total.pdf` prints Total assets 5,000 over lines that add to 4,614 this year, and
@@ -1451,13 +1464,13 @@ test("a calculated total shows what the filing printed beside it, where the two 
   // one is a reference under it — for the period that differs, and only that one.
   test.setTimeout(120_000);
   await loginAs(page, "analyst");
-  // The upload → "Extract directly" path of the real-extraction test above, not `extractFixture`:
-  // that helper pins the configuration by id off `GET /line-items/versions`, which an analyst is
-  // refused (403), and this test needs nothing pinned.
+  // The upload → "Extract directly" path of the real-extraction test above, not `extractFixture`
+  // (see `chooseTemplate`), on the HK spread this test reads.
   await page.goto("/upload", DCL);
   await page.setInputFiles('input[type="file"]', "e2e/fixtures/printed-total.pdf");
   await expect(page.getByTestId("doc-row").filter({ hasText: "printed-total.pdf" }).first())
     .toBeVisible({ timeout: 15_000 });
+  await chooseTemplate(page, SUITE_TEMPLATE_KEY);
   await page.getByRole("button", { name: /Extract directly/ }).click();
   await expect(page.getByRole("heading", { name: "Extracted data" }))
     .toBeVisible({ timeout: 60_000 });
@@ -1475,6 +1488,120 @@ test("a calculated total shows what the filing printed beside it, where the two 
   // The inspector reads the same server decision, so the two cannot disagree.
   await ref.click();
   await expect(page.getByTestId("reported-divergence")).toContainText("printed 5,000");
+  // Total assets is a line the configuration compares, so the difference is a finding and the
+  // sentence says where it is. Last year ties, so no printed row is named as its explanation.
+  await expect(page.getByTestId("reported-divergence"))
+    .toContainText(", and it is in the review queue.");
+  await expect(page.getByTestId("explained-by")).toHaveCount(0);
+});
+
+test("a printed row nothing mapped is named as the reason a total differs, and mapping it closes the total",
+     async ({ page }) => {
+  // `explained-gap.pdf` prints Total assets 5,174 / 4,250 over Cash 1,204 / 1,100 and Trade
+  // receivables 3,410 / 2,900 on page 1, and "Sundry widgets held pending resale" 560 / 250 on a
+  // continuation page the mapping places on no line. 560 and 250 are the whole difference in both
+  // years, so that row is named — on the line, on the card, and on its own unmapped card.
+  test.setTimeout(180_000);
+  await loginAs(page, "analyst");
+  await page.goto("/upload", DCL);
+  await page.setInputFiles('input[type="file"]', "e2e/fixtures/explained-gap.pdf");
+  await expect(page.getByTestId("doc-row").filter({ hasText: "explained-gap.pdf" }).first())
+    .toBeVisible({ timeout: 15_000 });
+  await chooseTemplate(page, SUITE_TEMPLATE_KEY);
+  await page.getByRole("button", { name: /Extract directly/ }).click();
+  await expect(page.getByRole("heading", { name: "Extracted data" }))
+    .toBeVisible({ timeout: 60_000 });
+  await page.goto("/workspace", DCL);
+
+  // --- the line: computed, with what the filing printed beside it in both years -------------
+  await expect(page.getByTestId("v1-bs_ca__total_assets")).toContainText("4,614",
+                                                                         { timeout: 20_000 });
+  await expect(page.getByTestId("printed-v1-bs_ca__total_assets")).toContainText("printed 5,174");
+  await expect(page.getByTestId("printed-v2-bs_ca__total_assets")).toContainText("printed 4,250");
+
+  // --- the inspector names the row, inside the block that states the difference -------------
+  await page.getByTestId("printed-v1-bs_ca__total_assets").click();
+  const divergence = page.getByTestId("reported-divergence");
+  await expect(divergence).toContainText("printed 5,174");
+  await expect(divergence).toContainText(", and it is in the review queue.");
+  const explained = page.getByTestId("explained-by");
+  await expect(explained).toContainText("Sundry widgets held pending resale");
+  await expect(page.getByTestId("explained-by-figures")).toContainText("560");
+  await expect(page.getByTestId("explained-by-figures")).toContainText("250");
+  // It accounts for all of it, so no remainder is shown.
+  await expect(page.getByTestId("explained-by-remainder")).toHaveCount(0);
+  // The caption and the figure pair are bidi-isolated, so a right-to-left interface keeps the
+  // quotes and a leading "(B)" on the caption. Asserted as the mechanism, in English: this suite
+  // does not switch the persisted interface language (see the locale sweep above).
+  await expect(page.getByTestId("explained-by-row")).toHaveCSS("unicode-bidi", "isolate");
+  await expect(page.getByTestId("explained-by-figures")).toHaveCSS("unicode-bidi", "isolate");
+  // Last year's difference is stated as well, and the same row explains it, but no card carries
+  // it: the queue's calculated card is the current column's. So it is not sent to the queue.
+  await page.getByTestId("printed-v2-bs_ca__total_assets").click();
+  await expect(divergence).toContainText("printed 4,250");
+  await expect(divergence).toContainText("The difference is (250).");
+  await expect(divergence).not.toContainText(", and it is in the review queue.");
+  await expect(explained).toContainText("Sundry widgets held pending resale");
+  await page.getByTestId("printed-v1-bs_ca__total_assets").click();
+  await expect(divergence).toContainText(", and it is in the review queue.");
+
+  // --- the caption takes the viewer to where the row was printed: the second sheet ----------
+  await page.getByTestId("explained-by-row").click();
+  const highlight = page.getByTestId("prov-highlight");
+  await expect(highlight).toBeVisible({ timeout: 15_000 });
+  await expect(highlight.locator("..")).toContainText("sheet 2");
+
+  // --- "Map it" opens the row's own unmapped card, with what mapping it would close ----------
+  await page.getByTestId("explained-by-map").click();
+  await expect(page).toHaveURL(/\/review/);
+  const rowCard = page.locator('[data-testid="rv-check"]:not([data-row-ref=""])')
+    .filter({ hasText: "Sundry widgets held pending resale" });
+  await expect(rowCard.getByTestId("rv-remap")).toBeVisible({ timeout: 15_000 });
+  await expect(rowCard.getByTestId("rv-remap-explains")).toContainText("Total Assets");
+
+  // --- the calculated card names it too, and offers the map path instead of "by hand" ---------
+  const calcCard = page.getByTestId("rv-check")
+    .filter({ hasText: "Printed subtotal differs from its components" });
+  await calcCard.getByText("Printed subtotal differs from its components").click();
+  const onCard = calcCard.getByTestId("rv-explained-by");
+  await expect(onCard).toContainText("Sundry widgets held pending resale");
+  await expect(onCard).toContainText("560 / 250");
+  await expect(onCard.getByTestId("rv-explained-label")).toHaveCSS("unicode-bidi", "isolate");
+  await expect(calcCard.getByText("No automatic correction")).toHaveCount(0);
+
+  // --- "Open in workspace" lands on the line, with the row shown -----------------------------
+  await calcCard.getByTestId("rv-open-workspace").click();
+  await expect(page).toHaveURL(/\/workspace/);
+  await expect(page.getByTestId("seg-balance_sheet")).toHaveAttribute("data-on", "true");
+  await expect(page.getByTestId("explained-by")).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("prov-highlight").locator(".."))
+    .toContainText("sheet 2", { timeout: 15_000 });
+  // …and IN VIEW, not merely drawn: the pages are still loading when the pick arrives, and the
+  // viewer once stopped short of the second sheet with the highlight below the fold.
+  await expect(page.getByTestId("prov-highlight")).toBeInViewport({ timeout: 15_000 });
+
+  // --- mapping the row closes the total; nothing moved until then -----------------------------
+  await page.goBack();
+  await expect(page).toHaveURL(/\/review/);
+  // On screen before asking whether it is open: asked of a queue still rendering, the answer is
+  // "no", and the click meant to open the card would close it.
+  await expect(calcCard).toBeVisible({ timeout: 15_000 });
+  if (!(await calcCard.getByTestId("rv-explained-map").isVisible())) {
+    await calcCard.getByText("Printed subtotal differs from its components").click();
+  }
+  await calcCard.getByTestId("rv-explained-map").click();
+  await expect(rowCard.getByTestId("rv-remap")).toBeVisible({ timeout: 15_000 });
+  await rowCard.getByTestId("rv-remap-select").selectOption("bs_ca__prepayments_cp");
+  await rowCard.getByTestId("rv-remap-reason")
+    .fill("Widgets held for resale are a current asset; the filing's total includes them.");
+  await rowCard.getByTestId("rv-remap-apply").click();
+  await expect(rowCard).toHaveCount(0, { timeout: 15_000 });
+  await expect(calcCard).toHaveCount(0);
+
+  await page.goto("/workspace", DCL);
+  await expect(page.getByTestId("v1-bs_ca__total_assets")).toContainText("5,174",
+                                                                         { timeout: 20_000 });
+  await expect(page.getByTestId("printed-v1-bs_ca__total_assets")).toHaveCount(0);
 });
 
 test("an admin downloads the template as a workbook and publishes an edited version",
