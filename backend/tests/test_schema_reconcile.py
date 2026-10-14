@@ -22,7 +22,8 @@ def test_reconcile_adds_missing_columns(tmp_path):
     _reconcile_schema(eng)
 
     cols = {c["name"] for c in inspect(eng).get_columns("documents")}
-    for expected in ("owner", "pages", "page_scope", "filename", "status", "page_count"):
+    for expected in ("owner", "pages", "page_scope", "sections_off", "filename", "status",
+                     "page_count"):
         assert expected in cols, f"reconcile should have added {expected}"
 
     # And the widened dedup constraint now includes owner.

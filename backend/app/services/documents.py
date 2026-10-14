@@ -25,7 +25,7 @@ def content_hash(data: bytes) -> str:
 
 def _context(data: bytes, object_store=None, ontology=None,
              progress_cb=None, included_pages=None, template=None,
-             line_items=None, page_overrides=None) -> PipelineContext:
+             line_items=None, page_overrides=None, sections_off=None) -> PipelineContext:
     ctx = PipelineContext(raw_bytes=data, object_store=object_store,
                           progress_cb=progress_cb)
     if ontology is not None:
@@ -43,6 +43,8 @@ def _context(data: bytes, object_store=None, ontology=None,
         ctx.included_pages = set(included_pages)
     if page_overrides:
         ctx.page_overrides = page_overrides
+    if sections_off:
+        ctx.sections_off = set(sections_off)
     return ctx
 
 
@@ -60,11 +62,13 @@ def run_extraction(data: bytes, filename: str = "", ontology=None,
                    progress_cb=None, included_pages=None,
                    template=None, context_cb=None,
                    step_cb=None, line_items=None,
-                   page_overrides=None) -> tuple[DocumentModel, PipelineContext]:
+                   page_overrides=None,
+                   sections_off=None) -> tuple[DocumentModel, PipelineContext]:
     doc = DocumentModel(filename=filename, content_hash=content_hash(data))
     ctx = _context(data, ontology=ontology, progress_cb=progress_cb,
                    included_pages=included_pages, template=template,
-                   line_items=line_items, page_overrides=page_overrides)
+                   line_items=line_items, page_overrides=page_overrides,
+                   sections_off=sections_off)
     # Progress reported from INSIDE a stage. `progress_cb` fires only between stages, and
     # `map_ontology` is one stage that makes many LLM calls — so without this the percentage, the
     # stage counter and the log tail all sit frozen for the longest part of a run.

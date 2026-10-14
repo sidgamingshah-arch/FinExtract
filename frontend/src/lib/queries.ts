@@ -1,10 +1,12 @@
 /** React Query hooks — the data layer each screen consumes. */
 import { useEffect } from "react";
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClient,
+} from "@tanstack/react-query";
 
 import type {
-  Basis, FxRateInput, LineItemEdit, LineItemVersionRef, Locale, SettingsPatch, StatementKey,
-  RequestGroup, TemplateRef } from "../types";
+  Basis, FxRateInput, LineItemEdit, LineItemVersionRef, Locale, PagesResponse, ScopeSectionEdit,
+  SettingsPatch, StatementKey, RequestGroup, TemplateRef } from "../types";
 import { useUI } from "../store";
 import { api } from "./api";
 
@@ -431,13 +433,72 @@ export function useReextract(documentId: string | undefined) {
       // flight?" — and it stops polling on a terminal answer, so a cached `succeeded`/`failed` from
       // the run this one replaces would describe the document as idle for as long as the entry
       // lived, while the new run was working.
+      // `document-pages` because it carries the latest run and whether that run read the pages as
+      // they are — the Page Scope screen's "Extract again to read them" is about the run this one
+      // replaces.
       for (const key of ["document-statement", "document-run", "document-run-status",
                          "document-review", "document-analysis", "document-commentary",
-                         "document-notes"]) {
+                         "document-notes", "document-pages"]) {
         qc.invalidateQueries({ queryKey: [key, documentId] });
       }
     },
   });
+}
+
+/** WHICH CONFIGURATION AND TEMPLATE A RUN OF THE ACTIVE DOCUMENT IS LAUNCHED AGAINST — one
+ *  resolution, read by the Extraction screen and by Page Scope's "Extract again". The two must name
+ *  the same pins: a forced run started from Page Scope seeds the start query under the key the
+ *  Extraction screen then builds, and a key that differed by one segment would leave the mounting
+ *  screen with no data — it would POST, starting a second run. Moved here from ExtractionView as it
+ *  was; `pinnedId` is that screen's `?rulebook=` pin, empty elsewhere. */
+export function useRunPins(pinnedId = "") {
+  // THE ONE CONFIGURATION LIST. Was `useOntologies`; there is no second engine to list, so this is
+  // the stored versions of the line-item set and nothing else.
+  const cfgQ = useLineItemVersions();
+  const tplQ = useTemplates();
+  const selectedTemplateId = useUI((s) => s.selectedTemplateId);
+  // The KEY of the selected version — what a line-item set targets. Derived from the one selection
+  // rather than stored beside it, so the two cannot drift out of step.
+  const selectedKey = activeTemplate(tplQ.data, selectedTemplateId)?.template_key ?? null;
+  const ready = cfgQ.isFetched && tplQ.isFetched;   // don't POST until the lists settle
+  // The configuration a run DEFAULTS to: the version in force for the template the analyst selected
+  // on the Upload screen, and failing that the one in force among everything stored. "In force" is
+  // one shared rule (see configurationInForce) — the copy that used to live here compared versions,
+  // which cannot rank two different sets that target the same template.
+  //
+  // There used to be a middle fallback naming `hkfrs_hk_china_v1` by hand, and a reader who had not
+  // picked a template on the Upload screen — a fresh browser, so the common case — fell into it and
+  // had the filing read against exactly that: a version the adopted one replaces. The run's own
+  // record is what exposed it, reporting a pinned older version while this screen was still calling
+  // it in force. A named key cannot follow an adoption; the shared rule can, so it decides.
+  const inForce =
+    configurationInForce(cfgQ.data, (o) => o.target_template_key === selectedKey) ||
+    configurationInForce(cfgQ.data);
+  // A pin naming a version that is no longer served (deleted, or a stale shared link) must not
+  // leave the screen blank: fall through to what is in force, which is also what the picker shows.
+  const cfg = (pinnedId ? cfgQ.data?.find((o) => o.id === pinnedId) : undefined) ?? inForce;
+  // THE VERSION THE RUN IS LAUNCHED AGAINST, and the reason a re-extraction could not pick up a
+  // revised template. `find(tt => tt.template_key === ...)` matched a KEY over a list carrying every
+  // version of it and took the first row — v1 on an unordered payload — so the pipeline validated and
+  // shaped output against the OLDEST template no matter what had been published or chosen since.
+  // Now: the analyst's selection when it belongs to this configuration's template, else the latest
+  // for it (`activeTemplate`, the same rule the Upload screen shows).
+  // AND WHEN THE CONFIGURATION LIST IS NOT THIS READER'S TO READ — an analyst's
+  // `GET /line-items/versions` is a 403 — the TEMPLATE THEY CHOSE still goes on the run, and the
+  // server resolves the configuration in force for it (`resolve_configuration_id`). This used to
+  // send neither half, so the server fell back to the newest stored template and an analyst's
+  // choice on the Upload screen changed nothing.
+  const tpl = cfg
+    ? activeTemplate(tplQ.data, selectedTemplateId, cfg.target_template_key)
+    : cfgQ.isError ? activeTemplate(tplQ.data, selectedTemplateId) : undefined;
+  // NO TEMPLATE, NO RUN — until the list has settled. A POST naming no template is laid out on the
+  // server's default, which is not necessarily the one the reader selected: the run started before
+  // the selection resolved went to the template stored last, and the POST that followed with the
+  // selected one was refused as a second run in flight. Starting without one is still right where
+  // the settled list holds no template this run could use.
+  const tplSettled = !!tpl || (tplQ.isFetched
+                               && !activeTemplate(tplQ.data, null, cfg?.target_template_key));
+  return { cfgQ, tplQ, selectedKey, ready, inForce, cfg, tpl, tplSettled };
 }
 
 /** Cells around a value's spreadsheet origin — the Excel click-to-source backdrop.
@@ -882,14 +943,46 @@ export const useStatement = (statement: StatementKey, basis: Basis, locale: Loca
     enabled,
   });
 
-/** Real per-page classification for a document (Page Scope). */
-export const useDocumentPages = (documentId: string | undefined) =>
+/** Real per-page classification for a document (Page Scope). `live` is the Page Scope screen's
+ *  own read: asked again on every visit, because it says whether the latest run read the pages as
+ *  they now are, and polled while a run is extracting the document, because page changes wait for
+ *  it. The Workspace's source viewer reads the same query for the folios and needs neither. */
+export const useDocumentPages = (documentId: string | undefined, live = false) =>
   useQuery({
     queryKey: ["document-pages", documentId],
     queryFn: () => api.documentPages(documentId as string),
     enabled: !!documentId,
     retry: false,
+    ...(live ? {
+      staleTime: 0,
+      refetchInterval: (q: { state: { data?: PagesResponse } }) =>
+        (q.state.data?.locked ? 2000 : false),
+    } : {}),
   });
+
+/** A page edit's answer IS the pages payload: it replaces the cached copy rather than refetching
+ *  it, and rather than one card being patched — an edit of one page can change how the next is
+ *  read. The extraction start answers cached for this document go too, so the Extraction screen
+ *  asks the server again and is not handed the run that read the old pages. Only INACTIVE ones: an
+ *  active start query refetches the moment its data is removed, and its fetch is the POST that
+ *  starts a run. */
+export function pagesSaved(qc: QueryClient, documentId: string | undefined,
+                           resp: PagesResponse) {
+  const payload: PagesResponse = { ...resp };
+  delete payload.kept;
+  qc.setQueryData(["document-pages", documentId], payload);
+  qc.removeQueries({ queryKey: ["extraction-start", documentId], type: "inactive" });
+}
+
+/** One Page Scope change to a section: a page added, moved or removed, typed pages, the switch. */
+export function useSetSections(documentId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (sections: ScopeSectionEdit[]) =>
+      api.setSections(documentId as string, sections),
+    onSuccess: (resp) => pagesSaved(qc, documentId, resp),
+  });
+}
 
 /** Text search over a document's source pages. Keyed on the SUBMITTED term (not what is being
  *  typed), so a search is one request per query rather than one per keystroke. */
@@ -902,13 +995,13 @@ export const useDocumentSearch = (documentId: string | undefined, q: string) =>
     staleTime: 5 * 60 * 1000,
   });
 
-/** Persist the user's page selection for extraction; refreshes the pages view. */
+/** Persist a page selection for extraction; the answer replaces the pages view. */
 export function useSetDocumentScope(documentId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (includedPages: number[]) =>
       api.setDocumentScope(documentId as string, includedPages),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["document-pages", documentId] }),
+    onSuccess: (resp) => pagesSaved(qc, documentId, resp),
   });
 }
 
@@ -917,7 +1010,7 @@ export function useSetPageOverrides(documentId: string | undefined) {
   return useMutation({
     mutationFn: (overrides: { page: number; parts: import("../types").PagePart[] }[]) =>
       api.setPageOverrides(documentId as string, overrides),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["document-pages", documentId] }),
+    onSuccess: (resp) => pagesSaved(qc, documentId, resp),
   });
 }
 

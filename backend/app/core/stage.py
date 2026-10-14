@@ -27,6 +27,9 @@ class PipelineContext:
     # A person's corrections of how pages are read (`services.page_overrides`), applied straight
     # after the classifier.
     page_overrides: list[dict] | None = None
+    # The Page Scope sections a person switched off (statement keys and "notes"); `pdf_extract`
+    # skips their parts. None = every section is read.
+    sections_off: set[str] | None = None
     logs: list[str] = field(default_factory=list)
     progress_cb: Callable[[str, float], None] | None = None
     # Reported from inside a stage: (units done, units total, what a unit is). See `emit_step`.

@@ -6,10 +6,11 @@ import logging
 import re
 from collections.abc import Iterable
 from decimal import Decimal, InvalidOperation
+from typing import Literal
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
 from pydantic import BaseModel
-from sqlalchemy import delete as sql_delete, select
+from sqlalchemy import delete as sql_delete, func, select
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -3849,15 +3850,23 @@ def _default_scope(pages: list[dict]) -> set[int]:
 
 
 def _build_pages(pages: list[dict], scope: list[int] | None = None,
-                 overrides: list[dict] | None = None) -> dict:
+                 overrides: list[dict] | None = None, *, fmt: str | None = None,
+                 sections_off: list[str] | None = None, last_run: dict | None = None) -> dict:
     """PagesResponse from the document's real classified pages. Inclusion reflects the user's
     persisted scope when set; otherwise the default (face/notes are in scope, the rest are
     skipped).
 
     Served WITH the person's page corrections applied (`services.page_overrides`), because that is
     how the next run will read the pages; each card carries its `parts` — the override's, or the
-    classifier's own cut in the same form — so the screen edits the reading it will get."""
+    classifier's own cut in the same form — so the screen edits the reading it will get.
+
+    WHAT EACH PAGE IS READ FOR, by the reader's own rule (`services.page_reading`): `reads` on
+    every card, the five `sections` with their pages, and `read`, the count of pages a run reads.
+    A PDF only: a workbook or an image is read sheet by sheet or whole, and nothing on Page Scope
+    changes that, so their cards carry `reads: null` and there are no sections. `last_run` is the
+    latest run and whether it read the pages as they now are; `locked` while it is running."""
     from app.services.page_overrides import apply_to_page_dicts, classifier_parts
+    from app.services.page_sections import build as build_sections
 
     if overrides:
         pages = apply_to_page_dicts(pages, overrides)
@@ -3893,9 +3902,62 @@ def _build_pages(pages: list[dict], scope: list[int] | None = None,
             "parts": classifier_parts(p),
             "overridden": idx in overridden,
         })
+    paged = fmt in (None, "pdf")
+    sections, per = build_sections(pages, scope, sections_off) if paged else ([], {})
+    for card in cards:
+        card.update(per.get(card["no"] - 1, {"reads": [], "unread": None}) if paged
+                    else {"reads": None, "unread": None})
     # Counted from the cards, by the same helper the sample route uses — see app/services/
     # page_scope.py for why the two routes are no longer allowed their own arithmetic.
-    return {"pages": cards, **scope_counts(cards)}
+    return {"pages": cards, **scope_counts(cards),
+            "format": fmt, "sections": sections,
+            "read": sum(1 for c in cards if c["reads"]) if paged else None,
+            "last_run": last_run,
+            "locked": bool(last_run and last_run.get("status") == "running")}
+
+
+def _last_run_info(session: Session, row) -> dict | None:
+    """The document's latest run as Page Scope needs it, or None before the first one.
+
+    COLUMNS, NOT THE ROW: the Workspace's source viewer reads /pages too, and a run's `result`
+    carries the whole spread. `run_number` is the run's place in the document's history, counted
+    here: the column of that name is not written when a run starts, so every run stores 1."""
+    from app.db.models import ExtractionRun
+    from app.services.page_sections import reads_current_pages
+
+    hit = session.execute(
+        select(ExtractionRun.id, ExtractionRun.status, ExtractionRun.created_at,
+               ExtractionRun.options)
+        .where(ExtractionRun.document_id == row.id)
+        .order_by(ExtractionRun.created_at.desc()).limit(1)).first()
+    if hit is None:
+        return None
+    count = session.execute(
+        select(func.count()).select_from(ExtractionRun)
+        .where(ExtractionRun.document_id == row.id)).scalar_one()
+    return {"run_id": hit.id, "run_number": count, "status": hit.status,
+            "created_at": hit.created_at.isoformat() if hit.created_at else None,
+            "reads_current_pages": reads_current_pages(hit.options, row)}
+
+
+def _pages_payload(session: Session, row, pages: list[dict]) -> dict:
+    """The /pages answer for a document row — what GET serves and every page edit returns, so the
+    screen replaces its copy with the server's rather than patching one card (an edit of one page
+    can change how the next one is read)."""
+    return _build_pages(pages, row.page_scope, row.page_overrides, fmt=row.fmt,
+                        sections_off=row.sections_off, last_run=_last_run_info(session, row))
+
+
+def _refuse_while_running(session: Session, row) -> None:
+    """A run in flight read the pages as they were when it started; a change now would describe
+    neither that run nor the next one, so it waits. 409, naming the run."""
+    info = _last_run_info(session, row)
+    if info and info["status"] == "running":
+        raise HTTPException(status_code=409, detail={
+            "error": "run_in_flight",
+            "message": "A run is extracting this document. Wait for it to finish before "
+                       "changing which pages are read.",
+            "run_id": info["run_id"]})
 
 
 def _document_pages(row, store: LocalObjectStore) -> list[dict]:
@@ -3914,13 +3976,14 @@ def get_document_pages(
     store: LocalObjectStore = Depends(object_store),
 ) -> dict:
     """Real per-page classification for the Page Scope screen. Served from the pages captured
-    at upload (no recompute), with inclusion reflecting any persisted user scope."""
+    at upload (no recompute), with inclusion reflecting any persisted user scope, what each page
+    is read for, and whether the latest run read the pages as they now are."""
     from app.db.models import Document
 
     row = session.get(Document, document_id)
     if row is None:
         raise HTTPException(status_code=404, detail="Document not found")
-    return _build_pages(_document_pages(row, store), row.page_scope, row.page_overrides)
+    return _pages_payload(session, row, _document_pages(row, store))
 
 
 class PageOverridesEdit(BaseModel):
@@ -3940,27 +4003,31 @@ def set_page_overrides(
     """Save a person's correction of how pages are read — which parts of a page are a statement
     face (and which statement, whose figures), notes, or not read — for every later run of this
     document. An invalid entry is a 422 naming the page and the part. A page given a face or notes
-    part is added to a persisted page scope, so the correction is not silently out of scope."""
+    part is added to a persisted page scope, so the correction is not silently out of scope; a
+    page scope the reader ignores (it holds no page that is read) is dropped instead. Refused with
+    a 409 while a run is extracting the document."""
     from app.db.models import Document
     from app.services.page_overrides import OverrideError, normalise
+    from app.services.page_sections import selection_after_correction
 
     row = session.get(Document, document_id)
     if row is None:
         raise HTTPException(status_code=404, detail="Document not found")
+    _refuse_while_running(session, row)
     pages = _document_pages(row, store)
     try:
         cleaned = normalise(body.overrides, page_count=len(pages))
     except OverrideError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    row.page_overrides = cleaned or None
     if row.page_scope is not None:
-        read = {o["page"] for o in cleaned if any(p["kind"] != "other" for p in o["parts"])}
-        row.page_scope = sorted(set(row.page_scope) | read)
+        row.page_scope = selection_after_correction(pages, row.page_overrides, cleaned,
+                                                    row.page_scope)
+    row.page_overrides = cleaned or None
     if row.pages is None:
         row.pages = pages
     session.commit()
     return {"ok": True, "document_id": document_id, "overrides": cleaned,
-            **_build_pages(pages, row.page_scope, cleaned)}
+            **_pages_payload(session, row, pages)}
 
 
 class ScopeEdit(BaseModel):
@@ -3975,14 +4042,18 @@ def set_document_scope(
     session: Session = Depends(db),
     store: LocalObjectStore = Depends(object_store),
 ) -> dict:
-    """Persist the user's page selection for extraction (the Page Scope screen). Extraction
-    then restricts itself to these pages. Indices are validated against the document's pages;
-    an empty selection resets to the default (all face/notes pages)."""
+    """Persist the user's page selection for extraction. Extraction then restricts itself to
+    these pages. Indices are validated against the document's pages; an empty selection resets to
+    the default (all face/notes pages). Refused with a 409 while a run is extracting the document.
+
+    The Page Scope screen no longer edits the selection page by page — it changes what a page is
+    read for (PUT /sections) — and this route stays for callers that set a selection directly."""
     from app.db.models import Document
 
     row = session.get(Document, document_id)
     if row is None:
         raise HTTPException(status_code=404, detail="Document not found")
+    _refuse_while_running(session, row)
     pages = _document_pages(row, store)
     valid = {(p.get("index", 0) or 0) for p in pages}
     chosen = sorted({i for i in body.included_pages if i in valid})
@@ -3992,7 +4063,70 @@ def set_document_scope(
         row.pages = pages          # back-fill persistence for legacy rows
     session.commit()
     return {"ok": True, "document_id": document_id,
-            "included_pages": chosen, "count": len(chosen)}
+            "included_pages": chosen, "count": len(chosen),
+            **_pages_payload(session, row, pages)}
+
+
+class SectionItem(BaseModel):
+    # Every page number here is 1-based: the sheet number under each page on the screen.
+    id: Literal["balance_sheet", "profit_and_loss", "cash_flow", "changes_in_equity", "notes"]
+    on: bool | None = None
+    add: list[int] | None = None
+    remove: list[int] | None = None
+    # The section's pages typed out ("6, 9–10"), or listed.
+    pages: str | list[int] | None = None
+
+
+class SectionsEdit(BaseModel):
+    sections: list[SectionItem]
+
+
+@router.put("/{document_id}/sections",
+            dependencies=[Depends(require(Permission.PIPELINE_RUN)), Depends(authorized_document)])
+def set_document_sections(
+    document_id: str,
+    body: SectionsEdit,
+    session: Session = Depends(db),
+    store: LocalObjectStore = Depends(object_store),
+) -> dict:
+    """Change which pages a section — a statement, or the notes — is read from, or switch a
+    section off (Page Scope). One click on the screen is one call.
+
+    The section's pages are not stored: the edit is turned into the two things a document already
+    carries, its page corrections (a page added to a section is read as one part for it; a page
+    removed from it has that part not read) and its page selection, plus the sections switched off.
+    Answers with the whole /pages payload, and `kept`: typed pages left as they were because they
+    are read for another section or cut into parts. Nothing is written on a refusal: 409 for a
+    document that is not a PDF or while a run is extracting it, 422 for pages that cannot be read
+    or a page cut into parts that one click cannot change."""
+    from app.db.models import Document
+    from app.services.page_overrides import OverrideError
+    from app.services.page_sections import SectionEditError, apply_edit
+
+    row = session.get(Document, document_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+    if row.fmt != "pdf":
+        raise HTTPException(status_code=409, detail={
+            "error": "not_paged", "format": row.fmt,
+            "message": "Page scope applies to PDF documents; this one is not a PDF."})
+    _refuse_while_running(session, row)
+    pages = _document_pages(row, store)
+    try:
+        overrides, scope, off, kept = apply_edit(
+            pages, row.page_overrides, row.page_scope, row.sections_off,
+            [item.model_dump() for item in body.sections], page_count=len(pages))
+    except SectionEditError as exc:
+        raise HTTPException(status_code=422, detail={"error": exc.code, "message": exc.message,
+                                                     **exc.params}) from exc
+    except OverrideError as exc:
+        raise HTTPException(status_code=422, detail={"error": "invalid_override",
+                                                     "message": str(exc)}) from exc
+    row.page_overrides, row.page_scope, row.sections_off = overrides, scope, off
+    if row.pages is None:
+        row.pages = pages          # back-fill persistence for legacy rows
+    session.commit()
+    return {**_pages_payload(session, row, pages), "kept": kept}
 
 
 # Fallback chrome for the reference statement types. The real label + canonical-key prefix

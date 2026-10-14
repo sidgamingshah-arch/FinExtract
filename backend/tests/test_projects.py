@@ -216,6 +216,22 @@ def test_sample_page_filter_labels_localize(client):
     assert [c["label"] for c in zh["filters"]] == ["全部页面", "表内", "附注", "其他"]
 
 
+def test_sample_pages_carry_their_sections(client):
+    """The sample renders on the sectioned Page Scope screen too: its five sections, and what each
+    card is read for, served the way the real route serves them."""
+    from app.services.page_reading import SECTIONS
+
+    pages = client.get("/api/v1/projects/demo/pages").json()
+    sections = {s["id"]: s for s in pages["sections"]}
+    assert [s["id"] for s in pages["sections"]] == list(SECTIONS)
+    assert sections["balance_sheet"]["pages"] == [142, 143]
+    assert sections["notes"]["pages"] == [156, 171]
+    assert pages["read"] == pages["focused"] == 8
+    card = next(p for p in pages["pages"] if p["no"] == 43)
+    assert card["reads"] == [] and card["unread"] == "not_classified"
+    assert (pages["format"], pages["last_run"], pages["locked"]) == (None, None, False)
+
+
 def test_export_xlsx_and_json(client):
     r = client.post("/api/v1/projects/demo/export", json={"format": "json"})
     assert r.status_code == 200 and r.headers["content-type"].startswith("application/json")

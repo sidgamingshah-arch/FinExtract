@@ -155,17 +155,17 @@ INTEGRITY = {
 
 # --- Page scope (screen 3) --------------------------------------------------
 
-# `kind` is face / notes / other, the same three the real classifier emits, because the Page Scope
-# filter chips are matched to it by POSITION on the client. Without it these cards answered every
-# filter, so each chip appeared to work while filtering nothing. Counts for the chips and the
-# header are derived from these cards (app/services/page_scope.py) and are not stored here.
+# `kind` is face / notes / other, the same three the real classifier emits, and a face card names
+# its `statement` as a real page does: the Page Scope screen lists each statement's pages and says
+# what each card is read for from these two (`services.page_sections.demo_payload`). Counts for
+# the header are derived from these cards (app/services/page_scope.py) and are not stored here.
 PAGES = [
-    {"no": 142, "kind": "face", "cls": "Balance Sheet", "sub": "Consolidated", "conf": "high", "included": True, "scan": "native"},
-    {"no": 143, "kind": "face", "cls": "Balance Sheet", "sub": "Standalone", "conf": "high", "included": True, "scan": "native"},
-    {"no": 145, "kind": "face", "cls": "Statement of P&L", "sub": "Consolidated", "conf": "high", "included": True, "scan": "native"},
-    {"no": 147, "kind": "face", "cls": "Statement of P&L", "sub": "Standalone", "conf": "med", "included": True, "scan": "native"},
-    {"no": 149, "kind": "face", "cls": "Cash Flow", "sub": "Consolidated", "conf": "high", "included": True, "scan": "native"},
-    {"no": 151, "kind": "face", "cls": "Cash Flow", "sub": "Standalone", "conf": "med", "included": True, "scan": "scanned"},
+    {"no": 142, "kind": "face", "statement": "balance_sheet", "cls": "Balance Sheet", "sub": "Consolidated", "conf": "high", "included": True, "scan": "native"},
+    {"no": 143, "kind": "face", "statement": "balance_sheet", "cls": "Balance Sheet", "sub": "Standalone", "conf": "high", "included": True, "scan": "native"},
+    {"no": 145, "kind": "face", "statement": "profit_and_loss", "cls": "Statement of P&L", "sub": "Consolidated", "conf": "high", "included": True, "scan": "native"},
+    {"no": 147, "kind": "face", "statement": "profit_and_loss", "cls": "Statement of P&L", "sub": "Standalone", "conf": "med", "included": True, "scan": "native"},
+    {"no": 149, "kind": "face", "statement": "cash_flow", "cls": "Cash Flow", "sub": "Consolidated", "conf": "high", "included": True, "scan": "native"},
+    {"no": 151, "kind": "face", "statement": "cash_flow", "cls": "Cash Flow", "sub": "Standalone", "conf": "med", "included": True, "scan": "scanned"},
     {"no": 156, "kind": "notes", "cls": "Notes 1-4", "sub": "PPE, CWIP", "conf": "high", "included": True, "scan": "native"},
     {"no": 171, "kind": "notes", "cls": "Note 12", "sub": "Trade receivables", "conf": "high", "included": True, "scan": "native"},
     {"no": 43, "kind": "other", "cls": "Other", "sub": "Directors report", "conf": "low", "included": False, "scan": "scanned"},

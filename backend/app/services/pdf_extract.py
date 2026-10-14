@@ -326,17 +326,12 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
     # Prefer statement pages (face + notes). Also include SCANNED pages even if they didn't
     # classify — a scanned page has no text layer to match a title against, so it would
     # otherwise be dropped before ever reaching the OCR path. Fall back to all pages if
-    # nothing was classified at all.
+    # nothing was classified at all. The rule lives in `services.page_reading`, because the Page
+    # Scope screen says what each page is read for and has to say it by the same rule.
     from app.services.notes_extract import without_empty_duplicates
-    from app.services.statements import ACTIVE_STATEMENTS
+    from app.services.page_reading import default_targets, narrow_targets
 
-    targets = [p for p in doc.pages
-               if p.kind is PageKind.NOTES
-               or (p.kind is PageKind.FACE and p.statement in ACTIVE_STATEMENTS)
-               or (p.source_kind == PageSourceKind.SCANNED
-                   and p.statement in ACTIVE_STATEMENTS)]
-    if not targets:
-        targets = list(doc.pages)
+    targets = default_targets(doc.pages)
 
     # A LINE DECLARED `anywhere` MEANS EVERY PAGE, and this is where that has to be honoured.
     #
@@ -373,12 +368,13 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
 
     # Honour an explicit user page scope (from the Page Scope screen): keep only pages the
     # user chose to include. An empty selection is treated as "no restriction" so a stray
-    # empty list can never silently extract nothing.
-    if ctx.included_pages:
-        scoped = [p for p in targets if p.index in ctx.included_pages]
-        if scoped:
-            targets = scoped
-            ctx.log(f"extract:page_scope_applied={sorted(ctx.included_pages)}")
+    # empty list can never silently extract nothing. Then the sections a person switched off:
+    # a page read only for those is dropped here, and a page shared with a section still on is
+    # read for that one, its other parts skipped below (`off`).
+    off = set(ctx.sections_off or ())
+    if off:
+        ctx.log(f"extract:sections_off={sorted(off)}")
+    targets = narrow_targets(targets, ctx.included_pages, off, log=ctx.log)
 
     number_format = _resolve_number_format(ctx, doc)
     chrome, chrome_feet = _page_chrome(pdf, targets)
@@ -565,6 +561,9 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
                 if not seg:
                     continue
                 if part["kind"] == "notes":
+                    if "notes" in off:
+                        ctx.log(f"extract:page={ps.index}:override_part_off(notes)")
+                        continue
                     pending_notes.append(seg)
                 elif part["kind"] == "face":
                     if pending_notes and not override_batches:
@@ -617,7 +616,9 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
                      else [])
             below = ([word for word in words if (word.bbox.y0 + word.bbox.y1) / 2 >= ends_y]
                      if isinstance(ends_y, (int, float)) else [])
-            if above:
+            # With the notes switched off the words above the title are not read, and they still
+            # leave the face batch below.
+            if above and "notes" not in off:
                 _read_notes(above, ps.index, source_kind, fold,
                             notes_carry, notes_grid, notes_group, notes_header)
                 ctx.log(f"extract:page={ps.index}:notes_above_supplement_title="
@@ -681,6 +682,16 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
 
         items = []
         for batch_index, (batch_words, statement, page_scope, page_title) in enumerate(batches):
+            # A STATEMENT SWITCHED OFF on Page Scope is not read, also where it shares a page
+            # with one that is on: the classifier's split above makes that one batch of two, and a
+            # person's cut one batch per face part. Skipped HERE and not where a person's parts
+            # are cut into batches: dropped there, the part would no longer stand between the notes
+            # above and below it, so the notes below would continue the previous page's open note
+            # (they start afresh with the statement on), and the batch after it would become the
+            # page's first and could take the previous page's caption.
+            if statement in off:
+                ctx.log(f"extract:page={ps.index}:batch_off({statement})")
+                continue
             # ONLY THE FIRST BATCH OF A PAGE can continue the previous page's caption: a second
             # batch begins at a mid-page statement title, so its first row is not the page's.
             # And only from the page immediately before, read as the SAME statement.

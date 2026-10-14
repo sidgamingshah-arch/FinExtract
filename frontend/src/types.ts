@@ -1129,6 +1129,50 @@ export interface PageCard {
    *  classifier's own cut in the same form — the starting point of an edit. */
   parts?: PagePart[];
   overridden?: boolean;
+  /** What the NEXT RUN reads on this page, by the reader's own rule (server-side
+   *  `services/page_reading.py`): the parts it reads, top to bottom. `[]` = not read; null for a
+   *  document that is not a PDF, which Page Scope does not change. */
+  reads?: PagePart[] | null;
+  /** Why a page is not read: no part of it is read for any section, a page selection leaves it
+   *  out, or every section it is in is switched off. Null when it is read. */
+  unread?: "not_classified" | "out_of_scope" | "section_off" | null;
+}
+/** The sections Page Scope lists: the four statements and the notes. */
+export type ScopeSectionId =
+  "balance_sheet" | "profit_and_loss" | "cash_flow" | "changes_in_equity" | "notes";
+/** One section and its pages. Pages are 1-based sheet numbers (`PageCard.no`): `pages` are the
+ *  pages read for it, `read` those the next run reads (all of them unless switched off or left out
+ *  of a page selection). Derived from how each page is read, never stored. */
+export interface ScopeSection {
+  id: ScopeSectionId;
+  pages: number[];
+  read: number[];
+  on: boolean;
+}
+/** The document's latest run, and whether it read the pages as they now are. */
+export interface ScopeLastRun {
+  run_id: string;
+  run_number: number;
+  status: "running" | "succeeded" | "failed" | "canceled" | string;
+  /** Naive ISO UTC, as every run timestamp is served. */
+  created_at: string | null;
+  reads_current_pages: boolean;
+}
+/** A typed page left as it was: read for another section, or cut into parts. */
+export interface ScopeKept {
+  no: number;
+  reason: "other_section" | "has_parts";
+  section?: ScopeSectionId;
+  parts?: number;
+}
+/** One change to a section (PUT /documents/{id}/sections). Pages are 1-based. */
+export interface ScopeSectionEdit {
+  id: ScopeSectionId;
+  on?: boolean;
+  add?: number[];
+  remove?: number[];
+  /** The section's pages typed out ("6, 9–10"). */
+  pages?: string;
 }
 /** One part of a page: it begins at `from_y` (fraction of the page height from the top) and
  *  runs to where the next part begins. */
@@ -1144,6 +1188,17 @@ export interface PagesResponse {
   focused: number;
   total: number;
   skipped: number;
+  /** The document's format ("pdf", "xlsx", …); null on the sample project. */
+  format?: string | null;
+  /** Always the five, in order; empty for a document that is not a PDF. */
+  sections?: ScopeSection[];
+  /** How many pages the next run reads; null for a document that is not a PDF. */
+  read?: number | null;
+  last_run?: ScopeLastRun | null;
+  /** True while a run is extracting the document: page changes wait. */
+  locked?: boolean;
+  /** Only on the answer to a section edit: typed pages left as they were. */
+  kept?: ScopeKept[];
 }
 
 /** One hit from searching the source document's text layer. The box is in the same normalized

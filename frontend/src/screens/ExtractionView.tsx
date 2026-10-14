@@ -21,8 +21,7 @@ import { ExcelSourcePanel, PagedSource, toPicked, type Picked } from "../compone
 import { useT } from "../i18n";
 import { refusalText } from "../lib/api";
 import {
-  activeTemplate, configurationInForce, useDocumentAnalysis, useDocumentRunStatus, useExtraction,
-  useLineItemVersions, useReextract, useStopRun, useTemplates,
+  useDocumentAnalysis, useDocumentRunStatus, useExtraction, useReextract, useRunPins, useStopRun,
 } from "../lib/queries";
 import { useCan } from "../lib/rbac";
 import { useUI, usePinnedRun } from "../store";
@@ -730,30 +729,9 @@ export default function ExtractionView() {
   const [picked, setPicked] = useState<Picked | null>(null);
   const [stmt, setStmt] = useState<string>("all");   // statement filter (by canonical prefix)
 
-  // THE ONE CONFIGURATION LIST. Was `useOntologies`; there is no second engine to list, so this is
-  // the stored versions of the line-item set and nothing else.
-  const cfgQ = useLineItemVersions();
-  const tplQ = useTemplates();
-  const selectedTemplateId = useUI((s) => s.selectedTemplateId);
-  // The KEY of the selected version — what a line-item set targets. Derived from the one selection
-  // rather than stored beside it, so the two cannot drift out of step.
-  const selectedKey = activeTemplate(tplQ.data, selectedTemplateId)?.template_key ?? null;
-  const ready = cfgQ.isFetched && tplQ.isFetched;   // don't POST until the lists settle
-  // The configuration a run DEFAULTS to: the version in force for the template the analyst selected
-  // on the Upload screen, and failing that the one in force among everything stored. "In force" is
-  // one shared rule (see configurationInForce) — the copy that used to live here compared versions,
-  // which cannot rank two different sets that target the same template.
-  //
-  // There used to be a middle fallback naming `hkfrs_hk_china_v1` by hand, and a reader who had not
-  // picked a template on the Upload screen — a fresh browser, so the common case — fell into it and
-  // had the filing read against exactly that: a version the adopted one replaces. The run's own
-  // record is what exposed it, reporting a pinned older version while this screen was still calling
-  // it in force. A named key cannot follow an adoption; the shared rule can, so it decides.
-  const inForce =
-    configurationInForce(cfgQ.data, (o) => o.target_template_key === selectedKey) ||
-    configurationInForce(cfgQ.data);
-  // …and the one the reader PINNED, which outranks it. Empty means "follow whatever is in force",
-  // so publishing a new version moves an unpinned reader forward rather than freezing them.
+  // The configuration a run defaults to (the one in force for the selected template), and the one
+  // the reader PINNED, which outranks it. Empty means "follow whatever is in force", so publishing a
+  // new version moves an unpinned reader forward rather than freezing them.
   //
   // Held in the URL, not in component state. As state it did not survive a reload: the reader was
   // silently moved back to the version in force while still looking at figures the run had produced
@@ -777,23 +755,10 @@ export default function ExtractionView() {
       // leave the screen, not walk the reader through every pick they tried.
     }, { replace: true });
   }, [setParams]);
-  // A pin naming a version that is no longer served (deleted, or a stale shared link) must not
-  // leave the screen blank: fall through to what is in force, which is also what the picker shows.
-  const cfg = (pinnedId ? cfgQ.data?.find((o) => o.id === pinnedId) : undefined) ?? inForce;
-  // THE VERSION THE RUN IS LAUNCHED AGAINST, and the reason a re-extraction could not pick up a
-  // revised template. `find(tt => tt.template_key === ...)` matched a KEY over a list carrying every
-  // version of it and took the first row — v1 on an unordered payload — so the pipeline validated and
-  // shaped output against the OLDEST template no matter what had been published or chosen since.
-  // Now: the analyst's selection when it belongs to this configuration's template, else the latest
-  // for it (`activeTemplate`, the same rule the Upload screen shows).
-  // AND WHEN THE CONFIGURATION LIST IS NOT THIS READER'S TO READ — an analyst's
-  // `GET /line-items/versions` is a 403 — the TEMPLATE THEY CHOSE still goes on the run, and the
-  // server resolves the configuration in force for it (`resolve_configuration_id`). This used to
-  // send neither half, so the server fell back to the newest stored template and an analyst's
-  // choice on the Upload screen changed nothing.
-  const tpl = cfg
-    ? activeTemplate(tplQ.data, selectedTemplateId, cfg.target_template_key)
-    : cfgQ.isError ? activeTemplate(tplQ.data, selectedTemplateId) : undefined;
+  // WHICH CONFIGURATION AND TEMPLATE THE RUN IS LAUNCHED AGAINST, resolved in one place
+  // (`useRunPins`) because Page Scope's "Extract again" has to launch the same run this screen then
+  // watches.
+  const { cfgQ, selectedKey, ready, inForce, cfg, tpl, tplSettled } = useRunPins(pinnedId);
   // `rulebook` is the wire name for what THIS run recorded about its CONFIGURATION — keyed on this
   // document and this choice, so switching the pick cannot leave the previous run's configuration
   // labelling the new one. `progress`, `stages` and `logTail` come back BESIDE `data` because `data`
@@ -843,13 +808,6 @@ export default function ExtractionView() {
   // adopted throughout, and the new pick's run starts when that one ends rather than racing it
   // (`!inFlight`).
   const startBlocked = !!mine && mine.pin === pinnedId;
-  // NO TEMPLATE, NO RUN — until the list has settled. A POST naming no template is laid out on the
-  // server's default, which is not necessarily the one the reader selected: the run started before
-  // the selection resolved went to the template stored last, and the POST that followed with the
-  // selected one was refused as a second run in flight. Starting without one is still right where
-  // the settled list holds no template this run could use.
-  const tplSettled = !!tpl || (tplQ.isFetched
-                               && !activeTemplate(tplQ.data, null, cfg?.target_template_key));
   // NO ANSWER, NO RUN. A read that has not landed — or that failed — cannot say whether a pipeline
   // is already working on this document, and starting one on that basis is the duplicate above.
   const starting = ready && canRun && answered && !inFlight && !startBlocked && tplSettled;

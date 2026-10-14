@@ -17,6 +17,7 @@ from app.security import Permission, current_principal, require
 from app.services import review_lines
 from app.services.export import build_json, build_statements_csv, build_xlsx
 from app.services.page_scope import scope_counts
+from app.services.page_sections import demo_payload
 
 # Every project endpoint requires an authenticated caller (session token, or the
 # X-Role dev header when enabled). Per-action permissions are enforced with require().
@@ -159,11 +160,15 @@ def get_integrity(project_id: str, locale: str = Depends(output_locale)) -> dict
 @router.get("/{project_id}/pages")
 def get_pages(project_id: str, locale: str = Depends(output_locale)) -> dict:
     if not _active():
-        return {"pages": [], "filters": [], "focused": 0, "total": 0, "skipped": 0}
+        return {"pages": [], "filters": [], "focused": 0, "total": 0, "skipped": 0,
+                **demo_payload([])}
     pages = deepcopy(DEMO["pages"])
     # Counted from the cards rather than served as literals: this route used to answer
     # `focused: 14, total: 84, skipped: 70` over ten page cards.
     counts = scope_counts(pages)
+    # The sections and what each card is read for, as the real route serves them, so the sample
+    # renders on the same screen: no images, no edits, no runs.
+    counts.update(demo_payload(pages))
     if locale != "en":
         for p in pages:
             p["cls"] = tr(p["cls"], locale)

@@ -57,6 +57,8 @@ export const color = {
   segBg: "#eef0f3",
   toggleOff: "#cfd4dc",
   trackBg: "#e7eaef",
+  // The dimmed screen behind a dialog.
+  scrim: "rgba(22,28,38,.35)",
 } as const;
 
 export const font = {

@@ -48,6 +48,7 @@ from app.schemas.loader import load_template
 from app.security import Permission, Principal, current_principal, require
 from app.services import audit as audit_svc
 from app.services.documents import run_extraction
+from app.services.page_sections import reads_current_pages
 
 router = APIRouter(tags=["extractions"])
 
@@ -1460,7 +1461,8 @@ def _run_extraction_task(run_id: str, object_key: str, filename: str, options: d
                                         included_pages=included_pages, template=template,
                                         progress_cb=progress, context_cb=progress.observe,
                                         step_cb=progress.step, line_items=st,
-                                        page_overrides=options.get("page_overrides"))
+                                        page_overrides=options.get("page_overrides"),
+                                        sections_off=options.get("sections_off"))
         run = session.get(ExtractionRun, run_id)
         if run is None:
             return
@@ -1787,11 +1789,12 @@ def start_extraction(
     # the requests would miss that.
     existing = _latest_run(session, doc.id)
     if existing is not None:
-        # A run read with other page corrections than the document now carries is not this
-        # request: saving an override is asking for the filing to be read differently.
+        # A run read with other page corrections, another page selection or other sections
+        # switched off than the document now carries is not this request: a page change on Page
+        # Scope is asking for the filing to be read differently. The same test says on that
+        # screen whether the last run read the pages as they now are.
         same_request = (_satisfies(existing, body)
-                        and (existing.options or {}).get("page_overrides")
-                        == (doc.page_overrides or None))
+                        and reads_current_pages(existing.options, doc))
         if existing.status == "running":
             # A RUN IN FLIGHT IS NEVER RACED, force or not. The product has no notion of two
             # concurrent pipelines over one filing — they would write the same run rows twice and
@@ -1916,8 +1919,11 @@ def start_extraction(
                    "rulebook": rulebook,
                    # THE PAGE CORRECTIONS THIS RUN READ THE FILING WITH (`services.page_overrides`),
                    # recorded so a run can say how its pages were read, and handed to the worker
-                   # from here so the two cannot differ.
+                   # from here so the two cannot differ. The page selection and the sections
+                   # switched off on Page Scope likewise.
                    "page_overrides": doc.page_overrides or None,
+                   "page_scope": sorted(doc.page_scope) if doc.page_scope else None,
+                   "sections_off": sorted(doc.sections_off) if doc.sections_off else None,
                    "stages": pipeline_stage_names()}
     run = ExtractionRun(
         id=run_id, document_id=doc.id,
@@ -1946,7 +1952,7 @@ def start_extraction(
 
     background.add_task(_run_extraction_task, run_id, doc.object_key, doc.filename or "",
                         run_options, entity, settings.llm.provider, settings.llm.model,
-                        doc.page_scope, started_at.isoformat())
+                        run_options["page_scope"], started_at.isoformat())
     # The URL of the mechanism that ACTUALLY reports progress — the endpoint the client polls.
     # This field used to name `/extractions/{run_id}/stream`, a WebSocket route that exists
     # nowhere in this codebase: a GET on it 404s, no client ever read it, and the docs correction

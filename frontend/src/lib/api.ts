@@ -110,19 +110,25 @@ export function setStoredLiListCollapsed(v: boolean): void {
  *  set against the target template before it publishes, so a refusal names one field out of forty
  *  — and a forty-field form told only "422, this edit was not applied" leaves the author hunting.
  *  Undefined for every response that carries no such list, which is most of them: a screen must be
- *  able to tell "no per-field information" from "no problems". */
+ *  able to tell "no per-field information" from "no problems".
+ *
+ *  `body` is a STRUCTURED detail whole (`{error, message, …params}`), for a screen that says the
+ *  refusal in the reader's own language from its code and its parameters — the page a typed range
+ *  names, how many pages the document has — rather than printing the server's English sentence. */
 export class ApiError extends Error {
   status: number;
   detail?: string;
   code?: string;
   fields?: LineItemFieldError[];
+  body?: Record<string, unknown>;
   constructor(status: number, message: string, detail?: string, code?: string,
-              fields?: LineItemFieldError[]) {
+              fields?: LineItemFieldError[], body?: Record<string, unknown>) {
     super(message);
     this.status = status;
     this.detail = detail;
     this.code = code;
     this.fields = fields;
+    this.body = body;
   }
 }
 
@@ -222,6 +228,19 @@ function errorCode(text: string): string | undefined {
   }
 }
 
+/** The structured `detail` of an error body, whole — undefined when it is a sentence, a FastAPI
+ *  validation array, or absent. */
+function errorBody(text: string): Record<string, unknown> | undefined {
+  try {
+    const body = JSON.parse(text) as { detail?: unknown };
+    const detail = body.detail;
+    return detail && typeof detail === "object" && !Array.isArray(detail)
+      ? detail as Record<string, unknown> : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function authHeader(): Record<string, string> {
   const t = getToken();
   return t ? { Authorization: `Bearer ${t}` } : {};
@@ -235,7 +254,7 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     throw new ApiError(res.status, `${res.status} ${res.statusText} — ${text}`,
-                       errorDetail(text), errorCode(text), errorFields(text));
+                       errorDetail(text), errorCode(text), errorFields(text), errorBody(text));
   }
   if (res.status === 204) return undefined as T; // no content (e.g. DELETE)
   return res.json() as Promise<T>;
@@ -475,22 +494,29 @@ export const api = {
    *  from "nothing here". */
   documentRunStatus: (documentId: string) =>
     req<DocumentRunStatus>(`/documents/${documentId}/run-status`),
-  /** Real per-page classification for the Page Scope screen (available pre-extraction). */
+  /** Real per-page classification for the Page Scope screen (available pre-extraction): what
+   *  each page is read for, the five sections, and whether the latest run read them as they are. */
   documentPages: (documentId: string) =>
     req<PagesResponse>(`/documents/${documentId}/pages`),
-  /** Persist the user's page selection for extraction (the Page Scope toggles). Extraction
-   * then restricts itself to these pages; an empty list resets to the default (all face/notes). */
   /** Save how pages are read — the parts of each corrected page. The whole set: a page left out
-   *  goes back to the classifier's reading. */
+   *  goes back to the classifier's reading. Answers with the whole pages payload. */
   setPageOverrides: (documentId: string,
                      overrides: { page: number; parts: import("../types").PagePart[] }[]) =>
-    req<{ ok: boolean }>(`/documents/${documentId}/page-overrides`,
+    req<PagesResponse & { ok: boolean; overrides: unknown[] }>(
+      `/documents/${documentId}/page-overrides`,
       { method: "PUT", body: JSON.stringify({ overrides }) }),
+  /** Persist a page selection for extraction (0-based). Extraction then restricts itself to these
+   *  pages; an empty list resets to the default (all face/notes). Answers with the pages payload. */
   setDocumentScope: (documentId: string, includedPages: number[]) =>
-    req<{ ok: boolean; included_pages: number[]; count: number }>(
+    req<PagesResponse & { ok: boolean; included_pages: number[]; count: number }>(
       `/documents/${documentId}/scope`,
       { method: "PUT", body: JSON.stringify({ included_pages: includedPages }) },
     ),
+  /** Change which pages a section is read from, or switch it off — one Page Scope click is one
+   *  call. Pages are 1-based sheet numbers. Answers with the pages payload and `kept`. */
+  setSections: (documentId: string, sections: import("../types").ScopeSectionEdit[]) =>
+    req<PagesResponse>(`/documents/${documentId}/sections`,
+      { method: "PUT", body: JSON.stringify({ sections }) }),
   /** The configured line items — the eight output lines and their sub-line items.
    *
    *  Signature unchanged; the RESPONSE now also carries `version` (which stored version answered,
@@ -533,9 +559,12 @@ export const api = {
     req<DocSearchResult>(
       `/documents/${documentId}/search?q=${encodeURIComponent(q)}&limit=${limit}`,
     ),
-  /** PNG of a PDF page (auth'd fetch → blob), used as the click-to-source backdrop. */
-  fetchPageImage: async (documentId: string, pageIndex: number): Promise<Blob> => {
-    const res = await fetch(`${BASE}/documents/${documentId}/pages/${pageIndex}/image`, {
+  /** PNG of a PDF page (auth'd fetch → blob), used as the click-to-source backdrop. `dpi` asks
+   *  for another resolution (50–300; the server's default is 110) — Page Scope's thumbnails ask
+   *  for 50, which is a quarter of the bytes. */
+  fetchPageImage: async (documentId: string, pageIndex: number, dpi?: number): Promise<Blob> => {
+    const res = await fetch(`${BASE}/documents/${documentId}/pages/${pageIndex}/image`
+                            + (dpi ? `?dpi=${dpi}` : ""), {
       headers: { ...authHeader() },
     });
     if (!res.ok) throw new ApiError(res.status, `${res.status} ${res.statusText}`);

@@ -315,11 +315,26 @@ computed.
 `GET /documents`, `POST /documents` (upload + integrity, hash-dedup per owner),
 `GET /documents/{id}`, `DELETE /documents/{id}`,
 `GET /documents/{id}/integrity`, `GET /documents/{id}/pages`,
+`PUT /documents/{id}/sections`, `PUT /documents/{id}/page-overrides`,
 `PUT /documents/{id}/scope`,
 `POST /documents/{id}/extractions` (202 + `progress_url`),
 `GET /extractions/{run_id}` (status + progress + **the run's stage list** + log tail +
 result — the client polls this once a second while a run is `running`; **there is no
 WebSocket**), `GET /documents/{id}/run`.
+
+**Page scope.** `GET /documents/{id}/pages` serves each page card with `reads` — what the next
+run reads on that page, by the reader's own rule (`services/page_reading.py`) — and `unread`
+(`not_classified`, `out_of_scope` or `section_off`), beside the five `sections` (the four
+statements and the notes, each with its 1-based `pages`, the pages `read` and its `on` switch),
+`read`, `format`, `last_run` (with `reads_current_pages`) and `locked`. A page is changed with
+`PUT /documents/{id}/sections` — add a page to a section, remove it, type a section's pages,
+switch a section off; 1-based page numbers — which writes the document's page corrections
+(`page_overrides`), page selection (`page_scope`) and `sections_off`, and answers with the same
+payload plus `kept`, the typed pages left as they were. `PUT /documents/{id}/page-overrides` (how
+one page is cut and read, part by part) and `PUT /documents/{id}/scope` (a page selection) are
+0-based and answer with the payload too. All three are refused with 409 while a run is extracting
+the document. A run records the corrections, the selection and the switches it read the filing
+with, and a POST of an extraction starts a new run when any of them differs from the document's.
 
 **Reading a run**
 `GET /documents/{id}/statement`, `GET /documents/{id}/notes`,

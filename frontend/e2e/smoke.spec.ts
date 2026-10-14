@@ -259,7 +259,8 @@ test("end-to-end: upload a new file → Run integrity check shows real results �
   // Page Scope reads the REAL document's classified pages.
   await page.goto("/scope", DCL);
   await expect(page.getByRole("heading", { name: "Statement page detection" })).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByText("All pages")).toBeVisible();
+  // The five sections — the four statements and the notes — always listed.
+  await expect(page.getByTestId("scope-section")).toHaveCount(5);
   await expect(page.getByRole("heading", { name: "No project yet" })).toHaveCount(0);
   // Clicking a page opens the side-by-side rendered preview (real PDF page image).
   await page.getByTestId("scope-page").first().click();

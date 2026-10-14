@@ -11,15 +11,19 @@ clicking one filtered by a kind it did not name.
 
 Deriving both from ``cards`` makes the arithmetic unarguable, and makes the invariant that already
 covers the real route (``total == len(pages)``) cover the sample one too.
+
+The Page Scope screen now heads its pages with the count of pages a run READS (``read``, by the
+reader's own rule — ``services.page_reading``) and lists the sections instead of these chips. The
+counts and the chips stay in the payload, counted the same way, for the callers that read them.
 """
 from __future__ import annotations
 
-# Positional, and it must stay positional: the client reads chip INDEX as the page kind to filter
-# by (see Scope.tsx's FILTER_KIND). A label reordered here silently re-points a filter.
+# Positional, and it must stay positional: chip INDEX is the page kind it counts (all / face /
+# notes / other), so a label reordered here silently re-points a chip.
 FILTER_LABELS = ("All pages", "Face", "Notes", "Other")
 
 # Every card is one of these. "face" and "notes" are the pages extraction reads; everything the
-# classifier put elsewhere is "other", which is also what the client's fourth chip filters by.
+# classifier put elsewhere is "other", which is also what the fourth chip counts.
 _KINDS = ("face", "notes", "other")
 
 

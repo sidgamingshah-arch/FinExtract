@@ -1,6 +1,6 @@
 /** Shared UI primitives. Screens compose these; they encode the handoff's exact
  * chrome (pills, confidence badges, chips, segmented toggles, cards, buttons). */
-import type { CSSProperties, MouseEvent, ReactNode } from "react";
+import { useEffect, useId, useRef, type CSSProperties, type MouseEvent, type ReactNode } from "react";
 
 import { useT } from "../i18n";
 import { color, confStyle, font, radius, shadow, type ConfCat } from "../theme";
@@ -273,33 +273,98 @@ export function FieldChip({ label, value }: { label: string; value: string }) {
   );
 }
 
-/** iOS-style toggle switch. */
-export function Toggle({ on }: { on: boolean }) {
-  return (
+/** iOS-style toggle switch. The knob sits at the start when off and at the end when on, mirrored
+ *  in right-to-left.
+ *
+ *  Display-only without `onChange`: the caller's own row is the control (Settings). With
+ *  `onChange` it IS the control — a real button with `role="switch"`, so it takes focus, answers
+ *  Space and Enter, and is named by `label` for a reader who cannot see the row it sits in. */
+export function Toggle({ on, onChange, disabled = false, label, testid, data }: {
+  on: boolean;
+  onChange?: (next: boolean) => void;
+  disabled?: boolean;
+  /** The switch's accessible name. */
+  label?: string;
+  testid?: string;
+  /** Extra `data-*` attributes, keyed without the prefix (as on `Button`). */
+  data?: Record<string, string>;
+}) {
+  const track: CSSProperties = {
+    width: 30,
+    height: 17,
+    borderRadius: 10,
+    background: on ? color.indigo : color.toggleOff,
+    position: "relative",
+    cursor: onChange ? (disabled ? "not-allowed" : "pointer") : "pointer",
+    display: "inline-block",
+    flex: "0 0 auto",
+  };
+  const knob = (
     <span
       style={{
-        width: 30,
-        height: 17,
-        borderRadius: 10,
-        background: on ? color.indigo : color.toggleOff,
-        position: "relative",
-        cursor: "pointer",
-        display: "inline-block",
-        flex: "0 0 auto",
+        position: "absolute",
+        top: 2,
+        insetInlineStart: on ? 15 : 2,
+        width: 13,
+        height: 13,
+        borderRadius: "50%",
+        background: "#fff",
+        transition: "inset-inline-start 120ms",
       }}
-    >
-      <span
-        style={{
-          position: "absolute",
-          top: 2,
-          [on ? "right" : "left"]: 2,
-          width: 13,
-          height: 13,
-          borderRadius: "50%",
-          background: "#fff",
-        }}
-      />
-    </span>
+    />
+  );
+  if (!onChange) return <span style={track}>{knob}</span>;
+  return (
+    <button type="button" role="switch" aria-checked={on} aria-label={label} disabled={disabled}
+            data-testid={testid}
+            {...Object.fromEntries(Object.entries(data ?? {}).map(([k, v]) => [`data-${k}`, v]))}
+            onClick={() => { if (!disabled) onChange(!on); }}
+            style={{ ...track, border: "none", padding: 0, opacity: disabled ? 0.5 : 1 }}>
+      {knob}
+    </button>
+  );
+}
+
+/** A centred dialog over a dimmed screen: Escape, the ✕ or a click on the dimmed area closes it.
+ *  Focus moves into it when it opens, so the keyboard is where the question is. */
+export function Dialog({ title, onClose, closeLabel, width = 520, testid, children }: {
+  title: ReactNode;
+  onClose: () => void;
+  /** The ✕ button's accessible name. */
+  closeLabel: string;
+  width?: number;
+  testid?: string;
+  children: ReactNode;
+}) {
+  const titleId = useId();
+  const box = useRef<HTMLDivElement | null>(null);
+  const close = useRef(onClose);
+  close.current = onClose;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") close.current(); };
+    window.addEventListener("keydown", onKey);
+    box.current?.focus();
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+  return (
+    <div onClick={onClose}
+         style={{ position: "fixed", inset: 0, background: color.scrim, zIndex: 60, display: "flex",
+                  alignItems: "flex-start", justifyContent: "center", padding: "70px 16px 24px",
+                  overflowY: "auto" }}>
+      <div ref={box} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
+           data-testid={testid} onClick={(e) => e.stopPropagation()}
+           style={{ width: "100%", maxWidth: width, background: color.surface,
+                    borderRadius: radius.card, boxShadow: shadow.paper, outline: "none",
+                    border: `1px solid ${color.cardBorder}`, padding: "18px 20px 20px" }}>
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 12 }}>
+          <div id={titleId} style={{ fontSize: 14, fontWeight: 600, flex: 1 }}>{title}</div>
+          <button type="button" onClick={onClose} aria-label={closeLabel} title={closeLabel}
+                  style={{ background: "none", border: "none", fontSize: 14, color: color.muted,
+                           cursor: "pointer", padding: 2 }}>✕</button>
+        </div>
+        {children}
+      </div>
+    </div>
   );
 }
 

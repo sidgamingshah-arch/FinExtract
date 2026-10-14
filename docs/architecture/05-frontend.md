@@ -305,6 +305,31 @@ Scope screen, where the user reviews/adjusts detected pages before extraction. T
 is sent to the backend as `confirm_scope` on the extraction run and persisted in the run's
 options.
 
+## Page scope (`/scope`, `src/screens/Scope.tsx` + `ScopePages.tsx`)
+
+The screen is organised by SECTION: the four statements and the notes, always all five, each
+with its pages (sheet numbers, the position in the file) and a **Use** switch. Beside them (below
+them on a screen 1024px wide or less) is a strip of the document's real page images, loaded only
+as they scroll into view, each labelled with what the next run reads it for — "Balance sheet
+(Group)", "Notes" — or "not read"; a click shows the page large, with previous and next, and the
+"How this page is read" editor for cutting a page into parts. What a page is read for is the
+server's answer (`GET /documents/{id}/pages`, `services/page_reading.py`, the rule the reader
+itself applies), never derived in the browser.
+
+Choosing a section lights its pages and puts one button under each page: **Add to**,
+**Move to** (a page read for another statement) or **Remove from** that section, or **Choose the
+part…** for a page cut into parts, which opens the editor. A section's pages can also be typed
+("6, 9–10"); a typed page read for another section is left as it is and reported. Switching a
+section off keeps its pages' reading and stops them being read. Every change is one
+`PUT /documents/{id}/sections`, and the screen replaces its copy of the pages with the answer.
+
+Nothing is extracted from a click on the screen. When the last run read other pages the screen
+says "Pages saved. Extract again to read them."; its extract button asks first on a document
+already extracted (open the existing run, or extract again), and visiting the Extraction screen
+starts the new run, as a saved page correction always has. Page changes wait while a run is
+extracting. A workbook or an image document is read sheet by sheet or whole, so the screen
+offers no page edits for it.
+
 ## Other screens
 
 Login (shown until a session exists) and the top-bar user menu; integrity report (routing
