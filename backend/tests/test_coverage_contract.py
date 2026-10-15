@@ -533,14 +533,27 @@ def test_the_three_unavailable_reasons_resolve_and_are_never_rendered_as_zeros(c
         [c["type"] for c in served_checks]
 
     # A template WAS attached and declared nothing for this filing — an authoring gap, said out
-    # loud rather than rendered as a clean sheet.
+    # loud rather than rendered as a clean sheet. The relations are evaluated from the rows at read
+    # time, so the run is pointed at a template that declares none, with no line-item set beside
+    # it (whose rulebook would declare some of its own).
+    import uuid
+
     from app.db.base import SessionLocal
-    from app.db.models import ExtractionRun
+    from app.db.models import ExtractionRun, TemplateVersion
 
     doc_id = _extracted(client)
     with SessionLocal() as session:
+        empty = TemplateVersion(template_key=f"empty-{uuid.uuid4().hex[:8]}", name="Empty",
+                                version=1, definition={"template_key": "empty", "name": "Empty",
+                                                       "statements": []})
+        session.add(empty)
+        session.flush()
         run = session.query(ExtractionRun).filter(
             ExtractionRun.document_id == doc_id).one()
+        run.template_version_id = empty.id
+        run.line_item_version_id = None
+        run.options = {**(run.options or {}), "template_version_id": empty.id,
+                       "line_item_version_id": None}
         run.result = {**run.result, "structural": []}
         session.commit()
     none_declared = _served(client, doc_id)

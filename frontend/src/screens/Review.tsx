@@ -945,9 +945,10 @@ export default function ReviewScreen() {
                         {t("r.manualFixOnly")}
                       </div>
                     )}
-                    {/* The relation behind a structural card is evaluated by the pipeline and is
-                        not re-run on an edit, so the card survives its own fix until the next
-                        extraction. Rather than look like a button that did nothing, it says so. */}
+                    {/* A figure the relation uses was edited or a row it uses re-mapped. The
+                        relation is evaluated from the figures as they now stand, so the card
+                        carries the edit and says so; on a run served as stored it says the
+                        relation waits for the next extraction. */}
                     {c.inputs_edited && c.inputs_edited_note && (
                       <div
                         data-testid="rv-inputs-edited"

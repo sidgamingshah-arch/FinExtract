@@ -241,6 +241,14 @@ function CreditPanel({
           </div>
         </div>
       )}
+      {/* A cached narrative the server withheld: the figures it describes have changed since it
+          was written, so it is not shown over figures it does not describe. */}
+      {!shown && credit.narrative_withdrawn && (
+        <div data-testid="credit-narrative-withdrawn"
+             style={{ marginBottom: 14, fontSize: 11.5, color: color.muted, lineHeight: 1.5 }}>
+          {t("cm.creditNarrativeWithdrawn")}
+        </div>
+      )}
       {narrative.isError && (
         <div style={{ marginBottom: 14, padding: "10px 13px", background: color.amberBg,
                       border: `1px solid ${color.amberBg}`, borderRadius: 9, fontSize: 11.5, color: color.amberFg }}>

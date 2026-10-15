@@ -259,6 +259,115 @@ def collect_values(items: Iterable[LineItem]) -> MappedValues:
     return out
 
 
+# The row flags each writer of a computed figure leaves beside ``is_computed`` (note_sourced's
+# table and sentence paths, the model's prose path, the component assembler). A run stored before
+# the served row carried ``is_computed`` is read through them.
+_COMPUTED_ROW_FLAGS = ("note_sourced:", "note_sourced_prose:", "prose_sourced_value:",
+                       "assembled_from:")
+# Rows added to the served list after the pipeline, which no relation ever read.
+_ADDED_AFTER_THE_RUN = ("supplemental",)
+
+
+def _row_amount(v: dict) -> Decimal | None:
+    raw = v.get("value")
+    if raw is None:
+        return None
+    try:
+        return Decimal(str(raw).replace(",", ""))
+    except (ArithmeticError, ValueError):
+        return None
+
+
+def _row_is_computed(row: dict) -> bool:
+    if "is_computed" in row:
+        return bool(row["is_computed"])
+    return any(str(f).startswith(_COMPUTED_ROW_FLAGS) for f in row.get("flags") or ())
+
+
+def _replaced_by_edits(rows: list[dict]) -> set[int]:
+    """The value dicts an analyst's edit replaces, by ``id``.
+
+    An edit is the analyst's figure for the CONCEPT in that (basis, period), not one more
+    contributor beside the printed ones: ``periods.concept_value`` shows the edited row's figure
+    alone, so every other row's figure for the same concept and slot is left out here too. The
+    edited row is the first in the group that carries the edit, as there.
+    """
+    from app.services.periods import CURRENT, PRIOR, edited_for, slot_for
+
+    groups: dict[str, list[dict]] = {}
+    for r in rows:
+        if r.get("canonical_key"):
+            groups.setdefault(r["canonical_key"], []).append(r)
+    out: set[int] = set()
+    for group in groups.values():
+        if not any(r.get("edited") for r in group):
+            continue
+        bases = {v.get("basis") or "consolidated" for r in group for v in r.get("values") or []}
+        periods = {CURRENT, PRIOR} | {str(s).partition("/")[2] for r in group
+                                       for s in r.get("edited_slots") or ()}
+        for basis in bases:
+            for period in periods:
+                editor = next((r for r in group if edited_for(r, basis, period)), None)
+                if editor is None:
+                    continue
+                kept = slot_for(editor, basis, period)
+                for r in group:
+                    slot = slot_for(r, basis, period)
+                    if slot is not None and slot is not kept:
+                        out.add(id(slot))
+    return out
+
+
+def items_of_rows(rows: Iterable[dict]) -> list[LineItem]:
+    """The SERVED rows as the line items this module evaluates, so a stored run can be evaluated
+    again after an edit or a remap.
+
+    The served row is what every screen and export reads (``routes/extractions._serialize_rows``),
+    and an edit or a remap changes it and nothing else: ``canonical_key`` is retagged by a remap,
+    a slot's ``value`` is overwritten by an edit. Each row becomes one line item carrying what the
+    evaluation reads — the concept, where it was printed, the mapping method, whether the pipeline
+    computed it, and per value its basis, period label, figure, scale and flags. Values keep their
+    order and are never merged, so two printed figures for one slot still add.
+
+    An edited slot replaces its concept's figure in that slot (``_replaced_by_edits``); a slot
+    cleared by an edit has no figure. Rows added to the list after the run (the supplemental
+    fields) are left out: the run never evaluated them.
+    """
+    from app.core.models import Basis, ConfidenceVector, ExtractedValue, UnitContext
+    from app.core.models.enums import PrintedIn
+
+    rows = [r for r in rows if (r.get("mapping_method") or "") not in _ADDED_AFTER_THE_RUN]
+    replaced = _replaced_by_edits(rows)
+    out: list[LineItem] = []
+    for r in rows:
+        key = r.get("canonical_key")
+        if not key:
+            continue
+        try:
+            printed_in = PrintedIn(r["printed_in"]) if r.get("printed_in") else None
+        except ValueError:
+            printed_in = None
+        li = LineItem(source_label=str(r.get("source_label") or ""), canonical_key=key,
+                      printed_in=printed_in, is_computed=_row_is_computed(r))
+        li.confidence.method = r.get("mapping_method")
+        for i, v in enumerate(r.get("values") or []):
+            amount = _row_amount(v)
+            if amount is None or id(v) in replaced:
+                continue
+            try:
+                basis = Basis(v.get("basis") or "consolidated")
+                scale = Decimal(str(v["scale"])) if v.get("scale") else Decimal(1)
+            except (ValueError, ArithmeticError):
+                continue
+            flags = list(((v.get("confidence") or {}).get("flags")) or ())
+            li.values[str(i)] = ExtractedValue(
+                value=amount, value_raw=amount, basis=basis, period_label=v.get("period_label"),
+                unit_ctx=UnitContext(scale_factor=scale),
+                confidence=ConfidenceVector(flags=flags))
+        out.append(li)
+    return out
+
+
 def _statement_index(template: TemplateDefinition) -> dict[str, str]:
     """canonical_key → the statement it is printed on, so a relation can be told apart from one
     belonging to a statement this filing does not contain at all."""
@@ -1343,8 +1452,11 @@ def _guard_slot(guard: Guard, slot: Slot, vals: MappedValues,
         loaded = [c for c in components
                   if vals.get(c, slot) is not None and vals.get(c, slot) != 0]
         if agg is not None and agg != 0 and loaded:
+            # Each loaded component's figure too: they are inputs of the finding as much as the
+            # aggregate is, so an acceptance must move when one of them does.
             violations.append({"aggregate": aggregate, "components": loaded,
-                               "aggregate_value": str(agg)})
+                               "aggregate_value": str(agg),
+                               "component_values": {c: str(vals.get(c, slot)) for c in loaded}})
         primary, others = aggregate, loaded
     elif guard.predicate == "equal_while_third_non_zero":
         first, second, third = (vals.get(k, slot) for k in keys[:3])

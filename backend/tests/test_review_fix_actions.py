@@ -6,11 +6,12 @@ one check type carries a ``fix_action`` — a structural relation whose ``sign_s
 single contributing, unedited, non-zero, non-calculated row — and every other type carries ``null``
 with prose instead of a control that either does nothing or invents an answer.
 
-The other half of the honesty is what the card does AFTER the fix: ``run.result["structural"]`` is
-written once by the pipeline and nothing recomputes it on an edit, so the relation is not
-re-evaluated until the next extraction and the card does NOT disappear. That is asserted here
-explicitly, because a card that survives its own fix looks like a button that did nothing unless it
-says why.
+The other half of the honesty is what the card does AFTER the fix. The review route evaluates the
+relations again from the rows as they now stand (``documents._structural_for_run``), so a flip that
+makes the relation hold takes its card away, and a revert brings it back. A relation served as the
+run STORED it (``_build_review`` handed a stored list, or a run whose configuration no longer
+loads) is not re-evaluated until the next extraction, and its card says so rather than looking like
+a button that did nothing.
 """
 from __future__ import annotations
 
@@ -164,10 +165,9 @@ def test_no_other_check_type_offers_a_fix(template_def):
         assert c["inputs_edited"] is False and c["inputs_edited_note"] == ""
 
 
-def test_an_edited_input_is_declared_on_the_card_rather_than_recomputing_the_relation(
-        template_def):
-    """Covers a Workspace edit exactly as it covers the flip button: the relation is not
-    re-evaluated until the next extraction, so the card says so."""
+def test_an_edited_input_is_declared_on_a_stored_relations_card(template_def):
+    """A relation served as stored is not re-evaluated until the next extraction, so its card says
+    so — for a Workspace edit exactly as for the flip button."""
     edited = _rows(edited=True, edited_slots=["consolidated/current"])
     card = _structural_card(edited, template_def)
     assert card["inputs_edited"] is True
@@ -179,52 +179,67 @@ def test_an_edited_input_is_declared_on_the_card_rather_than_recomputing_the_rel
     assert clean["inputs_edited_note"] == ""
 
 
-def test_the_flip_the_server_prescribes_is_an_ordinary_edit_and_is_revertible(client):
+def test_on_a_relation_evaluated_from_the_rows_an_edit_is_said_to_be_in_it(template_def):
+    """Evaluated from the rows as they now stand, the relation already carries the edit: the card
+    says it is evaluated with the edited figure, not that it waits for the next extraction."""
+    from app.api.routes.documents import _EDITED_INPUT_LIVE, _build_review
+
+    edited = _rows(edited=True, edited_slots=["consolidated/current"])
+    card = next(c for c in _build_review(edited, "d.pdf", "en", [], _structural(), template_def,
+                                         structural_live=True)["checks"]
+                if c["type"] == "structural")
+    assert card["inputs_edited"] is True and card["inputs_edited_keys"] == [_SUSPECT]
+    assert card["inputs_edited_note"] == _EDITED_INPUT_LIVE
+    assert "next extraction" not in card["inputs_edited_note"]
+
+
+def _seeded_run(template_def: dict, rows: list[dict]) -> str:
+    """A document whose latest run is these rows against this template, and no line-item set."""
+    import uuid
+
+    from app.db.base import SessionLocal, init_db
+    from app.db.models import Document, ExtractionRun, TemplateVersion
+
+    init_db()
+    with SessionLocal() as s:
+        doc = Document(filename="flip.pdf", fmt="pdf", byte_size=1, page_count=1,
+                       content_hash=uuid.uuid4().hex, object_key="k", owner="admin")
+        s.add(doc)
+        s.flush()
+        tv = TemplateVersion(template_key=f"flip-{uuid.uuid4().hex[:8]}", name="Flip",
+                             version=1, definition=template_def)
+        s.add(tv)
+        s.flush()
+        s.add(ExtractionRun(document_id=doc.id, status="succeeded",
+                            options={"template_version_id": tv.id},
+                            result={"rows": rows, "filename": "flip.pdf", "pages": []}))
+        s.commit()
+        return doc.id
+
+
+def _relation_card(review: dict) -> dict | None:
+    return next((c for c in review["checks"] if c["type"] == "structural"
+                 and c["target"] == _TARGET), None)
+
+
+def test_the_flip_the_server_prescribes_is_an_ordinary_edit_and_is_revertible(client,
+                                                                              template_def):
     """There is no new mutation endpoint: the client sends the fix_action to the SAME PATCH every
     other edit uses, so the flip snapshots `_original` (the existing DELETE reverts it) and records
-    its reason in `edit_comments`. After it lands the structural card is still there, now carrying
-    inputs_edited — the test asserts that it does NOT disappear."""
-    doc_id = client.post("/api/v1/documents",
-                         files={"file": ("flip.pdf", make_native_pdf(),
-                                         "application/pdf")}).json()["id"]
-    # Line items is the single configuration engine: ``GET /ontologies`` and the run's
-    # ``ontology_version_id`` pin are gone with the ontology store, so the shipped
-    # configuration is read from ``/line-items/versions`` and pinned as a
-    # ``line_item_version_id``.
-    from app.sample.reference import shipped_line_items_key
+    its reason in `edit_comments`. The relation is evaluated again from the edited rows, so once the
+    flip lands the relation holds and its card is gone; the revert brings the card back.
 
-    cfgs = client.get("/api/v1/line-items/versions").json()
-    cfg = next(c for c in cfgs if c["line_items_key"] == shipped_line_items_key())
-    tpl = next(t for t in client.get("/api/v1/templates").json()
-               if t["template_key"] == cfg["target_template_key"])
-    client.post(f"/api/v1/documents/{doc_id}/extractions",
-                json={"line_item_version_id": cfg["id"], "template_version_id": tpl["id"]})
-    for _ in range(200):
-        r = client.get(f"/api/v1/documents/{doc_id}/run")
-        if r.status_code == 200 and r.json().get("status") == "succeeded":
-            break
-        time.sleep(0.05)
+    Nothing is written into ``result["structural"]``: the route evaluates the relation from the
+    rows — a current-assets section printed with inventories mis-signed, where flipping inventories
+    is the one sign change that makes the printed total hold."""
+    doc_id = _seeded_run(template_def, _rows())
 
-    # Force the one situation a flip is offered for, on the stored run: a failed relation whose
-    # single sign suspect is a plain, unedited, non-zero, non-calculated row.
-    from app.db.base import SessionLocal
-    from app.db.models import ExtractionRun
-
-    with SessionLocal() as session:
-        run = session.query(ExtractionRun).filter(
-            ExtractionRun.document_id == doc_id).one()
-        result = dict(run.result)
-        rows = [r for r in result["rows"] if r.get("canonical_key") not in (_SUSPECT, _OTHER)]
-        rows += [_row(_SUSPECT, -2200, "Inventories"), _row(_OTHER, 1310, "Trade receivables")]
-        result["rows"] = rows
-        result["structural"] = _structural()
-        run.result = result
-        session.commit()
-
-    card = next(c for c in client.get(f"/api/v1/documents/{doc_id}/review").json()["checks"]
-                if c["type"] == "structural")
+    review = client.get(f"/api/v1/documents/{doc_id}/review").json()
+    card = _relation_card(review)
+    assert card is not None, [c["id"] for c in review["checks"]]
+    assert review["coverage"]["evaluated_from"] == "rows"
     fix = card["fix_action"]
-    assert fix and fix["canonical_key"] == _SUSPECT
+    assert fix and fix["canonical_key"] == _SUSPECT and fix["to"] == 2200.0
 
     patched = client.patch(f"/api/v1/documents/{doc_id}/line-items/{fix['canonical_key']}",
                           json={"value": fix["to"], "formula": "", "basis": fix["basis"],
@@ -233,17 +248,14 @@ def test_the_flip_the_server_prescribes_is_an_ordinary_edit_and_is_revertible(cl
     assert patched.json()["current"] == fix["to"]
     assert patched.json()["comment"] == fix["comment"]
 
-    after = next(c for c in client.get(f"/api/v1/documents/{doc_id}/review").json()["checks"]
-                 if c["type"] == "structural")
-    assert after["subject_key"] == card["subject_key"]      # the card did NOT vanish
-    assert after["fix_action"] is None                      # and cannot be clicked twice
-    assert after["inputs_edited"] is True
-    assert _SUSPECT in after["inputs_edited_keys"] and after["inputs_edited_note"]
+    after = client.get(f"/api/v1/documents/{doc_id}/review").json()
+    assert _relation_card(after) is None                    # the relation holds now
+    assert after["coverage"]["aggregate"]["failed"] < review["coverage"]["aggregate"]["failed"]
 
     # The existing revert undoes it, because the flip was an ordinary edit.
     assert client.delete(
         f"/api/v1/documents/{doc_id}/line-items/{fix['canonical_key']}").status_code == 200
-    back = next(c for c in client.get(f"/api/v1/documents/{doc_id}/review").json()["checks"]
-                if c["type"] == "structural")
-    assert back["inputs_edited"] is False
+    back = _relation_card(client.get(f"/api/v1/documents/{doc_id}/review").json())
+    assert back is not None and back["inputs_edited"] is False
     assert back["fix_action"] == fix
+    assert back["subject_key"] == card["subject_key"]

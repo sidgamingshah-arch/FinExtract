@@ -4381,11 +4381,11 @@ test("every failed rulebook rule is on the queue or owned by a card above it, an
   //  * no e2e fixture VIOLATES a shipped guard. The v2 rulebook evaluates six guard rows on
   //    sample.pdf and every one comes back pass or skipped — the same on comparative.pdf and
   //    sample.xlsx — so no guard card is raised at all and there is nothing to drop;
-  //  * an edit cannot turn a passing guard into a failing one either: `run.result["structural"]` is
-  //    written once by the pipeline (routes/extractions.py) and NOTHING recomputes it on a line-item
-  //    edit — which is exactly why a structural card carries the "inputs edited since" note
-  //    (`_structural_inputs_edited`). The one lever this browser has over the figures therefore
-  //    cannot move a guard's verdict;
+  //  * an edit CAN now turn a passing guard into a failing one — the review evaluates the relations
+  //    again from the rows as they stand (`_structural_for_run`), and `run.result["structural"]`,
+  //    which this test reads below, is the run's record of what the pipeline found at extraction,
+  //    which on an untouched run is the same list — but a violated guard alone is not the case:
+  //    the collision below is what drops a card;
   //  * and the COLLISION additionally needs a balance / equity / note card to own the colliding
   //    target, because `covered` is built from the accounting checks alone. No fixture extracts
   //    bs_total_equity_and_liabilities, an equity statement or a note table, so none of those cards

@@ -191,6 +191,24 @@ def run_netting_evaluation(provider: LlmProvider, payload: dict, *,
     return result, meta  # type: ignore[return-value]
 
 
+def credit_figures_digest(credit: dict) -> str:
+    """A digest of the figures a credit narrative is written from (``build_credit_payload``): the
+    stance, each rating factor's figure and rating, each report signal and its page.
+
+    Stored with the narrative, so a reader can tell whether the figures it describes are still the
+    ones on screen. Labels and sentences are left out — a factor's ``display`` is the figure itself
+    ("1.42×") in every locale — so the same figures read in another language give the same digest.
+    """
+    import hashlib
+
+    basis = {"basis": credit.get("basis"), "stance": credit.get("stance"),
+             "factors": [[f.get("category_key"), f.get("key"), f.get("display"), f.get("tone")]
+                         for f in credit.get("factors") or []],
+             "flags": [[fl.get("key"), fl.get("severity"), fl.get("page")]
+                       for fl in credit.get("flags") or []]}
+    return hashlib.sha256(json.dumps(basis, sort_keys=True, default=str).encode()).hexdigest()
+
+
 def run_credit_narrative(provider: LlmProvider, credit: dict, *, entity: str = "",
                          locale: str = "en", max_tokens: int = 700) -> tuple[CreditNarrative, LlmMeta]:
     """Call the provider for a grounded credit narrative; returns (narrative, token-usage meta)."""

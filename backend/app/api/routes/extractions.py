@@ -766,20 +766,26 @@ def _maybe_cache_credit_narrative(session: Session, run, locale: str, entity: st
     """Auto-generate the LLM credit narrative once and cache it on the run, so the Analysis
     screen / export show it without a manual click. Best-effort and fully guarded: it runs only
     when a real LLM provider is configured, and any failure (no key, unreachable, thin data)
-    leaves the deterministic credit view untouched — the extraction has already succeeded."""
+    leaves the deterministic credit view untouched — the extraction has already succeeded.
+
+    Written from the credit view the Analysis screen shows (the run's template, read as that
+    screen reads it, so its calculated lines are in the ratios), and stored with the digest of those
+    figures (``analysis_llm.credit_figures_digest``): a reader withholds it once they change."""
     try:
         from app.config import get_settings
 
         settings = get_settings()
         if settings.llm.provider == "stub":
             return
+        from app.api.routes.documents import _template_for_run
         from app.ports.registry import registry as reg
-        from app.services.analysis_llm import run_credit_narrative
+        from app.services.analysis_llm import credit_figures_digest, run_credit_narrative
         from app.services.derived import build_credit_analysis, localize_disclosures
 
         rows = run.result.get("rows", [])
         disclosures = localize_disclosures(run.result.get("disclosures", []), locale)
-        credit = build_credit_analysis(rows, disclosures, locale=locale)
+        credit = build_credit_analysis(rows, disclosures, locale=locale,
+                                       template_def=_template_for_run(session, run))
         if not credit.get("factors") and not credit.get("flags"):
             return
         provider = reg.get("llm", settings.llm.provider)
@@ -787,7 +793,8 @@ def _maybe_cache_credit_narrative(session: Session, run, locale: str, entity: st
                                             locale=locale, max_tokens=settings.llm.max_tokens)
         run.result = {**run.result, "credit_narrative": {
             "text": result.narrative, "provider": settings.llm.provider,
-            "model": meta.get("model", settings.llm.model)}}
+            "model": meta.get("model", settings.llm.model),
+            "figures_digest": credit_figures_digest(credit)}}
         session.commit()
     except Exception:  # noqa: BLE001 — optional enrichment; never disturb a succeeded run
         session.rollback()
@@ -996,6 +1003,11 @@ def _serialize_rows(doc_model, working_view=None) -> list[dict]:
             "section": _section_of_row(li),
             "notes": notes_of.get(str(li.id), []),
             "role": li.role.value,
+            # Whether the pipeline computed this figure rather than read it. The structural
+            # relations are evaluated again from these rows at read time
+            # (`structural_checks.items_of_rows`), and a relation fed by a computed figure is
+            # reported as such there, as it was at extraction.
+            "is_computed": li.is_computed,
             "mapping_method": li.confidence.method,
             "mapping_confidence": li.confidence.mapping,
             "flags": list(li.confidence.flags),

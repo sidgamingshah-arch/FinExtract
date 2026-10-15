@@ -2606,6 +2606,19 @@ export default function WorkspaceScreen() {
                   </div>
                 )}
 
+                {/* A stored formula that no longer evaluates from the lines it names (one of them
+                    has no figure now): the figure is the one last stored, and the reason is the
+                    server's. */}
+                {selRowObj?.formula_errors?.[inspPeriod] && (
+                  <div data-testid="inspector-formula-stale"
+                       style={{ fontSize: 11, color: color.amberFg, marginTop: 7, lineHeight: 1.5 }}>
+                    {t("ws.formulaStale")}{" "}
+                    <span style={{ fontFamily: font.mono, fontSize: 10.5 }}>
+                      {selRowObj.formula_errors[inspPeriod]}
+                    </span>
+                  </div>
+                )}
+
                 {/* The reason an analyst recorded against this figure, beside the figure. */}
                 {inspNote?.text && (
                   <div

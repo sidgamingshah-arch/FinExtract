@@ -503,6 +503,9 @@ export interface StatementRow {
   calculated2?: number | null;
   /** Why a figure was overridden, per period ("current" / "prior"), with who and when. */
   comments?: Record<string, { text: string; by?: string; at?: string }> | null;
+  /** A stored formula that could not be evaluated again from the lines it names, per period, with
+   *  the reason; the figure shown is the one last stored. Absent when every formula evaluated. */
+  formula_errors?: Record<string, string> | null;
 }
 
 /** A named column of a matrix statement — an equity component, not a period. */
@@ -1032,6 +1035,8 @@ export interface CreditAnalysis {
   summary: string;
   basis: string;
   narrative?: CreditNarrative;  // cached LLM narrative, when present
+  /** A cached narrative was withheld: the figures it was written from have changed since. */
+  narrative_withdrawn?: boolean;
 }
 export interface AnalysisResponse {
   ratios: Ratio[];
@@ -1405,6 +1410,10 @@ export type CoverageBlock =
       unread_pages?: UnreadPage[];
       /** Every relation that passed with absent components taken as zero, with those lines. */
       assumed_zero_passes?: AssumedZeroPass[];
+      /** When the relations were evaluated: from the figures as they now stand ("rows"), or as the
+       *  pipeline evaluated them at extraction ("extraction"), served only when the run's
+       *  configuration can no longer be loaded. */
+      evaluated_from?: "rows" | "extraction";
     };
 
 /** A relation that held only because lines the filing does not print were taken as nil. `note` is
@@ -1504,9 +1513,11 @@ export interface ReviewCheck {
    *  strength is not a finding — so no card is served for a weakly-mapped row; see
    *  `ReviewPayload.weak_mappings` for how many there are. */
   remap: RemapOffer | null;
-  /** Structural checks only. `run.result["structural"]` is written once by the pipeline and is
-   *  never recomputed on an edit, so the relation is not re-evaluated until the next extraction:
-   *  the card does NOT vanish after its own fix, and the note says so. */
+  /** Structural checks only: a figure the relation uses was edited, or a row it uses re-mapped.
+   *  The relations are evaluated from the rows as they now stand, so the card carries the edit (a
+   *  fix that makes the relation hold takes the card away) and the note says so; on a run served
+   *  as stored (`coverage.evaluated_from === "extraction"`) the note says the relation waits for
+   *  the next extraction. */
   inputs_edited: boolean;
   inputs_edited_keys: string[];
   inputs_edited_note: string;

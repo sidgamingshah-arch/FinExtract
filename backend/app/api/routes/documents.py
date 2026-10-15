@@ -411,7 +411,32 @@ _EXPLAINED_PARTIAL = (
 _REMAPPED_INPUT_NOTE = (
     "A row this relation uses has been re-mapped since it was evaluated. The relation is "
     "re-evaluated on the next extraction.")
+# The same two caveats on a relation evaluated from the figures as they now stand
+# (`_structural_for_run`): the card already carries the edit, so it says that instead.
+_EDITED_INPUT_LIVE = ("A figure this relation uses has been edited. The relation is evaluated "
+                      "with the edited figure.")
+_REMAPPED_INPUT_LIVE = ("A row this relation uses has been re-mapped. The relation is evaluated "
+                        "with the row on its new line.")
+_GUARD_FIX_LIVE = ("The rulebook declares this must hold, and it does not for the lines listed. "
+                   "Check each one against the document; the guard is evaluated again when a "
+                   "figure is corrected.")
 _TR.update({
+    _EDITED_INPUT_LIVE:
+        {"zh": "该关系所用的某个数字已被修改。该关系按修改后的数字评估。",
+         "ar": "عُدِّل رقم تستخدمه هذه العلاقة. تُقيَّم العلاقة بالرقم المعدَّل.",
+         "fr": "Un montant utilisé par cette relation a été modifié. La relation est évaluée avec le montant modifié."},
+    _REMAPPED_INPUT_LIVE:
+        {"zh": "该关系所用的某一行已被重新映射。该关系按该行的新项目评估。",
+         "ar": "أُعيد ربط سطر تستخدمه هذه العلاقة. تُقيَّم العلاقة والسطر في بنده الجديد.",
+         "fr": "Une ligne utilisée par cette relation a été réattribuée. La relation est évaluée avec la ligne sur son nouveau poste."},
+    _GUARD_FIX_LIVE:
+        {"zh": "规则手册要求此条件必须成立，但所列各行并不满足。请逐行与文档核对；更正数字后该守卫检查会重新评估。",
+         "ar": "يقرر كتاب القواعد أن هذا الشرط يجب أن يتحقق، ولم يتحقق للسطور المذكورة. راجع كل سطر مقابل المستند؛ ويُعاد تقييم الشرط عند تصحيح أي رقم.",
+         "fr": "Le référentiel exige que cette condition soit vérifiée ; elle ne l'est pas pour les lignes listées. Vérifiez chacune dans le document ; le garde-fou est réévalué dès qu'un montant est corrigé."},
+    # The figures an acceptance on a relation served as stored is also pinned to.
+    "Figures now on the lines it uses":
+        {"zh": "其所用各行的当前数字", "ar": "الأرقام الحالية على السطور التي تستخدمها",
+         "fr": "Montants actuels des lignes utilisées"},
     _EXPLAINED_CLOSES:
         {"zh": "这一印刷行未进入模板的任何项目，而它的数值在两个期间都完整解释了这一差额。将其映射到构成该合计的某一项目后，合计会重新计算。",
          "ar": "هذا السطر المطبوع لا يصل إلى أي بند في القالب، وتفسّر أرقامه هذا الفرق بالكامل في الفترتين. اربطه ببند يتكوّن منه هذا الإجمالي فيُعاد حساب الإجمالي.",
@@ -975,6 +1000,16 @@ def _run_for_read(session: Session, document_id: str, run_id: str | None):
     return _latest_run(session, document_id)
 
 
+def _served_rows(run) -> list[dict]:
+    """The run's rows as every reader serves them: each stored manual formula evaluated again
+    against the lines it names as they now stand (``services.formula.reevaluate``), so a formula
+    line follows an edit, a revert or a remap of a line it references. The stored rows are not
+    written."""
+    from app.services.formula import reevaluate
+
+    return reevaluate(list(((run.result if run is not None else None) or {}).get("rows") or []))
+
+
 def _run_template_id(run) -> str | None:
     """Which template version a run was launched against — ONE spelling of the answer.
 
@@ -1489,14 +1524,19 @@ def _flip_sign_action(res: dict, rows: list[dict], template_def: dict | None,
     }
 
 
-def _structural_inputs_edited(d: dict, rows: list[dict], locale: str) -> dict:
-    """Whether a figure this relation uses has been typed over since the relation was evaluated.
+def _structural_inputs_edited(d: dict, rows: list[dict], locale: str,
+                              live: bool = False) -> dict:
+    """Whether a figure this relation uses has been typed over or re-mapped.
 
-    ``run.result["structural"]`` is written once by the pipeline (routes/extractions.py:320) and
-    NOTHING recomputes it on an edit, so a structural card survives its own correction — including
-    the flip-sign fix — until the next extraction. Rather than let the card look like a button
-    that did nothing, it says so: after a successful flip ``fix_action`` becomes null (the slot is
-    now edited) and this note explains why the finding is still on screen.
+    ``live`` says the relation was evaluated from the rows as they now stand
+    (``_structural_for_run``): the card then already carries the edit — a flip that fixed it took
+    the card away — and the note says the relation is evaluated with the edited figure.
+
+    Otherwise the relation is the one ``run.result["structural"]`` stored at extraction, which
+    nothing recomputes, so the card survives its own correction until the next extraction. Rather
+    than let it look like a button that did nothing, it says so: after a successful flip
+    ``fix_action`` becomes null (the slot is now edited) and this note explains why the finding is
+    still on screen.
     """
     # A guard's `target`/`components` are the FIRST violation and the rest, so on a guard the set
     # that matters is `violations_keys` — every line the card lists. Naming only the first would
@@ -1522,10 +1562,11 @@ def _structural_inputs_edited(d: dict, rows: list[dict], locale: str) -> dict:
                 remapped |= {k for k in ends if k and k in keys}
     notes = []
     if edited:
-        notes.append(_t("A figure this relation uses has been edited since it was evaluated. The "
+        notes.append(_t(_EDITED_INPUT_LIVE if live else
+                        "A figure this relation uses has been edited since it was evaluated. The "
                         "relation is re-evaluated on the next extraction.", locale))
     if remapped:
-        notes.append(_t(_REMAPPED_INPUT_NOTE, locale))
+        notes.append(_t(_REMAPPED_INPUT_LIVE if live else _REMAPPED_INPUT_NOTE, locale))
     return {"inputs_edited": bool(edited or remapped),
             "inputs_edited_keys": sorted(set(edited) | remapped),
             "inputs_edited_note": " ".join(notes)}
@@ -1561,11 +1602,15 @@ def _guard_violations(d: dict) -> dict[str, str]:
     for v in d.get("violations") or []:
         figures = [f"{judgement.q(v[f]):,.0f}" for f in _GUARD_FIGURE_FIELDS
                    if v.get(f) is not None]
+        # …then each loaded component's own figure, in the order the label names them (a
+        # mutually_exclusive violation): every figure the guard read is one the digest moves on.
+        figures += [f"{judgement.q(x):,.0f}" for x in (v.get("component_values") or {}).values()
+                    if x is not None]
         out[_guard_violation_label(v)] = " / ".join(figures) if figures else "—"
     return out
 
 
-def _guard_check(res: dict, d: dict, locale: str) -> dict:
+def _guard_check(res: dict, d: dict, locale: str, live: bool = False) -> dict:
     """A failed rulebook GUARD as a review item, fingerprinted on its VIOLATION SET.
 
     A guard leaves ``RuleResult.expected``/``actual``/``difference`` at their None defaults
@@ -1641,7 +1686,9 @@ def _guard_check(res: dict, d: dict, locale: str) -> dict:
         # each. `target` is only the first of them.
         "names": sorted(str(k) for k in (d.get("violations_keys") or []) if k),
         "calc": calc,
-        "fix": L("The rulebook declares this must hold, and it does not for the lines listed. "
+        # `live`: evaluated from the figures as they now stand, so a correction re-evaluates it.
+        "fix": L(_GUARD_FIX_LIVE if live else
+                 "The rulebook declares this must hold, and it does not for the lines listed. "
                  "Check each one against the document; the guard is re-evaluated on the next "
                  "extraction."),
         # A guard is not an arithmetic relation, so it does not share the relation's subject kind:
@@ -1988,7 +2035,8 @@ def _relation_reported_elsewhere(res: dict, reported: set[_Assertion]) -> bool:
 
 def _structural_checks(structural: list[dict], locale: str, covered: set[_Assertion],
                        rows: list[dict] | None = None,
-                       template_def: dict | None = None) -> list[dict]:
+                       template_def: dict | None = None,
+                       live: bool = False) -> list[dict]:
     """Failed template-structure relations as review items (from the structural stage).
 
     Only ``fail`` rows become checks: a ``skipped`` row means the relation could not be
@@ -2004,6 +2052,12 @@ def _structural_checks(structural: list[dict], locale: str, covered: set[_Assert
 
     A GUARD is not an arithmetic relation and gets its own card — see ``_guard_check`` — and it is
     emitted whatever is in ``covered``: see ``_relation_reported_elsewhere``.
+
+    AN ACCEPTANCE GOES STALE WHEN AN INPUT MOVES. ``live`` relations were evaluated from the rows as
+    they now stand, so an edit or a remap moves the figures the evidence is taken over — the total
+    and every component, or each figure a guard read. A relation served as STORED cannot move, so
+    the figures its edited or re-mapped lines show now go into its evidence (``inputs_now``), and an
+    acceptance made before the edit reads stale there too.
     """
     from app.services import judgement
     from app.services.rollups import node_labels
@@ -2025,9 +2079,13 @@ def _structural_checks(structural: list[dict], locale: str, covered: set[_Assert
         # queue: the reviewer's acceptance was then reported as orphaned under "corrected, or no
         # longer raised" while the rulebook rule was failing on two lines and nothing anywhere showed
         # it. Whether a card EXISTS may not be decided by a figure-derived field.
+        edited = _structural_inputs_edited(d, rows or [], locale, live)
         if res.get("kind") == "guard" or d.get("guard"):
-            out.append({**_guard_check(res, d, locale),
-                        **_structural_inputs_edited(d, rows or [], locale)})
+            card = {**_guard_check(res, d, locale, live), **edited}
+            if edited["inputs_edited"] and not live:
+                card["evidence"] = {**card["evidence"], "inputs_now": _inputs_now(
+                    edited["inputs_edited_keys"], rows or [], d)}
+            out.append(card)
             continue
         if _relation_reported_elsewhere(res, covered):
             continue
@@ -2087,20 +2145,34 @@ def _structural_checks(structural: list[dict], locale: str, covered: set[_Assert
                 # Shown on the card now, so it is part of what a reviewer judged. Only when there
                 # are any: a card with none keeps the digest it was accepted under.
                 **({"assumed_zero": zeros} if zeros else {}),
+                # A stored relation's edited inputs, as they now stand (see the docstring). Only
+                # when there are any, for the same reason.
+                **({"inputs_now": _inputs_now(edited["inputs_edited_keys"], rows or [], d)}
+                   if edited["inputs_edited"] and not live else {}),
             },
             "assumed_zero": [{"key": k, "label": labels.get(k, k)} for k in zeros],
             "assumed_zero_note": _assumed_zero_note(zeros, labels, locale) if zeros else "",
             "fix_action": _flip_sign_action(res, rows or [], template_def, locale),
-            **_structural_inputs_edited(d, rows or [], locale),
+            **edited,
         })
     return out
+
+
+def _inputs_now(keys: list[str], rows: list[dict], d: dict) -> dict[str, int | None]:
+    """The figure each named line shows now in the relation's column, quantized like every figure
+    a digest is taken over."""
+    from app.services import judgement
+
+    basis, period = d.get("basis") or "consolidated", d.get("period_label") or "current"
+    return {k: judgement.q(_row_value(rows, k, basis, period)) for k in sorted(keys)}
 
 
 def _accounting_checks(rows: list[dict], reconciliation: list[dict], locale: str,
                        structural: list[dict] | None = None,
                        template_def: dict | None = None,
                        stats: dict | None = None,
-                       cross_check: "_CrossCheck | None" = None) -> list[dict]:
+                       cross_check: "_CrossCheck | None" = None,
+                       structural_live: bool = False) -> list[dict]:
     """Failed accounting validations for the review queue (Req 11): the balance-sheet
     identity, note→face ties, the template's structural relations, and — since the face now
     carries the COMPUTED figure for every calculated line — what the document printed instead.
@@ -2209,7 +2281,7 @@ def _accounting_checks(rows: list[dict], reconciliation: list[dict], locale: str
     # came to be silenced by a card asserting 1,000 about the same line.
     reported = _reported_assertions(checks)
     checks += _structural_checks(structural or [], locale, covered=reported,
-                                 rows=rows, template_def=template_def)
+                                 rows=rows, template_def=template_def, live=structural_live)
     if stats is not None:
         # Derived from the SAME `covered` set AND the same predicate the emitter used, in the same
         # call: `_structural_checks` drops a failed relation whose target already has its own check,
@@ -2664,12 +2736,14 @@ def _conflict_checks(rows: list[dict], template_def: dict | None, locale: str,
 
 
 # --- Coverage contract, presented ------------------------------------------------------------
-# NOTHING NEW IS PERSISTED. `run.result["structural"]` is already the substrate — every relation
-# row, pass, fail and skip alike, written once at routes/extractions.py:320 — and
-# services/coverage.py exists so the report can be recomputed from a stored run months later. A
-# stored snapshot would be a second copy of numbers whose source sits in the same JSON column of
-# the same row, and it would drift from the failures the same response lists (an unknown skip
-# reason deliberately routes to UNCLASSIFIED, so the taxonomy WILL gain entries).
+# NOTHING NEW IS PERSISTED. The relations are evaluated again from the served rows on every read
+# (`_structural_for_run`), so an edit or a remap reaches them, and services/coverage.py turns them
+# into the report. `run.result["structural"]` — every relation as the pipeline evaluated it at
+# extraction, written once by routes/extractions.py — stays on the run as that run's history, and is
+# what is served only when the run's own configuration can no longer be loaded. A stored snapshot
+# of the report would be a second copy of numbers whose source is the rows, and it would drift from
+# the failures the same response lists (an unknown skip reason deliberately routes to
+# UNCLASSIFIED, so the taxonomy WILL gain entries).
 #
 # It is derived at the point it is SERVED, inside GET /documents/{id}/review rather than on an
 # endpoint of its own: one fetch, one run. A separate endpoint could show run A's coverage above
@@ -2750,7 +2824,62 @@ def _coverage_unavailable(reason: str, locale: str) -> dict:
             "reason_label": _t(_COVERAGE_UNAVAILABLE[reason], locale)}
 
 
-def _coverage_block(run, template_def: dict | None, locale: str) -> dict:
+def _structural_for_run(session: Session, run, rows: list[dict] | None = None,
+                        template_def: dict | None = None) -> tuple[list[dict], bool]:
+    """``(the run's structural relations, whether they were evaluated from its rows)``.
+
+    EVALUATED FROM THE SERVED ROWS, with the template and the line-item set the run was pinned to —
+    the inputs the structural stage had, read back: ``structural_checks.items_of_rows`` turns the
+    rows into the line items the stage evaluated, and the statements this run did not read are
+    named from its unread pages and switched-off sections as the stage named them. On a run nobody
+    has touched this gives back exactly the relations the stage stored. After an edit or a remap it
+    gives the relations of the figures on screen, so a correction updates the cards, the coverage
+    band and the export caption at once, and a card whose inputs moved carries the new figures.
+
+    ``run.result["structural"]`` is never written: it is what the pipeline found at extraction, kept
+    as the run's history. It is served instead — with ``False`` — when the run's configuration can
+    no longer be loaded (a stored template or set today's schema refuses, or a pinned set that is
+    gone), because evaluating without the rulebook would drop its identities, guards and section
+    reconciliations and report the remainder as the run's coverage.
+
+    ``rows`` are the served rows (``_served_rows``) and ``template_def`` the run's template, when the
+    caller already has them.
+    """
+    from app.schemas.loader import load_template
+    from app.services.structural_checks import evaluate_structure, items_of_rows
+    from app.services.unread_pages import statements_not_read
+
+    stored = list((run.result or {}).get("structural") or [])
+    template_def = template_def if template_def is not None else _template_for_run(session, run)
+    if template_def is None:
+        return stored, False
+    ontology = None
+    if _run_line_item_version_id(run):
+        ontology, why = _run_rulebook(session, run)
+        if ontology is None:
+            logger.warning("structural relations of run %s served as stored: %s",
+                           getattr(run, "id", ""), why)
+            return stored, False
+    try:
+        template = load_template(template_def)
+    except Exception as exc:  # noqa: BLE001 — a stored template that no longer loads
+        logger.warning("structural relations of run %s served as stored: template %s",
+                       getattr(run, "id", ""), type(exc).__name__)
+        return stored, False
+    rows = _served_rows(run) if rows is None else rows
+    unread = list(run.result.get("unread_pages") or [])
+    # The stage evaluates nothing for a run with neither a row nor an unread page.
+    if not (any((r.get("mapping_method") or "") != "supplemental" for r in rows) or unread):
+        return [], True
+    items = items_of_rows(rows)
+    not_read = statements_not_read(unread, (run.options or {}).get("sections_off"),
+                                   run.result.get("pages") or [])
+    report = evaluate_structure(template, items, ontology=ontology, not_read=not_read)
+    return [r.model_dump(mode="json") for r in report.results], True
+
+
+def _coverage_block(run, template_def: dict | None, locale: str,
+                    structural: list[dict] | None = None, live: bool = False) -> dict:
     """The coverage report for a run, as labels and ordering over ``CoverageReport.as_dict()``.
 
     RECOMPUTES NO NUMBER: every integer and both rates come from the one existing spelling in
@@ -2767,6 +2896,10 @@ def _coverage_block(run, template_def: dict | None, locale: str) -> dict:
     Reading ``run.template_version_id`` here while they read ``run.options`` let one response say
     "no template was attached to this run" directly above structural and uncomputed findings
     derived from that very template.
+
+    ``structural`` is the relations the cards beside this band were built from — the ones
+    ``_structural_for_run`` evaluated from the served rows (``live``) — so the band and the cards
+    count the same evaluation. Without it, the relations the run stored.
     """
     from app.services.coverage import ALARM_UNENFORCEABLE, NOT_DECLARABLE, coverage
 
@@ -2778,7 +2911,7 @@ def _coverage_block(run, template_def: dict | None, locale: str) -> dict:
     named = {"unread_pages": unread} if unread else {}
     if _run_template_id(run) is None:
         return {**_coverage_unavailable("no_template", locale), **named}
-    rows = run.result.get("structural") or []
+    rows = (run.result.get("structural") or []) if structural is None else structural
     if not rows:
         # Said loudly: a template WAS attached and it declares nothing for this filing. That is an
         # authoring gap, and rendering it as a clean sheet is the whole failure mode here.
@@ -2829,6 +2962,10 @@ def _coverage_block(run, template_def: dict | None, locale: str) -> dict:
         "available": True,
         "run_id": run.id,
         "engine_version": run.engine_version,
+        # WHEN THESE RELATIONS WERE EVALUATED: from the figures as they now stand ("rows"), or as the
+        # pipeline evaluated them at extraction ("extraction"), which is served only when the run's
+        # configuration can no longer be loaded.
+        "evaluated_from": "rows" if live else "extraction",
         "aggregate": aggregate,
         "statements": statements,
         "skips": skips,
@@ -2902,11 +3039,11 @@ _EVIDENCE_LABELS: dict[str, dict[str, str]] = {
     # figures are per-face and `entries` is a nested map printing each face line under its own key.
     "structural": {"actual": "Reported", "expected": "Sum of template components",
                    "diff": "Difference", "sign_suspect": "Sign suspect",
-                   "components": "Components"},
+                   "components": "Components", "inputs_now": "Figures now on the lines it uses"},
     # A guard asserts a condition, not an equality: its figures ARE its violation set (`violations`
     # is a nested map, so its members print under their own canonical keys).
     "guard": {"violation_count": "Violations", "violations_keys": "Lines in violation",
-              "violations": "Violations"},
+              "violations": "Violations", "inputs_now": "Figures now on the lines it uses"},
     "calculated_mismatch": {"reported": "Printed", "computed": "Computed",
                             "diff": "Difference", "components": "Components"},
     # The one row-shaped card. The concept it mapped to — when it mapped to one the template does not
@@ -3082,7 +3219,8 @@ def _build_review(rows: list[dict], filename: str, locale: str = "en",
                   line_item_set=None,
                   pages: list[dict] | None = None,
                   explain: bool = False,
-                  notes: list[dict] | None = None) -> dict:
+                  notes: list[dict] | None = None,
+                  structural_live: bool = False) -> dict:
     """Derive the human-in-the-loop review queue from a real extraction — the QA the analyst works
     before export. No demo data involved.
 
@@ -3142,6 +3280,9 @@ def _build_review(rows: list[dict], filename: str, locale: str = "en",
     ``explain`` turns those on. GET /review asks for them; the accept route and the commentary
     render no card, so they do not pay for the evaluation. ``line_item_set`` gives the explanation
     its section vocabulary and ``pages`` the classifier's statement for each page.
+
+    ``structural_live`` says ``structural`` was evaluated from these rows as they now stand
+    (``_structural_for_run``) rather than read off the run as stored; see ``_structural_checks``.
     """
     from app.services import judgement
 
@@ -3158,7 +3299,8 @@ def _build_review(rows: list[dict], filename: str, locale: str = "en",
                    "current template, which may already declare it.")
     stats: dict = {}
     accounting = _accounting_checks(rows, reconciliation or [], locale, structural or [],
-                                    template_def, stats=stats, cross_check=cross_check)
+                                    template_def, stats=stats, cross_check=cross_check,
+                                    structural_live=structural_live)
     checks: list[dict] = list(accounting)
     remap_targets = _remap_targets(template_def, locale)
     # WHICH PRINTED ROW EXPLAINS A DIFFERENCE, per basis the document presented. Un-netted, like
@@ -3535,14 +3677,52 @@ def get_document_run(document_id: str, run_id: str | None = Query(None),
     from app.services.export_workbook import has_workbook
 
     template_def = _template_for_run(session, run)
+    rows = _served_rows(run)
     return {"run_id": run.id, "status": run.status,
             "rulebook": (run.options or {}).get("rulebook"),
             "statements": declared_statements(template_def),
-            "bases": bases_present(run.result.get("rows") or []),
+            "bases": bases_present(rows),
             # Whether the run's template ships its own workbook to export into (ICON's Company v3
             # workbook): the Export screen offers that format only when it does.
             "workbook_export": has_workbook(template_def),
-            "result": run.result}
+            # The rows as every other reader serves them (a formula line evaluated again).
+            "result": {**run.result, "rows": rows}}
+
+
+def _narrative_in_force(run, rows: list[dict], credit: dict | None = None,
+                        template_def: dict | None = None) -> tuple[dict | None, bool]:
+    """``(the cached credit narrative, whether one was withheld)``.
+
+    The narrative is prose a model wrote about the credit view's figures, and it is served only
+    while those figures stand. It is stored with their digest (``credit_figures_digest``); when the
+    credit view built from the rows as they now stand gives another digest — an edit, a revert, a
+    remap or a re-evaluated formula moved a ratio, a rating or the stance — it is withheld and the
+    screen says so instead of describing figures that are no longer there.
+
+    A narrative stored before it carried the digest cannot say what it was written from: it is
+    served while no figure on the run has been typed over or re-mapped, and withheld after.
+
+    ``credit`` is the credit view the caller already built (any locale: the digest reads no label);
+    without it one is built from ``rows`` and ``template_def``.
+    """
+    from app.services.analysis_llm import credit_figures_digest
+    from app.services.derived import build_credit_analysis
+
+    narrative = (run.result or {}).get("credit_narrative")
+    if not narrative or not narrative.get("text"):
+        return None, False
+    stored = narrative.get("figures_digest")
+    if stored is None:
+        changed = any(r.get("edited") or any(str(f).startswith("remapped_by_reviewer:")
+                                             for f in r.get("flags") or ())
+                      for r in rows)
+        return (None, True) if changed else (narrative, False)
+    if credit is None:
+        credit = build_credit_analysis(rows, list(run.result.get("disclosures") or []),
+                                       locale="en", template_def=template_def)
+    if credit_figures_digest(credit) != stored:
+        return None, True
+    return narrative, False
 
 
 @router.get("/{document_id}/analysis", dependencies=[Depends(authorized_document)])
@@ -3573,7 +3753,7 @@ def get_document_analysis(document_id: str, locale: str = Depends(output_locale)
     if run is None or not run.result:
         return {"ratios": [], "disclosures": [], "notes": [],
                 "credit": build_credit_analysis([], [], locale=locale)}
-    rows = run.result.get("rows", [])
+    rows = _served_rows(run)
     # The run's own template, so this screen's ratios, credit factors and notes are computed from
     # the figures the spread shows — including calculated lines the filing does not print. Passing
     # None here is what left the Analysis screen reading a different set of numbers from the KPI
@@ -3583,10 +3763,13 @@ def get_document_analysis(document_id: str, locale: str = Depends(output_locale)
         localize_disclosures(run.result.get("disclosures", []), locale), rows)
     credit = build_credit_analysis(rows, disclosures, locale=locale, template_def=template_def)
     # Fold in the cached LLM narrative (auto-generated at extraction when a provider is
-    # configured, or produced on demand) so the Analysis screen shows it without a click.
-    narrative = run.result.get("credit_narrative")
-    if narrative and narrative.get("text"):
+    # configured, or produced on demand) so the Analysis screen shows it without a click — while
+    # the figures it was written from are still the ones on screen.
+    narrative, withdrawn = _narrative_in_force(run, rows, credit)
+    if narrative:
         credit = {**credit, "narrative": narrative}
+    elif withdrawn:
+        credit = {**credit, "narrative_withdrawn": True}
     return {
         "ratios": compute_ratios(rows, locale=locale, template_def=template_def),
         "disclosures": disclosures,
@@ -3618,7 +3801,7 @@ def run_credit_narrative_endpoint(document_id: str, locale: str = Depends(output
     if run is None or not run.result:
         raise HTTPException(status_code=404, detail="No extraction run yet for this document")
 
-    rows = run.result.get("rows", [])
+    rows = _served_rows(run)
     disclosures = localize_disclosures(run.result.get("disclosures", []), locale)
     credit = build_credit_analysis(rows, disclosures, locale=locale,
                                    template_def=_template_for_run(session, run))
@@ -3662,10 +3845,14 @@ def run_credit_narrative_endpoint(document_id: str, locale: str = Depends(output
         output_tokens=meta.get("output_tokens"), status="succeeded",
         duration_ms=audit_svc.elapsed_ms(began)))
 
-    # Persist the narrative on the run so the Excel/JSON export can fold it in. Reassigning
-    # the JSON column marks it dirty for the commit.
+    # Persist the narrative on the run so the Excel/JSON export can fold it in, with the digest of
+    # the figures it was written from: once they change, it is withheld (`_narrative_in_force`).
+    # Reassigning the JSON column marks it dirty for the commit.
+    from app.services.analysis_llm import credit_figures_digest
+
     run.result = {**run.result, "credit_narrative": {
-        "text": result.narrative, "provider": provider_id, "model": model}}
+        "text": result.narrative, "provider": provider_id, "model": model,
+        "figures_digest": credit_figures_digest(credit)}}
     session.commit()
 
     return {"narrative": result.narrative, "provider": provider_id, "model": model}
@@ -3706,7 +3893,7 @@ def get_document_commentary(document_id: str, locale: str = Depends(output_local
     if run is None or not run.result:
         return {"headline": "", "assessment": "", "metrics": [], "trends": [],
                 "strengths": [], "weaknesses": [], "data_quality": "", "basis": ""}
-    rows = run.result.get("rows", [])
+    rows = _served_rows(run)
     # The in-force judgements are passed here too, so the data-quality prose stops counting
     # findings a human has already accepted. An accepted finding is no longer OPEN because a named
     # person examined those figures and recorded that they stand; the reason and the actor on the
@@ -3714,10 +3901,13 @@ def get_document_commentary(document_id: str, locale: str = Depends(output_local
     # better data quality after a reviewer accepts breaks, which is correct and is why the
     # acceptance carries a name.
     doc = session.get(Document, document_id)
+    template_def = _template_for_run(session, run)
+    structural, live = _structural_for_run(session, run, rows, template_def)
     review = _build_review(rows, "", locale, run.result.get("reconciliation", []),
-                           run.result.get("structural", []), _template_for_run(session, run),
+                           structural, template_def,
                            judgements=_inforce_judgements(session, doc), run_id=run.id,
-                           cross_check=_CrossCheck.of(_line_item_set_for_run(session, run)))
+                           cross_check=_CrossCheck.of(_line_item_set_for_run(session, run)),
+                           structural_live=live)
     units = run.result.get("units") or {}
     # OUTSTANDING WORK, NOT QUEUE LENGTH. The commentary's "some reported figures are provisional
     # pending sign-off" caveat, and its refusal to call a filing's data strong, key off this number
@@ -3808,11 +3998,17 @@ def get_document_review(document_id: str, locale: str = Depends(output_locale),
                              coverage_block=_coverage_unavailable("not_extracted", locale))
     template_def = _template_for_run(session, run)
     lis = _line_item_set_for_run(session, run)
-    return _build_review(run.result.get("rows", []), doc.filename or "document", locale,
+    rows = _served_rows(run)
+    # The relations of the figures as they now stand, and the coverage counted from THE SAME
+    # evaluation, so the band and the cards cannot describe two different sets of figures.
+    structural, live = _structural_for_run(session, run, rows, template_def)
+    return _build_review(rows, doc.filename or "document", locale,
                          run.result.get("reconciliation", []),
-                         run.result.get("structural", []), template_def,
+                         structural, template_def,
                          judgements=_inforce_judgements(session, doc), run_id=run.id,
-                         coverage_block=_coverage_block(run, template_def, locale),
+                         coverage_block=_coverage_block(run, template_def, locale,
+                                                        structural=structural, live=live),
+                         structural_live=live,
                          # WHICH PRINTED SUBTOTALS THIS RUN'S CONFIGURATION ASKS TO BE COMPARED,
                          # and how tightly. Read off the set the run actually used, so a
                          # re-published configuration changes the comparison and not the code.
@@ -3874,10 +4070,16 @@ def accept_review_finding(document_id: str, body: JudgementBody,
     doc = session.get(Document, document_id)
     # One build, in the request locale. No separate English rebuild is needed because identity is
     # locale-free by construction — see services/judgement.py.
-    review = _build_review(run.result.get("rows", []), doc.filename or "document", locale,
+    # The cards as GET /review serves them — the same rows and the same evaluation of the
+    # relations — or a digest the reviewer was shown could never match the one checked here.
+    template_def = _template_for_run(session, run)
+    rows = _served_rows(run)
+    structural, live = _structural_for_run(session, run, rows, template_def)
+    review = _build_review(rows, doc.filename or "document", locale,
                            run.result.get("reconciliation", []),
-                           run.result.get("structural", []), _template_for_run(session, run),
-                           judgements=_inforce_judgements(session, doc), run_id=run.id)
+                           structural, template_def,
+                           judgements=_inforce_judgements(session, doc), run_id=run.id,
+                           structural_live=live)
     group = [c for c in review["checks"] if c["subject_key"] == body.subject_key]
     if not group:
         raise HTTPException(status_code=404, detail={"error": "finding_not_found",
@@ -4316,12 +4518,15 @@ def edit_document_line_item(document_id: str, canonical_key: str, body: LineItem
     computed: float | None = None
     formula_error: str | None = None
     if body.formula and body.formula.strip().lstrip("=").strip():
-        from app.services.formula import FormulaError, evaluate
+        from app.services.formula import FormulaError, evaluate, reevaluate
+
+        # The figures as the grid shows them, other formula lines evaluated again included.
+        shown = reevaluate(rows)
 
         def _resolve(name: str) -> float:
             # Resolve a reference the way the grid renders it: the concept's figure, summed
             # across every printed line that maps to it (or its own manual override).
-            n = _concept_value([r for r in rows if r.get("canonical_key") == name],
+            n = _concept_value([r for r in shown if r.get("canonical_key") == name],
                                body.basis, body.period)
             if n is None:
                 raise KeyError(name)
@@ -4347,9 +4552,24 @@ def edit_document_line_item(document_id: str, canonical_key: str, body: LineItem
         fv = float(new_val)
         slot["value"] = str(int(fv)) if fv == int(fv) else str(fv)
     slot.setdefault("basis", body.basis)
+    slot_id = _slot_id(body.basis, body.period)
+    # WHICH SLOT THE FORMULA DRIVES, so a reader can evaluate it again when a line it names changes
+    # (`services.formula.reevaluate`). Only a formula that produced this figure drives it: one kept
+    # beside an explicit value it could not evaluate is an annotation. A row edited before the
+    # record existed carries its one formula onto the slot it drove, where that is known.
+    from app.services.formula import stored_formulas
+
+    formulas = stored_formulas(target)
+    if computed is not None:
+        formulas[slot_id] = body.formula
+    else:
+        formulas.pop(slot_id, None)
+    if formulas:
+        target["formulas"] = formulas
+    else:
+        target.pop("formulas", None)
     target["formula"] = body.formula or None
     target["edited"] = True
-    slot_id = _slot_id(body.basis, body.period)
     # Which figures were typed, so an edit to one basis doesn't claim the other.
     target["edited_slots"] = sorted(set(target.get("edited_slots") or []) | {slot_id})
     comments = dict(target.get("edit_comments") or {})
@@ -4420,6 +4640,7 @@ def revert_document_line_item(document_id: str, canonical_key: str,
             target["values"] = copy.deepcopy(original)
         target.pop("_original", None)
         target.pop("formula", None)
+        target.pop("formulas", None)
         target["edited"] = False
         target.pop("edited_slots", None)
         target.pop("edit_comments", None)
@@ -4473,7 +4694,7 @@ def export_document(
     run = _run_for_read(session, document_id, run_id)
     if run is None or not run.result:
         raise HTTPException(status_code=404, detail="No extraction run yet for this document")
-    rows = run.result.get("rows", [])
+    rows = _served_rows(run)
     name = (doc.filename or "extract").rsplit(".", 1)[0]
     include_set = ({p.strip() for p in include.split(",") if p.strip()}
                    if include is not None else None)
@@ -4482,7 +4703,8 @@ def export_document(
     scale, unit_label = units_scale(src_units, units)
     ccy = (src_units or {}).get("currency")
     caption = (f"Amounts in {ccy + ' ' if ccy else ''}{unit_label}" if unit_label else None)
-    narrative = run.result.get("credit_narrative")  # stored LLM narrative, if generated
+    # The stored LLM narrative, while the figures it was written from are the ones exported.
+    narrative = _narrative_in_force(run, rows, template_def=_template_for_run(session, run))[0]
     if fmt == "workbook":
         from app.services.export_workbook import (
             build_template_workbook, has_workbook, workbook_filename)
@@ -4514,7 +4736,8 @@ def export_document(
     # the same `_coverage_block` the review screen is served — a second computation here is how the
     # sheet and the queue would come to disagree about whether anything was checked.
     export_template = _template_for_run(session, run)
-    coverage = _coverage_block(run, export_template, locale)
+    structural, live = _structural_for_run(session, run, rows, export_template)
+    coverage = _coverage_block(run, export_template, locale, structural=structural, live=live)
     if fmt == "json":
         data = build_rows_json(rows, filename=doc.filename or "document",
                                disclosures=run.result.get("disclosures", []),
@@ -6149,6 +6372,11 @@ def _build_statement(rows: list[dict], template_def: dict | None, statement_type
         v2 = _concept_value(group, basis, "prior")
         inspector = _inspector(r, cur)
         formula = (edited_row or r).get("formula")
+        # A stored formula that could not be evaluated again from the lines it names, per period of
+        # this basis (`services.formula.reevaluate`): the figure shown is the one last stored.
+        formula_errors = {p: msg for p in ("current", "prior")
+                          for msg in [((edited_row or r).get("formula_errors") or {})
+                                      .get(_slot_id(basis, p))] if msg}
         arithmetic: str | None = None      # display-only rendering of how the figure was reached
         contributions: list[dict] = []
         # HOW THE FIGURE ADDS UP, per period — `services.derivation.working`. Only a derived
@@ -6292,6 +6520,7 @@ def _build_statement(rows: list[dict], template_def: dict | None, statement_type
             # Why a figure was overridden, per period — kept beside the number it explains.
             "comments": notes or None,
             "formula": formula, "arithmetic": arithmetic, "inspector": inspector,
+            "formula_errors": formula_errors or None,
             # Present only when more than one printed line was combined into this figure.
             "contributions": contributions or None,
             "working1": working1, "working2": working2,
@@ -6543,7 +6772,7 @@ def get_document_statement(
     # Consolidated and standalone are extracted in one pass; the grid shows the requested
     # basis (empty if the source didn't present that basis).
     lis = _line_item_set_for_run(session, run)
-    spread = _build_statement(run.result.get("rows", []), template_def, statement,
+    spread = _build_statement(_served_rows(run), template_def, statement,
                               doc.filename or "document", basis, locale,
                               run.result.get("units"), company=run.result.get("entity"),
                               doc_format=run.result.get("format") or doc.fmt or "",
@@ -6837,7 +7066,7 @@ def get_document_notes(document_id: str, run_id: str | None = Query(None),
         linked = sum(len(details[n].get("rows", [])) for n in details)
         return {"notes": notes, "count": len(notes), "linked": linked}
 
-    grouped = _rows_by_note(run.result.get("rows", []))
+    grouped = _rows_by_note(_served_rows(run))
     notes = [{"no": n, "title": f"Note {n}", "conf": "med", "conf_pct": None}
              for n in sorted(grouped, key=_note_sort_key_str)]
     return {"notes": notes, "count": len(notes), "linked": sum(len(v) for v in grouped.values())}
@@ -6859,7 +7088,7 @@ def get_document_note(document_id: str, note_no: str, locale: str = Depends(outp
     run = _run_for_read(session, document_id, run_id)
     result = run.result if run and run.result else {}
     details = _note_index(result.get("note_details", []))
-    faces = _rows_by_note(result.get("rows", []))
+    faces = _rows_by_note(_served_rows(run))
     linked_face = faces.get(note_no, [])
     linked_label = linked_face[0].get("source_label") if linked_face else ""
     linked_key = linked_face[0].get("canonical_key") if linked_face else ""
@@ -7044,7 +7273,7 @@ def get_document_bucket(document_id: str, bucket: str,
     # reports, so anything adding both up double-counts the filing. The bifurcation has to be
     # readable from the payload, not inferred from which key it arrived under.
     rows = []
-    for r in (run.result.get("rows") or []):
+    for r in _served_rows(run):
         if r.get("id") not in wanted:
             continue
         cited = [by_number[n] for n in (r.get("notes") or []) if n in by_number]

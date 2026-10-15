@@ -36,6 +36,7 @@ export const commentary: Record<Locale, Record<string, string>> = {
     "cm.creditRegenerate": "✦ Regenerate narrative",
     "cm.creditGenerating": "Generating…",
     "cm.creditNarrativeErr": "Couldn't generate the narrative",
+    "cm.creditNarrativeWithdrawn": "The narrative was written from figures that have changed since, so it is not shown. Generate it again to describe the figures as they stand.",
   },
   zh: {
     "cm.title": "财务分析",
@@ -72,6 +73,7 @@ export const commentary: Record<Locale, Record<string, string>> = {
     "cm.creditRegenerate": "✦ 重新生成叙述评述",
     "cm.creditGenerating": "生成中…",
     "cm.creditNarrativeErr": "无法生成叙述评述",
+    "cm.creditNarrativeWithdrawn": "该叙述评述所依据的数字此后已有改动，因此不再显示。请重新生成，以描述当前的数字。",
   },
   ar: {
     "cm.title": "التحليل المالي",
@@ -108,6 +110,7 @@ export const commentary: Record<Locale, Record<string, string>> = {
     "cm.creditRegenerate": "✦ إعادة توليد السرد",
     "cm.creditGenerating": "جارٍ التوليد…",
     "cm.creditNarrativeErr": "تعذّر توليد السرد",
+    "cm.creditNarrativeWithdrawn": "كُتب السرد استنادًا إلى أرقام تغيّرت منذ ذلك الحين، لذا لا يُعرض. أعد توليده ليصف الأرقام كما هي الآن.",
   },
   fr: {
     "cm.title": "Analyse financière",
@@ -144,5 +147,6 @@ export const commentary: Record<Locale, Record<string, string>> = {
     "cm.creditRegenerate": "✦ Régénérer la note",
     "cm.creditGenerating": "Génération…",
     "cm.creditNarrativeErr": "Impossible de générer la note",
+    "cm.creditNarrativeWithdrawn": "La note a été rédigée à partir de montants modifiés depuis ; elle n'est donc pas affichée. Générez-la à nouveau pour décrire les montants actuels.",
   },
 };
