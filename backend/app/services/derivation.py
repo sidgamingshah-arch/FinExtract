@@ -151,6 +151,10 @@ _WORDS: dict[str, dict[str, str]] = {
     "refused: this line excludes derivatives": {
         "zh": "已拒绝：此项目不含衍生工具", "ar": "مرفوض: هذا البند يستثني المشتقات",
         "fr": "refusé : cette ligne exclut les dérivés"},
+    "printed as {amount} in units of {from}; converted to the statement's units of {to}": {
+        "zh": "附注以 {from} 为单位列示为 {amount}；已换算为报表单位 {to}",
+        "ar": "مطبوع {amount} بوحدات {from}؛ وحُوِّل إلى وحدات القائمة {to}",
+        "fr": "imprimé {amount} en unités de {from} ; converti dans les unités de l'état, {to}"},
     "As quoted by the model": {"zh": "模型引文", "ar": "كما اقتبسه النموذج",
                                "fr": "Cité par le modèle"},
 }
@@ -431,6 +435,12 @@ def _why(item: dict | None) -> dict | None:
         return {"code": str(reason or "not_located")}
     if reason:
         return {"code": str(reason)}
+    rescaled = item.get("rescaled")
+    if isinstance(rescaled, dict):
+        # A NOTE ROW PRINTED IN ANOTHER SCALE than the face: its figure here is the converted one,
+        # and the sentence names what the note printed and the two scales.
+        return {"code": "rescaled", "amount": item.get("printed"),
+                "from": rescaled.get("from"), "to": rescaled.get("to")}
     return None
 
 
@@ -729,6 +739,12 @@ def working(store: dict | None, basis: str, period: str, *, shown: Any = None,
     }
 
 
+def _as_printed(text: Any) -> str:
+    """A figure with its thousands grouped and exactly the decimals it carries: "44.461", "1,000"."""
+    figure = _dec(text)
+    return "—" if figure is None else f"{figure:,}"
+
+
 def _plain_amount(value: float | None) -> str:
     if value is None:
         return "—"
@@ -867,6 +883,14 @@ def why_text(why: dict | None, fmt, locale: str = "en") -> str:
     if code == "reduced":
         return _say("{amount} of it is counted on the face", locale).replace(
             "{amount}", fmt(_to_num(why.get("amount"))))
+    if code == "rescaled":
+        # The printed figure is in the NOTE's units, so it is written as printed — every decimal
+        # it was printed with — and not in the sheet's units; so are the two scales.
+        return (_say("printed as {amount} in units of {from}; converted to the statement's units "
+                     "of {to}", locale)
+                .replace("{amount}", _as_printed(why.get("amount")))
+                .replace("{from}", _as_printed(why.get("from")))
+                .replace("{to}", _as_printed(why.get("to"))))
     phrase = _REASON_WORDS.get(str(code or ""))
     return _say(phrase, locale) if phrase else ""
 

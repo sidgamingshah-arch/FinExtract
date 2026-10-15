@@ -35,6 +35,7 @@ from app.core.models.reports import (
     ReconciliationReport,
 )
 from app.core.stage import PipelineContext
+from app.services.units import compare as compare_units
 from app.services.reconcile import (
     TIE_TIED,
     TIE_UNTIED,
@@ -52,9 +53,17 @@ _TIE_PERIODS = ("current", "prior")
 
 def _note_value(item, basis, period_label) -> Decimal | None:
     """A note detail item's value for one (basis, period)."""
+    fact = _note_fact(item, basis, period_label)
+    if fact is None:
+        return None
+    return fact.value if fact.value is not None else fact.value_raw
+
+
+def _note_fact(item, basis, period_label):
+    """A note detail item's fact for one (basis, period), carrying the unit its page declared."""
     for ev in item.values.values():
         if ev.basis == basis and ev.period_label == period_label:
-            return ev.value if ev.value is not None else ev.value_raw
+            return ev
     return None
 
 
@@ -185,17 +194,35 @@ class ReconcileStage:
         if not_graded:
             ctx.log(f"reconcile:split_rows_not_graded={not_graded}")
 
+        # LIKE WITH LIKE. A note row carries the unit its own page declared and the face figure
+        # the unit of the statement it is printed on (`services.units`). A row printed in another
+        # SCALE is converted to the face's before it is added up; a row printed in another
+        # CURRENCY cannot be, so the table is not graded against that face figure at all and the
+        # face line says why. Before, a millions note under a thousands face left a residual of
+        # the whole figure and was graded `unconfirmed`, which reads as "not a breakdown".
+        rescaled: set[str] = set()
+        foreign: dict[tuple, tuple[str, str]] = {}
+
         def _details(face, note, ev) -> list[NoteDetail]:
             details: list[NoteDetail] = []
             for it in note.items:
                 if it.role in (LineRole.SUBTOTAL, LineRole.TOTAL):
                     continue                      # a note's own subtotal isn't a detail
-                dv = _note_value(it, ev.basis, ev.period_label)
+                fact = _note_fact(it, ev.basis, ev.period_label)
+                dv = None if fact is None else (fact.value if fact.value is not None
+                                                else fact.value_raw)
                 if dv is None:
                     continue
+                check = compare_units(fact.unit_ctx, ev.unit_ctx)
+                if check.currency_mismatch:
+                    foreign.setdefault((face.id, note.note_number or "", ev.basis.value,
+                                        ev.period_label), check.currency_mismatch)
+                    return []
+                if check.rescaled:
+                    rescaled.add(str(it.id))
                 maps = bool(it.canonical_key and it.canonical_key in distinct_face_keys
                             and it.canonical_key != face.canonical_key)
-                details.append(NoteDetail(item_id=str(it.id), value=Decimal(dv),
+                details.append(NoteDetail(item_id=str(it.id), value=Decimal(dv) * check.factor,
                                           maps_to_distinct_template_line=maps))
             return details
 
@@ -292,6 +319,19 @@ class ReconcileStage:
                         f"Note {note_number} does not tie to "
                         f"{face.canonical_key or face.source_label} "
                         f"({ev.basis.value}/{ev.period_label}): residual {best.residual}")
+
+        for (face_id, number, basis, period), (a, b) in sorted(
+                foreign.items(), key=lambda kv: (str(kv[0][0]), *map(str, kv[0][1:]))):
+            face = face_by_id[face_id]
+            flag = f"unit_currency_mismatch:{a}:{b}"
+            if flag not in face.confidence.flags:
+                face.confidence.flags.append(flag)
+            ctx.log(f"reconcile:unit_currency_mismatch note {number} -> "
+                    f"{face.canonical_key or face.source_label} ({basis}/{period}): the note is in "
+                    f"{a}, the face in {b} — not graded")
+        if rescaled:
+            ctx.log(f"reconcile:note_rows_rescaled={len(rescaled)} (printed in another scale than "
+                    f"the face figure they were tied to, converted to it first)")
 
         doc.reconciliation = report
         graded = {s: sum(1 for e in report.entries if e.tie_status == s)

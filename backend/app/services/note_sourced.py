@@ -136,7 +136,8 @@ class NoteRowHit:
     """One note row a line item's declaration selected, with everything the trail needs."""
 
     __slots__ = ("key", "note_number", "note_title", "caption", "matched_by", "value", "amount",
-                 "basis", "period", "column", "column_matched_by", "period_source")
+                 "basis", "period", "column", "column_matched_by", "period_source", "printed",
+                 "rescaled")
 
     def __init__(self, *, key, note_number, note_title, caption, matched_by, value, amount,
                  basis, period, column=None, column_matched_by=None, period_source=None):
@@ -156,6 +157,11 @@ class NoteRowHit:
         self.column = column
         self.column_matched_by = column_matched_by
         self.period_source = period_source
+        # THE FIGURE AS THE NOTE PRINTS IT and ``(from_scale, to_scale)``, for a row printed in
+        # another scale than the face it is published on (`stages.note_sourced._in_face_units`):
+        # `amount` is then the figure in the face's scale. None for every other row.
+        self.printed = None
+        self.rescaled = None
 
 
 def _table_basis(table, value) -> str:
@@ -849,6 +855,12 @@ def _trail_input(hit: NoteRowHit, *, counted: bool) -> dict:
         **({} if counted else {"reason": "alternative"}),
         # THE PRINTED COLUMN, for a column-selected part only — so every other trail is unchanged.
         **({"column": hit.column} if getattr(hit, "column", None) else {}),
+        # A ROW PRINTED IN ANOTHER SCALE: `value` and `used` are in the face's scale, and the
+        # figure the note prints and the two scales are kept beside them, so the working shows the
+        # conversion (`derivation._why`, code `rescaled`).
+        **({"printed": str(hit.printed),
+            "rescaled": {"from": hit.rescaled[0], "to": hit.rescaled[1]}}
+           if getattr(hit, "rescaled", None) else {}),
     }
 
 

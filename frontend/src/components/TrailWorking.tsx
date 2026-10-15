@@ -52,6 +52,16 @@ export function whyText(why: TrailWhy | null | undefined, present: Present, t: T
       return "";
     case "reduced":
       return t("trail.reason.reduced").replace("{amount}", amount);
+    case "rescaled": {
+      // A note row printed in another scale: the figure beside it is converted, and the note's own
+      // figure and the two scales are written as printed, not through the units selector.
+      const plain = (v: string | null | undefined) =>
+        v != null && v !== "" ? fmtIN(Number(v)) : "";
+      return t("trail.reason.rescaled")
+        .replace("{amount}", ltr(plain(why.amount)))
+        .replace("{from}", ltr(plain(why.from)))
+        .replace("{to}", ltr(plain(why.to)));
+    }
     case "not_selected":
     case "alternative":
     case "corroborates":

@@ -691,7 +691,11 @@ class MapOntologyStage:
                                    note_number=str(table.note_number), section_hint=parent.section_hint)
                     value = sum((ev.value for _header, ev in values), Decimal(0))
                     source = values[0][1].model_copy(deep=True)
-                    source.value_raw = value
+                    # ONE CELL KEEPS ITS PRINTED FIGURE in `value_raw`; several summed into one
+                    # concept have none, so the row is derived and `value_raw` is the sum.
+                    if len(values) > 1 or source.value_raw is None:
+                        source.value_raw = value
+                        source.derived = len(values) > 1
                     source.value = value
                     source.period_label = parent_value.period_label
                     source.period_end = parent_value.period_end
@@ -1493,13 +1497,20 @@ class MapOntologyStage:
                         # it: a sign decided by arithmetic that column took no part in.
                         continue
                     ev = total[1].model_copy(deep=True)
-                    # ``value_raw`` keeps the note's own figure and ``value`` carries the face's
-                    # convention, which is the contract those two fields already have: raw is what
-                    # the page said, value is the sign-normalised number, and ``sign_normalised``
-                    # records that the engine changed a reported sign so the pair is an audit trail
-                    # rather than a silent rewrite.
-                    ev.value_raw = total[0]
+                    # ``value`` carries the face's convention and ``sign_normalised`` records that
+                    # the engine changed a reported sign. ``value_raw`` is what the page said: the
+                    # note row's own figure where ONE row is the concept, so the pair is an audit
+                    # trail rather than a silent rewrite. Where SEVERAL rows were summed into it
+                    # the page printed no figure for it, so the row is derived and ``value_raw`` is
+                    # its figure — not a sum dressed as a printed amount.
                     ev.value = total[0] * orientation
+                    if sum(1 for it in sources for e in it.values.values()
+                           if e.value is not None
+                           and (e.basis.value, e.period_label or "") == col) > 1:
+                        ev.value_raw = ev.value
+                        ev.derived = True
+                    elif ev.value_raw is None:
+                        ev.value_raw = total[0]
                     ev.sign_normalised = ev.sign_normalised or orientation < 0
                     row.set_value(ev)
                 row.confidence.mapping = min(parent.confidence.mapping or 0.75, 0.75)

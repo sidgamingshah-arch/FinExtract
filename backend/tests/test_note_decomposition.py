@@ -537,15 +537,20 @@ def test_a_row_whose_caption_is_a_geography_is_named_by_its_sub_heading(awkward_
     child = next(li for li in doc.line_items
                  if li.canonical_key == "pl_tax_expense__current_tax")
     assert child.values, "the geography row's 400 never reached the face"
-    assert {ev.value_raw for ev in child.values.values()} == {Decimal("1600"), Decimal("1200")}
+    # Three rows summed into one concept: no row printed 1,600, so the figure is DERIVED and
+    # `value_raw` is the figure itself, not a sum presented as a printed amount.
+    assert {ev.value_raw for ev in child.values.values()} == {Decimal("-1600"), Decimal("-1200")}
+    assert all(ev.derived for ev in child.values.values())
 
 
 def test_the_sign_flip_is_recorded_on_every_value_it_touched(awkward_tax):
     """D3: the engine changed a reported sign, so it says so and keeps what the page said.
 
-    ``value_raw`` holds the note's own figure and ``value`` carries the face's convention, which is
-    the contract those two fields already have for the rulebook's own sign rule. Without
-    ``sign_normalised`` the pair is indistinguishable from a filing that printed it that way.
+    Where ONE note row is the concept, ``value_raw`` holds that row's own figure and ``value``
+    carries the face's convention, which is the contract those two fields already have for the
+    rulebook's own sign rule. Where several rows were summed into it, the page printed no figure
+    for the concept, so the value is derived and ``value_raw`` is the figure itself. Either way
+    ``sign_normalised`` and ``split_sign_flipped`` say the engine set the sign.
     """
     doc, _ctx = awkward_tax
     children = [li for li in doc.line_items
@@ -555,9 +560,15 @@ def test_the_sign_flip_is_recorded_on_every_value_it_touched(awkward_tax):
 
     for child in children:
         assert "split_sign_flipped" in child.confidence.flags, child.canonical_key
+        summed = any(f.startswith("split_summed_rows:") for f in child.confidence.flags)
         for ev in child.values.values():
             assert ev.sign_normalised is True
-            assert ev.value == -ev.value_raw, (child.canonical_key, ev.period_label)
+            if summed:
+                assert ev.derived and ev.value == ev.value_raw, (child.canonical_key,
+                                                                 ev.period_label)
+            else:
+                assert not ev.derived
+                assert ev.value == -ev.value_raw, (child.canonical_key, ev.period_label)
 
 
 def test_the_split_says_it_flipped_the_signs(awkward_tax):

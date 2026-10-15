@@ -102,7 +102,7 @@ class ValueKey(BaseModel, frozen=True):
 
 
 class ExtractedValue(BaseModel):
-    value_raw: Decimal | None = None      # exactly as printed (paren-negatives applied)
+    value_raw: Decimal | None = None      # exactly as printed (paren-negatives applied); see `derived`
     value: Decimal | None = None          # sign-normalized (units NOT applied)
     # A FACT THAT IS WORDS RATHER THAN A FIGURE — an audit opinion's wording, a going-concern
     # statement, or prose the model wrote for a line whose `output_structure` asks for it.
@@ -159,13 +159,21 @@ class ExtractedValue(BaseModel):
                 "`sign_normalised` records that a reported figure's sign was flipped, and a text "
                 "fact has no sign to flip")
         return self
-    # True when the sign of ``value`` was FLIPPED away from ``value_raw`` by the rulebook's
-    # ``global_rules.sign_convention.unsigned_source`` rule — a filing that prints its expenses as
-    # unsigned positives. The rulebook asks for the transformation to be recorded on the fact ("set
-    # sign_normalised: true on the fact so the transformation is auditable") precisely because it is
-    # the one place the engine changes a reported number's sign: ``value_raw`` still holds what the
-    # page said, so the two together are the audit trail.
+    # True when the ENGINE set the sign of ``value`` rather than taking the one printed: the
+    # rulebook's ``global_rules.sign_convention.unsigned_source`` rule (a filing that prints its
+    # expenses as unsigned positives), a CAS outflow block, a label or template sign rule
+    # (``stages.normalize``, which also flags ``sign_rule:<rule>``), or the note split's orientation.
+    # The rulebook asks for the transformation to be recorded on the fact ("set sign_normalised:
+    # true on the fact so the transformation is auditable"): ``value_raw`` still holds what the page
+    # said, so the two together are the audit trail — except on a ``derived`` slot, which has no
+    # printed figure to hold.
     sign_normalised: bool = False
+    # TRUE WHEN NO PRINTED FIGURE STANDS BEHIND THIS SLOT: a writer computed or cited it (a sum of
+    # note rows, a cascade, the model's citation, a sentence's amount) instead of reading it off the
+    # row it sits on, so ``value_raw`` is a copy of ``value`` and not something the page printed.
+    # A writer replacing the figure of such a slot moves ``value_raw`` with it; a writer replacing a
+    # PRINTED figure leaves ``value_raw`` alone, so it stays what the page said.
+    derived: bool = False
     reconciled: Decimal | None = None     # after §20 subtraction; always derived from raw
     basis: Basis
     period_end: date | None = None

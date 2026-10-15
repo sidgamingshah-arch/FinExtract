@@ -3,8 +3,9 @@
 POSITION IN THE PIPELINE, and why it is this one. Immediately after ``link_notes``, which is where
 the five removed derivation services ran. That matters for one reason beyond symmetry: ``normalize``
 has already run by then, so the sign pass will not see these figures — they are written with
-``value`` and ``value_raw`` both set to the amount the note printed, which is what those services
-produced and what the downstream tolerance checks were calibrated against. Running earlier would
+``value`` set to the amount the note gives, and ``value_raw`` too wherever the slot has no printed
+figure of its own to keep (``_write``), which is what those services produced and what the
+downstream tolerance checks were calibrated against. Running earlier would
 subject a note-derived figure to the unsigned-expense cohort vote, and one filing's note breakdown
 would flip the sign of every expense on its income statement.
 
@@ -89,6 +90,15 @@ class NoteSourcedStage(Stage):
         # BELOW THIS, the model's figure and the declared note reading's are the same figure.
         tolerance = Decimal(str(getattr(getattr(line_item_set, "cross_check_master", None),
                                         "tolerance", None) or "0.5"))
+        # THE FACE'S UNIT PER BASIS, read once: every note row published on a face line is put
+        # into it, and the slot it lands in is stamped with it.
+        face_units: dict[str, object] = {}
+
+        def face_unit(basis: str):
+            if basis not in face_units:
+                face_units[basis] = _statement_unit(doc, basis)
+            return face_units[basis]
+
         children_of: dict[str, list] = {}
         filled = touched = 0
         prose_filled = 0
@@ -251,6 +261,9 @@ class NoteSourcedStage(Stage):
             # own `rollup` says so and defaults to `sum`. What the PARENT does with its several
             # children is a different question, answered below from the parent's declaration.
             rollup = str(getattr(item, "rollup", None) or "sum")
+            # EACH ROW IN THE FACE'S UNIT FIRST — see `_in_face_units`. A rescaled row enters the
+            # rollup at its face-unit figure; a slot with a row in another currency is not written.
+            unit_flags, foreign = _in_face_units(item.key, hits, face_unit, ctx)
             resolved = note_sourced.resolve(hits, rollup)
             row = by_key.get(item.key)
             if row is None:
@@ -258,7 +271,15 @@ class NoteSourcedStage(Stage):
                 doc.line_items.append(row)
                 by_key[item.key] = row
             touched += 1
+            for flag in unit_flags:
+                if flag not in row.confidence.flags:
+                    row.confidence.flags.append(flag)
             for (basis, period), (amount, inputs) in sorted(resolved.items()):
+                if (basis, period) in foreign:
+                    a, b = foreign[(basis, period)]
+                    ctx.log(f"note_sourced:{item.key}[{basis}:{period}]: {amount} NOT written — "
+                            f"a row it reads is printed in {a}, the statement in {b}")
+                    continue
                 if refuse_unprinted(doc, row, item.key, basis, period, amount,
                                     by="note_sourced", log=ctx.log, bases=bases):
                     continue
@@ -272,13 +293,13 @@ class NoteSourcedStage(Stage):
                     ctx.log(f"note_sourced:{item.key}[{basis}:{period}]: {amount} NOT written — "
                             f"the model answered this row; its figure joins the cascade instead")
                     continue
-                # A NOTE TABLE IS STATED IN THE STATEMENTS' UNITS (`normalize` scales both by the
-                # document's `unit_context`), so the figure is written in them. Written without,
-                # it took scale 1 beside RMB'000 siblings: China SCE 1966's other receivables
+                # THE FIGURE IS IN THE FACE'S UNIT, so it is stamped with it. Written without a
+                # unit it took scale 1 beside RMB'000 siblings: China SCE 1966's other receivables
                 # (note 24, 5,818,375) made `bs_ca`'s reconciliation `mixed_scale`. The unit is the
-                # one THIS BASIS'S FACE carries — see `_statement_unit`.
+                # one THIS BASIS'S FACE carries — see `_statement_unit` — and a row printed in
+                # another scale was converted to it above, so the stamp is true of the figure.
                 _write(row, basis, period, amount, by="note_source",
-                       unit_ctx=_statement_unit(doc, basis))
+                       unit_ctx=face_unit(basis))
                 row.derivation = note_sourced.derivation.record(
                     row.derivation, basis=basis, period_label=period,
                     derivation=note_sourced.trail(
@@ -535,6 +556,56 @@ def _statement_unit(doc, basis: str):
     return unit
 
 
+def _in_face_units(key: str, hits: list, face_unit, ctx) -> tuple[list[str], dict]:
+    """Put each selected note row into the unit of the face it is published on.
+
+    A NOTE ROW CARRIES ITS OWN PAGE'S UNIT (`ExtractedValue.unit_ctx`, read off that page's header
+    band), and the written figure is stamped with the FACE's (`_statement_unit`). Nothing compared
+    the two, so a note printed in RMB millions under a face in RMB'000 was published a thousand
+    times too small, and the stamp then hid it from the structural `mixed_scale` refusal too.
+
+    Per row, against the face unit of the row's own basis (`services.units.compare`):
+
+      * both scales declared and different: the row's amount is multiplied into the face's scale,
+        the row keeps its printed figure for the trail (`printed`, `rescaled`), and the line gets
+        `unit_rescaled:<from>:<to>`;
+      * both currencies declared and different: no factor converts one into the other, so the
+        slot the row belongs to is not written at all, and the line gets
+        `unit_currency_mismatch:<note>:<face>`;
+      * a unit the note page did not declare: the row is read as it always was.
+
+    Returns the flags for the line and ``{(basis, period): (note currency, face currency)}`` for the
+    slots that must not be written. The rows in `hits` are rescaled in place.
+    """
+    from app.services.units import compare
+
+    flags: list[str] = []
+    foreign: dict[tuple[str, str], tuple[str, str]] = {}
+    for hit in hits:
+        check = compare(getattr(hit.value, "unit_ctx", None), face_unit(hit.basis))
+        if check.currency_mismatch:
+            a, b = check.currency_mismatch
+            foreign.setdefault((hit.basis, hit.period), (a, b))
+            flag = f"unit_currency_mismatch:{a}:{b}"
+            if flag not in flags:
+                flags.append(flag)
+            ctx.log(f"note_sourced:{key}[{hit.basis}:{hit.period}]: note {hit.note_number} row "
+                    f"{hit.caption!r} is printed in {a}, the statement in {b} — not used")
+            continue
+        if check.rescaled:
+            source, dest = check.rescaled
+            hit.printed = hit.amount
+            hit.rescaled = check.rescaled
+            hit.amount = hit.amount * check.factor
+            flag = f"unit_rescaled:{source}:{dest}"
+            if flag not in flags:
+                flags.append(flag)
+            ctx.log(f"note_sourced:{key}[{hit.basis}:{hit.period}]: note {hit.note_number} row "
+                    f"{hit.caption!r} printed {hit.printed} at scale {source}; "
+                    f"{hit.amount} at the statement's scale {dest}")
+    return flags, foreign
+
+
 def _unit_of_terms(inputs, by_key: dict, basis: str, period: str):
     """The unit context of the figures a rung was computed FROM.
 
@@ -564,16 +635,18 @@ def _unit_of_terms(inputs, by_key: dict, basis: str, period: str):
 
 
 def _write(row: LineItem, basis: str, period: str, amount: Decimal,
-           *, by: str = "", provenance=None, unit_ctx=None, keep_printed: bool = False) -> None:
+           *, by: str = "", provenance=None, unit_ctx=None) -> None:
     """Put the figure on the row, replacing that slot if it already has one.
 
-    Both `value` and `value_raw` are set to the same amount. `normalize` has already run, so there
-    is no later pass to derive one from the other — and `value_raw` is what the audit trail and the
-    reconciliation tolerances read.
+    `value` is the new figure. `value_raw` STAYS THE PRINTED FIGURE: where the slot holds one the
+    page printed, it is kept, so the two can be compared. Where the slot holds none — a fresh slot,
+    or one an earlier writer computed or cited (`ExtractedValue.derived`) — there is nothing
+    printed to keep, so `value_raw` is the new figure too and the slot is marked derived.
+    `normalize` has already run, so there is no later pass to derive one from the other.
 
-    `keep_printed=True` KEEPS THE PRINTED FIGURE IN `value_raw` where the slot already holds one:
-    the model's citation replacing a face row (`stages.line_item_llm._write`). `value` is the cited
-    figure; `value_raw` stays what the page printed, as `_write_prose` already does for a sentence.
+    `value_raw` USED TO BE OVERWRITTEN on every route but the model's, so a cascade that outranks a
+    printed figure, or a note row published over a face row, left the page's figure nowhere on
+    its own row — only in a flag.
 
     IT USED TO REPLACE A PRINTED FIGURE IN SILENCE, and that is what `by` and `provenance` are for.
     Measured with a spy provider: a face row matched by exact caption at confidence 1.0 holding
@@ -581,7 +654,9 @@ def _write(row: LineItem, basis: str, period: str, amount: Decimal,
     the value, not in the trail. Three things were wrong with that and the first two are fixed here.
 
       * THE DISPLACED FIGURE LEFT NO RECORD. It does now, as `<by>_displaced_printed:<figure>` on
-        the row's flags. The spelling follows the two precedents rather than inventing a third:
+        the row's flags, or `<by>_displaced_derived:<figure>` when what it replaced was itself
+        computed or cited, not printed. The spelling follows the two precedents rather than
+        inventing a third:
         `stages.line_item_llm._write_prose` already appends `prose_value_displaced_printed:` for
         exactly this case on the prose path, and the parent rollup below already appends
         `note_sourced_differs_from_printed:`. `by` names the route that displaced it, because
@@ -608,19 +683,21 @@ def _write(row: LineItem, basis: str, period: str, amount: Decimal,
     """
     for ev in (row.values or {}).values():
         if (_basis(ev) == basis and str(getattr(ev, "period_label", "") or "") == period):
-            printed = ev.value if ev.value is not None else ev.value_raw
-            displaced = printed is not None and printed != amount
+            figure = ev.value if ev.value is not None else ev.value_raw
+            displaced = figure is not None and figure != amount
             if displaced:
-                row.confidence.flags.append(f"{by or 'value'}_displaced_printed:{printed}")
+                kind = "derived" if ev.derived else "printed"
+                row.confidence.flags.append(f"{by or 'value'}_displaced_{kind}:{figure}")
             if provenance is not None:
                 ev.provenance = provenance
             elif displaced and getattr(ev, "provenance", None) is not None:
                 row.confidence.flags.append(f"{by or 'value'}_kept_displaced_provenance")
             ev.value = amount
-            if not (keep_printed and printed is not None):
+            if ev.derived or figure is None:
                 ev.value_raw = amount
+                ev.derived = True
             elif ev.value_raw is None:
-                ev.value_raw = printed
+                ev.value_raw = figure
             return
     from app.core.models.enums import Basis
     try:
@@ -634,7 +711,15 @@ def _write(row: LineItem, basis: str, period: str, amount: Decimal,
     unit = unit_ctx or _row_unit(row)
     row.set_value(ExtractedValue(
         basis=basis_enum, period_label=period or None, value=amount, value_raw=amount,
-        provenance=provenance, **({"unit_ctx": unit} if unit is not None else {})))
+        derived=True, provenance=provenance, **({"unit_ctx": unit} if unit is not None else {})))
+
+
+def _refigure(ev, amount: Decimal) -> None:
+    """Change a slot's figure in place. A printed slot keeps the page's figure in `value_raw`; a
+    derived one has none to keep, so `value_raw` moves with it (see `_write`)."""
+    ev.value = amount
+    if ev.derived:
+        ev.value_raw = amount
 
 
 def _basis(ev) -> str:
@@ -2075,7 +2160,7 @@ def _settle_against_the_face(doc: DocumentModel, ctx: PipelineContext, all_items
                     if not is_residual:
                         continue
                     before = fev.value
-                    fev.value = before - piece.amount
+                    _refigure(fev, before - piece.amount)
                     face_row.confidence.flags.append(f"carved_out:{key}:{piece.amount}")
                     ctx.log(f"note_sourced:face_settlement: {face_row.canonical_key}[{slot}] "
                             f"{before} less {key} {piece.amount} = {fev.value} (the residual "
@@ -2134,7 +2219,7 @@ def _settle_against_the_face(doc: DocumentModel, ctx: PipelineContext, all_items
                     trail_out["inputs"] = list(trail.get("inputs") or []) + deductions
                     trail_out["result"] = str(after)
                     trail_out["flags"] = list(trail.get("flags") or []) + ["settled_against_face"]
-                ev.value = after
+                _refigure(ev, after)
                 row.derivation = note_sourced.derivation.record(
                     row.derivation, basis=basis, period_label=period, derivation=trail_out)
                 for piece, face_row, fev, rel, _x in given:

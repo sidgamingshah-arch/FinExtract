@@ -45,8 +45,9 @@ from app.services.face_bases import printed_bases, refuse_unprinted
 from app.services.mapping import authored_guidance
 from app.services.working_view import build_working_view
 # ONE WRITER FOR A FIGURE, so the two routes into a line cannot disagree about what writing one
-# means. `_write` sets both `value` and `value_raw` (there is no later pass to derive one from the
-# other — `normalize` has already run), and `_prose_basis`/`_prose_scale` are the answers to the
+# means. `_write` sets `value`, and `value_raw` where the slot has no printed figure to keep (there
+# is no later pass to derive one from the other — `normalize` has already run), and
+# `_prose_basis`/`_prose_scale` are the answers to the
 # two questions a PROSE figure raises that a table row does not: which basis column a sentence
 # belongs in, and by how much a full amount has to be divided to match the statements' units.
 # Imported from the deterministic stage rather than copied: a second implementation is how a
@@ -663,10 +664,11 @@ class LineItemLlmStage(Stage):
             if refuse_unprinted(doc, row, item.key, basis, period, amount, by="line_item_llm",
                                 log=ctx.log, bases=faces):
                 continue
-            # THE PRINTED FIGURE STAYS IN `value_raw`. A face row the model's citation replaces
-            # keeps what the page printed beside the cited figure, so the two can be compared.
+            # THE PRINTED FIGURE STAYS IN `value_raw` (`note_sourced._write`). A face row the
+            # model's citation replaces keeps what the page printed beside the cited figure, so the
+            # two can be compared.
             _write(row, basis, period, amount, by="line_item_llm",
-                   provenance=_cited_provenance(resolved), keep_printed=True)
+                   provenance=_cited_provenance(resolved))
             row.derivation = note_sourced.derivation.record(
                 row.derivation, basis=basis, period_label=period,
                 derivation=note_sourced.trail(
@@ -999,11 +1001,18 @@ class LineItemLlmStage(Stage):
         if target is None:
             _write(row, basis, target_period, value)
         else:
-            printed = target.value if target.value is not None else target.value_raw
-            if printed is not None and printed != value:
-                row.confidence.flags.append(f"prose_value_displaced_printed:{printed}")
-            if target.value_raw is None:
-                target.value_raw = printed if printed is not None else value
+            # A SLOT WITH NO PRINTED FIGURE BEHIND IT — computed or cited by an earlier writer
+            # (`ExtractedValue.derived`) — has nothing to keep in `value_raw`, so it follows the
+            # new figure; a printed one stays.
+            figure = target.value if target.value is not None else target.value_raw
+            if figure is not None and figure != value:
+                kind = "derived" if target.derived else "printed"
+                row.confidence.flags.append(f"prose_value_displaced_{kind}:{figure}")
+            if target.derived or figure is None:
+                target.value_raw = value
+                target.derived = True
+            elif target.value_raw is None:
+                target.value_raw = figure
             target.value = value
 
         prose = [(i, e) for i, e in enumerate(resolved) if e.get("prose")]

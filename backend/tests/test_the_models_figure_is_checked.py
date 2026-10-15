@@ -280,9 +280,10 @@ def test_a_figure_written_into_an_empty_slot_has_itself_as_value_raw():
     from app.stages.note_sourced import _write
 
     row = LineItem(source_label="x", canonical_key="k")
-    _write(row, "consolidated", "current", Decimal("555"), by="line_item_llm", keep_printed=True)
+    _write(row, "consolidated", "current", Decimal("555"), by="line_item_llm")
     (slot,) = row.values.values()
     assert (slot.value, slot.value_raw) == (Decimal("555"), Decimal("555"))
+    assert slot.derived, "a slot with no printed figure behind it must say so"
 
 
 # ── the model's figure against the declared note reading ──────────────────────────────────────

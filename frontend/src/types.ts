@@ -352,6 +352,10 @@ export interface TrailWhy {
   whole?: boolean;
   /** Only part of the piece was still in the part it was taken out of. */
   partial?: boolean;
+  /** For `rescaled`: the scale the note printed the row in, and the statement's. `amount` is then
+   *  the figure as the note prints it. */
+  from?: string | null;
+  to?: string | null;
 }
 
 export interface TrailTerm {

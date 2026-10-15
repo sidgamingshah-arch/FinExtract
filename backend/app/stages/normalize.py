@@ -65,7 +65,11 @@ from app.core.models.line_item import UnitContext
 from app.core.stage import PipelineContext
 from app.services.buckets import statement_resolver
 
-_LESS = re.compile(r"^\s*(less|deduct)\b|less:", re.IGNORECASE)
+# A DEDUCTION CUE, and only that. "Less:" / "Less " / "Deduct" opening the caption, or "less:" as a
+# word inside it ("Gross amount less: impairment"). It used to match "Less than one year" (a
+# maturity bucket, which a note row of a maturity table is) and "Unless:" / "Doubtless:", and the
+# match negates the figure.
+_LESS = re.compile(r"^\s*(?:less|deduct)\b(?!\s+than\b)|\bless\s*:", re.IGNORECASE)
 _ADD = re.compile(r"^\s*add\b|add:", re.IGNORECASE)
 
 # "Amounts in ₹ crore", "(RMB'000)", "in thousands of USD", "figures in HK$ million" …
@@ -244,6 +248,10 @@ _NORMALISED_FLAG = "sign_normalised:unsigned_source"
 # A CAS cash-flow block: 经营活动现金流入小计 opens the operating outflows, 经营活动现金流出小计 closes them.
 _CAS_FLOW_SUBTOTAL = re.compile(r"(经营|投资|筹资)活动现金流(入|出)小计")
 _CAS_OUTFLOW_FLAG = "sign_normalised:cas_outflow"
+# A label or template rule that changed a figure's sign: `sign_rule:less`, `:add`, `:flip` (the
+# ontology's `sign_rule.flip_if_label_matches`) or `:natural_negative` (a template line marked
+# `sign: natural_negative`, the contra lines).
+_SIGN_RULE_FLAG = "sign_rule"
 
 # How many DISTINCT expense concepts must agree before an all-positive cohort is read as the
 # filing's presentation rather than as mis-mapped rows.
@@ -381,18 +389,31 @@ class NormalizeStage:
                     # makes that true.
                     continue
                 v = raw
+                rules: list[str] = []
                 if less:
                     v = -abs(raw)
+                    rules.append("less")
                 elif add:
                     v = abs(raw)
+                    rules.append("add")
                 if flip:
                     v = -v
+                    rules.append("flip")
                 if contra:
                     v = -abs(raw)
+                    rules = ["natural_negative"]
                 if v != ev.value:
                     ev.value = v
-                    if contra:
-                        ev.sign_normalised = True
+                    # EVERY RULE THAT CHANGED THE FIGURE SAYS SO, on the value and on the row —
+                    # before, only the template's contra lines set `sign_normalised` and none of the
+                    # four named itself, so a negated figure was told from a printed negative only
+                    # by comparing it with `value_raw`.
+                    ev.sign_normalised = True
+                    for flag in [*(f"{_SIGN_RULE_FLAG}:{r}" for r in rules), "sign_normalised"]:
+                        if flag not in ev.confidence.flags:
+                            ev.confidence.flags.append(flag)
+                        if flag not in li.confidence.flags:
+                            li.confidence.flags.append(flag)
                     changed += 1
 
         ctx.log(f"normalize:sign_adjusted={changed}")
