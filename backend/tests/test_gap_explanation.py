@@ -376,7 +376,11 @@ def test_the_mismatch_card_names_the_row_that_explains_it():
     eb = card["explained_by"]
     assert (eb["v1_display"], eb["v2_display"]) == ("73,600", "67,820")
     assert card["fix_action"] is None and card["remap"] is None
-    others = [c for c in review["checks"] if c["type"] != "unmapped" and c is not card]
+    # The prior year's card on the same line is explained by the same row: it printed both years.
+    prior = cards["chk-calc-consolidated-prior-pl_pbt"]
+    assert prior["explained_by"]["row_ref"] == eb["row_ref"]
+    others = [c for c in review["checks"]
+              if c["type"] != "unmapped" and c is not card and c is not prior]
     assert others and all(c["explained_by"] is None for c in others)
     assert cards["chk-calc-consolidated-pl_total_income"]["explained_by"] is None
     # The review payload gains no top-level key.

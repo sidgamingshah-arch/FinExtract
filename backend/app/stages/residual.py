@@ -96,6 +96,11 @@ from app.services.rollups import reconcile_section, section_members
 # How a residual assignment is recorded on the line, so the review queue and the statement
 # inspector can both say the figure was combined rather than identified.
 FALLBACK_ALLOC = "fallback_combined"
+# A PRINTED "Other …" LINE, not a leftover. A caption that matched its own bucket exactly ("Other
+# current assets" against `bs_ca__other_current_assets`) is still released and swept (prohibition
+# 2), so it lands in the same bucket by the only way in; this flag says the figure IS the filing's
+# own Others line, so the review queue does not list it as a row swept there for want of a home.
+REPORTED_OTHER = "reported_other"
 _ATTRIBUTION_LINE = re.compile(
     r"\b(non[-\s]?controlling|minorit(?:y|ies)|owners?\s+of\s+the\s+"
     r"(?:parent|company)|profit\s+attributable|loss\s+attributable|"
@@ -1024,6 +1029,9 @@ class ResidualStage:
         # anything short. A row that arrives already claimed for a residual by one of those matchers
         # is released here, so the only way into a bucket is still the sweep, and the row is offered
         # to the section's dedicated concepts' terms rather than sitting in Others un-itemised.
+        # Which bucket each released row matched EXACTLY, so the sweep can tell a printed Others
+        # line returning to its own bucket (`REPORTED_OTHER`) from a leftover swept there.
+        matched_own: dict = {}
         if "never_matched" in terms.prohibitions:
             residual_keys = {r.key for r in residuals}
             for li in doc.line_items:
@@ -1031,6 +1039,8 @@ class ResidualStage:
                 if li.canonical_key in residual_keys and method in _MATCHED_METHODS:
                     ctx.log(f"residual:released({li.canonical_key}):"
                             f"{method} match on {li.source_label!r}")
+                    if method == "exact":
+                        matched_own[li.id] = li.canonical_key
                     li.canonical_key = None
                     li.confidence.method = None
                     li.confidence.flags.append(f"residual_alias_populated:{method}")
@@ -1192,10 +1202,14 @@ class ResidualStage:
                 continue
 
             self._claim(li, target)
+            reported_other = matched_own.get(li.id) == target.key
+            if reported_other:
+                li.confidence.flags.append(REPORTED_OTHER)
             if target.itemise:
                 target.components.append(
-                    _component(terms, ontology, doc, li, target, where="face",
-                               threshold=threshold))
+                    {**_component(terms, ontology, doc, li, target, where="face",
+                                  threshold=threshold),
+                     **({REPORTED_OTHER: True} if reported_other else {})})
             if normalize_label(li.source_label or "") in {normalize_label(c)
                                                           for c in terms.literal_others}:
                 # A row captioned "Others" is one unmapped face row and nothing more: no privileged

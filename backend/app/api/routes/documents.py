@@ -235,16 +235,18 @@ _TR.update({
         {"zh": "由派生值驱动——无论提取质量多高都不可能失败",
          "ar": "مُغذّى بقيمة مشتقة — لا يمكن أن يفشل، مهما تحسّن الاستخراج",
          "fr": "alimenté par une valeur dérivée — ne peut pas échouer, quelle que soit la qualité de l'extraction"},
-    "Sign convention not declared": {"zh": "未声明符号约定",
-                                     "ar": "لم يُعلَن اصطلاح الإشارة",
-                                     "fr": "Convention de signe non déclarée"},
-    "the inputs are there, but the rulebook does not declare which way this section's figures are "
-    "signed, so adding them would not be the template's arithmetic":
-        {"zh": "输入项齐备，但规则手册未声明本节数字的符号方向，直接相加并非模板的算式",
-         "ar": "المدخلات متوفرة، لكن دليل القواعد لا يعلن اتجاه إشارة أرقام هذا القسم، "
-               "فجمعها ليس حساب القالب",
-         "fr": "les entrées sont là, mais le référentiel ne déclare pas le sens du signe des "
-               "chiffres de cette section : les additionner ne serait pas l'arithmétique du modèle"},
+    "Signs not established": {"zh": "符号方向未确立",
+                              "ar": "اتجاه الإشارة غير ثابت",
+                              "fr": "Signes non établis"},
+    "the inputs are there, but neither the rulebook nor the filing says which way this section's "
+    "figures are signed (its costs are not printed in parentheses), so adding them would not be "
+    "the template's arithmetic":
+        {"zh": "输入项齐备，但规则手册和报表都未表明本节数字的符号方向（其成本费用未以括号列示），直接相加并非模板的算式",
+         "ar": "المدخلات متوفرة، لكن لا دليل القواعد ولا المستند يبيّن اتجاه إشارة أرقام هذا القسم "
+               "(تكاليفه غير مطبوعة بين قوسين)، فجمعها ليس حساب القالب",
+         "fr": "les entrées sont là, mais ni le référentiel ni le document n'indiquent le sens du "
+               "signe des chiffres de cette section (ses charges ne sont pas imprimées entre "
+               "parenthèses) : les additionner ne serait pas l'arithmétique du modèle"},
     "No printed subtotal": {"zh": "文档未打印小计", "ar": "لا يوجد مجموع فرعي مطبوع",
                             "fr": "Aucun sous-total imprimé"},
     "the filing prints no subtotal to reconcile against":
@@ -576,6 +578,53 @@ _TR.update({
          "fr": "Ce montant a été rattaché à un concept que le modèle de cette exécution ne place sur aucun état : il n'apparaît sur aucun tableau. Réattribuez-le à un poste du modèle, ou dé-rattachez-le pour enregistrer qu'il n'appartient à aucun — ou relancez l'extraction sur le modèle courant, qui le déclare peut-être déjà."},
 })
 
+# The reviewer's checks (R2): a pass reached on assumed zeros, rows swept into an Others line, and
+# two readings of one figure that disagree. Every sentence the cards and the coverage band serve.
+_TR.update({
+    "Assumed zero": {"zh": "按零计", "ar": "افتُرض صفرًا", "fr": "Supposé nul"},
+    "Rows swept into an Others line": {"zh": "归入“其他”项的行", "ar": "صفوف أُدرجت في بند «أخرى»",
+                                       "fr": "Lignes versées dans un poste « Autres »"},
+    "Swept": {"zh": "已归入其他", "ar": "أُدرج في «أخرى»", "fr": "Versée en Autres"},
+    "Others line": {"zh": "“其他”项", "ar": "بند «أخرى»", "fr": "Poste « Autres »"},
+    "Rows swept here": {"zh": "归入此项的行数", "ar": "الصفوف المدرجة هنا", "fr": "Lignes versées ici"},
+    "These printed rows matched no line of their own, so they were placed in this Others line. "
+    "Move each row that has a proper line to it; a row that really is an other item can stay.":
+        {"zh": "这些列报的行没有匹配到各自的项目，因此被归入此“其他”项。请把有对应项目的行移到该项目；确属其他项的行可以保留。",
+         "ar": "لم تطابق هذه الصفوف المطبوعة أي بند خاص بها، فأُدرجت في بند «أخرى» هذا. انقل كل صف له بند مناسب إليه؛ ويمكن إبقاء الصف الذي هو فعلًا بند آخر.",
+         "fr": "Ces lignes imprimées ne correspondaient à aucun poste propre : elles ont été versées dans ce poste « Autres ». Déplacez chaque ligne qui a son poste vers celui-ci ; une ligne qui relève vraiment des autres éléments peut rester."},
+    "Swept into Others": {"zh": "归入其他", "ar": "أُدرجت في «أخرى»", "fr": "Versées en Autres"},
+    "Readings disagree": {"zh": "读数不一致", "ar": "قراءات متعارضة", "fr": "Lectures divergentes"},
+    "Two readings disagree": {"zh": "两种读数不一致", "ar": "قراءتان متعارضتان",
+                              "fr": "Deux lectures divergent"},
+    "To check": {"zh": "待核对", "ar": "للتحقق", "fr": "À vérifier"},
+    "The model's figure, on the line": {"zh": "模型的数值（现列于该项）",
+                                        "ar": "رقم النموذج، المعروض في البند",
+                                        "fr": "Montant du modèle, retenu sur la ligne"},
+    "Read on": {"zh": "读取自", "ar": "قُرئ في", "fr": "Lu en"},
+    "The configured note reading": {"zh": "按配置读取的附注数值", "ar": "قراءة الإيضاح المهيأة",
+                                    "fr": "Lecture de la note configurée"},
+    "not recorded": {"zh": "未记录", "ar": "غير مسجل", "fr": "non enregistré"},
+    "The model's answer and the note this line's configuration reads give different figures, and "
+    "the model's is on the line. Check both against the document; if the note's figure is right, "
+    "correct the line in the Workspace.":
+        {"zh": "模型的回答与该项配置所读取的附注给出了不同的数值，现列于该项的是模型的数值。请对照文件核对两者；如附注的数值正确，请在工作区更正该项。",
+         "ar": "يعطي جواب النموذج والإيضاح الذي تقرؤه تهيئة هذا البند رقمين مختلفين، والمعروض في البند هو رقم النموذج. تحقق من الاثنين مقابل المستند؛ وإن كان رقم الإيضاح هو الصحيح فصحّح البند في مساحة العمل.",
+         "fr": "La réponse du modèle et la note que lit la configuration de cette ligne donnent des montants différents, et c'est celui du modèle qui figure sur la ligne. Vérifiez les deux dans le document ; si le montant de la note est le bon, corrigez la ligne dans l'espace de travail."},
+    "The model replaced a printed figure": {"zh": "模型替换了列报的数值",
+                                            "ar": "استبدل النموذج رقمًا مطبوعًا",
+                                            "fr": "Le modèle a remplacé un montant imprimé"},
+    "Printed on the face": {"zh": "报表正表列报", "ar": "المطبوع في متن القائمة",
+                            "fr": "Imprimé sur l'état"},
+    "The model replaced it with": {"zh": "模型替换为", "ar": "استبدله النموذج بـ",
+                                   "fr": "Remplacé par le modèle par"},
+    "On the line now": {"zh": "该项现值", "ar": "المعروض في البند الآن", "fr": "Sur la ligne à présent"},
+    "The model cited a note figure in place of the figure printed on the face for this line. "
+    "Check both against the document; if the printed figure is right, correct the line in the "
+    "Workspace.":
+        {"zh": "模型引用了附注中的数值，替代了该项在报表正表上列报的数值。请对照文件核对两者；如列报的数值正确，请在工作区更正该项。",
+         "ar": "استشهد النموذج برقم من الإيضاح بدلًا من الرقم المطبوع في متن القائمة لهذا البند. تحقق من الاثنين مقابل المستند؛ وإن كان الرقم المطبوع هو الصحيح فصحّح البند في مساحة العمل.",
+         "fr": "Le modèle a cité un montant de note à la place du montant imprimé sur l'état pour cette ligne. Vérifiez les deux dans le document ; si le montant imprimé est le bon, corrigez la ligne dans l'espace de travail."},
+})
 
 def _t(s: str, locale: str) -> str:
     if not s or locale == "en":
@@ -1663,6 +1712,11 @@ _Assertion = tuple[str, str, str, int]
 # `off_template` (folded into `unmapped`: one category, two ways in), `uncomputed` (a subtotal with no
 # components is a coverage fact, reported in the coverage band and the line's own note) and
 # `note_tie`.
+#
+# Two kinds sit beside the three, each with a chip of its own (see `_swept_checks` and
+# `_conflict_checks`): `swept`, a printed row the residual stage placed in an Others line, and the
+# conflict pair `readings_disagree` / `model_replaced_printed`. They are declared in
+# `_SWEPT_TYPES` and `_CONFLICT_TYPES`, which `_assert_known_kinds` holds the queue to as well.
 _ACCOUNTING_TYPES = frozenset({"balance", "equity_tie", "structural", "calculated_mismatch",
                                "containment_gap"})
 _ROW_SHAPED_TYPES = frozenset({"unmapped"})
@@ -1677,10 +1731,12 @@ def _assert_known_kinds(checks: list[dict]) -> None:
     counts-disagree-with-content defect this file has been bitten by repeatedly, and it is cheaper to
     fail here than to find it on a screen.
     """
-    unknown = sorted({str(c.get("type")) for c in checks} - _ACCOUNTING_TYPES - _ROW_SHAPED_TYPES)
+    unknown = sorted({str(c.get("type")) for c in checks} - _ACCOUNTING_TYPES - _ROW_SHAPED_TYPES
+                     - _SWEPT_TYPES - _CONFLICT_TYPES)
     if unknown:
         raise AssertionError(
-            f"review card kinds not declared in _ACCOUNTING_TYPES/_ROW_SHAPED_TYPES: {unknown}. "
+            f"review card kinds not declared in _ACCOUNTING_TYPES/_ROW_SHAPED_TYPES/_SWEPT_TYPES/"
+            f"_CONFLICT_TYPES: {unknown}. "
             "Add the kind to the right set AND give it a chip, or the card is invisible on screen.")
 
 
@@ -1950,10 +2006,12 @@ def _structural_checks(structural: list[dict], locale: str, covered: set[_Assert
     emitted whatever is in ``covered``: see ``_relation_reported_elsewhere``.
     """
     from app.services import judgement
+    from app.services.rollups import node_labels
 
     def L(s: str) -> str:
         return _t(s, locale)
 
+    labels = node_labels(template_def, locale) if template_def else {}
     out: list[dict] = []
     for res in structural:
         d = res.get("details") or {}
@@ -1980,6 +2038,9 @@ def _structural_checks(structural: list[dict], locale: str, covered: set[_Assert
                 [L("Difference"), f"{actual - expected:,.0f}", False]]
         calc += [[k, f"{float(v):,.0f}", False]
                  for k, v in (d.get("component_values") or {}).items()]
+        # THE COMPONENTS TAKEN AS ZERO, named on the card: the figures beside them read 0 because
+        # the filing does not print those lines, not because a 0 was read.
+        zeros = [str(k) for k in (d.get("assumed_zero") or [])]
         fix = L("The reported figure does not equal the components the template says it is made "
                 "of, so a value is on the wrong line. Check the components and the total "
                 "against the document.")
@@ -2023,7 +2084,12 @@ def _structural_checks(structural: list[dict], locale: str, covered: set[_Assert
                 "components": {k: judgement.q(float(v))
                                for k, v in (d.get("component_values") or {}).items()},
                 "sign_suspect": suspect or None,
+                # Shown on the card now, so it is part of what a reviewer judged. Only when there
+                # are any: a card with none keeps the digest it was accepted under.
+                **({"assumed_zero": zeros} if zeros else {}),
             },
+            "assumed_zero": [{"key": k, "label": labels.get(k, k)} for k in zeros],
+            "assumed_zero_note": _assumed_zero_note(zeros, labels, locale) if zeros else "",
             "fix_action": _flip_sign_action(res, rows or [], template_def, locale),
             **_structural_inputs_edited(d, rows or [], locale),
         })
@@ -2207,20 +2273,21 @@ def _calculated_checks(rows: list[dict], template_def: dict | None, locale: str,
         return []
     names = node_labels(template_def, locale)
     out: list[dict] = []
-    # A calculated line is evaluated for the CURRENT column only. Named once because the same string
-    # decides what is computed, what the card says it is about, and which claim silences it — three
-    # spellings of one column is how the suppression came to be tested against a column nobody had
-    # looked at.
-    period = "current"
-    for basis in ("consolidated", "standalone"):
+    groups: dict[str, list[dict]] = {}
+    for r in rows:
+        k = r.get("canonical_key")
+        if k:
+            groups.setdefault(k, []).append(r)
+    # BOTH COLUMNS. A printed prior-year subtotal its own components do not come to is the same
+    # finding as a current-year one, and it was checked nowhere: this ran for the current column
+    # only, and no other check compares a prior-year profit-and-loss or cash-flow subtotal with its
+    # components. Each column is evaluated from its own figures (`_calculated` per period), and the
+    # period travels in the card's subject, so an acceptance on one column never covers the other.
+    for basis, period in (("consolidated", "current"), ("consolidated", "prior"),
+                          ("standalone", "current"), ("standalone", "prior")):
         calc = _calculated(rows, template_def, basis, period, locale)
         if not any(c.components for c in calc.values()):
             continue
-        groups: dict[str, list[dict]] = {}
-        for r in rows:
-            k = r.get("canonical_key")
-            if k:
-                groups.setdefault(k, []).append(r)
         # Only report on a basis the document actually presented.
         if not any(_basis_values(r, basis) for r in rows):
             continue
@@ -2254,7 +2321,11 @@ def _calculated_checks(rows: list[dict], template_def: dict | None, locale: str,
             if abs(diff) <= check.tolerance:
                 continue            # the printed figure and the components agree
             mismatch = {
-                "id": f"chk-calc-{basis}-{key}", "type": "calculated_mismatch", "icon": "≠",
+                # The current column keeps the id it always had; the client keys its expanded card
+                # on the id, and an open card should stay open across this change.
+                "id": (f"chk-calc-{basis}-{key}" if period == "current"
+                       else f"chk-calc-{basis}-{period}-{key}"),
+                "type": "calculated_mismatch", "icon": "≠",
                 "title": L("Printed subtotal differs from its components"),
                 "where": where, "severity": L("Check failed"), "tone": "high",
                 "delta": f"{diff:,.0f}", "target": key,
@@ -2282,6 +2353,313 @@ def _calculated_checks(rows: list[dict], template_def: dict | None, locale: str,
             # ever stops declaring all three, and None is in no set, so the card is served.
             if _assertion_of(mismatch) not in asserted:
                 out.append(mismatch)
+    return out
+
+
+# --- Rows swept into an Others line, and two readings of one figure that disagree ---------------
+#
+# Two more things the queue reports, each a figure published with nothing else to raise it:
+#
+# * A SWEPT ROW. The residual stage places a printed row no concept claimed in its section's Others
+#   line, and the section still ties — so no arithmetic card ever fires, and a row whose caption is
+#   a variant missing from a dedicated concept's aliases sits in Others with nothing on any screen
+#   but a 50% badge. One card per Others line that received swept rows, listing each row with the
+#   re-map control the unmapped card uses, so a row with a proper line can be moved to it. A
+#   printed "Other …" caption that matched its own bucket exactly (`reported_other`) is the filing's
+#   own Others line, not a leftover, and is not listed.
+# * A CONFLICT. The model's figure stands where it answered (that is the product decision), and two
+#   cases leave a different figure for the same slot on the record: the configured note reading
+#   read another amount (`llm_note_route_disagree:<model>:<note>`), or the model's citation replaced
+#   the figure printed on the face (`line_item_llm_displaced_printed:<printed>`). Both were row
+#   flags nothing read. Each is a card naming both figures and where each was read, opening the
+#   line.
+#
+# Note-tie cards stay retired: they were removed at the user's request, and nothing here raises one.
+_SWEPT_TYPES = frozenset({"swept"})
+_CONFLICT_TYPES = frozenset({"readings_disagree", "model_replaced_printed"})
+_REPORTED_OTHER = "reported_other"
+_DISAGREE_FLAG = "llm_note_route_disagree:"
+_DISPLACED_FLAG = "line_item_llm_displaced_printed:"
+
+
+def _amount(text) -> Decimal | None:
+    """A figure as written in a flag or a served value, or None when it is not one."""
+    try:
+        return Decimal(str(text).replace(",", "").strip())
+    except (InvalidOperation, ValueError):
+        return None
+
+
+def _shown(d: Decimal | None) -> str:
+    """A conflict figure as the card prints it: thousands separated, every printed decimal kept.
+    The two readings can differ below the whole unit, so they are not rounded the way an
+    arithmetic card's are."""
+    if d is None:
+        return "—"
+    return f"{d:,f}" if d != d.to_integral_value() else f"{d.to_integral_value():,f}"
+
+
+def _statement_of_keys(template_def: dict | None) -> dict[str, str]:
+    """canonical key → the template statement it is printed on, for the Workspace link."""
+    out: dict[str, str] = {}
+    for stmt in (template_def or {}).get("statements", []):
+        pending = list(stmt.get("sections") or [])
+        while pending:
+            node = pending.pop()
+            if node.get("canonical_key"):
+                out.setdefault(node["canonical_key"], stmt.get("type", ""))
+            pending.extend(node.get("children") or [])
+    return out
+
+
+def _row_figures(r: dict, basis: str) -> tuple[Decimal | None, Decimal | None]:
+    """The row's own (current, prior) figures for one basis."""
+    cur = prior = None
+    for v in r.get("values") or []:
+        if v.get("basis") != basis:
+            continue
+        if v.get("period_label") == "current" and cur is None:
+            cur = _amount(v.get("value"))
+        elif v.get("period_label") == "prior" and prior is None:
+            prior = _amount(v.get("value"))
+    return cur, prior
+
+
+def _swept_checks(rows: list[dict], template_def: dict | None, locale: str) -> list[dict]:
+    """One card per Others line that received swept rows: each row, its page, both figures, and
+    the re-map control that moves it to its proper line."""
+    from app.services import judgement
+    from app.services.rollups import node_labels
+
+    def L(s: str) -> str:
+        return _t(s, locale)
+
+    labels = node_labels(template_def, locale) if template_def else {}
+    stmt_of = _statement_of_keys(template_def)
+    by_key: dict[str, list[dict]] = {}
+    for r in rows:
+        key = r.get("canonical_key")
+        if not key or r.get("mapping_method") != "residual":
+            continue
+        if _REPORTED_OTHER in (r.get("flags") or []):
+            continue
+        by_key.setdefault(key, []).append(r)
+    out: list[dict] = []
+    for key, swept in by_key.items():
+        label = labels.get(key, key)
+        listed: list[dict] = []
+        evidence_rows: dict[str, str] = {}
+        for r in swept:
+            bases = [b for b in ("consolidated", "standalone") if _basis_values(r, b)]
+            basis = bases[0] if bases else "consolidated"
+            cur, prior = _row_figures(r, basis)
+            first = next((v for v in (r.get("values") or []) if v.get("basis") == basis),
+                         (r.get("values") or [{}])[0])
+            src = _prov_label(first.get("provenance"))
+            listed.append({"row_ref": _row_ref(r), "label": r.get("source_label") or "",
+                           "src": src, "source": first.get("provenance"), "basis": basis,
+                           "v1_display": _shown(cur), "v2_display": _shown(prior),
+                           "remap": _remap_offer(r, locale)})
+            evidence_rows[f"{judgement.norm(r.get('source_label'))} · {src}"] = \
+                f"{_shown(cur)} / {_shown(prior)}"
+        out.append({
+            "id": f"chk-swept-{key}", "type": "swept", "icon": "Σ",
+            "title": L("Rows swept into an Others line"),
+            "where": label, "severity": L("Swept"), "tone": "med",
+            "delta": str(len(listed)), "target": key,
+            # The Others line: the card is about what it holds.
+            "names": [key],
+            "calc": [[L("Others line"), label, False],
+                     [L("Rows swept here"), str(len(listed)), True]],
+            "fix": L("These printed rows matched no line of their own, so they were placed in "
+                     "this Others line. Move each row that has a proper line to it; a row that "
+                     "really is an other item can stay."),
+            "swept_rows": listed,
+            "line": ({"basis": listed[0]["basis"], "statement": stmt_of[key], "target": key}
+                     if listed and stmt_of.get(key) else None),
+            "subject": {"k": "swept", "key": key},
+            "evidence": {"rows": evidence_rows},
+        })
+    return out
+
+
+def _note_pages_holding(notes: list[dict], amount: Decimal, basis: str, period: str) -> list[str]:
+    """The pages of the note rows that print ``amount`` in this column, for the note reading's
+    side of a disagreement — its flag carries the figure and not where it was read."""
+    pages: list[str] = []
+    for note in notes or []:
+        for row in note.get("rows") or []:
+            for v in row.get("values") or []:
+                if v.get("basis") != basis or v.get("period_label") != period:
+                    continue
+                if _amount(v.get("value")) == amount:
+                    src = _prov_label(v.get("provenance"))
+                    if src not in pages:
+                        pages.append(src)
+    return pages
+
+
+def _model_slots(r: dict) -> list[tuple[str, str]]:
+    """The (basis, period) slots the model wrote on this row, in the order it wrote them — its
+    derivation records one entry per slot it answered."""
+    slots: list[tuple[str, str]] = []
+    for slot, d in (r.get("derivation") or {}).items():
+        if not str((d or {}).get("method") or "").startswith("line_item_llm"):
+            continue
+        basis, _, period = str(slot).partition(":")
+        if basis and period:
+            slots.append((basis, period))
+    return slots
+
+
+def _value_of(r: dict, basis: str, period: str) -> dict | None:
+    return next((v for v in (r.get("values") or [])
+                 if v.get("basis") == basis and v.get("period_label") == period), None)
+
+
+def _face_pages_of(pages: list[dict] | None, statement: str | None) -> list[str]:
+    """The face pages the classifier gave a statement, as cards print a page — where a figure the
+    model displaced was printed when the row no longer carries its face provenance."""
+    out: list[str] = []
+    for p in pages or []:
+        if not statement or p.get("statement") != statement:
+            continue
+        if str(p.get("kind") or "").rsplit(".", 1)[-1].lower() != "face":
+            continue
+        label = f"p.{p.get('printed_page') or int(p.get('index') or 0) + 1}"
+        if label not in out:
+            out.append(label)
+    return out
+
+
+def _conflict_checks(rows: list[dict], template_def: dict | None, locale: str,
+                     notes: list[dict] | None = None,
+                     pages: list[dict] | None = None) -> list[dict]:
+    """The two conflict cards of the flag contract, per row and slot. See the block comment."""
+    from app.services.rollups import node_labels
+
+    def L(s: str) -> str:
+        return _t(s, locale)
+
+    labels = node_labels(template_def, locale) if template_def else {}
+    stmt_of = _statement_of_keys(template_def)
+    out: list[dict] = []
+    for r in rows:
+        key = r.get("canonical_key")
+        if not key:
+            continue
+        flags = r.get("flags") or []
+        label = labels.get(key, key)
+        line_stmt = stmt_of.get(key)
+        # TWO READINGS DISAGREE: one flag per slot, `<model>:<note>`. The slot is the one still
+        # holding the model's figure; where none does, the figure on the line has since changed and
+        # the disagreement the flag recorded is no longer on screen.
+        taken: set[tuple[str, str]] = set()
+        for f in flags:
+            if not f.startswith(_DISAGREE_FLAG):
+                continue
+            model_txt, _, note_txt = f[len(_DISAGREE_FLAG):].partition(":")
+            model, note = _amount(model_txt), _amount(note_txt)
+            if model is None or note is None or model == note:
+                continue
+            slot = next(((v.get("basis"), v.get("period_label")) for v in (r.get("values") or [])
+                         if (v.get("basis"), v.get("period_label")) not in taken
+                         and _amount(v.get("value")) == model), None)
+            if slot is None:
+                continue
+            taken.add(slot)
+            basis, period = slot
+            held = _value_of(r, basis, period) or {}
+            note_pages = _note_pages_holding(notes or [], note, basis, period)
+            out.append({
+                "id": f"chk-disagree-{basis}-{period}-{_row_ref(r)[:12]}",
+                "type": "readings_disagree", "icon": "≠",
+                "title": L("Two readings disagree"),
+                "where": f"{label} · {basis}/{period}", "severity": L("To check"), "tone": "high",
+                "delta": _shown(model - note), "target": key, "names": [key],
+                "calc": [[L("The model's figure, on the line"), _shown(model), True],
+                         [L("Read on"), _prov_label(held.get("provenance")), False],
+                         [L("The configured note reading"), _shown(note), False],
+                         [L("Read on"), ", ".join(note_pages) or L("not recorded"), False],
+                         [L("Difference"), _shown(model - note), False]],
+                "fix": L("The model's answer and the note this line's configuration reads give "
+                         "different figures, and the model's is on the line. Check both against "
+                         "the document; if the note's figure is right, correct the line in the "
+                         "Workspace."),
+                "line": ({"basis": basis, "statement": line_stmt, "target": key}
+                         if line_stmt else None),
+                "subject": {"k": "readings_disagree", "key": key, "basis": basis,
+                            "period": period, "row": _row_ref(r)},
+                "evidence": {"model": f"{model:f}", "note": f"{note:f}"},
+            })
+        # THE MODEL REPLACED A PRINTED FIGURE: `<printed>` per slot it displaced, in the order the
+        # model wrote its slots. Raised only where the printed and new amounts differ.
+        printed = [p for p in (_amount(f[len(_DISPLACED_FLAG):]) for f in flags
+                               if f.startswith(_DISPLACED_FLAG)) if p is not None]
+        if not printed:
+            continue
+        slots = _model_slots(r)
+        if len(slots) != len(printed):
+            # The flags cannot be paired with the slots, so no slot is claimed for any of them.
+            slots = []
+        # The face page is the one a slot the model did not write still points at — or the slot's
+        # own when the stage kept the displaced provenance — and otherwise the statement's face
+        # pages, since the model's write moved the provenance to the note it cited.
+        kept = "line_item_llm_kept_displaced_provenance" in flags
+        face = next((v.get("provenance") for v in (r.get("values") or [])
+                     if (v.get("basis"), v.get("period_label")) not in set(_model_slots(r))
+                     and v.get("provenance")), None)
+        statement_pages = ", ".join(_face_pages_of(pages, line_stmt))
+        calc: list[list] = []
+        evidence: dict[str, str] = {}
+        line_basis = None
+        for i, figure in enumerate(printed):
+            if slots:
+                basis, period = slots[i]
+                held = _value_of(r, basis, period) or {}
+                now = _amount(held.get("value"))
+                if now is None or now == figure:
+                    continue
+                line_basis = line_basis or basis
+                where = f"{basis}/{period}"
+                face_src = (_prov_label(held.get("provenance")) if kept
+                            else _prov_label(face) if face
+                            else statement_pages or L("not recorded"))
+                calc += [[f"{L('Printed on the face')} · {where}", _shown(figure), False],
+                         [L("Read on"), face_src, False],
+                         [f"{L('The model replaced it with')} · {where}", _shown(now), True],
+                         [L("Read on"), _prov_label(held.get("provenance")), False]]
+                evidence[f"{where}:printed"] = f"{figure:f}"
+                evidence[f"{where}:model"] = f"{now:f}"
+                continue
+            current = [_amount(v.get("value")) for v in (r.get("values") or [])]
+            if figure in current:
+                continue
+            calc.append([L("Printed on the face"), _shown(figure), False])
+            evidence[f"printed:{i}"] = f"{figure:f}"
+        if not calc:
+            continue
+        if not slots:
+            for v in r.get("values") or []:
+                where = f"{v.get('basis')}/{v.get('period_label')}"
+                line_basis = line_basis or v.get("basis")
+                calc += [[f"{L('On the line now')} · {where}", _shown(_amount(v.get("value"))),
+                          True],
+                         [L("Read on"), _prov_label(v.get("provenance")), False]]
+        out.append({
+            "id": f"chk-replaced-{_row_ref(r)[:12]}", "type": "model_replaced_printed",
+            "icon": "≠", "title": L("The model replaced a printed figure"),
+            "where": f"{label} · {r.get('source_label') or ''}",
+            "severity": L("To check"), "tone": "high",
+            "delta": _shown(printed[0]), "target": key, "names": [key], "calc": calc,
+            "fix": L("The model cited a note figure in place of the figure printed on the face "
+                     "for this line. Check both against the document; if the printed figure is "
+                     "right, correct the line in the Workspace."),
+            "line": ({"basis": line_basis or "consolidated", "statement": line_stmt,
+                      "target": key} if line_stmt else None),
+            "subject": {"k": "model_replaced_printed", "key": key, "row": _row_ref(r)},
+            "evidence": evidence,
+        })
     return out
 
 
@@ -2318,9 +2696,10 @@ _COVERAGE_SKIPS = {
                  "page selection, section switched off, or scanned with no OCR), so nothing on it "
                  "was checked"),
     "INPUT_ABSENT": ("Inputs not extracted", "better extraction would recover these"),
-    "SIGNS_NOT_ESTABLISHED": ("Sign convention not declared",
-                              "the inputs are there, but the rulebook does not declare which way "
-                              "this section's figures are signed, so adding them would not be the "
+    "SIGNS_NOT_ESTABLISHED": ("Signs not established",
+                              "the inputs are there, but neither the rulebook nor the filing says "
+                              "which way this section's figures are signed (its costs are not "
+                              "printed in parentheses), so adding them would not be the "
                               "template's arithmetic"),
     "TAUTOLOGICAL": ("Fed by a derived value",
                      "fed by a derived value — cannot fail, however good extraction gets"),
@@ -2453,6 +2832,9 @@ def _coverage_block(run, template_def: dict | None, locale: str) -> dict:
         "aggregate": aggregate,
         "statements": statements,
         "skips": skips,
+        # THE PASSES THAT HELD ON ASSUMED ZEROS, each with the lines taken as nil. A pass has no
+        # card, so this is where a reviewer reads which lines a passed relation never saw.
+        "assumed_zero_passes": _assumed_zero_passes(rows, template_def, locale),
         # Unenforceable first — it is the only one invisible in every count — then the rest in the
         # report's own order. UNVALIDATED alarms are included and the statement rows also carry
         # the status, so the client renders alarms from THIS list only and never synthesises one
@@ -2468,6 +2850,44 @@ def _coverage_block(run, template_def: dict | None, locale: str) -> dict:
         # overwrite is precisely the fabricated count this codebase keeps deleting. `_build_review`
         # sets it from the `covered` set that suppressed those relations.
     }
+
+
+# How many assumed-zero lines a sentence names before it counts the rest. A section reconciliation
+# can take fifty lines as nil; the full list travels beside the sentence (`assumed_zero`).
+_ASSUMED_ZERO_NAMED = 6
+
+
+def _assumed_zero_note(keys: list[str], labels: dict[str, str], locale: str) -> str:
+    """"Assumed zero: …" — the lines a relation took as nil because the filing does not print
+    them, named by their template labels; past `_ASSUMED_ZERO_NAMED`, counted ("… +44")."""
+    names = ", ".join(labels.get(k, k) for k in keys[:_ASSUMED_ZERO_NAMED])
+    more = len(keys) - _ASSUMED_ZERO_NAMED
+    return f"{_t('Assumed zero', locale)}: {names}" + (f" … +{more}" if more > 0 else "")
+
+
+def _assumed_zero_passes(rows: list[dict], template_def: dict | None, locale: str) -> list[dict]:
+    """Every relation that PASSED with absent components taken as zero, in the stored order.
+
+    ``details.assumed_zero`` has been recorded on every result since the nil rule was written and
+    was shown nowhere, so a pass reached on three assumed zeros read exactly like a pass on a fully
+    extracted section. Coverage counts these apart (``passed_assumed_zero``); this lists them.
+    """
+    from app.services.rollups import node_labels
+
+    labels = node_labels(template_def, locale) if template_def else {}
+    out: list[dict] = []
+    for res in rows:
+        d = res.get("details") or {}
+        zeros = [str(k) for k in (d.get("assumed_zero") or [])]
+        if res.get("status") != "pass" or not zeros:
+            continue
+        target = str(d.get("target") or "")
+        out.append({"rule_id": res.get("rule_id"), "statement": d.get("statement"),
+                    "scope": res.get("scope_key"), "target": target,
+                    "target_label": labels.get(target, target),
+                    "assumed_zero": [{"key": k, "label": labels.get(k, k)} for k in zeros],
+                    "note": _assumed_zero_note(zeros, labels, locale)})
+    return out
 
 
 # Evidence key → the label the accepted figure is shown under, per subject kind. The keys are the
@@ -2499,6 +2919,10 @@ _EVIDENCE_LABELS: dict[str, dict[str, str]] = {
     # two are not raised at all. An accepted judgement stored against one of them is served as
     # ORPHANED rather than silently dropped — see `_serve_judgements`.
     "unmapped": {"value": "Value"},
+    # A swept card's figures ARE its rows, keyed "caption · page": the nested map prints each one.
+    "swept": {"rows": "Rows swept here"},
+    "readings_disagree": {"model": "The model's figure, on the line",
+                          "note": "The configured note reading"},
 }
 
 
@@ -2570,6 +2994,13 @@ def _subject_label(subject: dict, locale: str) -> str:
         return f"{L('Unverified subtotal')} · {subject.get('key') or ''}"
     if kind == "unmapped":
         return f"{L('Unmapped line')} · {subject.get('label') or ''}"
+    if kind == "swept":
+        return f"{L('Rows swept into an Others line')} · {subject.get('key') or ''}"
+    if kind == "readings_disagree":
+        return f"{L('Two readings disagree')} · {subject.get('key') or ''} · " \
+               f"{subject.get('basis') or ''}/{subject.get('period') or ''}"
+    if kind == "model_replaced_printed":
+        return f"{L('The model replaced a printed figure')} · {subject.get('key') or ''}"
     if kind == "off_template":
         # Both halves, because either alone leaves the orphaned row unreadable: the caption says
         # which printed line, and the key says which concept the template would not carry.
@@ -2650,11 +3081,14 @@ def _build_review(rows: list[dict], filename: str, locale: str = "en",
                   cross_check: "_CrossCheck | None" = None,
                   line_item_set=None,
                   pages: list[dict] | None = None,
-                  explain: bool = False) -> dict:
+                  explain: bool = False,
+                  notes: list[dict] | None = None) -> dict:
     """Derive the human-in-the-loop review queue from a real extraction — the QA the analyst works
     before export. No demo data involved.
 
-    THREE THINGS REACH THIS QUEUE AND NOTHING ELSE:
+    THREE THINGS REACH THIS QUEUE, and two more beside them: rows swept into an Others line, and two
+    readings of one figure that disagree (``_swept_checks``, ``_conflict_checks``; ``notes`` is the
+    run's note detail, read to say where the note reading's figure was printed). The three:
 
     1. a figure extracted from the face of a statement that reaches NO LINE of the output — either
        nothing claimed the caption, or something claimed it for a concept the run's own template puts
@@ -2697,9 +3131,9 @@ def _build_review(rows: list[dict], filename: str, locale: str = "en",
       a subject that moved with the figure reported a still-open finding as corrected. Label-box
       jitter across the anchor's grid re-opens a finding, which is the failure direction worth
       accepting; see ``_ANCHOR_GRID``.
-    * ``details.assumed_zero`` and ``details.tolerance``, because they are not displayed on the
-      card today. Fingerprinting an invisible field would withdraw an acceptance for a reason the
-      human was never shown; the honest order is to display them first, then fingerprint them.
+    * ``details.tolerance``, because it is not displayed on the card. Fingerprinting an invisible
+      field would withdraw an acceptance for a reason the human was never shown. ``assumed_zero``
+      IS displayed now ("Assumed zero: …") and is fingerprinted where a card has any.
     * ``explained_by`` — the printed row that accounts for a calculated or structural card's
       difference, and the ``remap.explains`` list on that row's own card. Both are recomputed on
       every read (``services/gap_explanation.py``), and an acceptance made before an explanation
@@ -2897,6 +3331,11 @@ def _build_review(rows: list[dict], filename: str, locale: str = "en",
                 "remap": _remap_offer(r, locale, explains=_explains_for_row(
                     i, explanations, template_def, locale, targets_by_key)),
             })
+    # The rows swept into each Others line, and the figures two readings disagree on. Each card
+    # carries the line it is about (`line`), which is where "Open in workspace" lands.
+    swept = _swept_checks(rows, template_def, locale)
+    conflicts = _conflict_checks(rows, template_def, locale, notes=notes, pages=pages)
+    checks += swept + conflicts
     for c in checks:
         c["subject_key"] = judgement.subject_key(c["subject"])
         c["evidence_digest"] = judgement.evidence_digest(c["evidence"])
@@ -2919,6 +3358,10 @@ def _build_review(rows: list[dict], filename: str, locale: str = "en",
         # Explicit on every card, like the keys above: null unless a printed row explains the
         # difference this card reports (see `_attach_explanations`).
         c.setdefault("explained_by", None)
+        c.setdefault("line", None)
+        c.setdefault("swept_rows", [])
+        c.setdefault("assumed_zero", [])
+        c.setdefault("assumed_zero_note", "")
     applied = judgement.apply_judgements(
         checks, judgements or [],
         label_fn=lambda subj: _subject_label(subj, locale),
@@ -2978,6 +3421,11 @@ def _build_review(rows: list[dict], filename: str, locale: str = "en",
             {"label": L("All"), "count": total, "types": None},
             {"label": L("Checks"), "count": len(accounting), "types": accounting_types},
             {"label": L("Unmapped"), "count": unmapped, "types": sorted(_ROW_SHAPED_TYPES)},
+            # Served only when this run raised one, so no chip filters the list to nothing.
+            *([{"label": L("Swept into Others"), "count": len(swept),
+                "types": sorted(_SWEPT_TYPES)}] if swept else []),
+            *([{"label": L("Readings disagree"), "count": len(conflicts),
+                "types": sorted(_CONFLICT_TYPES)}] if conflicts else []),
             # TWO CHIPS, ONE PER SHAPE, and no chip for a kind that cannot be emitted. The tabs
             # partition the list, so a chip whose `types` select nothing renders as a permanent "0"
             # that filters the list to empty — a control that looks like a filter and is a dead end.
@@ -3371,7 +3819,8 @@ def get_document_review(document_id: str, locale: str = Depends(output_locale),
                          cross_check=_CrossCheck.of(lis),
                          # The printed row that explains a card's difference: the set's sections
                          # and the classifier's statement per page are what scope it.
-                         line_item_set=lis, pages=run.result.get("pages") or [], explain=True)
+                         line_item_set=lis, pages=run.result.get("pages") or [], explain=True,
+                         notes=run.result.get("note_details") or [])
 
 
 class JudgementBody(BaseModel):
@@ -5636,13 +6085,18 @@ def _build_statement(rows: list[dict], template_def: dict | None, statement_type
         # what the inspector's revert control, its "Edited" tag and the grid's glyph read: replaced
         # by "recon", the analyst's own value could no longer be reverted from the line.
         #
-        # So WHETHER THE DIFFERENCE IS IN THE QUEUE travels on its own, `queued1`, and it is the
-        # CURRENT column's: the calculated card is evaluated for that column alone
-        # (`_calculated_checks`). The inspector names the queue from it, so an edited line still
-        # says where its card is, and last year's difference is never told it has one.
+        # So WHETHER THE DIFFERENCE IS IN THE QUEUE travels on its own, per column: `queued1` and
+        # `queued2`. The calculated card is evaluated for both columns (`_calculated_checks`), so
+        # last year's difference has a card of its own and the inspector names the queue for it.
+        diff2 = None
+        if row.get("origin2") == "calculated" and row["v2"] is not None \
+                and row["reported2"] is not None:
+            diff2 = row["v2"] - row["reported2"]
         queued = bool(diff is not None and abs(diff) > _check.tolerance and _check.compares(key))
-        row["queued1"] = queued
-        if queued and row.get("status") != "edited":
+        queued2 = bool(diff2 is not None and abs(diff2) > _check.tolerance
+                       and _check.compares(key))
+        row["queued1"], row["queued2"] = queued, queued2
+        if (queued or queued2) and row.get("status") != "edited":
             row["status"] = "recon"
         row["confidence"] = row.get("confidence")
         return row
@@ -5977,6 +6431,8 @@ def _build_statement(rows: list[dict], template_def: dict | None, statement_type
                     r["printed2"] = None
                 if "working2" in r:
                     r["working2"] = None
+                if "queued2" in r:
+                    r["queued2"] = False
             # …and neither is it the difference an explanation accounted for.
             if "explained_by" in r:
                 r["explained_by"] = None

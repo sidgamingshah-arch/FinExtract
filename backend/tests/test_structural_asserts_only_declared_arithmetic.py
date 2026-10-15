@@ -272,8 +272,13 @@ def test_a_section_with_no_printed_subtotal_says_so_before_naming_an_unmet_premi
     assert res is not None and res.status == "skipped"
     assert res.details["reason"] == "no_reported_subtotal"
 
-    # With the subtotal printed, the unmet premise is what is left to report.
-    report = evaluate_structure(tpl, _facts(revenue=1000, cost_of_sales=-600, gross_profit=400),
+    # With the subtotal printed and the cost printed UNSIGNED, the unmet premise is what is left
+    # to report.
+    report = evaluate_structure(tpl, _facts(revenue=1000, cost_of_sales=600, gross_profit=400),
                                 ontology=ont)
     assert _one(report, "section_reconciliation:is_pl").details["reason"] == \
         "section_signs_not_declared_one_way"
+    # Printed in parentheses, the filing has signed the section itself, and it is reconciled.
+    report = evaluate_structure(tpl, _facts(revenue=1000, cost_of_sales=-600, gross_profit=400),
+                                ontology=ont)
+    assert _one(report, "section_reconciliation:is_pl").status == "pass"

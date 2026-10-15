@@ -111,6 +111,9 @@ function StatementRow({ cov }: { cov: CoverageStatement }) {
         {cov.evaluated} / {cov.declarable}
       </span>
       <Q n={cov.passed} label={t("r.cov.held")} fg={color.greenFg} />
+      {(cov.passed_assumed_zero ?? 0) > 0 && (
+        <Q n={cov.passed_assumed_zero ?? 0} label={t("r.cov.heldAssumedZero")} fg={color.amberFg} />
+      )}
       <Q n={cov.failed} label={t("r.cov.failed")} fg={cov.failed > 0 ? color.redFg : color.muted} />
       <Q n={cov.skipped} label={t("r.cov.notEvaluable")} fg={color.muted} />
       {unvalidated && (
@@ -182,6 +185,13 @@ export function CoverageBand({ block }: { block: CoverageBlock | undefined }) {
           {t("r.cov.relationsEvaluated")}
         </span>
         <Q n={agg.passed} label={t("r.cov.held")} fg={color.greenFg} />
+        {/* Inside `held`, not beside it: these did hold, on lines taken as nil. */}
+        {(agg.passed_assumed_zero ?? 0) > 0 && (
+          <span data-testid="rv-cov-assumed-zero-count">
+            <Q n={agg.passed_assumed_zero ?? 0} label={t("r.cov.heldAssumedZero")}
+               fg={color.amberFg} />
+          </span>
+        )}
         <Q n={agg.failed} label={t("r.cov.failed")} fg={agg.failed > 0 ? color.redFg : color.muted} />
         <Q n={agg.skipped} label={t("r.cov.notEvaluable")} fg={color.muted} />
       </div>
@@ -220,6 +230,29 @@ export function CoverageBand({ block }: { block: CoverageBlock | undefined }) {
           <StatementRow key={s.statement} cov={s} />
         ))}
       </div>
+
+      {/* The passes reached on assumed zeros, each naming the lines taken as nil. A pass has no
+          card of its own, so this is where a reviewer reads what such a relation never saw. */}
+      {(block.assumed_zero_passes ?? []).length > 0 && (
+        <div data-testid="rv-cov-assumed-zero" style={{ marginTop: 10 }}>
+          <div style={{ fontSize: 11, color: color.amberFg, lineHeight: 1.5, marginBottom: 4 }}>
+            {t("r.cov.assumedZeroHead")}
+          </div>
+          {(block.assumed_zero_passes ?? []).map((p) => (
+            <div
+              key={`${p.rule_id}-${p.scope}`}
+              data-testid="rv-cov-assumed-zero-pass"
+              style={{ fontSize: 11, color: color.sec, lineHeight: 1.55 }}
+            >
+              <span style={{ fontWeight: 600 }}>{p.target_label}</span>
+              <span style={{ fontFamily: font.mono, fontSize: 10.5, color: color.muted }}>
+                {" "}· {p.scope}
+              </span>{" "}
+              — {p.note}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Why relations could not be evaluated. THESE ARE LABELS: no cursor, no hover, no handler
           — a chip that looks like a filter here would be a control with nothing behind it. */}

@@ -1535,12 +1535,11 @@ test("a printed row nothing mapped is named as the reason a total differs, and m
   // does not switch the persisted interface language (see the locale sweep above).
   await expect(page.getByTestId("explained-by-row")).toHaveCSS("unicode-bidi", "isolate");
   await expect(page.getByTestId("explained-by-figures")).toHaveCSS("unicode-bidi", "isolate");
-  // Last year's difference is stated as well, and the same row explains it, but no card carries
-  // it: the queue's calculated card is the current column's. So it is not sent to the queue.
+  // Last year's difference is stated as well, the same row explains it, and it has a card of its
+  // own: the calculated check runs for both columns.
   await page.getByTestId("printed-v2-bs_ca__total_assets").click();
   await expect(divergence).toContainText("printed 4,250");
-  await expect(divergence).toContainText("The difference is (250).");
-  await expect(divergence).not.toContainText(", and it is in the review queue.");
+  await expect(divergence).toContainText("The difference is (250), and it is in the review queue.");
   await expect(explained).toContainText("Sundry widgets held pending resale");
   await page.getByTestId("printed-v1-bs_ca__total_assets").click();
   await expect(divergence).toContainText(", and it is in the review queue.");
@@ -1560,8 +1559,12 @@ test("a printed row nothing mapped is named as the reason a total differs, and m
   await expect(rowCard.getByTestId("rv-remap-explains")).toContainText("Total Assets");
 
   // --- the calculated card names it too, and offers the map path instead of "by hand" ---------
-  const calcCard = page.getByTestId("rv-check")
+  // The current column's card; last year's is its own card, explained by the same row.
+  const calcCards = page.getByTestId("rv-check")
     .filter({ hasText: "Printed subtotal differs from its components" });
+  await expect(calcCards).toHaveCount(2, { timeout: 15_000 });
+  await expect(calcCards.filter({ hasText: "/prior" })).toHaveCount(1);
+  const calcCard = calcCards.filter({ hasText: "/current" });
   await calcCard.getByText("Printed subtotal differs from its components").click();
   const onCard = calcCard.getByTestId("rv-explained-by");
   await expect(onCard).toContainText("Sundry widgets held pending resale");
@@ -1596,7 +1599,7 @@ test("a printed row nothing mapped is named as the reason a total differs, and m
     .fill("Widgets held for resale are a current asset; the filing's total includes them.");
   await rowCard.getByTestId("rv-remap-apply").click();
   await expect(rowCard).toHaveCount(0, { timeout: 15_000 });
-  await expect(calcCard).toHaveCount(0);
+  await expect(calcCards).toHaveCount(0);
 
   await page.goto("/workspace", DCL);
   await expect(page.getByTestId("v1-bs_ca__total_assets")).toContainText("5,174",

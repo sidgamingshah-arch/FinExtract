@@ -1701,11 +1701,13 @@ export default function WorkspaceScreen() {
     ? inspPrinted != null && inspShown != null
     : inspOrigin === "calculated" && inspReported != null && inspShown != null
       && Math.abs(inspShown - inspReported) > 0.5;
-  // Whether the difference the block states is in the review queue: the CURRENT column's only,
-  // because the calculated card is evaluated for that column alone (the server's `queued1`; an
-  // older payload has only the status, which a typed-over line keeps as "edited").
+  // Whether the difference the block states is in the review queue, for the column it states:
+  // the server's `queued1` / `queued2`, since each column's difference has a card of its own. An
+  // older payload has no prior-year card and only the status, which a typed-over line keeps as
+  // "edited".
   const inspQueued = inspPeriod === "current"
-    && (selRowObj?.queued1 ?? selRowObj?.status === "recon");
+    ? (selRowObj?.queued1 ?? selRowObj?.status === "recon")
+    : !!selRowObj?.queued2;
   // The printed row nothing mapped that accounts for the difference, in both periods — shown in
   // the divergence block, which is always on screen when this is set (both periods differ).
   const explainedBy = selRowObj?.explained_by ?? null;

@@ -77,6 +77,11 @@ _EXPORT_TR = {
         "zh": "项关系可被校验；其余无法评估。",
         "ar": "علاقة أمكن التحقق منها؛ الباقي غير قابل للتقييم.",
         "fr": "relations ont pu être vérifiées ; les autres n'étaient pas évaluables."},
+    # A pass that rested on lines taken as nil (coverage's `passed_assumed_zero`).
+    "relations held only with lines the filing does not print taken as zero.": {
+        "zh": "项关系仅在将报表未列报的项目按零计时成立。",
+        "ar": "علاقة لم تصح إلا بعدّ البنود التي لا يطبعها المستند صفرًا.",
+        "fr": "relations ne tiennent qu'en comptant nuls les postes que le document n'imprime pas."},
     "relations checked held.": {
         "zh": "项已校验的关系成立。", "ar": "علاقة تم التحقق منها وتحققت.",
         "fr": "relations vérifiées tiennent."},
@@ -554,6 +559,7 @@ def validation_caption(coverage: dict | None, locale: str = "en") -> tuple[str, 
     agg = coverage.get("aggregate") or {}
     status = str(agg.get("status") or "")
     passed, failed = int(agg.get("passed") or 0), int(agg.get("failed") or 0)
+    assumed = int(agg.get("passed_assumed_zero") or 0)
     evaluated, declarable = int(agg.get("evaluated") or 0), int(agg.get("declarable") or 0)
     unenforceable = [a for a in (coverage.get("alarms") or [])
                      if a.get("code") == "BLOCKING_RULE_UNENFORCEABLE"]
@@ -574,8 +580,15 @@ def validation_caption(coverage: dict | None, locale: str = "en") -> tuple[str, 
                      f"{L('relations checked did not hold; see the review queue.')}")
         severe = True
     elif status == "PARTIAL":
-        parts.append(f"{evaluated} {L('of')} {declarable} "
-                     f"{L('relations could be checked; the rest were not evaluable.')}")
+        # Partly verified for either of two reasons, and each is said only when it is true: some
+        # relations could not run, and some held only on lines taken as zero.
+        if evaluated < declarable:
+            parts.append(f"{evaluated} {L('of')} {declarable} "
+                         f"{L('relations could be checked; the rest were not evaluable.')}")
+        if assumed:
+            held_on_zeros = L("relations held only with lines the filing does not print taken "
+                              "as zero.")
+            parts.append(f"{assumed} {L('of')} {passed} {held_on_zeros}")
     elif status == "PASSED" and not unenforceable:
         # Every declarable relation ran and held; a page the run did not read is still named.
         return (unread, False) if unread else None

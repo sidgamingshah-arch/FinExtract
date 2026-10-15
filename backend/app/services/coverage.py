@@ -49,6 +49,11 @@ between its first two buckets is the whole point:
 * ``STATEMENT_ABSENT`` — the only bucket that does NOT count. A standalone-only filing has no cash
   flow statement; holding it against the run's coverage would make every filing look incomplete.
 
+A pass is not always a plain pass. A relation that holds only because components the filing does not
+print were taken as nil (``details.assumed_zero``) is counted as ``passed_assumed_zero`` inside
+``passed``, and a statement with one is ``PARTIAL`` rather than ``PASSED``: it held, and it is not
+evidence that every line was found.
+
 Five alarm states are reported explicitly, because each of them is invisible in the counts:
 
 * a statement whose every declarable relation was skipped is ``UNVALIDATED`` — it has no failures
@@ -139,11 +144,18 @@ def _row(result: RuleResult | dict) -> dict:
 
 @dataclass
 class Buckets:
-    """The three outcomes, always all three. A caller cannot obtain one without the others."""
+    """The three outcomes, always all three. A caller cannot obtain one without the others.
+
+    ``passed_assumed_zero`` is the part of ``passed`` that held only because components the filing
+    does not print were taken as nil (``details.assumed_zero``). It is inside ``passed`` — the
+    relation did hold, so the three buckets still total the rows — and it is counted apart because
+    such a pass is not evidence that every line was found.
+    """
 
     passed: int = 0
     failed: int = 0
     skipped: int = 0
+    passed_assumed_zero: int = 0
 
     @property
     def total(self) -> int:
@@ -201,12 +213,18 @@ class StatementCoverage:
             return UNVALIDATED
         if self.buckets.failed:
             return FAILED
-        return PASSED if self.coverage_rate == 1.0 else PARTIAL
+        # A pass that took absent components as zero is not a plain pass, so a statement whose
+        # passes include one is partly verified, however many relations ran.
+        if self.coverage_rate == 1.0 and not self.buckets.passed_assumed_zero:
+            return PASSED
+        return PARTIAL
 
     def as_dict(self) -> dict:
         return {
             "statement": self.statement,
             "passed": self.buckets.passed,
+            # Of `passed`, the relations that held with absent components taken as zero.
+            "passed_assumed_zero": self.buckets.passed_assumed_zero,
             "failed": self.buckets.failed,
             "skipped": self.buckets.skipped,
             "evaluated": self.evaluated,
@@ -250,7 +268,8 @@ class CoverageReport:
         agg = self.aggregate
         def pct(value: float | None) -> str:
             return "n/a" if value is None else f"{value * 100:.0f}%"
-        return (f"coverage:{agg.status} pass={agg.buckets.passed} fail={agg.buckets.failed} "
+        return (f"coverage:{agg.status} pass={agg.buckets.passed} "
+                f"pass_assumed_zero={agg.buckets.passed_assumed_zero} fail={agg.buckets.failed} "
                 f"skip={agg.buckets.skipped} validation_rate={pct(agg.validation_rate)}"
                 f"({agg.buckets.passed}/{agg.evaluated}) "
                 f"coverage_rate={pct(agg.coverage_rate)}({agg.evaluated}/{agg.declarable}) "
@@ -274,6 +293,8 @@ def coverage(results: Iterable[RuleResult | dict]) -> CoverageReport:
             status = row.get("status")
             if status == "pass":
                 target.buckets.passed += 1
+                if details.get("assumed_zero"):
+                    target.buckets.passed_assumed_zero += 1
             elif status == "fail":
                 target.buckets.failed += 1
             else:

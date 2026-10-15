@@ -874,6 +874,14 @@ def _derivation_with_folios(store: dict | None, folio_of) -> dict | None:
     return served
 
 
+def _json_safe(value):
+    """`value` as plain JSON — Decimals and other scalars as their string form — for a record built
+    on the pipeline context rather than by a model with its own serializer."""
+    import json
+
+    return json.loads(json.dumps(value, default=str))
+
+
 def _serialize_rows(doc_model, working_view=None) -> list[dict]:
     """Extracted line items in a view-friendly shape, each value with its provenance
     (sheet+cell for Excel, page+bbox for PDF) so the UI can show click-to-source.
@@ -1640,6 +1648,12 @@ def _run_extraction_task(run_id: str, object_key: str, filename: str, options: d
             # Leftover lines a model placed in a section's Others to reconcile a printed subtotal
             # with its components — kept so the routing is inspectable, not silent.
             "gap_routings": list(doc_model.gap_routings or []),
+            # THE RESIDUAL ITEMISATION, per Others line: each row the sweep placed there (its own
+            # caption, sign and figures), the section's reconciliation per column and the review
+            # triggers that fired. The residual stage has always built it; it lived only on the
+            # pipeline context, so after the run a swept row's itemisation survived only as log
+            # lines and row flags.
+            "residual_itemisation": _json_safe(getattr(ctx, "residual_itemisation", None) or []),
             # Which of the eight analyst buckets each face row and each note belongs to. Membership
             # only — the figures live once, on ``rows`` and ``note_details``, and the buckets
             # endpoints join to them at serve time (services/buckets.py).

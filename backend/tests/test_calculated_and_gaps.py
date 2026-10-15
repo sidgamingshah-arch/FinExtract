@@ -195,9 +195,9 @@ def test_a_line_with_a_typed_over_period_stays_edited_when_the_other_period_diff
     assert row["queued1"] is True          # …while the inspector can still say its card is queued
 
 
-def test_only_the_current_column_difference_is_said_to_be_in_the_queue():
-    # Both years differ from the page, but the calculated card is the current column's alone, so
-    # the queue flag is the current column's: last year's difference has no card of its own.
+def test_each_columns_difference_is_said_to_be_in_the_queue():
+    # Both years differ from the page, and the calculated card is raised for each column, so each
+    # column's queue flag is its own.
     from app.api.routes.documents import _CrossCheck
 
     rows = [_row("bs_ca__inventories", "Inventories", 100, 90),
@@ -205,13 +205,17 @@ def test_only_the_current_column_difference_is_said_to_be_in_the_queue():
             _row("bs_ca__total", "Total current assets", 999, 888)]
     row = _row_of(_stmt(rows, cross_check=_CrossCheck(["bs_ca__total"], 0.5)), "bs_ca__total")
     assert (row["printed1"], row["printed2"]) == (999, 888)
-    assert row["queued1"] is True
-    assert "queued2" not in row
-    # This year ties: the prior difference is still stated, and nothing is queued.
+    assert (row["queued1"], row["queued2"]) == (True, True)
+    # This year ties: last year's difference is stated, and it is the one queued.
     rows[-1] = _row("bs_ca__total", "Total current assets", 130, 888)
     row = _row_of(_stmt(rows, cross_check=_CrossCheck(["bs_ca__total"], 0.5)), "bs_ca__total")
     assert (row["printed1"], row["printed2"]) == (None, 888)
-    assert row["queued1"] is False
+    assert (row["queued1"], row["queued2"]) == (False, True)
+    assert row["status"] == "recon"
+    # Both tie: nothing is queued.
+    rows[-1] = _row("bs_ca__total", "Total current assets", 130, 110)
+    row = _row_of(_stmt(rows, cross_check=_CrossCheck(["bs_ca__total"], 0.5)), "bs_ca__total")
+    assert (row["queued1"], row["queued2"]) == (False, False)
     assert row["status"] is None
 
 

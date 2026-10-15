@@ -394,7 +394,9 @@ export default function ReviewScreen() {
   // view. Matched on the row handle the re-map posts, never on the card id (a render key).
   useEffect(() => {
     if (!focusRowRef || !data) return;
-    const card = data.checks.find((x) => x.remap?.row_ref === focusRowRef);
+    // A swept row is mapped from its Others line's card, which lists it.
+    const card = data.checks.find((x) => x.remap?.row_ref === focusRowRef)
+      ?? data.checks.find((x) => (x.swept_rows ?? []).some((r) => r.row_ref === focusRowRef));
     if (card) {
       const cur = data.tabs[tab];
       if (cur?.types && !cur.types.includes(card.type)) {
@@ -451,6 +453,30 @@ export default function ReviewScreen() {
 
   const failed = (id: string, err: unknown) =>
     setErrors((s) => ({ ...s, [id]: judgementErrorText(err, t) }));
+
+  /** Re-map one printed row, from its own card or from a swept card's row list. `sk` is the card
+   *  whose error slot a refusal is shown in. */
+  const applyRemap = (rr: string, sk: string) => {
+    setErrors((s) => ({ ...s, [sk]: "" }));
+    remapMut.mutate(
+      { rowRef: rr, canonicalKey: picks[rr] ?? "",
+        reason: (remapReasons[rr] ?? "").trim(), locale },
+      {
+        // The row moves, so the card goes; neither box's text may survive onto
+        // whatever card the refetch puts in its place — the acceptance reason
+        // included, which was typed against a finding that no longer exists.
+        onSuccess: () => {
+          setPicks((s) => { const n = { ...s }; delete n[rr]; return n; });
+          setRemapReasons((s) => { const n = { ...s }; delete n[rr]; return n; });
+          setReasons((s) => ({ ...s, [sk]: "" }));
+        },
+        // The refusal is shown in the CARD's error slot, so it is keyed the way
+        // that slot is read — on the subject — not on the row handle the request
+        // carried.
+        onError: (e) => failed(sk, e),
+      },
+    );
+  };
 
   /** The Workspace, on the explained line when there is one: basis, then statement, then line —
    *  in that order, because choosing a statement clears the selected line. The Workspace then shows
@@ -872,6 +898,16 @@ export default function ReviewScreen() {
                       {t("r.reconciliation")}
                     </div>
                     <FigureRows rows={c.calc} accent={ac} />
+                    {/* The components a relation took as nil, named: the zeros above them were not
+                        read, the filing does not print those lines. */}
+                    {c.assumed_zero_note && (
+                      <div
+                        data-testid="rv-assumed-zero"
+                        style={{ fontSize: 11, color: color.amberFg, marginTop: 7, lineHeight: 1.5 }}
+                      >
+                        {c.assumed_zero_note}
+                      </div>
+                    )}
                   </div>
 
                   {/* RIGHT — suggested fix */}
@@ -904,7 +940,7 @@ export default function ReviewScreen() {
                         sides, and overwriting a computed subtotal with the printed figure would
                         hide the component that caused it. Said in a sentence: a greyed-out button
                         still advertises a capability that does not exist. */}
-                    {!c.fix_action && !c.remap && !eb && (
+                    {!c.fix_action && !c.remap && !eb && !(c.swept_rows ?? []).length && (
                       <div style={{ fontSize: 11, color: color.muted, marginTop: 7, lineHeight: 1.5 }}>
                         {t("r.manualFixOnly")}
                       </div>
@@ -1003,28 +1039,54 @@ export default function ReviewScreen() {
                     canEdit={canEdit}
                     onOpenLine={openInWorkspace}
                     t={t}
-                    onApply={() => {
-                      setErrors((s) => ({ ...s, [sk]: "" }));
-                      remapMut.mutate(
-                        { rowRef: rr, canonicalKey: picks[rr] ?? "",
-                          reason: (remapReasons[rr] ?? "").trim(), locale },
-                        {
-                          // The row moves, so the card goes; neither box's text may survive onto
-                          // whatever card the refetch puts in its place — the acceptance reason
-                          // included, which was typed against a finding that no longer exists.
-                          onSuccess: () => {
-                            setPicks((s) => { const n = { ...s }; delete n[rr]; return n; });
-                            setRemapReasons((s) => { const n = { ...s }; delete n[rr]; return n; });
-                            setReasons((s) => ({ ...s, [sk]: "" }));
-                          },
-                          // The refusal is shown in the CARD's error slot, so it is keyed the way
-                          // that slot is read — on the subject — not on the row handle the request
-                          // carried.
-                          onError: (e) => failed(sk, e),
-                        },
-                      );
-                    }}
+                    onApply={() => applyRemap(rr, sk)}
                   />
+                )}
+
+                {/* THE ROWS SWEPT INTO THIS OTHERS LINE, each with its caption, page and both
+                    figures as the server formatted them, and the same re-map control the unmapped
+                    card offers — so a row that has a proper line can be moved to it from here. */}
+                {(c.swept_rows ?? []).length > 0 && (
+                  <div data-testid="rv-swept" style={{ marginBottom: 13 }}>
+                    <div style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: 0.4,
+                                  color: color.muted, marginBottom: 8 }}>
+                      {t("r.sweptHead")}
+                    </div>
+                    {(c.swept_rows ?? []).map((row) => {
+                      const busy = remapMut.isPending && remapMut.variables?.rowRef === row.row_ref;
+                      return (
+                        <div
+                          key={row.row_ref}
+                          data-testid="rv-swept-row"
+                          data-row-ref={row.row_ref}
+                          style={{ borderTop: `1px dashed ${color.hairline2}`, paddingTop: 9,
+                                   marginTop: 4 }}
+                        >
+                          <div style={{ fontSize: 12, color: color.ink, marginBottom: 6 }}>
+                            <bdi data-testid="rv-swept-label">“{row.label}”</bdi> ·{" "}
+                            <bdi>{row.src}</bdi> ·{" "}
+                            <span style={{ fontFamily: font.mono, unicodeBidi: "isolate" }}>
+                              {row.v1_display} / {row.v2_display}
+                            </span>
+                          </div>
+                          <RemapPanel
+                            offer={row.remap}
+                            targets={data.remap_targets}
+                            picked={picks[row.row_ref]}
+                            onPick={(key) => setPicks((s) => ({ ...s, [row.row_ref]: key }))}
+                            reason={remapReasons[row.row_ref] ?? ""}
+                            onReason={(text) =>
+                              setRemapReasons((s) => ({ ...s, [row.row_ref]: text }))}
+                            busy={busy}
+                            canEdit={canEdit}
+                            onOpenLine={openInWorkspace}
+                            t={t}
+                            onApply={() => applyRemap(row.row_ref, sk)}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
 
                 {/* The judgement on the record, for an accepted card: what was said, and the
@@ -1131,11 +1193,12 @@ export default function ReviewScreen() {
                     </>
                   )}
                   {/* On an explained card this lands on the line, with the explaining row shown in
-                      the viewer; on every other card it opens the Workspace as it was. */}
+                      the viewer; on a swept or conflict card it lands on the line the card is
+                      about; on every other card it opens the Workspace as it was. */}
                   <Button
                     variant="secondary"
                     testid="rv-open-workspace"
-                    onClick={() => openInWorkspace(eb)}
+                    onClick={() => openInWorkspace(c.line ?? eb)}
                     style={{ fontSize: 12, padding: "8px 15px", borderRadius: 8 }}
                   >
                     {t("r.openInWorkspace")}

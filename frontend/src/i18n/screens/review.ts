@@ -116,6 +116,9 @@ export const review: Record<Locale, Record<string, string>> = {
     "r.cov.notCounted": "not counted",
     "r.cov.reportedAbove": "failed relations are reported by a finding above",
     "r.cov.recomputedFrom": "Recomputed from run",
+    "r.sweptHead": "ROWS SWEPT INTO THIS LINE — MOVE ONE THAT HAS A PROPER LINE",
+    "r.cov.heldAssumedZero": "of them with assumed zeros",
+    "r.cov.assumedZeroHead": "Held with assumed zeros — these lines were taken as nil because the filing does not print them, so the pass is not evidence that every line was found",
   },
   zh: {
     "r.title": "审核队列",
@@ -194,6 +197,9 @@ export const review: Record<Locale, Record<string, string>> = {
     "r.cov.notCounted": "不计入",
     "r.cov.reportedAbove": "条不成立的关系式已由上方的发现报告",
     "r.cov.recomputedFrom": "重新计算自运行",
+    "r.sweptHead": "归入此项的行——有对应项目的请移过去",
+    "r.cov.heldAssumedZero": "条按零计成立",
+    "r.cov.assumedZeroHead": "按零计成立——以下项目因报表未列报而按零计，因此该项成立并不证明所有行都已找到",
   },
   ar: {
     "r.title": "قائمة المراجعة",
@@ -272,6 +278,9 @@ export const review: Record<Locale, Record<string, string>> = {
     "r.cov.notCounted": "غير محتسبة",
     "r.cov.reportedAbove": "علاقة فاشلة يُبلِّغ عنها بندٌ أعلاه",
     "r.cov.recomputedFrom": "أُعيد حسابها من العملية",
+    "r.sweptHead": "صفوف أُدرجت في هذا البند — انقل ما له بند مناسب",
+    "r.cov.heldAssumedZero": "منها بافتراض أصفار",
+    "r.cov.assumedZeroHead": "صحيحة بافتراض أصفار — عُدّت هذه البنود صفرًا لأن المستند لا يطبعها، فالنجاح ليس دليلًا على العثور على كل البنود",
   },
   fr: {
     "r.title": "File de révision",
@@ -352,5 +361,8 @@ export const review: Record<Locale, Record<string, string>> = {
     "r.cov.notCounted": "non comptées",
     "r.cov.reportedAbove": "relations en échec sont signalées par un constat ci-dessus",
     "r.cov.recomputedFrom": "Recalculé à partir de l'exécution",
+    "r.sweptHead": "LIGNES VERSÉES DANS CE POSTE — DÉPLACEZ CELLE QUI A SON POSTE",
+    "r.cov.heldAssumedZero": "dont avec des zéros supposés",
+    "r.cov.assumedZeroHead": "Vérifiées avec des zéros supposés — ces postes ont été comptés nuls car le document ne les imprime pas : la vérification ne prouve pas que chaque ligne a été trouvée",
   },
 };

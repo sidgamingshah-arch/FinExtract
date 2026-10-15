@@ -435,14 +435,25 @@ _SIGNS_NEVER_IN_DOUBT = ("balance_sheet",)
 
 
 def _signs_established(rel: "Relation", section_of: dict[str, str],
-                       one_signed: frozenset[str] | None) -> bool:
-    """Whether every key in this relation sits in a section the rulebook declares one-signed.
+                       one_signed: frozenset[str] | None,
+                       costs: frozenset[str] = frozenset()) -> bool:
+    """Whether this relation's signs are established, so a plain sum of it is the arithmetic.
 
-    A plain SUM asserts that its components add to its target, which needs their signs. The
-    rulebook establishes them per section: `positive_expected` says the members are magnitudes
-    however the filing prints them, `either` says "retain the reported sign; never coerce" — and
-    on a statement that nets (revenue against costs, proceeds against purchases) a filing printing
-    costs unsigned then makes the sum something other than the template's arithmetic.
+    A plain SUM asserts that its components add to its target, which needs their signs. They are
+    established three ways, and any one is enough:
+
+    * the RULEBOOK declares every section the keys sit in one-signed (`positive_expected`: the
+      members are magnitudes however the filing prints them);
+    * the FILING signs those sections — `one_signed` also carries the sections whose costs this
+      filing prints in parentheses (see `_signed_on_filing`), because a section that prints its
+      costs negative adds up as printed;
+    * the TEMPLATE spends the relation's costs as magnitudes (`cost_magnitude_children`): every cost
+      among its components is declared a magnitude and the target is not itself a cost, so the sum
+      takes each cost off whatever sign it was printed with.
+
+    `either` alone establishes nothing: it says "retain the reported sign; never coerce", and on a
+    statement that nets (revenue against costs, proceeds against purchases) a filing printing costs
+    unsigned then makes the sum something other than the template's arithmetic.
 
     A RULEBOOK THAT DECLARES NOTHING GATES NOTHING. `evaluate_structure`'s `ontology` is optional
     and additive — "without it only the template's own relations are evaluated, which is what a
@@ -453,7 +464,94 @@ def _signs_established(rel: "Relation", section_of: dict[str, str],
     if one_signed is None or rel.statement in _SIGNS_NEVER_IN_DOUBT:
         return True
     sections = {section_of.get(k, "") for k in (rel.target, *rel.components)}
-    return bool(sections) and sections <= one_signed
+    if sections and sections <= one_signed:
+        return True
+    return _signed_by_convention(rel, costs)
+
+
+def _signed_by_convention(rel: "Relation", costs: frozenset[str]) -> bool:
+    """Whether the template's `cost_magnitude_children` make this sum sign-safe on any filing.
+
+    A magnitude component is spent as `-|figure|`, so its printed sign does not matter. That settles
+    the relation when every cost among its components is one, and the TARGET is not a cost: a
+    total of costs is printed negative by one filing and unsigned by the next, and the magnitudes do
+    not decide which. `is_pl__gross_profit` qualifies (its one cost, total cost of sales, is a
+    magnitude); `is_pl__total_cost_of_sales` does not (it is itself a cost).
+    """
+    if not rel.magnitudes or rel.target in costs:
+        return False
+    return all(c in rel.magnitudes for c in rel.components if c in costs)
+
+
+def declared_costs(template: TemplateDefinition, ontology=None) -> frozenset[str]:
+    """The concepts the configuration itself calls costs.
+
+    Two declarations name them: the template's `cost_magnitude_children` (every concept a rollup
+    spends as a cost, on any rollup) and the rulebook's `negative_expected` sign convention. Nothing
+    is inferred from a caption.
+    """
+    out: set[str] = set()
+    key_of = {n.node_id: n.canonical_key for n in template.all_nodes()}
+    for node in template.all_nodes():
+        rollup = getattr(node, "rollup", None)
+        for child in (getattr(rollup, "cost_magnitude_children", None) or ()):
+            key = key_of.get(child) or child
+            if key:
+                out.add(key)
+    for m in (getattr(ontology, "mappings", None) or ()):
+        if str(getattr(m, "sign_convention", "") or "") == "negative_expected":
+            out.add(str(getattr(m, "canonical_key", "") or ""))
+    out.discard("")
+    return frozenset(out)
+
+
+# The mapping methods that place a row in a section without a concept claiming it: the sweep and
+# the gap-closer that routes leftovers into a section's Others.
+_NOT_EVIDENCE_METHODS = ("residual", *DERIVED_METHODS)
+
+
+def _signed_on_filing(items: Iterable[LineItem], section_of: dict[str, str],
+                      costs: frozenset[str]) -> frozenset[str]:
+    """The sections whose signs THIS FILING establishes: its costs are printed negative.
+
+    A section qualifies when a figure printed on the face in it is negative — a cost in
+    parentheses, an outflow with a minus, or a line `normalize` oriented on load (a "Less:" caption,
+    a CAS outflow block) — and none of its declared costs (`declared_costs`) is printed positive.
+    The second half is what keeps a CAS income statement out: it prints credit-impairment losses
+    with a minus and its cost of sales unsigned, so one negative is not evidence that the costs are
+    signed.
+
+    Read across both columns and both bases at once, because printing costs in parentheses is a
+    choice a filing makes for a statement, not for a column (the same reading
+    `normalize._negate_unsigned_expenses` makes). Face rows only: a note prints its own detail its
+    own way, and a figure this pipeline computed was not printed at all.
+
+    AND ONLY ROWS A CONCEPT CLAIMED. A row the residual stage swept into a section's Others line (or
+    a model routed there) sits in that section by inference, so its sign says nothing about how the
+    filing prints the section. Measured on a stored CAS run whose cash-flow outflows were never
+    oriented: a swept investing subtotal printed "-63,077,961.11" was the only negative in the
+    operating section, and counting it reported the operating total out by 7.6bn.
+    """
+    from app.core.models.enums import PrintedIn
+
+    negative: set[str] = set()
+    unsigned_cost: set[str] = set()
+    for li in items:
+        key = li.canonical_key or ""
+        section = section_of.get(key, "")
+        if not section or li.is_computed or li.printed_in == PrintedIn.NOTES:
+            continue
+        if (li.confidence.method or "") in _NOT_EVIDENCE_METHODS:
+            continue
+        for ev in li.values.values():
+            figure = _printed(ev)
+            if figure is None or figure == 0:
+                continue
+            if figure < 0:
+                negative.add(section)
+            elif key in costs:
+                unsigned_cost.add(section)
+    return frozenset(negative - unsigned_cost)
 
 
 def _rollup_reach(template: TemplateDefinition) -> dict[str, frozenset[str]]:
@@ -512,8 +610,14 @@ def _one_signed_sections(ontology) -> frozenset[str] | None:
     return frozenset(out)
 
 
-def section_relations(template: TemplateDefinition, ontology) -> list[Relation]:
+def section_relations(template: TemplateDefinition, ontology,
+                      signed_on_filing: frozenset[str] = frozenset(),
+                      section_of: dict[str, str] | None = None) -> list[Relation]:
     """One reconciliation per template section, when the rulebook asks for it.
+
+    ``signed_on_filing`` names the sections whose costs this filing prints negative
+    (``_signed_on_filing``), keyed like ``section_of`` (concept -> ``section_scope``). A netting
+    section whose every key sits in one of them is reconciled; see the sign test below.
 
     The rulebook states the rule in prose and states its consequence in the same sentence, so both
     are read from it: the check exists while the sentence does, it emits the fact the sentence
@@ -641,8 +745,12 @@ def section_relations(template: TemplateDefinition, ontology) -> list[Relation]:
             # the section short by 361,237,582,413.82 against a printed profit of 800,840,003.25 —
             # 45,107% of it. An unusable number for a real defect, which is now named in the skip
             # reason instead of asserted as a break.
+            # …OR WHERE THE FILING SIGNS THEM. A section whose costs are printed in parentheses
+            # adds up as printed, so the identity holds there whatever the rulebook declares.
+            scopes = {(section_of or {}).get(k, "") for k in (subtotal, *members)}
+            evidenced = bool(scopes) and scopes <= signed_on_filing
             if (st.type.value not in _SIGNS_NEVER_IN_DOUBT and one_signed is not None
-                    and section.node_id not in one_signed):
+                    and section.node_id not in one_signed and not evidenced):
                 out.append(Relation(
                     id=f"section_reconciliation:{section.node_id}", kind="section_reconciliation",
                     statement=st.type.value, target=subtotal, components=members, op="sum",
@@ -928,6 +1036,7 @@ def evaluate_structure(template: TemplateDefinition,
     extracted is skipped as ``statement_not_read``, not ``statement_absent``: the filing may well
     print the statement, and only the second reason leaves the coverage denominator.
     """
+    items = list(items)
     vals = collect_values(items)
     report = StructuralReport()
     stmt_of = _statement_index(template)
@@ -938,6 +1047,12 @@ def evaluate_structure(template: TemplateDefinition,
     section_of = {str(getattr(m, "canonical_key", "")):
                   (tuple(getattr(m, "section_scope", None) or ("",)) or ("",))[0]
                   for m in (getattr(ontology, "mappings", None) or ())}
+    # …and which sections THIS FILING signs, by printing their costs negative. Evidence, read off
+    # the face rows; it widens the declared set and never narrows it.
+    costs = declared_costs(template, ontology)
+    signed_here = _signed_on_filing(items, section_of, costs)
+    established = (None if signed_sections is None
+                   else frozenset(signed_sections | signed_here))
     # A statement no key was extracted for is not thin coverage, it is a statement this filing
     # does not contain (a standalone-only filing has no cash flow). Its relations are still
     # reported — silence would be indistinguishable from a pass — but they must not sit in the
@@ -948,7 +1063,8 @@ def evaluate_structure(template: TemplateDefinition,
     declared = relations(template)
     if ontology is not None:
         declared += ontology_identities(template, ontology)
-        declared += section_relations(template, ontology)
+        declared += section_relations(template, ontology, signed_on_filing=signed_here,
+                                      section_of=section_of)
     # TWO RELATIONS MUST NOT SHARE AN ID, for the same reason two guards must not (see ``_unique``):
     # the review card's DOM id is ``chk-structural-{rule_id}-{scope_key}`` and the coverage report
     # keys its per-rule alarms on the id, so one id over two relations is one card for two
@@ -1001,12 +1117,17 @@ def evaluate_structure(template: TemplateDefinition,
         # is reported instead, naming what is unestablished, so the coverage layer counts it as
         # unverified rather than as a filing that fails its own arithmetic.
         #
+        # ESTABLISHED BY EVIDENCE, not by the section's `either` alone (see `_signs_established`): a
+        # filing that prints its costs in parentheses has signed them, and a rollup that spends its
+        # costs as magnitudes needs no signs. An HKEX income statement and an Ind AS cash flow are
+        # checked; a CAS income statement, whose cost of sales is printed unsigned, still is not.
+        #
         # THE BALANCE SHEET IS EXEMPT BY CONSTRUCTION, not by what its sections happen to declare
         # — see `_SIGNS_NEVER_IN_DOUBT`. A balance sheet does not net, so nothing on it is at risk
         # from an unoriented cost, and those are exactly the relations that tie: all eight sections
         # on China SCE, and 8 of 12 relations on 000709 where 4 were passing before.
         if (rel.kind == "rollup" and rel.op == "sum" and not rel.signs
-                and not _signs_established(rel, section_of, signed_sections)):
+                and not _signs_established(rel, section_of, established, costs)):
             report.results.append(_skip(rel, [], "component_signs_not_established", {
                 "sections": sorted({section_of.get(k, "?") for k in keys})}))
             continue

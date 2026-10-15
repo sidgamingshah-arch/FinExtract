@@ -486,12 +486,13 @@ export interface StatementRow {
    *  on a row that is not a calculated line. The published figure stays `v1`/`v2`. */
   printed1?: number | null;
   printed2?: number | null;
-  /** Whether the CURRENT column's difference is a review finding — the line is one the
-   *  configuration compares and it differs beyond the tolerance. Current only, because the
-   *  calculated card is evaluated for that column alone; apart from `status`, because a line that
-   *  carries a typed value keeps "edited" while its card is still in the queue. Absent on a row
-   *  that is not a calculated line, and on an older payload. */
+  /** Whether a column's difference is a review finding — the line is one the configuration
+   *  compares and it differs beyond the tolerance. Per column, because the calculated card is
+   *  evaluated for each column; apart from `status`, because a line that carries a typed value
+   *  keeps "edited" while its card is still in the queue. Absent on a row that is not a
+   *  calculated line, and on an older payload (which has no prior-year card). */
   queued1?: boolean;
+  queued2?: boolean;
   /** The printed row nothing mapped whose figures account for this line's difference from the
    *  document in both periods — read-time only: the server recomputes it on every request and
    *  nothing moves until the analyst re-maps the row (POST /review/remap). Null on a calculated
@@ -1345,6 +1346,9 @@ export interface CoverageStatement {
   statement: string;
   label: string;
   passed: number;
+  /** Of `passed`, the relations that held with absent components taken as zero. A statement
+   *  with one is partly verified, never fully. Absent on a payload served before it existed. */
+  passed_assumed_zero?: number;
   failed: number;
   skipped: number;
   evaluated: number;
@@ -1399,13 +1403,29 @@ export type CoverageBlock =
       failed_reported_elsewhere: number;
       /** The pages the run did not read; a statement on them is NOT_READ, not absent. */
       unread_pages?: UnreadPage[];
+      /** Every relation that passed with absent components taken as zero, with those lines. */
+      assumed_zero_passes?: AssumedZeroPass[];
     };
+
+/** A relation that held only because lines the filing does not print were taken as nil. `note` is
+ *  the server's sentence ("Assumed zero: …"), already localized. */
+export interface AssumedZeroPass {
+  rule_id: string;
+  statement: string | null;
+  scope: string;
+  target: string;
+  target_label: string;
+  assumed_zero: { key: string; label: string }[];
+  note: string;
+}
 
 export interface ReviewCheck {
   id: string;
   /** The card kind. One of the accounting kinds — `balance`, `equity_tie`, `structural`,
-   *  `calculated_mismatch`, `containment_gap` — or the row-shaped one, `unmapped`. The server
-   *  declares that set (`_ACCOUNTING_TYPES` / `_ROW_SHAPED_TYPES` in routes/documents.py) and
+   *  `calculated_mismatch`, `containment_gap` — the row-shaped one, `unmapped`, the `swept` card
+   *  of an Others line, or a conflict, `readings_disagree` / `model_replaced_printed`. The server
+   *  declares that set (`_ACCOUNTING_TYPES` / `_ROW_SHAPED_TYPES` / `_SWEPT_TYPES` /
+   *  `_CONFLICT_TYPES` in routes/documents.py) and
    *  refuses to serve a card outside it, because a kind with no chip is invisible under every
    *  filter. Kept as `string` rather than a union: the tabs carry the types they select, so this
    *  screen never switches on the value, and a union here would make a server-side addition a
@@ -1496,6 +1516,28 @@ export interface ReviewCheck {
    *  card's subject and evidence, and nothing moves until the analyst re-maps the row
    *  (POST /review/remap). Optional: the sample payload does not carry it. */
   explained_by?: ExplainedBy | null;
+  /** The line the card is about, where "Open in workspace" lands: the swept and conflict cards
+   *  carry it. Null on the other kinds, which land through `explained_by` or not at all. */
+  line?: { basis: Basis; statement: StatementKey; target: string } | null;
+  /** The `swept` card only: each printed row the residual stage placed in this Others line, with
+   *  its own re-map control. */
+  swept_rows?: SweptRow[];
+  /** Structural cards only: the components taken as zero, and the server's sentence naming them. */
+  assumed_zero?: { key: string; label: string }[];
+  assumed_zero_note?: string;
+}
+
+/** One row swept into an Others line, as its card lists it. Figures are the row's own, formatted
+ *  by the server. */
+export interface SweptRow {
+  row_ref: string;
+  label: string;
+  src: string;
+  source?: ExtractionProvenance | null;
+  basis: Basis;
+  v1_display: string;
+  v2_display: string;
+  remap: RemapOffer;
 }
 
 /** The printed row that explains a calculated line's difference, as the statement row and the
