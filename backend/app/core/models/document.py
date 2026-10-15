@@ -92,6 +92,10 @@ class DocumentModel(BaseModel):
     # whose titles are all missed, since both produce silence. Review these across a corpus and fold
     # the real vocabulary back into the lexicon.
     unmapped_titles: list[str] = Field(default_factory=list)
+    # The pages the reader meant to read and did not — out of the page selection, read only for a
+    # switched-off section, or scanned with no OCR engine — as ``services.unread_pages`` entries.
+    # Kept so a statement nobody read is never reported as one the filing does not contain.
+    unread_pages: list[dict] = Field(default_factory=list)
 
     def face_pages(self) -> list[PageSource]:
         return [p for p in self.pages if p.kind == PageKind.FACE]

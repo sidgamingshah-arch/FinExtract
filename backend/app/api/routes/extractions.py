@@ -240,9 +240,39 @@ def _supplemental_template_nodes(template_def: dict | None) -> list[dict]:
     return deduped
 
 
+# THE QUESTIONS ONLY THE FILING CAN ANSWER, and that are answered only where it does. Each of these
+# used to come back "No": pledged assets, secured borrowings and derivatives whenever ANY of the
+# eight disclosures the presence scan knows was found (auditor qualification, going concern, related
+# parties, …, none of them about these topics), related-party transactions whenever the scan missed,
+# and RM confirmation always. A "No" at confidence 1.0 closes a question a credit reader relies on;
+# a blank flagged `not_determined` leaves it open, which is what nothing having been read means.
+#
+# REAL EVIDENCE still answers: a row mapped to the line is served as itself (it never reaches this
+# builder, see `existing`), a note line mapped to it answers "Yes" from that note, and related-party
+# transactions answer "Yes" from the related-party disclosure the scan found.
+_NOT_DETERMINED_UNLESS_EVIDENCE = frozenset({
+    "related_party_transactions", "pledged_assets", "secure_borrowings", "derivatives",
+    "confirmed_with_rm",
+})
+NOT_DETERMINED = "not_determined"
+# The mapping confidence of an answer nothing supports: nothing was read that bears on it.
+_NOT_DETERMINED_CONFIDENCE = 0.0
+
+
+def _note_evidence(doc_model, key: str) -> tuple[object, object] | None:
+    """The first note line mapped to ``key``, with its note, or None."""
+    for table in getattr(doc_model, "notes", None) or []:
+        for item in getattr(table, "items", None) or []:
+            if getattr(item, "canonical_key", None) == key:
+                return table, item
+    return None
+
+
 def _supp_row(key: str, label: str, *, value: str | None,
               period: str = "current", period_display: str | None = None,
-              basis: str = "consolidated") -> dict:
+              basis: str = "consolidated", not_determined: bool = False,
+              provenance: dict | None = None, confidence: float = 1.0,
+              flags: list[str] | None = None) -> dict:
     values = []
     if value is not None and str(value).strip() != "":
         values.append({
@@ -251,15 +281,20 @@ def _supp_row(key: str, label: str, *, value: str | None,
             "column_index": None,
             "basis": basis,
             "value": str(value),
-            "provenance": None,
+            "provenance": provenance,
             "confidence": {
-                "mapping": 1.0,
+                "mapping": confidence,
                 "validation": 1.0,
-                "overall": 1.0,
+                "overall": confidence,
                 "weakest": "mapping",
-                "flags": ["supplemental:derived"],
+                "flags": ["supplemental:derived", *(flags or [])],
             },
         })
+    row_flags = ["supplemental:template_declared", *(flags or [])]
+    if not_determined:
+        # Blank, and saying so: a reader cannot tell an empty cell nobody looked for from one the
+        # filing left empty, so the row carries why and its confidence says nothing supports it.
+        row_flags += [NOT_DETERMINED, "low_mapping_confidence"]
     return {
         "id": f"supp::{key}",
         "source_label": label,
@@ -272,8 +307,8 @@ def _supp_row(key: str, label: str, *, value: str | None,
         "notes": [],
         "role": "line",
         "mapping_method": "supplemental",
-        "mapping_confidence": 1.0,
-        "flags": ["supplemental:template_declared"],
+        "mapping_confidence": _NOT_DETERMINED_CONFIDENCE if not_determined else confidence,
+        "flags": row_flags,
         "values": values,
     }
 
@@ -330,7 +365,16 @@ def _build_supplemental_rows(*, template_def: dict | None, base_rows: list[dict]
 
     hit_disclosures = {str(d.get("key") or ""): d for d in disclosures if d.get("present")}
     unit = getattr(doc_model, "unit_context", None)
-    target_currency = (options or {}).get("target_currency") or getattr(unit, "target_currency", None)
+    # A TARGET CURRENCY IS WRITTEN ONLY OVER FIGURES IN IT. The run converts nothing: its figures
+    # stay in the filing's own currency, and conversion is a presentation step (the Workspace's FX
+    # rate master). So the requested target was a label over figures that were never converted. It
+    # is written when the figures are in it — the filing's own currency already is the target — and
+    # otherwise left blank, the row saying which target was asked for and not applied.
+    requested_currency = ((options or {}).get("target_currency") or "").strip() or None
+    target_currency = None
+    if requested_currency and (getattr(unit, "currency", "") or "").strip().upper() \
+            == requested_currency.upper():
+        target_currency = requested_currency.upper()
     # THE FILING'S OWN CURRENCY AND SCALE, as detected. `UnitContext` carries `currency` and
     # `scale_factor`; it never had a `source_currency` or `target_units`, so Source Currency was
     # blank on every export and Rounding showed the requested TARGET units (or nothing) rather than
@@ -376,14 +420,39 @@ def _build_supplemental_rows(*, template_def: dict | None, base_rows: list[dict]
         value: str | None = None
         period = "current"
         period_display = current_display
+        evidence: dict = {}
+        not_determined = False
 
         if key in setup_values:
             value = setup_values[key]
+            if key == "statement_setup_controls__target_currency" and requested_currency \
+                    and value is None:
+                evidence["flags"] = [f"target_currency_not_applied:{requested_currency}"]
+        elif key.startswith("notes__") \
+                and key.removeprefix("notes__") in _NOT_DETERMINED_UNLESS_EVIDENCE:
+            nkey = key.removeprefix("notes__")
+            noted = _note_evidence(doc_model, key) if nkey != "confirmed_with_rm" else None
+            disclosure = hit_disclosures.get("related_party") \
+                if nkey == "related_party_transactions" else None
+            if noted is not None:
+                table, item = noted
+                first = next(iter((getattr(item, "values", None) or {}).values()), None)
+                prov = getattr(first, "provenance", None)
+                mapped = getattr(getattr(first, "confidence", None), "mapping", None)
+                value = "Yes"
+                evidence = {
+                    "provenance": (_prov_dict(prov, _folio_lookup(doc_model))
+                                   if prov is not None else None),
+                    "confidence": float(mapped) if mapped is not None else 1.0,
+                    "flags": [f"supplemental:note_line:{getattr(table, 'note_number', '')}"]}
+            elif disclosure is not None:
+                value = "Yes"
+                evidence = {"flags": ["supplemental:disclosure:related_party"]}
+            else:
+                not_determined = True
         elif key.startswith("notes__"):
             nkey = key.removeprefix("notes__")
-            if nkey == "related_party_transactions":
-                value = "Yes" if "related_party" in hit_disclosures else "No"
-            elif nkey == "contingent_liabilities":
+            if nkey == "contingent_liabilities":
                 # LEFT EMPTY DELIBERATELY, never "No". This concept is NUMERIC and its figure has
                 # to come from configuration — a note source the rulebook describes, bound like any
                 # other line. Reaching this branch means nothing bound it, and the rulebook is
@@ -402,10 +471,10 @@ def _build_supplemental_rows(*, template_def: dict | None, base_rows: list[dict]
                 value = "Qualified" if "auditor_qualification" in hit_disclosures else "Unqualified/Not detected"
             elif nkey == "notes":
                 value = f"{len(getattr(doc_model, 'notes', []) or [])} extracted note tables"
-            elif nkey == "confirmed_with_rm":
-                value = "No"
             else:
-                value = "No" if hit_disclosures else None
+                # A notes line this builder has no evidence for. It answered "No" whenever any
+                # disclosure at all was found; nothing here bears on it, so it is not determined.
+                not_determined = True
         else:
             key_norm = _norm(key)
             for rk, rv in ratio_map.items():
@@ -422,7 +491,8 @@ def _build_supplemental_rows(*, template_def: dict | None, base_rows: list[dict]
                         break
 
         out.append(_supp_row(key, label, value=value, period=period,
-                             period_display=period_display, basis=basis))
+                             period_display=period_display, basis=basis,
+                             not_determined=not_determined, **evidence))
     return out
 
 
@@ -1538,6 +1608,10 @@ def _run_extraction_task(run_id: str, object_key: str, filename: str, options: d
             "entity": entity_name,
             "pages": [p.model_dump(mode="json") for p in doc_model.pages],
             "page_count": len(doc_model.pages),
+            # The pages the reader meant to read and did not, each with why: out of the page
+            # selection, read only for a switched-off section, or scanned with no OCR engine
+            # (services/unread_pages.py). Coverage, the Workspace and the export read it here.
+            "unread_pages": list(doc_model.unread_pages or []),
             "line_item_count": len(doc_model.line_items),
             "notes": len(doc_model.notes),
             "rows": [*base_rows, *supplemental_rows],

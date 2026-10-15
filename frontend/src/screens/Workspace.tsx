@@ -16,7 +16,7 @@ import { ExcelGrid, PageStack, toPicked, type Picked } from "../components/Sourc
 import { TrailFooter, TrailTitle, isEntered, statusOf, statusPill, trailSentence, whyOf, whyText } from "../components/TrailWorking";
 import { color, confStyle, font, layout, radius, shadow, fmtIN, fmtPlain, parseAccounting } from "../theme";
 import { DERIVED_STATEMENTS } from "../types";
-import type { Basis, FxRateResolution, LineItemTrace, RowContribution, StatementColumn, StatementKey, StatementResponse, StatementRow, SupersededTemplate } from "../types";
+import type { Basis, FxRateResolution, LineItemTrace, RowContribution, StatementColumn, StatementKey, StatementResponse, StatementRow, SupersededTemplate, UnreadPage } from "../types";
 import { ApiError, refusalText } from "../lib/api";
 import { activeTemplate, configurationInForce, useDocumentRun, useDocumentRunStatus, useDocumentRuns, useDocumentStatement, useEditDocumentLineItem, useFxRateResolution, useLineItemVersions, useReextract, useRevertDocumentLineItem, useStatement, useEditLineItem, useProjectLoaded, useTemplates } from "../lib/queries";
 import { useCan } from "../lib/rbac";
@@ -1222,6 +1222,64 @@ function AwaitingExtraction({ documentId, statementError, reloadStatement, t }: 
   );
 }
 
+/* ---- pages the run did not read ----
+ *
+ * A page left out of the page selection, read only for a switched-off section, or scanned with no
+ * OCR engine has no rows, and a statement on it reads exactly like one the filing does not print.
+ * The run records each such page (`unread_pages`); this says so in one line, grouped by why, and
+ * offers the screen where a page is put back. */
+const UNREAD_PAGES_LISTED = 8;
+
+function unreadReasonKey(p: UnreadPage): string {
+  if (p.reason === "out_of_scope") return "ws.unread.outOfScope";
+  if (p.reason === "section_off") return "ws.unread.sectionOff";
+  if (p.reason === "scanned_no_ocr") return p.ocr === "off" ? "ws.unread.ocrOff" : "ws.unread.noOcr";
+  return "";
+}
+
+function UnreadPagesBanner({ pages, t }: { pages: UnreadPage[]; t: (k: string) => string }) {
+  const navigate = useNavigate();
+  const groups = new Map<string, string[]>();
+  for (const p of pages) {
+    const key = unreadReasonKey(p);
+    const label = `p.${p.folio || p.page}`;
+    groups.set(key, [...(groups.get(key) ?? []), label]);
+  }
+  const clauses = [...groups.entries()].map(([key, labels]) => {
+    const rest = labels.length - UNREAD_PAGES_LISTED;
+    const listed = labels.slice(0, UNREAD_PAGES_LISTED).join(", ")
+      + (rest > 0 ? " " + t("ws.unread.more").replace("{n}", String(rest)) : "");
+    return key ? `${listed} ${t(key)}` : listed;
+  });
+  const head = pages.length === 1
+    ? t("ws.unread.headOne")
+    : t("ws.unread.head").replace("{n}", String(pages.length));
+  return (
+    <div
+      data-testid="ws-unread-pages"
+      data-count={String(pages.length)}
+      role="status"
+      style={{ flex: "0 0 auto", display: "flex", alignItems: "center", gap: 9, flexWrap: "wrap",
+               padding: "7px 16px", background: color.amberBg,
+               borderBottom: `1px solid ${color.hairline}`, fontSize: 11.5, color: color.amberFg,
+               lineHeight: 1.5 }}
+    >
+      <span>
+        <strong style={{ fontWeight: 600 }}>{head}</strong> {clauses.join("; ")}.
+      </span>
+      <button
+        data-testid="ws-unread-open-scope"
+        onClick={() => navigate(SCREENS.scope.path)}
+        style={{ fontSize: 11.5, fontWeight: 600, color: color.amberFg, background: "#fff",
+                 border: `1px solid ${color.amberFg}55`, borderRadius: radius.controlSm,
+                 padding: "4px 10px", cursor: "pointer" }}
+      >
+        {t("ws.unread.open")}
+      </button>
+    </div>
+  );
+}
+
 /* ---- the run's template has since been revised ----
  *
  * A run is PINNED to the template version it was launched against, so a spread extracted before a
@@ -1478,6 +1536,8 @@ export default function WorkspaceScreen() {
   // version it cannot name.
   const superseded =
     (d as { superseded_template?: SupersededTemplate | null }).superseded_template ?? null;
+  // The pages this run did not read, as the server recorded them; absent on older runs.
+  const unreadPages = d.unread_pages ?? [];
   // Selecting a row also drives the live source viewer: resolve the clicked figure's provenance
   // to a pick so the document scrolls to and highlights that value's page+bbox (PDF) or cell
   // (Excel). Clicking last year's number goes to last year's figure, not this year's.
@@ -1846,6 +1906,7 @@ export default function WorkspaceScreen() {
       {superseded?.superseded && (
         <SupersededBanner info={superseded} documentId={activeDocumentId ?? undefined} t={t} />
       )}
+      {usingReal && unreadPages.length > 0 && <UnreadPagesBanner pages={unreadPages} t={t} />}
       {/* Read-only has to say WHY. A grid that silently refuses an edit reads as broken, and the
           reason is not visible from the figures — it is which run is pinned. */}
       {viewingHistorical && (

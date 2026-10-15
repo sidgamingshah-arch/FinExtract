@@ -41,13 +41,20 @@ between its first two buckets is the whole point:
   in the denominator (it was declared for a statement that is present) but it is not an extraction
   problem and never becomes one, so folding it into ``INPUT_ABSENT`` would put an authoring defect
   into the extraction backlog and quietly keep it there.
+* ``NOT_READ`` — the statement's pages were not read on this run: left out of the page selection,
+  read only for a switched-off section, or scanned with no OCR engine (``services.unread_pages``).
+  It COUNTS: the filing may print the statement, and nothing on it was checked. Folded into
+  ``STATEMENT_ABSENT`` it would leave the denominator, and a run that skipped its cash-flow pages
+  would report the same coverage as a filing that has no cash-flow statement.
 * ``STATEMENT_ABSENT`` — the only bucket that does NOT count. A standalone-only filing has no cash
   flow statement; holding it against the run's coverage would make every filing look incomplete.
 
-Four alarm states are reported explicitly, because each of them is invisible in the counts:
+Five alarm states are reported explicitly, because each of them is invisible in the counts:
 
 * a statement whose every declarable relation was skipped is ``UNVALIDATED`` — it has no failures
   and it has proved nothing, and it must never render as "passed";
+* …and when its pages were not read (any of those skips is ``NOT_READ``) the statement is
+  ``NOT_READ`` instead (``STATEMENT_NOT_READ``): the remedy is to read them;
 * more ``TAUTOLOGICAL`` skips than evaluated relations means the validation layer is mostly
   checking its own arithmetic;
 * a guard whose precondition is ``"always"`` coming back skipped cannot be a fact about the
@@ -83,6 +90,7 @@ TAXONOMY: dict[str, str] = {
     "no_reported_subtotal": "NO_REPORTED_SUBTOTAL",
     "component_signs_not_established": "SIGNS_NOT_ESTABLISHED",
     "section_signs_not_declared_one_way": "SIGNS_NOT_ESTABLISHED",
+    "statement_not_read": "NOT_READ",
     "statement_absent": "STATEMENT_ABSENT",
     "unsupported_op": "UNEVALUABLE_RULE",
     "unparsable_expr": "UNEVALUABLE_RULE",
@@ -98,6 +106,9 @@ UNCLASSIFIED = "UNCLASSIFIED"
 NOT_DECLARABLE = ("STATEMENT_ABSENT",)
 
 ALARM_UNVALIDATED = "UNVALIDATED"
+# A statement on which nothing ran because its pages were not read. Its own alarm rather than
+# UNVALIDATED: the remedy is to read the pages, not to extract better.
+ALARM_NOT_READ = "STATEMENT_NOT_READ"
 ALARM_TAUTOLOGY = "TAUTOLOGICAL_EXCEEDS_EVALUATED"
 ALARM_PIPELINE_DEFECT = "PIPELINE_DEFECT"
 # A rule declared ``blocking`` that the engine cannot run as authored. Named apart from
@@ -108,6 +119,7 @@ ALARM_UNENFORCEABLE = "BLOCKING_RULE_UNENFORCEABLE"
 # Statuses a statement may carry. "PASSED" is deliberately unreachable while anything declarable
 # was skipped: a partial verification is PARTIAL, never a pass.
 UNVALIDATED = "UNVALIDATED"
+NOT_READ = "NOT_READ"
 ABSENT = "ABSENT"
 FAILED = "FAILED"
 PARTIAL = "PARTIAL"
@@ -178,6 +190,14 @@ class StatementCoverage:
         if self.declarable == 0:
             return ABSENT
         if self.evaluated == 0:
+            # Nothing ran, and the statement's pages were not read. A rule that could not run as
+            # authored on any filing (a sign convention not declared, say) keeps its own bucket,
+            # but it does not make the statement "proved nothing": nobody looked at it. The whole
+            # filing is "not read" only when nothing in it was: a balance sheet that was read and
+            # proved nothing beside an income statement that was not read is not a reading problem.
+            not_read = self.skips.get("NOT_READ", 0)
+            if not_read and (self.statement != "__all__" or not_read == self.declarable):
+                return NOT_READ
             return UNVALIDATED
         if self.buckets.failed:
             return FAILED
@@ -209,6 +229,9 @@ class CoverageReport:
     def unvalidated(self) -> list[str]:
         return sorted(s for s, cov in self.statements.items() if cov.status == UNVALIDATED)
 
+    def not_read(self) -> list[str]:
+        return sorted(s for s, cov in self.statements.items() if cov.status == NOT_READ)
+
     def unenforceable(self) -> list[dict]:
         """The blocking rules that cannot run as authored — the assurance this run does NOT have
         despite declaring it. Surfaced on its own because it is invisible in every count: such a
@@ -232,6 +255,7 @@ class CoverageReport:
                 f"({agg.buckets.passed}/{agg.evaluated}) "
                 f"coverage_rate={pct(agg.coverage_rate)}({agg.evaluated}/{agg.declarable}) "
                 f"unvalidated={','.join(self.unvalidated()) or 'none'} "
+                f"not_read={','.join(self.not_read()) or 'none'} "
                 # A blocking rule that cannot fire is not visible in any of the numbers above.
                 f"unenforceable_blocking={len(self.unenforceable())} "
                 f"alarms={len(self.alarms)}")
@@ -265,6 +289,9 @@ def coverage(results: Iterable[RuleResult | dict]) -> CoverageReport:
         # absence of failures as a pass.
         report.alarms.append({"code": ALARM_UNVALIDATED, "statement": statement,
                               "skipped": report.statements[statement].buckets.skipped})
+    for statement in report.not_read():
+        report.alarms.append({"code": ALARM_NOT_READ, "statement": statement,
+                              "skipped": report.statements[statement].buckets.skipped})
 
     for name, cov in [*sorted(report.statements.items()), ("__all__", report.aggregate)]:
         tautological = cov.skips.get("TAUTOLOGICAL", 0)
@@ -285,7 +312,7 @@ def coverage(results: Iterable[RuleResult | dict]) -> CoverageReport:
         # A guard that needs nothing from the filing cannot legitimately be unevaluable, and a
         # rule the engine cannot parse or resolve is an authoring/plumbing defect, not coverage.
         if row.get("kind") == "guard" and details.get("precondition") == "always" \
-                and reason != "statement_absent":
+                and reason not in ("statement_absent", "statement_not_read"):
             report.alarms.append({"code": ALARM_PIPELINE_DEFECT, "rule_id": row.get("rule_id"),
                                   "reason": reason, "precondition": "always"})
         elif bucket in ("UNEVALUABLE_RULE", UNCLASSIFIED):

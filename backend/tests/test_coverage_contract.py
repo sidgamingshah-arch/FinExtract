@@ -613,6 +613,9 @@ def test_every_word_the_coverage_band_prints_is_translated():
         {"rule_id": "tpl:bs2", "status": "fail", "details": {"statement": "balance_sheet"}},
         {"rule_id": "tpl:cf", "status": "skipped",
          "details": {"statement": "cash_flow", "reason": "statement_absent"}},
+        # A statement whose pages were not read: its own bucket, status and alarm.
+        {"rule_id": "tpl:eq", "status": "skipped",
+         "details": {"statement": "changes_in_equity", "reason": "statement_not_read"}},
         {"rule_id": "tpl:bs3", "status": "skipped",
          "details": {"statement": "balance_sheet", "reason": "derived_input"}},
         {"rule_id": "tpl:bs4", "status": "skipped",
@@ -638,7 +641,8 @@ def test_every_word_the_coverage_band_prints_is_translated():
     assert {s["bucket"] for s in en["skips"]} == set(cov_mod.TAXONOMY.values()) | {
         cov_mod.UNCLASSIFIED}
     assert {a["code"] for a in en["alarms"]} == {
-        cov_mod.ALARM_UNENFORCEABLE, cov_mod.ALARM_UNVALIDATED, cov_mod.ALARM_PIPELINE_DEFECT}
+        cov_mod.ALARM_UNENFORCEABLE, cov_mod.ALARM_UNVALIDATED, cov_mod.ALARM_PIPELINE_DEFECT,
+        cov_mod.ALARM_NOT_READ}
 
     for locale in ("zh", "ar", "fr"):
         loc = _coverage_block(_Run(), None, locale)

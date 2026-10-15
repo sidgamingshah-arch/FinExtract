@@ -81,7 +81,63 @@ _EXPORT_TR = {
         "zh": "项已校验的关系成立。", "ar": "علاقة تم التحقق منها وتحققت.",
         "fr": "relations vérifiées tiennent."},
     "Validation": {"zh": "校验", "ar": "التحقق", "fr": "Validation"},
+    # The pages a run did not read (services/unread_pages.py), named in the caption.
+    "page was not read:": {"zh": "页未读取：", "ar": "صفحة لم تُقرأ:",
+                           "fr": "page n'a pas été lue :"},
+    "pages were not read:": {"zh": "页未读取：", "ar": "صفحات لم تُقرأ:",
+                             "fr": "pages n'ont pas été lues :"},
+    "left out of the page selection": {"zh": "已从页面选择中排除",
+                                       "ar": "مستبعدة من اختيار الصفحات",
+                                       "fr": "exclue de la sélection de pages"},
+    "its section is switched off": {"zh": "所属部分已关闭", "ar": "قسمها موقوف",
+                                    "fr": "sa section est désactivée"},
+    "scanned and OCR is off": {"zh": "扫描页，OCR 已关闭", "ar": "ممسوحة ضوئيًا وOCR مُعطّل",
+                               "fr": "numérisée et l'OCR est désactivé"},
+    "scanned and no OCR engine is set up": {"zh": "扫描页，未配置 OCR 引擎",
+                                            "ar": "ممسوحة ضوئيًا ولا يوجد محرك OCR مُعدّ",
+                                            "fr": "numérisée et aucun moteur OCR n'est configuré"},
+    "and {n} more": {"zh": "等另外 {n} 页", "ar": "و{n} أخرى", "fr": "et {n} autres"},
 }
+
+# Why a page was not read, as the caption says it. `scanned_no_ocr` splits on whether OCR is
+# switched off or no engine is set up, because the remedy differs.
+_UNREAD_REASON = {
+    "out_of_scope": "left out of the page selection",
+    "section_off": "its section is switched off",
+    ("scanned_no_ocr", "off"): "scanned and OCR is off",
+    ("scanned_no_ocr", "none"): "scanned and no OCR engine is set up",
+}
+_UNREAD_PAGES_LISTED = 8
+
+
+def unread_caption(unread: list[dict] | None, locale: str = "en") -> str | None:
+    """One sentence naming the pages a run did not read, grouped by why — or None when it read
+    every page it meant to. "3 pages were not read: p.41, p.42 scanned and OCR is off; p.7 left out
+    of the page selection." A long list names the first pages of each reason and counts the rest."""
+    from app.services.unread_pages import page_label
+
+    entries = [e for e in (unread or []) if isinstance(e, dict)]
+    if not entries:
+        return None
+
+    def L(s: str) -> str:
+        return _EXPORT_TR.get(s, {}).get(locale, s)
+
+    groups: dict[str, list[str]] = {}
+    for e in entries:
+        reason = str(e.get("reason") or "")
+        phrase = _UNREAD_REASON.get(reason) or _UNREAD_REASON.get(
+            (reason, str(e.get("ocr") or "none"))) or reason
+        groups.setdefault(phrase, []).append(page_label(e))
+    clauses = []
+    for phrase, pages in groups.items():
+        listed = ", ".join(pages[:_UNREAD_PAGES_LISTED])
+        rest = len(pages) - _UNREAD_PAGES_LISTED
+        if rest > 0:
+            listed += " " + L("and {n} more").replace("{n}", str(rest))
+        clauses.append(f"{listed} {L(phrase)}")
+    head = L("page was not read:") if len(entries) == 1 else L("pages were not read:")
+    return f"{len(entries)} {head} " + "; ".join(clauses) + "."
 
 
 def _prov_str(prov: dict | None) -> str:
@@ -487,9 +543,13 @@ def validation_caption(coverage: dict | None, locale: str = "en") -> tuple[str, 
         # The flat row layout, or a run stored before coverage existed. Silence here would be the
         # defect: an absent report is not a clean one.
         return L("Validation status is unknown for this export."), True
+    # The pages the run did not read are named whatever else the caption says: a statement on
+    # them was not checked, and a reader of the workbook has no other way to learn it.
+    unread = unread_caption(coverage.get("unread_pages"), locale)
     if not coverage.get("available"):
-        return (str(coverage.get("reason_label")
-                    or L("No template relations were checked on this filing.")), True)
+        head = str(coverage.get("reason_label")
+                   or L("No template relations were checked on this filing."))
+        return (f"{head} {unread}" if unread else head), True
 
     agg = coverage.get("aggregate") or {}
     status = str(agg.get("status") or "")
@@ -517,9 +577,12 @@ def validation_caption(coverage: dict | None, locale: str = "en") -> tuple[str, 
         parts.append(f"{evaluated} {L('of')} {declarable} "
                      f"{L('relations could be checked; the rest were not evaluable.')}")
     elif status == "PASSED" and not unenforceable:
-        return None                          # every declarable relation ran and held
+        # Every declarable relation ran and held; a page the run did not read is still named.
+        return (unread, False) if unread else None
     else:
         parts.append(f"{passed} {L('of')} {evaluated} {L('relations checked held.')}")
+    if unread:
+        parts.append(unread)
     return " ".join(parts), severe
 
 

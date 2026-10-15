@@ -374,7 +374,12 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
     off = set(ctx.sections_off or ())
     if off:
         ctx.log(f"extract:sections_off={sorted(off)}")
-    targets = narrow_targets(targets, ctx.included_pages, off, log=ctx.log)
+    # WHAT A PERSON'S CHOICES LEAVE UNREAD is recorded, not only logged: a page left out here has no
+    # rows, and without the record a statement nobody read reads as one the filing does not have.
+    from app.services import unread_pages
+    dropped: list = []
+    targets = narrow_targets(targets, ctx.included_pages, off, log=ctx.log, dropped=dropped)
+    doc.unread_pages = [unread_pages.entry(p, reason) for p, reason in dropped]
 
     number_format = _resolve_number_format(ctx, doc)
     chrome, chrome_feet = _page_chrome(pdf, targets)
@@ -514,6 +519,8 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
                 ocr = _resolve_ocr(ctx)
             if ocr is None:
                 ctx.log(f"extract:page={ps.index}:scanned_no_ocr")
+                doc.unread_pages.append(unread_pages.entry(
+                    ps, unread_pages.SCANNED_NO_OCR, ocr=_ocr_state(ctx)))
                 continue
             words = _ocr_words_for(page, ocr, ctx)
             source_kind = "ocr"
@@ -760,6 +767,9 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
     # fragment carrying the rows was raised on the one before it.
     doc.notes[:] = without_empty_duplicates(doc.notes)
     ctx.log(f"extract:pdf_line_items={added} note_tables={len(doc.notes)}")
+    if doc.unread_pages:
+        ctx.log(f"extract:unread_pages={len(doc.unread_pages)} "
+                + ",".join(f"{e['page']}:{e['reason']}" for e in doc.unread_pages[:40]))
     if notes_basis is not None:
         ctx.log(f"extract:notes_on_face_basis="
                 f"{sum(1 for t in doc.notes if t.basis == Basis.STANDALONE)}(standalone)")
@@ -775,6 +785,11 @@ def extract_image(data: bytes, doc, ctx: PipelineContext, *, scope=None,
     ocr = _resolve_ocr(ctx)
     if ocr is None:
         ctx.log("extract:image_no_ocr(configure an OCR engine; default is stub)")
+        from app.core.models.document import PageSource
+        from app.services import unread_pages
+        page = doc.pages[0] if doc.pages else PageSource(index=0)
+        doc.unread_pages = [unread_pages.entry(page, unread_pages.SCANNED_NO_OCR,
+                                               ocr=_ocr_state(ctx))]
         return 0
     lang = (ctx.settings.ocr.languages or ["en"])[0]
     try:
@@ -840,6 +855,12 @@ def _resolve_number_format(ctx: PipelineContext, doc):
         return None
     by_locale = getattr(ontology, "number_format_by_locale", None) or {}
     return by_locale.get(loc)
+
+
+def _ocr_state(ctx: PipelineContext) -> str:
+    """Why no OCR engine read a scanned page: ``off`` when the admin switched OCR off, ``none``
+    when no engine is set up or the one named could not be loaded."""
+    return "none" if getattr(ctx.settings.extraction, "ocr_scanned_pages", True) else "off"
 
 
 def _resolve_ocr(ctx: PipelineContext):

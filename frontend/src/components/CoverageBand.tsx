@@ -27,6 +27,7 @@ function statusTone(status: string): { fg: string; bg: string } {
   if (s === "FAILED") return { fg: color.redFg, bg: color.redBg };
   if (s === "UNVALIDATED") return { fg: color.redFg, bg: color.redBg };
   if (s === "PARTIAL") return { fg: color.amberFg, bg: color.amberBg };
+  if (s === "NOT_READ") return { fg: color.amberFg, bg: color.amberBg };
   return { fg: color.muted, bg: color.rowAltBg };
 }
 
@@ -90,6 +91,8 @@ function Pill({ text, status }: { text: string; status: string }) {
 function StatementRow({ cov }: { cov: CoverageStatement }) {
   const t = useT();
   const unvalidated = (cov.status || "").toUpperCase() === "UNVALIDATED";
+  // Its pages were not read: nothing on it was checked, and the remedy is to read them.
+  const notRead = (cov.status || "").toUpperCase() === "NOT_READ";
   return (
     <div
       data-testid="rv-coverage-stmt"
@@ -98,7 +101,7 @@ function StatementRow({ cov }: { cov: CoverageStatement }) {
       style={{
         display: "flex", alignItems: "center", flexWrap: "wrap", gap: 10,
         padding: "6px 0 6px 9px",
-        borderLeft: `3px solid ${unvalidated ? color.redFg : "transparent"}`,
+        borderLeft: `3px solid ${unvalidated ? color.redFg : notRead ? color.amberFg : "transparent"}`,
         borderBottom: `1px dashed ${color.hairline2}`,
       }}
     >
@@ -113,6 +116,12 @@ function StatementRow({ cov }: { cov: CoverageStatement }) {
       {unvalidated && (
         <span style={{ fontSize: 11, color: color.redFg, flexBasis: "100%", lineHeight: 1.5 }}>
           {t("r.cov.provedNothing")}
+        </span>
+      )}
+      {notRead && (
+        <span data-testid="rv-cov-not-read"
+              style={{ fontSize: 11, color: color.amberFg, flexBasis: "100%", lineHeight: 1.5 }}>
+          {t("r.cov.notRead")}
         </span>
       )}
     </div>

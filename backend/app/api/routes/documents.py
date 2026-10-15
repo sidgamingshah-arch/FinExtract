@@ -222,6 +222,7 @@ _TR.update({
     "Fully verified": {"zh": "全部已验证", "ar": "تم التحقق بالكامل", "fr": "Entièrement vérifié"},
     "Not in this filing": {"zh": "本次报告中不存在", "ar": "غير موجود في هذا التقرير",
                            "fr": "Absent de ce dépôt"},
+    "Not read": {"zh": "未读取", "ar": "لم تُقرأ", "fr": "Non lu"},
     # skip-taxonomy buckets
     "Inputs not extracted": {"zh": "输入项未提取", "ar": "المدخلات غير مستخرجة",
                              "fr": "Entrées non extraites"},
@@ -261,6 +262,16 @@ _TR.update({
     "a new skip reason nobody has classified":
         {"zh": "出现了尚无人分类的新跳过原因", "ar": "سبب تجاوز جديد لم يصنّفه أحد",
          "fr": "un nouveau motif d'exclusion que personne n'a classé"},
+    "Pages not read": {"zh": "页面未读取", "ar": "صفحات لم تُقرأ", "fr": "Pages non lues"},
+    "counted — the statement's pages were not read on this run (left out of the page selection, "
+    "section switched off, or scanned with no OCR), so nothing on it was checked":
+        {"zh": "计入——本次运行未读取该报表的页面（已从页面选择中排除、所属部分已关闭，或为扫描页且未启用 OCR），"
+               "因此其中没有任何内容经过校验",
+         "ar": "محتسب — لم تُقرأ صفحات هذه القائمة في هذا التشغيل (مستبعدة من اختيار الصفحات، أو "
+               "القسم موقوف، أو صفحة ممسوحة دون OCR)، فلم يُتحقَّق من شيء فيها",
+         "fr": "compté — les pages de cet état n'ont pas été lues lors de cette exécution (exclues "
+               "de la sélection de pages, section désactivée, ou page numérisée sans OCR) : rien n'y "
+               "a été vérifié"},
     "Statement not in this filing": {"zh": "本次报告不含该报表",
                                      "ar": "القائمة غير موجودة في هذا التقرير",
                                      "fr": "État absent de ce dépôt"},
@@ -277,6 +288,16 @@ _TR.update({
         {"zh": "该规则被声明为阻断性，但按当前写法无法运行，因此对任何报告都不会触发——本次报告从未据此检查。",
          "ar": "أُعلنت حاجبة ولا يمكن تشغيلها كما صيغت، فهي لا تُطلق على أي تقرير — ولم يُفحص هذا التقرير مقابلها أبدًا.",
          "fr": "déclarée bloquante et inexécutable telle qu'écrite : elle ne se déclenche sur aucun dépôt — ce dépôt n'a jamais été contrôlé par elle."},
+    "Statement not read": {"zh": "该报表未被读取", "ar": "القائمة لم تُقرأ",
+                           "fr": "État non lu"},
+    "this statement's pages were not read on this run, so none of its relations could be checked. "
+    "The filing may well print it: read its pages to check it.":
+        {"zh": "本次运行未读取该报表的页面，因此其关系均无法校验。报告很可能包含该报表：读取其页面后即可校验。",
+         "ar": "لم تُقرأ صفحات هذه القائمة في هذا التشغيل، فلم يمكن التحقق من أي من علاقاتها. "
+               "قد يتضمنها التقرير فعلًا: اقرأ صفحاتها للتحقق منها.",
+         "fr": "les pages de cet état n'ont pas été lues lors de cette exécution : aucune de ses "
+               "relations n'a pu être vérifiée. Le dépôt l'imprime peut-être : lisez ses pages pour "
+               "le vérifier."},
     "Statement proved nothing": {"zh": "该报表未验证任何内容",
                                  "ar": "القائمة لم تُثبت شيئًا", "fr": "État sans aucune vérification"},
     "every relation declared for this statement was skipped, so it has no failures and has "
@@ -2281,16 +2302,21 @@ def _calculated_checks(rows: list[dict], template_def: dict | None, locale: str,
 # the two would rebuild the trap coverage.py exists to prevent.
 _COVERAGE_STATUS_LABELS = {
     "UNVALIDATED": "Nothing verified", "PARTIAL": "Partly verified", "FAILED": "Failed",
-    "PASSED": "Fully verified", "ABSENT": "Not in this filing",
+    "PASSED": "Fully verified", "ABSENT": "Not in this filing", "NOT_READ": "Not read",
 }
 
 # Buckets in the order a reader should meet them: recoverable first, structurally unrecoverable
 # next, authoring defects after that, and the one bucket outside the denominator last. Only
 # buckets PRESENT in the report are served — a zero row invites the reader to average them.
-_COVERAGE_SKIP_ORDER = ("INPUT_ABSENT", "SIGNS_NOT_ESTABLISHED", "TAUTOLOGICAL",
+_COVERAGE_SKIP_ORDER = ("NOT_READ", "INPUT_ABSENT", "SIGNS_NOT_ESTABLISHED", "TAUTOLOGICAL",
                         "NO_REPORTED_SUBTOTAL", "UNEVALUABLE_RULE", "UNCLASSIFIED",
                         "STATEMENT_ABSENT")
 _COVERAGE_SKIPS = {
+    # First, because it is the cheapest to recover: the pages are there, they were not read.
+    "NOT_READ": ("Pages not read",
+                 "counted — the statement's pages were not read on this run (left out of the "
+                 "page selection, section switched off, or scanned with no OCR), so nothing on it "
+                 "was checked"),
     "INPUT_ABSENT": ("Inputs not extracted", "better extraction would recover these"),
     "SIGNS_NOT_ESTABLISHED": ("Sign convention not declared",
                               "the inputs are there, but the rulebook does not declare which way "
@@ -2312,6 +2338,10 @@ _COVERAGE_ALARMS = {
         "Blocking rule cannot be enforced",
         "declared blocking and cannot run as authored, so it fires on no filing — this filing "
         "was never checked against it."),
+    "STATEMENT_NOT_READ": (
+        "Statement not read",
+        "this statement's pages were not read on this run, so none of its relations could be "
+        "checked. The filing may well print it: read its pages to check it."),
     "UNVALIDATED": (
         "Statement proved nothing",
         "every relation declared for this statement was skipped, so it has no failures and has "
@@ -2363,13 +2393,17 @@ def _coverage_block(run, template_def: dict | None, locale: str) -> dict:
 
     if run is None or not run.result:
         return _coverage_unavailable("not_extracted", locale)
+    # THE PAGES THIS RUN DID NOT READ travel with the coverage, whatever it says, so the export's
+    # validation caption can name them from the same block the review screen is served.
+    unread = list(run.result.get("unread_pages") or [])
+    named = {"unread_pages": unread} if unread else {}
     if _run_template_id(run) is None:
-        return _coverage_unavailable("no_template", locale)
+        return {**_coverage_unavailable("no_template", locale), **named}
     rows = run.result.get("structural") or []
     if not rows:
         # Said loudly: a template WAS attached and it declares nothing for this filing. That is an
         # authoring gap, and rendering it as a clean sheet is the whole failure mode here.
-        return _coverage_unavailable("no_relations", locale)
+        return {**_coverage_unavailable("no_relations", locale), **named}
 
     report = coverage(rows)
     served = report.as_dict()
@@ -2425,6 +2459,10 @@ def _coverage_block(run, template_def: dict | None, locale: str) -> dict:
         # from a status, or the same alarm appears twice.
         "alarms": [alarm(a) for a in unenforceable]
                   + [alarm(a) for a in report.alarms if a.get("code") != ALARM_UNENFORCEABLE],
+        # `{page, folio, reason, sections}` per page the reader meant to read and did not
+        # (services/unread_pages.py). Empty for a run that read every page, and for a run stored
+        # before the record existed.
+        "unread_pages": unread,
         # `failed_reported_elsewhere` is deliberately absent here rather than seeded with a zero:
         # this frame cannot derive it, and a placeholder integer that a later frame is supposed to
         # overwrite is precisely the fabricated count this codebase keeps deleting. `_build_review`
@@ -6066,6 +6104,9 @@ def get_document_statement(
     # session to ask the question with — and the question is about the row in the table, not about
     # the definition. See `_superseded_template`: stated, never acted on.
     spread["superseded_template"] = _superseded_template(session, run)
+    # The pages this run did not read, and why (services/unread_pages.py): the Workspace says so in
+    # one banner, because a statement on them reads exactly like one the filing does not print.
+    spread["unread_pages"] = list(run.result.get("unread_pages") or [])
     return spread
 
 

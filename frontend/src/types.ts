@@ -593,9 +593,23 @@ export interface StatementResponse {
   /** Set when the run's template version is no longer the newest stored one for its key. Stated by
    *  the server, never acted on: a re-extract is the analyst's call. */
   superseded_template?: SupersededTemplate | null;
+  /** The pages the run meant to read and did not, each with why. Absent on runs stored before the
+   *  record existed; empty when every page was read. */
+  unread_pages?: UnreadPage[];
   viewer: ViewerMeta;
   format?: string;       // real docs: "pdf" | "xlsx" | … → chooses the live source viewer
   page_count?: number;   // real docs: page count for the PDF viewer
+}
+/** A page the run meant to read and did not (backend services/unread_pages.py). `page` is the
+ *  1-based sheet number Page Scope shows, `folio` the number printed on the paper (null when the
+ *  page prints none). `ocr` is set for a scanned page: "off" when OCR is switched off, "none" when
+ *  no engine is set up. */
+export interface UnreadPage {
+  page: number;
+  folio: string | null;
+  reason: "out_of_scope" | "section_off" | "scanned_no_ocr" | string;
+  sections: string[];
+  ocr?: "off" | "none";
 }
 export interface StatementRefusal {
   /** Machine-readable, so the client can branch without matching on prose. */
@@ -1370,6 +1384,7 @@ export type CoverageBlock =
       available: false;
       reason: "not_extracted" | "no_template" | "no_relations" | "sample";
       reason_label: string;
+      unread_pages?: UnreadPage[];
     }
   | {
       available: true;
@@ -1382,6 +1397,8 @@ export type CoverageBlock =
       /** Failed relations suppressed from the card list because their target already has its own
        *  finding — why the band's `failed` can exceed the number of structural cards above it. */
       failed_reported_elsewhere: number;
+      /** The pages the run did not read; a statement on them is NOT_READ, not absent. */
+      unread_pages?: UnreadPage[];
     };
 
 export interface ReviewCheck {

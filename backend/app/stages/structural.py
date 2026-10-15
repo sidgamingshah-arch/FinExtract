@@ -32,6 +32,7 @@ from app.services.coverage import (
     warning_failures,
 )
 from app.services.structural_checks import evaluate_structure
+from app.services.unread_pages import statements_not_read
 
 FLAG = "structural_mismatch"
 FLAG_WARNING = "structural_warning"
@@ -56,12 +57,21 @@ class StructuralStage:
 
     def run(self, doc: DocumentModel, ctx: PipelineContext) -> DocumentModel:
         template = getattr(ctx, "template", None)   # attribute set by services.documents
-        if template is None or not doc.line_items:
+        # A run with no rows because its pages were not read (every page scanned and no OCR) is
+        # still evaluated: its relations are reported as not read rather than not reported at all.
+        if template is None or not (doc.line_items or doc.unread_pages):
             ctx.log("structural:skipped(no template or no line items)")
             return doc
 
         ontology = getattr(ctx, "ontology", None)
-        report = evaluate_structure(template, doc.line_items, ontology=ontology)
+        # The statements whose pages this run did not read: their relations are skipped as not
+        # read and stay in the coverage denominator (services/coverage.py NOT_READ).
+        not_read = statements_not_read(doc.unread_pages, getattr(ctx, "sections_off", None),
+                                       doc.pages)
+        if not_read:
+            ctx.log(f"structural:statements_not_read={','.join(sorted(not_read))}")
+        report = evaluate_structure(template, doc.line_items, ontology=ontology,
+                                    not_read=not_read)
         doc.structural = report
 
         rows = [r.model_dump(mode="json") for r in report.results]

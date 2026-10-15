@@ -916,12 +916,17 @@ def _nil_when_absent(template: TemplateDefinition, ontology=None) -> dict[str, s
 
 def evaluate_structure(template: TemplateDefinition,
                        items: Iterable[LineItem],
-                       ontology=None) -> StructuralReport:
+                       ontology=None, not_read: Iterable[str] = ()) -> StructuralReport:
     """Check every declared relation whose participants were all extracted, per (basis, period).
 
     ``ontology`` is optional and additive: without it only the template's own relations are
     evaluated, which is what a caller validating a spread against a template alone wants. With it,
     the rulebook's identities, cross-concept guards and section reconciliation are evaluated too.
+
+    ``not_read`` names the statements whose pages this run did not read
+    (``services.unread_pages.statements_not_read``). A relation on such a statement with nothing
+    extracted is skipped as ``statement_not_read``, not ``statement_absent``: the filing may well
+    print the statement, and only the second reason leaves the coverage denominator.
     """
     vals = collect_values(items)
     report = StructuralReport()
@@ -938,6 +943,7 @@ def evaluate_structure(template: TemplateDefinition,
     # reported — silence would be indistinguishable from a pass — but they must not sit in the
     # denominator of a coverage rate, so they are marked apart from every other skip.
     present = {stmt_of[k] for k in vals.values if k in stmt_of}
+    unread = set(not_read or ())
 
     declared = relations(template)
     if ontology is not None:
@@ -965,11 +971,17 @@ def evaluate_structure(template: TemplateDefinition,
             reason = ("no_reported_subtotal"
                       if rel.kind == "section_reconciliation" and not vals.slots(rel.target)
                       else rel.broken)
+            # …except on a statement whose pages were not read: whether it prints the subtotal is
+            # exactly what nobody looked at.
+            if reason == "no_reported_subtotal" and rel.statement in unread \
+                    and rel.statement not in present:
+                reason = "statement_not_read"
             detail = {} if reason != rel.broken else dict(rel.broken_detail)
             report.results.append(_skip(rel, [], reason, detail))
             continue
         if rel.statement and rel.statement not in present:
-            report.results.append(_skip(rel, [], "statement_absent", {}))
+            report.results.append(_skip(rel, [], ("statement_not_read" if rel.statement in unread
+                                                  else "statement_absent"), {}))
             continue
         if rel.op not in SUPPORTED_OPS:
             report.results.append(_skip(rel, [], "unsupported_op", {"op": rel.op}))
@@ -1062,7 +1074,7 @@ def evaluate_structure(template: TemplateDefinition,
 
     if ontology is not None:
         report.results.extend(_evaluate_guards(cross_concept_guards(ontology), vals, ontology,
-                                               present))
+                                               present, unread))
 
     for res in report.failures():
         report.failed_assertions.append(_assertion(res))
@@ -1156,7 +1168,7 @@ def _skip(rel: Relation, slots: list[Slot], reason: str, extra: dict) -> RuleRes
 # --- guard evaluation --------------------------------------------------------------------------
 
 def _evaluate_guards(guards: Sequence[Guard], vals: MappedValues, ontology,
-                     present: set[str]) -> list[RuleResult]:
+                     present: set[str], unread: set[str] | None = None) -> list[RuleResult]:
     out: list[RuleResult] = []
     expectations = {m.canonical_key: m.sign_convention
                     for m in getattr(ontology, "mappings", [])
@@ -1166,7 +1178,8 @@ def _evaluate_guards(guards: Sequence[Guard], vals: MappedValues, ontology,
             out.append(_guard_skip(guard, guard.broken, dict(guard.broken_detail)))
             continue
         if guard.statement not in ("cross_statement", "") and guard.statement not in present:
-            out.append(_guard_skip(guard, "statement_absent", {}))
+            out.append(_guard_skip(guard, ("statement_not_read" if guard.statement in (unread or ())
+                                           else "statement_absent"), {}))
             continue
         results = [r for r in (_guard_slot(guard, slot, vals, expectations)
                                for slot in vals.all_slots()) if r is not None]

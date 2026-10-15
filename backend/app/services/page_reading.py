@@ -83,15 +83,20 @@ def selection_applies(targets, included) -> bool:
     return any(_get(p, "index") in inc for p in targets)
 
 
-def narrow_targets(targets, included=None, sections_off=None, log=None) -> list:
+def narrow_targets(targets, included=None, sections_off=None, log=None, dropped=None) -> list:
     """A person's choices on Page Scope applied to ``targets``.
 
     First the page selection, applied only when it leaves something to read
     (``selection_applies``). Then the switched-off sections: a page all of whose read parts belong
     to switched-off sections is not read at all. A page with a part still switched on stays, and
-    the reader skips its other parts one by one."""
+    the reader skips its other parts one by one.
+
+    ``dropped``, when given, receives ``(page, reason)`` for each page left out, the reason being
+    ``out_of_scope`` or ``section_off`` (``services.unread_pages``)."""
     if selection_applies(targets, included):
         inc = set(included)
+        if dropped is not None:
+            dropped.extend((p, "out_of_scope") for p in targets if _get(p, "index") not in inc)
         targets = [p for p in targets if _get(p, "index") in inc]
         if log:
             log(f"extract:page_scope_applied={sorted(inc)}")
@@ -103,6 +108,8 @@ def narrow_targets(targets, included=None, sections_off=None, log=None) -> list:
             if secs and secs <= off:
                 if log:
                     log(f"extract:page={_get(p, 'index')}:sections_off={sorted(secs)}")
+                if dropped is not None:
+                    dropped.append((p, "section_off"))
                 continue
             kept.append(p)
         targets = kept
