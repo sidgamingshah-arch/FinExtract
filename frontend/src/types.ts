@@ -679,6 +679,8 @@ export interface ExtractionValue {
   /** The column's real period-end date when extraction resolved one ("31 December 2023"), as
    *  opposed to the positional `period_label` ("current"). Null when it did not. */
   period_display?: string | null;
+  /** The date the column's heading prints, ISO ("2024-12-31"), when it prints a whole one. */
+  period_end?: string | null;
   /** Printed left-to-right position of a matrix statement's component column; null otherwise. */
   column_index?: number | null;
 }
@@ -1151,6 +1153,34 @@ export interface PageCard {
   /** Why a page is not read: no part of it is read for any section, a page selection leaves it
    *  out, or every section it is in is switched off. Null when it is read. */
   unread?: "not_classified" | "out_of_scope" | "section_off" | null;
+  /** Why a face page has its entity — the classifier's rule, a person's correction, or the last
+   *  run's reader (`by: "reader"`). Null for a page that is not a statement face. */
+  scope_reason?: ScopeReason | null;
+  /** Set when the title names one entity and the column headings name both. */
+  scope_conflict?: ScopeConflict | null;
+}
+/** One page's entity and the rule that gave it (server: `stages/classify._scope_reason`). */
+export interface ScopeReason {
+  entity: "consolidated" | "company" | "mixed" | null;
+  rule: "title" | "band" | "carried" | "repeat_after_notes" | "indian_title_without_consolidated"
+    | "supplement_in_notes" | "reclaimed" | "corrected" | "corrected_carried" | "company_marker"
+    | "unresolved";
+  /** The statement title read, for `title`, `band`, `repeat_after_notes` and the Indian rule. */
+  title?: string | null;
+  /** The 0-based page the entity was carried or taken from. */
+  from_page?: number | null;
+  /** The notes chapter's entity, for a supplement printed in the notes. */
+  chapter?: "consolidated" | "company" | null;
+  /** The Company-only line the reader found, for `company_marker`. */
+  text?: string | null;
+  why?: string;
+  band?: string[];
+  by?: "reader";
+}
+export interface ScopeConflict {
+  title: "consolidated" | "company";
+  band: string[];
+  by?: "reader";
 }
 /** The sections Page Scope lists: the four statements and the notes. */
 export type ScopeSectionId =

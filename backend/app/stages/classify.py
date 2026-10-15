@@ -535,6 +535,39 @@ def _title_scope(title: str | None) -> str | None:
     return None
 
 
+# THE FLAG A FACE PAGE CARRIES (on ``classification_evidence``, beside ``user_override``) when its
+# title names one entity and the column-header band names both. The band wins in `_scope_of` — it
+# is the HKEX Group | Company layout — so the page is read as "mixed", and a reader has to be able
+# to see that a title said otherwise: a company name with "Group" in it puts that word in the band.
+SCOPE_CONFLICT_FLAG = "scope_conflict"
+
+
+def _scope_reason(resolved: str | None, title: str | None,
+                  band: list[str]) -> tuple[dict | None, dict | None]:
+    """Why `_scope_of` gave a face page ``resolved``, and the title-band conflict if there is one.
+
+    ``scope_reason`` on ``PageSource.evidence`` is ``{"entity", "rule", ...}``: ``title`` (with the
+    title), ``band`` (a Group and a Company column side by side), ``repeat_after_notes`` (an
+    untitled-entity statement past the notes re-presenting one already shown as the Group's), and,
+    set by the caller, ``carried`` (``from_page``), ``supplement_in_notes`` (``chapter``),
+    ``indian_title_without_consolidated``, ``reclaimed`` (``from_page``), ``corrected`` and
+    ``unresolved`` (``why``). Recorded from the same inputs the decision was made from, so the line
+    Page Scope shows cannot drift from the verdict. None when nothing resolved here — the caller's
+    own rules decide those pages.
+    """
+    named = _title_scope(title)
+    conflict = None
+    if resolved == "mixed":
+        if named is not None:
+            conflict = {"title": named, "band": sorted(band)}
+        return {"rule": "band", "band": sorted(band), "title": title}, conflict
+    if resolved is None:
+        return None, None
+    if named == resolved:
+        return {"rule": "title", "title": title}, None
+    return {"rule": "repeat_after_notes", "title": title}, None
+
+
 # THE CASH-FLOW SUPPLEMENT, which a mainland filing prints AS A NOTE. 现金流量表补充资料 is the
 # indirect-method reconciliation of the Group's operating cash flow, and the classifier reads it as a
 # cash-flow face page on purpose (see `_TITLE_QUALIFIER`): it is the only place a CAS filing prints
@@ -1440,6 +1473,11 @@ class ClassifyStage:
             page.scope_columns = page.scope_columns or prev.scope_columns
             if isinstance(page.evidence, dict):
                 page.evidence["reclaimed_between_face_pages"] = True
+                # A notes page has no entity of its own, so what it now has is the page before's.
+                page.evidence["scope_reason"] = (
+                    {"entity": page.scope, "rule": "reclaimed", "from_page": prev.index}
+                    if page.scope is not None
+                    else {"entity": None, "rule": "unresolved", "why": "untitled"})
             reclaimed += 1
             ctx.log(f"classify:page={page.index}:reclaimed_as_face"
                     f"(between {prev.index} and {nxt.index}, statement={page.statement})")
@@ -1560,6 +1598,9 @@ class ClassifyStage:
         # continuation page keeps the consolidated default and its figures are still added to the
         # Group's — the same half-fix as leaving the scope unread altogether.
         run_scope: str | None = None
+        # The page whose title (or closing title) named ``run_scope``, so a continuation page can
+        # say where its entity was read.
+        run_scope_from: int | None = None
         for pos, (page_src, f, state, margin, (lines, height)) in enumerate(zip(
                 pages, feats, path, margins, cache)):
             page_src.kind = _KIND[state]
@@ -1568,6 +1609,9 @@ class ClassifyStage:
             page_src.printed_page = _printed_folio(lines, height)
             extent = supplement.get(pos) or {}
             closing_scope: str | None = None
+            # WHY THE PAGE HAS ITS ENTITY, for Page Scope to say in a line (see `scope_reason`).
+            reason: dict | None = None
+            conflict: dict | None = None
             if state == _FACE:
                 preceding_statement = current
                 preceding_scope = run_scope
@@ -1584,12 +1628,15 @@ class ClassifyStage:
                                             and current in consolidated_stmts
                                             and not extent.get("supplement")))
                 resolved = f.scope or scope
+                reason, conflict = _scope_reason(resolved, f.matched_title, f.scope_columns or cols)
                 if extent.get("supplement") and resolved is None:
                     # NOT A RE-PRESENTATION: a note of the chapter it is printed in. A chapter
                     # heading on this page counts only when it is printed above the title.
                     here = _statement_notes_chapter(
                         lines, below_y=(f.matched_title_y or 0.0) * (height or 1.0))
                     resolved = "company" if (here or notes_chapter) == "company" else "consolidated"
+                    reason = {"rule": "supplement_in_notes",
+                              "chapter": here or notes_chapter or None}
                     ctx.log(f"classify:page={page_src.index}:entity_scope=supplement_in_notes"
                             f"({resolved}, chapter={here or notes_chapter or 'unread'})")
                 if resolved is None and f.matched_title is None:
@@ -1598,7 +1645,10 @@ class ClassifyStage:
                     # keeps its silence — it is a new statement, not a continuation.
                     resolved = run_scope
                     if resolved is not None:
+                        reason = {"rule": "carried", "from_page": run_scope_from}
                         ctx.log(f"classify:page={page_src.index}:entity_scope=carried({resolved})")
+                    else:
+                        reason = {"rule": "unresolved", "why": "untitled"}
                 elif f.matched_title is not None:
                     if resolved is None and indian and not seen_notes:
                         # AN INDIAN STATEMENT THAT DOES NOT SAY "CONSOLIDATED" IS THE COMPANY'S.
@@ -1616,11 +1666,14 @@ class ClassifyStage:
                         # Measured on an Ind AS test filing: a tax note read as a P&L page moved
                         # five standalone lines when this rule ran past the notes.
                         resolved = "company"
+                        reason = {"rule": "indian_title_without_consolidated",
+                                  "title": f.matched_title}
                         ctx.log(f"classify:page={page_src.index}:entity_scope="
                                 f"indian_title_without_consolidated(company:{current or '?'})")
                     # Including None: a titled page whose own scope is unresolved ENDS the run's
                     # verdict rather than passing it on to whatever follows.
                     run_scope = resolved
+                    run_scope_from = page_src.index if resolved is not None else None
                     if resolved is None:
                         # SAID WHETHER OR NOT THE NOTES HAVE BEEN SEEN. A titled statement page
                         # whose entity could not be resolved is the same fact either way, and a
@@ -1632,6 +1685,7 @@ class ClassifyStage:
                         # which case it is, since past-the-notes is the one that matters for
                         # deciding whether an untitled page re-presents the Group's statement.
                         why = "face_after_notes" if seen_notes else "titled_page"
+                        reason = {"rule": "unresolved", "why": why}
                         ctx.log(f"classify:page={page_src.index}:entity_scope="
                                 f"unresolved({why}:{current or '?'})")
                 page_src.scope = resolved
@@ -1646,6 +1700,7 @@ class ClassifyStage:
                     current = _STATEMENT_ALIAS.get(f.closing_statement, f.closing_statement)
                     closing_scope = _title_scope(f.closing_title)
                     run_scope = closing_scope
+                    run_scope_from = page_src.index if closing_scope is not None else None
                     if closing_scope == "consolidated":
                         consolidated_stmts.add(current)
                     ctx.log(f"classify:page={page_src.index}:closing_title="
@@ -1656,6 +1711,7 @@ class ClassifyStage:
                 # Stricter than ``current``, which survives a non-notes page: an entity verdict must
                 # not leak across back matter into whatever face page appears next.
                 run_scope = None
+                run_scope_from = None
             if state == _NOTES:
                 seen_notes = True
             notes_chapter = _statement_notes_chapter(lines) or notes_chapter
@@ -1683,6 +1739,14 @@ class ClassifyStage:
                                      and f.amounts_above_title else None),
                                  "title_ambig": f.title_ambig, "margin": round(margin, 2),
                                  "oci_combined": f.oci_combined}
+            if state == _FACE and reason is not None:
+                page_src.evidence["scope_reason"] = {"entity": page_src.scope, **reason}
+                if conflict is not None:
+                    page_src.evidence["scope_conflict"] = conflict
+                    if SCOPE_CONFLICT_FLAG not in page_src.classification_evidence:
+                        page_src.classification_evidence.append(SCOPE_CONFLICT_FLAG)
+                    ctx.log(f"classify:page={page_src.index}:{SCOPE_CONFLICT_FLAG}"
+                            f"(title={conflict['title']},band={'|'.join(conflict['band'])})")
             if state == _FACE and f.closing_statement:
                 page_src.evidence.update({"closing_title": f.closing_title,
                                           "closing_title_y": f.closing_title_y,

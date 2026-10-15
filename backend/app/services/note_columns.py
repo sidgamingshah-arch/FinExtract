@@ -232,8 +232,9 @@ def whole_row(row) -> tuple[list, str]:
 
 
 # A filed period's key, bare or as the reader keeps a second column of one slot: `current_col1`,
-# `prior_col3`, `prior_restated` (`row_reconstruct._column_periods`). Not a measure suffix.
-_KEYED_PERIOD = re.compile(r"^(current|prior)(?:_col\d+|_restated)?$")
+# `prior_col3`, `prior_restated`, `prior_original` (`row_reconstruct._column_periods`). Not a
+# measure suffix.
+_KEYED_PERIOD = re.compile(r"^(current|prior)(?:_col\d+|_restated|_original)?$")
 
 
 def _key_base(label: str) -> str | None:

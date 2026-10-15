@@ -92,6 +92,7 @@ def extract_workbook(data: bytes, *, document_id: str | None = None, log=None,
     from app.services.mapping import HEADING_ROW_SECTIONS, section_of_banner_only
 
     from app.services.row_reconstruct import (
+        BY_POSITION_FLAG,
         _entity_signals,
         _pipeline_steps,
         _restated_markers,
@@ -128,8 +129,13 @@ def extract_workbook(data: bytes, *, document_id: str | None = None, log=None,
                 value_cols = [c for c in value_cols if c != note_col]
             basis_map = _detect_basis_bands(rows, value_cols, label_col, signals)
             unit_signals = _unit_signals(scope)
+            col_meta: dict = {}
             headers = _period_headers(rows, value_cols, basis_map, signals=signals,
-                                      unit_signals=unit_signals, restated=restated, steps=steps)
+                                      unit_signals=unit_signals, restated=restated, steps=steps,
+                                      meta_out=col_meta)
+            if log and any(BY_POSITION_FLAG in m.flags for m in col_meta.values()):
+                log(f"extract:sheet={name}:period_selection=by_position"
+                    f"(no_heading_date_on_every_column)")
             unit_ctx = _sheet_unit(rows, unit_signals, sheet_index)
             col_units = _column_units(rows, value_cols, unit_signals, sheet_index)
             if log and unit_ctx.units_label:
@@ -191,7 +197,7 @@ def extract_workbook(data: bytes, *, document_id: str | None = None, log=None,
                 li = _row_item(name, sheet_index, r_idx, label, row, label_col,
                                value_cols, headers, document_id, ordinal, note_col, basis_map,
                                unit_ctx=unit_ctx, col_units=col_units, dims=dims, log=log,
-                               store=store_fact, section_hint=section)
+                               store=store_fact, section_hint=section, col_meta=col_meta)
                 if li is not None:
                     items.append(li)
                     ordinal += 1
@@ -335,7 +341,8 @@ def _period_headers(rows: list[list], value_cols: list[int], basis_map=None, *,
                     signals: tuple[tuple[Basis, str], ...] = (),
                     unit_signals: tuple[tuple[str, str, object, str], ...] = (),
                     restated: tuple[str, ...] = (),
-                    steps: tuple[tuple[str, object], ...] = ()) -> dict[int, tuple[str, str | None]]:
+                    steps: tuple[tuple[str, object], ...] = (),
+                    meta_out: dict | None = None) -> dict[int, tuple[str, str | None]]:
     """(period_label, period_display) per value column, from the first text header row.
 
     A header that NAMES A PERIOD ("31 December 2024", "FY2025", "2023") is labelled positionally —
@@ -357,8 +364,9 @@ def _period_headers(rows: list[list], value_cols: list[int], basis_map=None, *,
 
     Which of the period columns is the CURRENT one comes from the heading date when every column
     of a band carries one (``scope_selection.period_selection``: "not from column position"), and a
-    column headed as restated keeps the comparative slot without displacing an original printed
-    beside it (``restatement_rule``).
+    column headed as restated is the comparative, and an original printed beside it is kept as
+    "prior_original" (``restatement_rule``; see `row_reconstruct._column_periods`). ``meta_out``
+    receives each column's printed date and period flags, as on the PDF path.
     """
     from app.services.row_reconstruct import _is_date_ish, _signal_side
 
@@ -381,9 +389,11 @@ def _period_headers(rows: list[list], value_cols: list[int], basis_map=None, *,
                 continue
             texts = {c: (str(row[c]).strip() if c < len(row) and row[c] else "")
                      for c in value_cols}
-            return _column_labels(texts, value_cols, basis_map, restated, steps)
+            return _column_labels(texts, value_cols, basis_map, restated, steps,
+                                  meta_out=meta_out)
     # No text header row at all: positional, first value column of each basis = current period.
-    return _column_labels({c: "" for c in value_cols}, value_cols, basis_map, restated, steps)
+    return _column_labels({c: "" for c in value_cols}, value_cols, basis_map, restated, steps,
+                          meta_out=meta_out)
 
 
 def _is_units_row(row: list, value_cols: list[int],
@@ -401,7 +411,8 @@ def _is_units_row(row: list, value_cols: list[int],
 
 def _column_labels(texts: dict[int, str], value_cols: list[int], basis_map,
                    restated: tuple[str, ...],
-                   steps: tuple[tuple[str, object], ...] = ()) -> dict[int, tuple[str, str | None]]:
+                   steps: tuple[tuple[str, object], ...] = (), *,
+                   meta_out: dict | None = None) -> dict[int, tuple[str, str | None]]:
     """(period_label, period_display) per value column, ordered by heading date within each basis.
 
     The caption is read through the rulebook's declared pipeline, which is what makes a DECORATED
@@ -411,7 +422,16 @@ def _column_labels(texts: dict[int, str], value_cols: list[int], basis_map,
     the text exactly as printed.
     """
     from app.services.periods import looks_like_period
-    from app.services.row_reconstruct import _is_restated, _period_date, apply_pipeline
+    from app.services.row_reconstruct import (
+        BY_POSITION_FLAG,
+        ORIGINAL_SUFFIX,
+        RESTATED_FLAG,
+        ColumnPeriod,
+        _is_restated,
+        _period_date,
+        _printed_date,
+        apply_pipeline,
+    )
 
     out: dict[int, tuple[str, str | None]] = {}
     plain = {c: (apply_pipeline(t, steps) or t) for c, t in texts.items()}
@@ -424,17 +444,36 @@ def _column_labels(texts: dict[int, str], value_cols: list[int], basis_map,
         dates = {c: _period_date(plain[c]) for c in periods}
         flags = {c: _is_restated(texts[c], restated) for c in periods}
         groups = sorted({d for d in dates.values() if d}, reverse=True)
+        by_position = False
         if len(groups) > 1 and all(dates[c] for c in periods):
             slot_of = {c: groups.index(dates[c]) for c in periods}
         else:
             slot_of = {c: i for i, c in enumerate(periods)}
+            by_position = len(periods) > 1
         used: set[str] = set()
-        for c in sorted(periods, key=lambda c: (slot_of[c], flags[c])):
+        restated_took: set[str] = set()
+        # Within a slot the RESTATED column first, so it is the one that takes the slot's label.
+        for c in sorted(periods, key=lambda c: (slot_of[c], not flags[c])):
             base = _positional(slot_of[c], c)
-            label = base if base not in used else (
-                f"{base}_restated" if flags[c] else f"{base}_col{c}")
+            col_flags = [RESTATED_FLAG] if flags[c] else []
+            if base not in used:
+                label = base
+                if flags[c]:
+                    restated_took.add(base)
+            elif flags[c]:
+                label = f"{base}_restated"
+            elif base in restated_took:
+                label = f"{base}{ORIGINAL_SUFFIX}"
+                col_flags.append(label)
+            else:
+                label = f"{base}_col{c}"
+            if by_position:
+                col_flags.append(BY_POSITION_FLAG)
             used.add(label)
             out[c] = (label, texts[c] or None)
+            if meta_out is not None:
+                meta_out[c] = ColumnPeriod(period_end=_printed_date(dates[c]),
+                                           flags=tuple(col_flags))
         for c in cols:
             if c not in out:
                 out[c] = (texts[c], texts[c])
@@ -457,7 +496,8 @@ def _row_item(sheet, sheet_index, r_idx, label, row, label_col, value_cols, head
               document_id, ordinal, note_col=None, basis_map=None, *,
               unit_ctx: UnitContext | None = None,
               col_units: dict[int, UnitContext] | None = None, dims: tuple[str, ...] = (),
-              log=None, store=None, section_hint: str | None = None) -> LineItem | None:
+              log=None, store=None, section_hint: str | None = None,
+              col_meta: dict | None = None) -> LineItem | None:
     from app.core.models.line_item import NoteRef
 
     li = LineItem(source_label=label, ordinal=ordinal, role=LineRole.LINE,
@@ -485,9 +525,15 @@ def _row_item(sheet, sheet_index, r_idx, label, row, label_col, value_cols, head
         # This column's own annotation where it carries one, the sheet's otherwise — a column
         # headed HK$'000 does not report the sheet's RMB.
         unit = (col_units or {}).get(c) or unit_ctx or UnitContext()
+        # The column's printed date and period flags (restated, the original beside it, by
+        # position), as `row_reconstruct.build_line_items` writes them on a PDF page's facts.
+        meta = (col_meta or {}).get(c)
         ev = ExtractedValue(value_raw=dec, value=dec, basis=basis,
                             period_label=label_, period_display=display_,
+                            period_end=meta.period_end if meta is not None else None,
                             unit_ctx=unit, provenance=prov)
+        if meta is not None:
+            ev.confidence.flags.extend(meta.flags)
         if store is not None:
             # Two columns can carry the same header text ("Total" twice, a period repeated under
             # two units): column_guard says those are distinct facts, and set_value alone would

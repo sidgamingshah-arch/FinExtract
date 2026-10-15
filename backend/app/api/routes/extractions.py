@@ -849,6 +849,8 @@ def _serialize_rows(doc_model, working_view=None) -> list[dict]:
             values.append({
                 "period_label": ev.period_label,
                 "period_display": ev.period_display,  # real period-end date for headers, if any
+                # The date the column's heading prints, ISO, where it prints a whole one.
+                "period_end": ev.period_end.isoformat() if ev.period_end else None,
                 # Printed left-to-right position of a matrix's component column; null otherwise.
                 "column_index": ev.column_index,
                 "basis": ev.basis.value,
@@ -1046,6 +1048,7 @@ def _serialize_notes(doc_model) -> list[dict]:
                 # dropped on the way to the API, so the Notes screen could only ever fall back to
                 # Current/Prior even for Excel and date-banded PDFs.
                 "period_display": ev.period_display,
+                "period_end": ev.period_end.isoformat() if ev.period_end else None,
                 "basis": ev.basis.value,
                 "value": (str(ev.value) if ev.value is not None else None),
                 # THE PER-VALUE FLAGS, which the face serializer has always carried and this one

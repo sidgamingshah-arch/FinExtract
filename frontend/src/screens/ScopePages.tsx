@@ -14,7 +14,7 @@ import { Button, confReadout } from "../components/ui";
 import { pageNames } from "../components/SourceViewer";
 import { api } from "../lib/api";
 import { color, confStyle, font, radius } from "../theme";
-import type { PageCard, PagePart, ScopeSection, ScopeSectionId } from "../types";
+import type { PageCard, PagePart, ScopeReason, ScopeSection, ScopeSectionId } from "../types";
 
 type T = (key: string) => string;
 
@@ -76,6 +76,57 @@ export function readFor(t: T, card: PageCard): { text: string; read: boolean } {
   if (card.reads == null) return { text: "", read: false };
   if (!card.reads.length) return { text: t("sc.notRead"), read: false };
   return { text: [...new Set(card.reads.map((p) => partName(t, p)))].join(", "), read: true };
+}
+
+/** "the Group's" / "the Company's" — whose figures a page is read as. */
+function readAsName(t: T, entity: ScopeReason["entity"]): string {
+  if (entity === "company") return t("sc.why.ent.company");
+  if (entity === "mixed") return t("sc.why.ent.mixed");
+  return t("sc.why.ent.consolidated");
+}
+
+/** Why the page shown large has its entity, in one plain line, and the title-band disagreement
+ *  when there is one — from the server's `scope_reason` / `scope_conflict` (never derived here).
+ *  Null for a page with no reason recorded (not a statement face, or classified before reasons
+ *  were recorded). */
+export function scopeWhy(t: T, card: PageCard, cards: PageCard[]):
+    { text: string; conflict: string | null } | null {
+  const r = card.scope_reason;
+  if (!r) return null;
+  const pageOf = (index: number | null | undefined) => {
+    if (index == null) return "—";
+    const from = cards.find((c) => c.no === index + 1);
+    return pageNames(t, index, from?.printed).badge;
+  };
+  const vars = { entity: readAsName(t, r.entity), title: r.title ?? "", page: pageOf(r.from_page),
+                 text: r.text ?? "" };
+  let text: string;
+  switch (r.rule) {
+    case "title": text = fill(t("sc.why.title"), vars); break;
+    case "band": text = fill(t("sc.why.band"), vars); break;
+    case "carried": text = fill(t("sc.why.carried"), vars); break;
+    case "repeat_after_notes": text = fill(t("sc.why.repeat"), vars); break;
+    case "indian_title_without_consolidated": text = fill(t("sc.why.indian"), vars); break;
+    case "supplement_in_notes":
+      text = fill(r.chapter ? t("sc.why.supplement") : t("sc.why.supplementUnread"), vars);
+      break;
+    case "reclaimed": text = fill(t("sc.why.reclaimed"), vars); break;
+    case "corrected":
+      text = r.entity ? fill(t("sc.why.corrected"), vars) : t("sc.why.correctedAuto");
+      break;
+    case "corrected_carried":
+      text = r.entity ? fill(t("sc.why.correctedCarried"), vars) : t("sc.why.correctedAuto");
+      break;
+    case "company_marker": text = fill(t("sc.why.marker"), vars); break;
+    default: text = t("sc.why.unresolved");
+  }
+  const c = card.scope_conflict;
+  const conflict = c
+    ? fill(t("sc.why.conflict"), {
+        title: c.title === "company" ? t("sc.why.name.company") : t("sc.why.name.consolidated"),
+      })
+    : null;
+  return { text, conflict };
 }
 
 export type PickAction = "add" | "move" | "remove" | "parts";
@@ -367,6 +418,7 @@ export function PageLarge({ t, docId, card, cards, sections, chosen, canEdit, bu
   const { url, failed } = usePageImage(docId, card.no - 1, LARGE_DPI, true);
   const names = pageNames(t, card.no - 1, card.printed);
   const rf = readFor(t, card);
+  const why = scopeWhy(t, card, cards);
   const at = cards.findIndex((c) => c.no === card.no);
   const prev = at > 0 ? cards[at - 1] : undefined;
   const next = at >= 0 && at < cards.length - 1 ? cards[at + 1] : undefined;
@@ -457,6 +509,15 @@ export function PageLarge({ t, docId, card, cards, sections, chosen, canEdit, bu
           <span style={{ fontSize: 11, color: color.amberFg }}>{t("sc.outOfScope")}</span>
         )}
       </div>
+      {why && (
+        <div style={{ marginBottom: 8, fontSize: 11.5, lineHeight: 1.45 }}>
+          <div data-testid="scope-large-why" style={{ color: color.ink2 }}>{why.text}</div>
+          {why.conflict && (
+            <div data-testid="scope-large-conflict"
+                 style={{ marginTop: 4, color: color.amberFg, fontWeight: 600 }}>{why.conflict}</div>
+          )}
+        </div>
+      )}
       {chosen && canEdit && (
         <div style={{ marginBottom: 8 }}>
           <PickButton t={t} card={card} chosen={chosen} busy={busy} onPick={onPick}

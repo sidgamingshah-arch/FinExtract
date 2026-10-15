@@ -1745,8 +1745,11 @@ def make_cas_cash_flow_supplement_in_notes_pdf(chapter: str = "七、合并财�
     return buf.getvalue()
 
 
-def make_indian_standalone_with_notes_pdf() -> bytes:
+def make_indian_standalone_with_notes_pdf(title: str = "STANDALONE BALANCE SHEET") -> bytes:
     """An Indian company that prints only its OWN statements, followed by their notes.
+
+    ``title`` is the balance sheet's title; a plain "BALANCE SHEET" names no entity, which is the
+    Division I filer the classifier reads as the company's ahead of the notes.
 
     Page 0 is a cover, page 1 the STANDALONE BALANCE SHEET (Schedule III layout, "(Rupees in
     lakhs)"), page 2 the notes to the standalone financial statements. No note prints a basis
@@ -1802,7 +1805,7 @@ def make_indian_standalone_with_notes_pdf() -> bytes:
     c.drawCentredString(w / 2, h / 2 - 28, "Annual Report 2024-25")
     c.showPage()
 
-    y = columns(c, head(c, "STANDALONE BALANCE SHEET", "As at 31 March 2025"))
+    y = columns(c, head(c, title, "As at 31 March 2025"))
     rows(c, y, [
         ("h", "ASSETS"), ("h", "Non-current assets"),
         ("r", "(a) Property, plant and equipment", "2", 1500, 1450),

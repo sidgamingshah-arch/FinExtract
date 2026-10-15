@@ -682,6 +682,8 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
                         f"({prior_statement}->{ps.statement})")
 
         items = []
+        # What the reader decided each batch's entity from (see `build_line_items(scope_out=)`).
+        reader_scopes: list[dict] = []
         for batch_index, (batch_words, statement, page_scope, page_title) in enumerate(batches):
             # A STATEMENT SWITCHED OFF on Page Scope is not read, also where it shares a page
             # with one that is on: the classifier's split above makes that one batch of two, and a
@@ -707,7 +709,7 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
                 statement=statement, log=ctx.log, scope=scope, normalisation=normalisation,
                 page_scope=page_scope, page_title=page_title,
                 page_chrome=chrome, carry_caption=carry, spliced_out=spliced,
-                known_captions=captions, page_fold=fold)
+                known_captions=captions, page_fold=fold, scope_out=reader_scopes)
             if spliced and carried is not None:
                 # WRITTEN BACK ONTO THE ROW THAT HOLDS THE FIGURES, on the page before. The
                 # provenance snippet travels with it: it is what the inspector shows beside the
@@ -732,6 +734,8 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
                 for li in batch_items:
                     li.confidence.flags.append(f"{PRINTED_ON_FLAG}:{statement}")
             items.extend(batch_items)
+        if reader_scopes and ps.kind == PageKind.FACE:
+            _record_reader_scope(ps, reader_scopes[-1], ctx.log)
         if ps.kind == PageKind.FACE:
             # Said HERE because here is where it is known: this branch reads the FACE of a
             # statement (the notes branch above returns note tables, not line items). Only a page
@@ -790,6 +794,37 @@ def extract_image(data: bytes, doc, ctx: PipelineContext, *, scope=None,
     doc.line_items.extend(items)
     ctx.log(f"extract:image_line_items={len(items)}")
     return len(items)
+
+
+def _record_reader_scope(ps, decided: dict, log) -> None:
+    """The reader's half of why a face page's figures have their entity, on the run's copy of the
+    page (``PageSource.evidence``, beside the classifier's ``scope_reason``).
+
+    ``reader_scope`` is what `build_line_items` decided the page's last statement from: a Group |
+    Company band over the columns, the classifier's verdict, a Company-only line, or the
+    consolidated default. Where the classifier named no entity and a Company-only line decided it
+    ("Investments in subsidiaries"), that line IS why the page is the Company's, so it becomes the
+    page's ``scope_reason``. Where the title named one entity and the reader found a band naming
+    both, the band wins as it always has, and the page is flagged ``scope_conflict``.
+    """
+    from app.stages.classify import SCOPE_CONFLICT_FLAG
+
+    ev = dict(ps.evidence or {})
+    ev["reader_scope"] = decided
+    reason = ev.get("scope_reason") or {}
+    if decided.get("rule") == "company_marker" and not reason.get("entity"):
+        ev["scope_reason"] = {"entity": "company", "rule": "company_marker",
+                              "text": decided.get("text"), "by": "reader"}
+    elif (decided.get("rule") == "band" and reason.get("rule") == "title"
+            and reason.get("entity") in ("consolidated", "company")
+            and "scope_conflict" not in ev):
+        ev["scope_conflict"] = {"title": reason["entity"], "band": decided.get("band") or [],
+                                "by": "reader"}
+        if SCOPE_CONFLICT_FLAG not in ps.classification_evidence:
+            ps.classification_evidence.append(SCOPE_CONFLICT_FLAG)
+        log(f"extract:page={ps.index}:{SCOPE_CONFLICT_FLAG}(title={reason['entity']},"
+            f"band={'|'.join(decided.get('band') or [])})")
+    ps.evidence = ev
 
 
 def _resolve_number_format(ctx: PipelineContext, doc):

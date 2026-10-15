@@ -70,6 +70,35 @@ export const scope: Record<Locale, Record<string, string>> = {
     // Large view and states
     "sc.alsoOff": "Also in {sections} (switched off)",
     "sc.outOfScope": "Left out of the page selection. Add it to a section to read it again.",
+    // Why a page has its entity (large view)
+    "sc.why.ent.consolidated": "the Group's",
+    "sc.why.ent.company": "the Company's",
+    "sc.why.ent.mixed": "the Group's and the Company's, column by column",
+    "sc.why.name.consolidated": "the Group",
+    "sc.why.name.company": "the Company",
+    "sc.why.title": "Read as {entity}: the title says “{title}”.",
+    "sc.why.band": "Read as {entity}: the column headings name the Group and the Company.",
+    "sc.why.carried":
+      "Read as {entity}: carried from {page}, where this statement's title names it.",
+    "sc.why.repeat":
+      "Read as {entity}: the title “{title}” names no entity, and the page repeats, past the notes, a statement already shown as the Group's.",
+    "sc.why.indian":
+      "Read as {entity}: the title “{title}” does not say consolidated, and the page comes before the notes.",
+    "sc.why.supplement":
+      "Read as {entity}: a supplement printed in the notes takes the entity of its notes chapter.",
+    "sc.why.supplementUnread":
+      "Read as {entity}: a supplement printed in the notes whose chapter names no entity, so it is read as the Group's.",
+    "sc.why.reclaimed": "Read as {entity}: taken from {page}, the statement page before it.",
+    "sc.why.corrected": "Read as {entity}: set by a correction on this screen.",
+    "sc.why.correctedAuto":
+      "The correction names no entity: the reader decides from the page's column headings and rows.",
+    "sc.why.correctedCarried": "Read as {entity}: carried from the correction on {page}.",
+    "sc.why.marker":
+      "Read as {entity} by the last run: the page prints “{text}”, a line only the Company's own statement carries.",
+    "sc.why.unresolved":
+      "No entity is named on this page: the reader takes it from Group | Company column headings or a Company-only line such as investments in subsidiaries, and otherwise reads it as the Group's.",
+    "sc.why.conflict":
+      "The title and the column headings disagree: the title names {title}, the headings name the Group and the Company. The headings decide.",
     "sc.prevPage": "Previous page",
     "sc.nextPage": "Next page",
     "sc.renderFailed": "This page could not be rendered.",
@@ -169,6 +198,26 @@ export const scope: Record<Locale, Record<string, string>> = {
     // Large view and states
     "sc.alsoOff": "也在{sections}中（已关闭）",
     "sc.outOfScope": "已从页面选择中排除。将其添加到某个部分即可重新读取。",
+    // Why a page has its entity (large view)
+    "sc.why.ent.consolidated": "合并报表",
+    "sc.why.ent.company": "母公司报表",
+    "sc.why.ent.mixed": "合并与母公司报表（按列区分）",
+    "sc.why.name.consolidated": "本集团",
+    "sc.why.name.company": "本公司",
+    "sc.why.title": "读作{entity}：标题为“{title}”。",
+    "sc.why.band": "读作{entity}：列标题同时列出本集团与本公司。",
+    "sc.why.carried": "读作{entity}：沿用{page}，该页的报表标题已注明。",
+    "sc.why.repeat": "读作{entity}：标题“{title}”未注明主体，且该页在附注之后重复列示一张已按合并口径列示过的报表。",
+    "sc.why.indian": "读作{entity}：标题“{title}”未注明“合并”，且该页位于附注之前。",
+    "sc.why.supplement": "读作{entity}：附注中的补充资料，按其所在附注章节的主体读取。",
+    "sc.why.supplementUnread": "读作{entity}：附注中的补充资料，其所在章节未注明主体，因此按合并读取。",
+    "sc.why.reclaimed": "读作{entity}：沿用前一张报表页{page}。",
+    "sc.why.corrected": "读作{entity}：由本页面上的更正设定。",
+    "sc.why.correctedAuto": "该更正未指定主体：由读取程序根据该页的列标题和行项目判断。",
+    "sc.why.correctedCarried": "读作{entity}：沿用{page}上的更正。",
+    "sc.why.marker": "上次运行读作{entity}：该页列有“{text}”，只有母公司自身的报表才有此项目。",
+    "sc.why.unresolved": "该页未注明主体：读取程序依据“本集团 | 本公司”列标题或仅母公司报表才有的项目（如对子公司的投资）判断，否则按合并读取。",
+    "sc.why.conflict": "标题与列标题不一致：标题注明{title}，列标题同时列出本集团与本公司。以列标题为准。",
     "sc.prevPage": "上一页",
     "sc.nextPage": "下一页",
     "sc.renderFailed": "此页面无法渲染。",
@@ -266,6 +315,33 @@ export const scope: Record<Locale, Record<string, string>> = {
     // Large view and states
     "sc.alsoOff": "موجودة أيضًا في {sections} (موقوف)",
     "sc.outOfScope": "مستبعدة من اختيار الصفحات. أضفها إلى قسم لقراءتها من جديد.",
+    // Why a page has its entity (large view)
+    "sc.why.ent.consolidated": "بيانات المجموعة",
+    "sc.why.ent.company": "بيانات الشركة",
+    "sc.why.ent.mixed": "بيانات المجموعة والشركة، عمودًا بعمود",
+    "sc.why.name.consolidated": "المجموعة",
+    "sc.why.name.company": "الشركة",
+    "sc.why.title": "تُقرأ على أنها {entity}: العنوان يقول “{title}”.",
+    "sc.why.band": "تُقرأ على أنها {entity}: عناوين الأعمدة تذكر المجموعة والشركة.",
+    "sc.why.carried": "تُقرأ على أنها {entity}: منقولة من {page}، حيث يذكرها عنوان هذا البيان.",
+    "sc.why.repeat":
+      "تُقرأ على أنها {entity}: العنوان “{title}” لا يذكر أي جهة، والصفحة تكرر بعد الإيضاحات بيانًا سبق عرضه على أنه للمجموعة.",
+    "sc.why.indian":
+      "تُقرأ على أنها {entity}: العنوان “{title}” لا يذكر كلمة موحّد، والصفحة تأتي قبل الإيضاحات.",
+    "sc.why.supplement":
+      "تُقرأ على أنها {entity}: ملحق مطبوع في الإيضاحات يأخذ جهة فصل الإيضاحات الذي يقع فيه.",
+    "sc.why.supplementUnread":
+      "تُقرأ على أنها {entity}: ملحق مطبوع في الإيضاحات لا يذكر فصله أي جهة، فيُقرأ على أنه للمجموعة.",
+    "sc.why.reclaimed": "تُقرأ على أنها {entity}: مأخوذة من {page}، صفحة البيان التي قبلها.",
+    "sc.why.corrected": "تُقرأ على أنها {entity}: حددها تصحيح على هذه الشاشة.",
+    "sc.why.correctedAuto": "التصحيح لا يحدد أي جهة: يقرر القارئ من عناوين أعمدة الصفحة وبنودها.",
+    "sc.why.correctedCarried": "تُقرأ على أنها {entity}: منقولة من التصحيح على {page}.",
+    "sc.why.marker":
+      "قرأها التشغيل الأخير على أنها {entity}: الصفحة تطبع “{text}”، وهو بند لا يرد إلا في بيان الشركة نفسها.",
+    "sc.why.unresolved":
+      "لا تُذكر أي جهة على هذه الصفحة: يأخذها القارئ من عناوين الأعمدة المجموعة | الشركة أو من بند خاص بالشركة مثل الاستثمارات في الشركات التابعة، وإلا فيقرؤها على أنها للمجموعة.",
+    "sc.why.conflict":
+      "العنوان وعناوين الأعمدة غير متفقين: العنوان يذكر {title}، وعناوين الأعمدة تذكر المجموعة والشركة. عناوين الأعمدة هي التي تحسم.",
     "sc.prevPage": "الصفحة السابقة",
     "sc.nextPage": "الصفحة التالية",
     "sc.renderFailed": "تعذّر عرض هذه الصفحة.",
@@ -371,6 +447,34 @@ export const scope: Record<Locale, Record<string, string>> = {
     "sc.alsoOff": "Aussi dans {sections} (désactivé)",
     "sc.outOfScope":
       "Exclue de la sélection de pages. Ajoutez-la à une section pour la lire à nouveau.",
+    // Why a page has its entity (large view)
+    "sc.why.ent.consolidated": "les chiffres du Groupe",
+    "sc.why.ent.company": "les chiffres de la Société",
+    "sc.why.ent.mixed": "les chiffres du Groupe et de la Société, colonne par colonne",
+    "sc.why.name.consolidated": "le Groupe",
+    "sc.why.name.company": "la Société",
+    "sc.why.title": "Lu comme {entity} : le titre indique « {title} ».",
+    "sc.why.band": "Lu comme {entity} : les en-têtes de colonnes nomment le Groupe et la Société.",
+    "sc.why.carried": "Lu comme {entity} : repris de {page}, où le titre de cet état le précise.",
+    "sc.why.repeat":
+      "Lu comme {entity} : le titre « {title} » ne nomme aucune entité, et la page reprend, après les notes, un état déjà présenté comme celui du Groupe.",
+    "sc.why.indian":
+      "Lu comme {entity} : le titre « {title} » ne dit pas consolidé, et la page précède les notes.",
+    "sc.why.supplement":
+      "Lu comme {entity} : un complément imprimé dans les notes prend l'entité de son chapitre de notes.",
+    "sc.why.supplementUnread":
+      "Lu comme {entity} : un complément imprimé dans les notes dont le chapitre ne nomme aucune entité ; il est donc lu comme celui du Groupe.",
+    "sc.why.reclaimed": "Lu comme {entity} : repris de {page}, la page d'état qui la précède.",
+    "sc.why.corrected": "Lu comme {entity} : fixé par une correction sur cet écran.",
+    "sc.why.correctedAuto":
+      "La correction ne fixe aucune entité : le lecteur décide d'après les en-têtes de colonnes et les lignes de la page.",
+    "sc.why.correctedCarried": "Lu comme {entity} : repris de la correction faite sur {page}.",
+    "sc.why.marker":
+      "Lu comme {entity} par la dernière exécution : la page imprime « {text} », une ligne que seul l'état propre de la Société comporte.",
+    "sc.why.unresolved":
+      "Aucune entité n'est nommée sur cette page : le lecteur la prend des en-têtes de colonnes Groupe | Société ou d'une ligne propre à la Société comme les participations dans les filiales, et sinon la lit comme celle du Groupe.",
+    "sc.why.conflict":
+      "Le titre et les en-têtes de colonnes ne concordent pas : le titre nomme {title}, les en-têtes nomment le Groupe et la Société. Les en-têtes l'emportent.",
     "sc.prevPage": "Page précédente",
     "sc.nextPage": "Page suivante",
     "sc.renderFailed": "Cette page n’a pas pu être affichée.",

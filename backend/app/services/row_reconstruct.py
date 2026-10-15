@@ -24,6 +24,7 @@ import unicodedata
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
+from datetime import date
 from decimal import Decimal, InvalidOperation
 from functools import lru_cache
 
@@ -4113,6 +4114,35 @@ GRID_FLAG = "column_grid:period_x_measure"
 # cannot be done on the page that finds it.
 EQUITY_BALANCE_FLAG = "equity_matrix_balance"
 
+# THE FLAGS A FACT CARRIES FOR HOW ITS PERIOD WAS DECIDED, on ``confidence.flags`` like
+# ``GRID_FLAG``. ``restated``: the column is headed as restated (``restatement_rule``: "set
+# restated: true"). ``period_by_position``: no heading date and no period caption said which of the
+# columns is which year, so the order on the page did. The ORIGINAL comparative kept beside a
+# restated one carries its own label as its flag ("prior_original"), so a reader of the flags alone
+# knows the figure is not the comparative the spread shows.
+RESTATED_FLAG = "restated"
+BY_POSITION_FLAG = "period_by_position"
+ORIGINAL_SUFFIX = "_original"
+
+
+@dataclass(frozen=True)
+class ColumnPeriod:
+    """What `_column_periods` knew about one column besides its label: the date its heading prints,
+    when it prints a whole one, and the flags above that its facts carry."""
+    period_end: date | None = None
+    flags: tuple[str, ...] = ()
+
+
+def _printed_date(parsed: tuple[int, int, int] | None) -> date | None:
+    """A heading's date as a ``date`` — only when it printed a year, a month AND a day. "2024" is a
+    year, not a period end, and is left without one."""
+    if not parsed or not all(parsed):
+        return None
+    try:
+        return date(*parsed)
+    except ValueError:
+        return None
+
 
 # ── scope_selection.period_selection ─────────────────────────────────────────────────────────
 #
@@ -4243,23 +4273,33 @@ def _column_periods(basis_cols: dict[Basis, list[int]], value_bands: list[float]
                     period_bands: list[tuple[str, float]], *,
                     restated: tuple[str, ...] = (), restated_cols: set[int] | None = None,
                     grid: ColumnGrid | None = None,
-                    log=None, page_index: int | None = None) -> dict[tuple[Basis, int], str]:
+                    log=None, page_index: int | None = None,
+                    meta_out: dict[tuple[Basis, int], ColumnPeriod] | None = None,
+                    ) -> dict[tuple[Basis, int], str]:
     """The period label for every (basis, value column).
 
     Ordering is by the column HEADING DATE when every column of a basis carries one, then by the
     dateless PRC period caption when the header states one (``grid``), and by printed position
     otherwise — a page whose header cannot be read offers nothing better, and guessing would be
-    the mistake this exists to prevent.
+    the mistake this exists to prevent. A basis whose two or more columns were ordered by position
+    says so: each of them is flagged ``period_by_position`` and the log names the page.
 
     ``grid`` also carries the MEASURE band, and a non-primary measure becomes a SUFFIX on the
     period label: "current:cost", "current:allowance". See :class:`ColumnGrid` for why the suffix
     rather than a new dimension on ``ValueKey``, and for the cost figure that was published as a
     revenue until it existed.
 
-    ``restatement_rule``: a comparative headed "(restated)" loads as the comparative. When the
-    original is printed BESIDE it the two share a slot, and the restated column takes a
-    distinguished label instead of overwriting the original — the rulebook's "keep both with a
-    restatement flag", within a ``ValueKey`` that has nowhere to put the flag itself.
+    ``restatement_rule``: "Where a comparative column is labelled restated, load it as the
+    comparative and set restated: true. Do not overwrite a previously loaded original comparative;
+    keep both with a restatement flag." So when the original is printed BESIDE the restated column
+    and the two share a slot, the RESTATED one is labelled first and takes the bare "prior" that
+    the spread, the exports and the checks read; the original is kept as "prior_original" and
+    flagged so. Every fact of a restated column is flagged ``restated``. Before, the original kept
+    "prior" and the restated figures sat in "prior_restated", which nothing reads — the spread
+    showed the comparative the filing had replaced.
+
+    ``meta_out`` receives, per (basis, column), the heading's printed date (``ValueKey.period_end``)
+    and the flags above (:class:`ColumnPeriod`).
     """
     out: dict[tuple[Basis, int], str] = {}
     for basis, cols in basis_cols.items():
@@ -4269,15 +4309,18 @@ def _column_periods(basis_cols: dict[Basis, list[int]], value_bands: list[float]
                  for c in cols}
         groups = sorted({d for d in dates.values() if d}, reverse=True)
         by_date = len(groups) > 1 and all(dates[c] for c in cols)
+        by_position = False
         # The measure suffix per column; empty for every column that is a primary amount, and for
         # every page with no grid at all.
         suffix = {c: "" for c in cols}
         if by_date:
             slot_of = {c: groups.index(dates[c]) for c in cols}
-            order = sorted(cols, key=lambda c: (slot_of[c], flags[c]))
-            if order != sorted(cols) and log:
+            # Within a slot the RESTATED column first, so it is the one that takes the slot's label.
+            order = sorted(cols, key=lambda c: (slot_of[c], not flags[c]))
+            by_heading = sorted(cols, key=lambda c: slot_of[c])
+            if by_heading != sorted(cols) and log:
                 log(f"extract:page={page_index}:period_selection=by_heading_date"
-                    f"({'|'.join(heads[c] for c in order)})")
+                    f"({'|'.join(heads[c] for c in by_heading)})")
         elif grid is not None and all(c in grid.slot_of for c in cols):
             # The caption's own semantics, not the column's x-position: a filing may print the
             # comparative on the left, and 本期/上期 says which is which where no date does.
@@ -4285,24 +4328,52 @@ def _column_periods(basis_cols: dict[Basis, list[int]], value_bands: list[float]
             suffix = {c: grid.measure_of.get(c, "") for c in cols}
             # Sorted so the PRIMARY measure of a slot is labelled first and therefore keeps the
             # bare "current"/"prior" that every existing consumer reads.
-            order = sorted(cols, key=lambda c: (slot_of[c], suffix[c] != "", flags[c], c))
+            order = sorted(cols, key=lambda c: (slot_of[c], suffix[c] != "", not flags[c], c))
         else:
             slot_of = {c: i for i, c in enumerate(sorted(cols))}
-            order = sorted(cols, key=lambda c: (slot_of[c], flags[c]))
+            order = sorted(cols, key=lambda c: (slot_of[c], not flags[c]))
+            # ONE COLUMN IS NOT ORDERED BY ANYTHING: it is the basis's only figure, whatever its
+            # heading. Two or more are, and nothing on the page said which year each is.
+            by_position = len(cols) > 1
+            if by_position and log:
+                log(f"extract:page={page_index}:period_selection=by_position"
+                    f"({basis.value}:{len(cols)}_columns,no_heading_date_or_period_caption)")
         used: set[str] = set()
+        # The labels a restated column took, so the original printed beside it is named as such.
+        restated_took: set[str] = set()
         for c in order:
             i = slot_of[c]
             base = "current" if i == 0 else "prior" if i == 1 else f"col{i}"
             label = f"{base}:{suffix[c]}" if suffix[c] else base
+            col_flags: list[str] = [RESTATED_FLAG] if flags[c] else []
             if label in used:
-                label = f"{base}_restated" if flags[c] else f"{base}_col{c}"
+                held = label
+                if flags[c]:
+                    label = f"{base}_restated"
+                elif held in restated_took:
+                    label = (f"{base}{ORIGINAL_SUFFIX}:{suffix[c]}" if suffix[c]
+                             else f"{base}{ORIGINAL_SUFFIX}")
+                    col_flags.append(f"{base}{ORIGINAL_SUFFIX}")
+                    if log:
+                        log(f"extract:page={page_index}:period_selection=restated_over_original"
+                            f"({basis.value}/{held};original_kept_as={label})")
+                else:
+                    label = f"{base}_col{c}"
                 if log:
                     log(f"extract:page={page_index}:period_selection=kept_both"
                         f"({basis.value}/{label})")
-            elif flags[c] and log:
-                log(f"extract:page={page_index}:period_selection=restated({basis.value}/{base})")
+            elif flags[c]:
+                restated_took.add(label)
+                if log:
+                    log(f"extract:page={page_index}:period_selection=restated"
+                        f"({basis.value}/{base})")
+            if by_position:
+                col_flags.append(BY_POSITION_FLAG)
             used.add(label)
             out[(basis, c)] = label
+            if meta_out is not None:
+                meta_out[(basis, c)] = ColumnPeriod(period_end=_printed_date(dates[c]),
+                                                    flags=tuple(col_flags))
     return out
 
 
@@ -4461,6 +4532,12 @@ def _fact_identity(ev: ExtractedValue, dims: tuple[str, ...]) -> tuple:
     return tuple(parts)
 
 
+def _slot_value(li: LineItem, basis: Basis, label: str | None) -> ExtractedValue | None:
+    """The row's value for one (basis, period label), whatever date its key carries."""
+    return next((v for v in li.values.values()
+                 if v.basis == basis and v.period_label == label), None)
+
+
 def store_fact(li: LineItem, ev: ExtractedValue, dims: tuple[str, ...] = (), *,
                log=None, where: str = "") -> None:
     """Store a fact on a row, keeping two facts apart when the rulebook says they are distinct.
@@ -4474,9 +4551,12 @@ def store_fact(li: LineItem, ev: ExtractedValue, dims: tuple[str, ...] = (), *,
     the FIRST is kept: a printed figure is not improved by a second reading of the same column,
     and overwriting it means the row silently reports whichever cell the geometry happened to
     visit last. Either way the collision is logged rather than hidden.
+
+    A SLOT IS ITS BASIS AND LABEL. The key also carries the heading's printed date
+    (``period_end``), and a figure read under no column has none — so the collision is looked up
+    by basis and label, or a second "current" would sit beside the first under a different key.
     """
-    key = ev.key.model_dump_json()
-    existing = li.values.get(key)
+    existing = _slot_value(li, ev.basis, ev.period_label)
     if existing is None:
         li.set_value(ev)
         return
@@ -4486,7 +4566,7 @@ def store_fact(li: LineItem, ev: ExtractedValue, dims: tuple[str, ...] = (), *,
         return
     base = ev.period_label or "col"
     label, n = f"{base}#2", 2
-    while li.get_value(ev.basis, ev.period_end, label) is not None:
+    while _slot_value(li, ev.basis, label) is not None:
         n += 1
         label = f"{base}#{n}"
     li.set_value(ev.model_copy(update={"period_label": label}))
@@ -5201,6 +5281,11 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                      # when none was found and every column took the consolidated default. Out
                      # only, so `notes_extract` can record that a note's bases were PRINTED.
                      bands_out: list[tuple[str, ...]] | None = None,
+                     # WHY THE FACE'S FIGURES TOOK THEIR ENTITY, out only: one dict per call —
+                     # {"rule": "band" | "page_scope" | "company_marker" | "default", ...} — which
+                     # `pdf_extract` records on the page as `reader_scope` (see `classify`'s
+                     # `scope_reason` for the classifier's half of the same question).
+                     scope_out: list[dict] | None = None,
                      # A CAPTION BROKEN ACROSS THE PAGE, in and out — the same in/out shape
                      # `carry_group`/`group_out` uses for the note-continuation carry.
                      # `carry_caption` is the previous page's last captioned row, passed only when
@@ -5357,6 +5442,8 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                          log=log, page_index=page_index)
     if bands_out is not None:
         bands_out.append(tuple(sorted({b.value for b, _x in bands})))
+    reader_scope: dict = ({"rule": "band", "band": sorted({b.value for b, _x in bands})}
+                          if bands else {})
     rows = _merge_wrapped_labels(raw_rows, number_format, steps, page_title=page_title,
                                  known=known_captions or frozenset())
     if carry_caption:
@@ -5381,6 +5468,7 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
         # listing the Company's investments in subsidiaries belongs to the consolidated statements
         # it is a note to, and relabelling its basis would break the note-to-face tie.
         bands = [(_PAGE_SCOPE_BASIS[page_scope], 0.5)]
+        reader_scope = {"rule": "page_scope", "entity": page_scope}
         if log:
             log(f"extract:page={page_index}:entity_scope=page_scope({page_scope})")
     if not bands and on_face:
@@ -5394,10 +5482,14 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
             if vw and _names_company_only(_join_words(lw), stems):
                 # One band covers the page: `_basis_for` returns the nearest of one.
                 bands = [(Basis.STANDALONE, 0.5)]
+                reader_scope = {"rule": "company_marker", "entity": "company",
+                                "text": _join_words(lw)}
                 if log:
                     log(f"extract:page={page_index}:entity_scope=company_only"
                         f"(marker:{_join_words(lw)!r})")
                 break
+    if scope_out is not None and on_face:
+        scope_out.append(reader_scope or {"rule": "default", "entity": "consolidated"})
     # units_and_currency: resolved from THIS statement's header (a page cannot see the cover), and
     # written onto every fact below rather than onto the document.
     unit = _statement_unit(raw_rows, unit_signals, number_format)
@@ -5448,10 +5540,13 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
         log(f"extract:page={page_index}:column_grid=period_x_measure({grid.describe()})")
     if grid_out is not None:
         grid_out.append(grid)
+    # What each column's heading said about its period besides the label — its printed date and
+    # the restated / by-position flags — written onto every fact placed in it below.
+    col_meta: dict[tuple[Basis, int], ColumnPeriod] = {}
     col_periods = _column_periods(
         basis_cols, value_bands, period_bands, restated=restated,
         restated_cols=_restated_columns(raw_rows, value_bands, restated, number_format),
-        grid=grid, log=log, page_index=page_index)
+        grid=grid, log=log, page_index=page_index, meta_out=col_meta)
     # Where the value columns stand, for telling a nil cell from the caption beside it. None on a
     # page without columns, where there is nothing to stand over.
     value_area = _value_area(value_bands, col_xs) if value_bands else None
@@ -5516,6 +5611,9 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
     # line breaks down the row printed DIRECTLY above it and nothing further up.
     open_breakdowns: list[_Breakdown] = []
     above_emitted = False
+    # Rows whose figures took their periods from the order they are printed in — said once per
+    # page, after the rows are read.
+    rows_by_order = 0
     for row in rows:
         label_words, note_ref, value_words = _scan_row(
             row, number_format, extract_note_refs=on_face)
@@ -5795,6 +5893,10 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
         # Place each value in its own column within its basis — by the column's period when the
         # page has columns, else by the order the figures are printed in.
         per_basis: dict[Basis, int] = {}
+        # The figures of this row whose period came from the ORDER they are printed in, because no
+        # column (or no column of their basis) was there to say. Two or more of them are a
+        # positional reading, and are flagged so once the row is built.
+        by_order: list[Provenance] = []
         # Once the page's value columns are known, a figure that sits under NONE of them is not
         # a figure: it is a note reference the note-column heuristics did not catch, printed in
         # its own narrow column to the left. Taken as a value it claims the current period and
@@ -5831,6 +5933,8 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
             period_label = col_periods.get(
                 (basis, col) if col is not None else (basis, -1),
                 "current" if k == 0 else "prior" if k == 1 else f"col{k}")
+            meta = col_meta.get((basis, col)) if col is not None else None
+            placed_by_order = (basis, col if col is not None else -1) not in col_periods
             prov = Provenance(
                 document_id=document_id, page_index=page_index, bbox=vw.source_bbox,
                 value_bbox=vw.source_bbox, label_bbox=label_bbox, text_snippet=label,
@@ -5838,6 +5942,8 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
             )
             display = _period_for(xc, period_bands)      # display-only date, if detected
             conf = ConfidenceVector()
+            if meta is not None:
+                conf.flags.extend(meta.flags)
             if grid is not None and grid.two_level and col is not None and col in grid.captions:
                 # THE REVIEW CALL-OUT, on the existing per-value signal: this figure's column was
                 # INTERPRETED from a period band over a measure band, not read off one caption.
@@ -5851,6 +5957,9 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
             fact = ExtractedValue(
                 value_raw=dec, value=dec, basis=basis,
                 period_label=period_label,
+                # THE DATE THE COLUMN'S HEADING PRINTS, where it prints a whole one. Part of the
+                # value's key; `store_fact` and `LineItem.get_value` still find a slot by its label.
+                period_end=meta.period_end if meta is not None else None,
                 period_display=display,
                 # A note's headings are named once its rows are built — see `_name_note_columns`.
                 column_heading=(headings.get(col) if col is not None and on_face else None),
@@ -5858,6 +5967,14 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
             )
             placed_at[id(fact)] = _Placed(row=ordinal, col=col, word=vw, fact=fact)
             store_fact(li, fact, dims, log=log, where=f"page={page_index}:")
+            if placed_by_order:
+                by_order.append(prov)
+        if len(by_order) > 1:
+            for ev in li.values.values():
+                if (any(ev.provenance is p for p in by_order)
+                        and BY_POSITION_FLAG not in ev.confidence.flags):
+                    ev.confidence.flags.append(BY_POSITION_FLAG)
+            rows_by_order += 1
         if note_ref:
             li.note_refs.append(NoteRef(raw=note_ref, numbers=[note_ref]))
             li.note_number = note_ref
@@ -5908,6 +6025,9 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
             if min(w.bbox.x0 for w in label_words) > group_x0 + _INDENT_MIN:
                 block_ordinals.append(ordinal - 1)      # `ordinal` was incremented just above
                 block_value_x1s.extend(w.bbox.x1 for w in value_words)
+    if rows_by_order and log:
+        log(f"extract:page={page_index}:period_selection=by_position"
+            f"(rows={rows_by_order},figures_in_printed_order)")
     if group_out is not None:
         group_out.append(group)
     if not on_face:

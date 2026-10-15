@@ -1044,13 +1044,18 @@ class MapOntologyStage:
 
         A column no component carries a figure in is skipped rather than reported: there is nothing
         to compare, not a disagreement of the whole aggregate.
+
+        A column is its (basis, period label): the value's key also carries the date its heading
+        printed, and a component read from a page headed "2024" has none where the aggregate's
+        "31 December 2024" has one.
         """
         out: list[str] = []
         for col, pv in parent.values.items():
             if pv.value is None:
                 continue
-            got = [li.values[col].value for li in children
-                   if col in li.values and li.values[col].value is not None]
+            slot = (pv.basis, pv.period_label)
+            got = [ev.value for li in children for ev in li.values.values()
+                   if (ev.basis, ev.period_label) == slot and ev.value is not None]
             if not got:
                 continue
             if abs(pv.value - sum(got)) > tol:
@@ -1692,8 +1697,11 @@ class MapOntologyStage:
                 continue                       # only one caption printed: nothing to disagree with
             for la in rows_a:
                 for lb in rows_b:
+                    # By (basis, period label), not by the key, which also carries a printed date
+                    # that one caption's page may print and the other's not.
+                    by_slot = {(v.basis, v.period_label): v for v in lb.values.values()}
                     for col, va in la.values.items():
-                        vb = lb.values.get(col)
+                        vb = by_slot.get((va.basis, va.period_label))
                         if vb is None or va.value is None or vb.value is None:
                             continue
                         if abs(va.value - vb.value) <= tol:

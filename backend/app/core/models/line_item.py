@@ -176,6 +176,10 @@ class ExtractedValue(BaseModel):
     derived: bool = False
     reconciled: Decimal | None = None     # after §20 subtraction; always derived from raw
     basis: Basis
+    # THE DATE THE COLUMN'S HEADING PRINTS ("31 December 2024" → 2024-12-31), set by the PDF and
+    # workbook readers when the heading carries a year, a month and a day; None for a bare year, a
+    # dateless caption (本期/上期) or no heading. Part of the key, but every reader of a slot asks by
+    # basis and label (`LineItem.get_value` without a date finds it).
     period_end: date | None = None
     period_label: str | None = None
     # Human-readable column header captured from the document (e.g. "31 March 2025"), for
@@ -366,8 +370,16 @@ class LineItem(BaseModel):
 
     def get_value(self, basis: Basis, period_end: date | None = None,
                   period_label: str | None = None) -> ExtractedValue | None:
+        """The value at (basis, period_end, period_label). Asked WITHOUT a date, the value of that
+        basis and label whatever date its key carries: a column whose heading prints one keys its
+        facts by it (``row_reconstruct.ColumnPeriod``), and a reader asking for "current" means the
+        slot, not the absence of a date."""
         key = ValueKey(basis=basis, period_end=period_end, period_label=period_label)
-        return self.values.get(key.model_dump_json())
+        hit = self.values.get(key.model_dump_json())
+        if hit is None and period_end is None:
+            hit = next((v for v in self.values.values()
+                        if v.basis == basis and v.period_label == period_label), None)
+        return hit
 
 
 class NoteItem(BaseModel):

@@ -4085,9 +4085,24 @@ def _default_scope(pages: list[dict]) -> set[int]:
     return {(p.get("index", 0) or 0) for p in pages if p.get("kind") in ("face", "notes")}
 
 
+def _scope_reason_of(page: dict, reader: dict | None) -> tuple[dict | None, dict | None]:
+    """Why a page has its entity, and the title-band conflict if there is one — the classifier's
+    ``scope_reason`` / ``scope_conflict`` (and a person's correction), or, where the latest run's
+    reader decided it from the page's own rows, that run's (``reader``: its page evidence)."""
+    ev = page.get("evidence") or {}
+    reason, conflict = ev.get("scope_reason"), ev.get("scope_conflict")
+    if reader:
+        if (reader.get("scope_reason") or {}).get("by") == "reader":
+            reason = reader["scope_reason"]
+        if conflict is None and (reader.get("scope_conflict") or {}).get("by") == "reader":
+            conflict = reader["scope_conflict"]
+    return reason, conflict
+
+
 def _build_pages(pages: list[dict], scope: list[int] | None = None,
                  overrides: list[dict] | None = None, *, fmt: str | None = None,
-                 sections_off: list[str] | None = None, last_run: dict | None = None) -> dict:
+                 sections_off: list[str] | None = None, last_run: dict | None = None,
+                 reader: dict[int, dict] | None = None) -> dict:
     """PagesResponse from the document's real classified pages. Inclusion reflects the user's
     persisted scope when set; otherwise the default (face/notes are in scope, the rest are
     skipped).
@@ -4100,7 +4115,13 @@ def _build_pages(pages: list[dict], scope: list[int] | None = None,
     every card, the five `sections` with their pages, and `read`, the count of pages a run reads.
     A PDF only: a workbook or an image is read sheet by sheet or whole, and nothing on Page Scope
     changes that, so their cards carry `reads: null` and there are no sections. `last_run` is the
-    latest run and whether it read the pages as they now are; `locked` while it is running."""
+    latest run and whether it read the pages as they now are; `locked` while it is running.
+
+    WHY EACH PAGE HAS ITS ENTITY: `scope_reason` on every card (`stages.classify._scope_reason`
+    lists the rules) and `scope_conflict` where the title and the column headings disagree. A
+    Company-only line on an untitled-entity page is decided by the reader, run by run, so that reason
+    comes from ``reader`` — the latest run's page evidence, given only when that run read the pages
+    as they now are."""
     from app.services.page_overrides import apply_to_page_dicts, classifier_parts
     from app.services.page_sections import build as build_sections
 
@@ -4114,6 +4135,7 @@ def _build_pages(pages: list[dict], scope: list[int] | None = None,
         idx = p.get("index", 0) or 0
         included = idx in chosen
         cat, pct = _conf_cat(p.get("classification_confidence"))
+        reason, conflict = _scope_reason_of(p, (reader or {}).get(idx))
         cards.append({
             "no": idx + 1,
             "kind": normalise_kind(kind),
@@ -4135,6 +4157,8 @@ def _build_pages(pages: list[dict], scope: list[int] | None = None,
             "printed": p.get("printed_page"),
             "statement": p.get("statement"),
             "entity": p.get("scope"),
+            "scope_reason": reason,
+            "scope_conflict": conflict,
             "parts": classifier_parts(p),
             "overridden": idx in overridden,
         })
@@ -4180,8 +4204,31 @@ def _pages_payload(session: Session, row, pages: list[dict]) -> dict:
     """The /pages answer for a document row — what GET serves and every page edit returns, so the
     screen replaces its copy with the server's rather than patching one card (an edit of one page
     can change how the next one is read)."""
+    last_run = _last_run_info(session, row)
     return _build_pages(pages, row.page_scope, row.page_overrides, fmt=row.fmt,
-                        sections_off=row.sections_off, last_run=_last_run_info(session, row))
+                        sections_off=row.sections_off, last_run=last_run,
+                        reader=_reader_scope(session, last_run))
+
+
+def _reader_scope(session: Session, last_run: dict | None) -> dict[int, dict]:
+    """The latest run's own record of why each face page's figures took their entity, by page
+    index — only for a run that finished and read the pages as they now are, since another reading
+    may have decided otherwise. The run's PAGES only (a JSON path), not its result: that carries the
+    whole spread."""
+    from app.db.models import ExtractionRun
+
+    if not last_run or last_run.get("status") != "succeeded" or not last_run.get(
+            "reads_current_pages"):
+        return {}
+    pages = session.execute(select(ExtractionRun.result["pages"])
+                            .where(ExtractionRun.id == last_run["run_id"])).scalar_one_or_none()
+    out: dict[int, dict] = {}
+    for p in pages if isinstance(pages, list) else ():
+        ev = (p or {}).get("evidence") if isinstance(p, dict) else None
+        if isinstance(ev, dict) and ("reader_scope" in ev):
+            out[int(p.get("index", 0) or 0)] = {k: ev.get(k) for k in
+                                                ("scope_reason", "scope_conflict", "reader_scope")}
+    return out
 
 
 def _refuse_while_running(session: Session, row) -> None:

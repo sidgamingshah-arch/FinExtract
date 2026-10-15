@@ -114,9 +114,14 @@ def apply(pages, overrides, log=None) -> list[int]:
         kind, statement, entity = _page_verdict(parts)
         before = f"{ps.kind.value}:{ps.statement or '-'}:{ps.scope or '-'}"
         ps.kind, ps.statement, ps.scope = kind, statement, entity
-        ev = {k: v for k, v in (ps.evidence or {}).items() if k not in _CUT_EVIDENCE}
+        ev = {k: v for k, v in (ps.evidence or {}).items()
+              if k not in _CUT_EVIDENCE and k != "scope_conflict"}
         ev["override_parts"] = parts
+        # The entity is now the person's — or, with none named, the reader's to decide again.
+        ev["scope_reason"] = {"entity": entity, "rule": "corrected"}
         ps.evidence = ev
+        if "scope_conflict" in ps.classification_evidence:
+            ps.classification_evidence.remove("scope_conflict")
         if "user_override" not in ps.classification_evidence:
             ps.classification_evidence.append("user_override")
         changed.append(ps.index)
@@ -142,6 +147,9 @@ def apply(pages, overrides, log=None) -> list[int]:
                     f"({nxt.statement or '-'}:{nxt.scope or '-'} -> "
                     f"{last[0]['statement']}:{last[0]['entity'] or 'auto'})")
                 nxt.statement, nxt.scope = last[0]["statement"], last[0]["entity"]
+                nxt.evidence = {**(nxt.evidence or {}),
+                                "scope_reason": {"entity": nxt.scope, "rule": "corrected_carried",
+                                                 "from_page": ps.index}}
                 changed.append(nxt.index)
     return sorted(set(changed))
 

@@ -503,22 +503,28 @@ def _restated_page(marker: str = "(restated)") -> list[Word]:
     ]
 
 
-def test_a_restated_comparative_never_overwrites_the_original():
-    """``restatement_rule``: "Do not overwrite a previously loaded original comparative; keep both
-    with a restatement flag." Two columns of the same year share a period slot, and the ValueKey
-    has nowhere to put the flag — so the restated one is stored beside the original, named."""
+def test_a_restated_comparative_is_the_comparative_and_the_original_is_kept_beside_it():
+    """``restatement_rule``: "load it as the comparative and set restated: true. Do not overwrite a
+    previously loaded original comparative; keep both with a restatement flag." Two columns of the
+    same year share a period slot: the RESTATED one is "prior", which the spread reads, and the
+    original is kept as "prior_original" and flagged so. The original used to keep "prior" and the
+    restated figures sat where nothing reads them."""
     items, logs = _build(_restated_page())
     rev = next(i for i in items if "Revenue" in i.source_label)
     assert _slots(rev) == {("consolidated", "current"): "120",
-                           ("consolidated", "prior"): "100",
-                           ("consolidated", "prior_restated"): "101"}
+                           ("consolidated", "prior"): "101",
+                           ("consolidated", "prior_original"): "100"}
+    flags = {v.period_label: v.confidence.flags for v in rev.values.values()}
+    assert flags == {"current": [], "prior": ["restated"], "prior_original": ["prior_original"]}
+    assert any("period_selection=restated_over_original" in m for m in logs), logs
     assert any("period_selection=kept_both" in m for m in logs), logs
 
 
 def test_a_chinese_restatement_marker_is_recognised():
     items, _ = _build(_restated_page("經重列"))
     rev = next(i for i in items if "Revenue" in i.source_label)
-    assert ("consolidated", "prior_restated") in _slots(rev)
+    assert _slots(rev)[("consolidated", "prior")] == "101"
+    assert ("consolidated", "prior_original") in _slots(rev)
 
 
 def test_dropping_the_declared_markers_stops_the_restatement_handling():
@@ -527,8 +533,10 @@ def test_dropping_the_declared_markers_stops_the_restatement_handling():
     items, _ = _build(_restated_page(),
                       scope=_scope(**{"period_selection.restatement_rule": "keep both"}))
     rev = next(i for i in items if "Revenue" in i.source_label)
-    assert ("consolidated", "prior_restated") not in _slots(rev)
+    assert ("consolidated", "prior_original") not in _slots(rev)
+    assert _slots(rev)[("consolidated", "prior")] == "100"     # the first of the two, as before
     assert ("consolidated", "prior_col2") in _slots(rev)      # kept, but not named as restated
+    assert not any(v.confidence.flags for v in rev.values.values())
 
 
 # --- units_and_currency -----------------------------------------------------------------------

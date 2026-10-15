@@ -192,8 +192,8 @@ def test_the_current_column_is_the_later_dated_header():
 
 
 def test_a_restated_comparative_keeps_the_original_beside_it():
-    """``restatement_rule``: the restated column is a comparative, and it does not overwrite the
-    original comparative printed next to it."""
+    """``restatement_rule``: the restated column IS the comparative, and the original printed next
+    to it is kept as "prior_original" rather than overwritten — as on the PDF path."""
     data = _sheet([
         ["", "2024", "2023", "2023 (restated)"],
         ["Trade receivables", 3410, 2900, 2950],
@@ -201,7 +201,9 @@ def test_a_restated_comparative_keeps_the_original_beside_it():
     items = extract_workbook(data, document_id="x")
     tr = next(li for li in items if li.source_label == "Trade receivables")
     got = {v.period_label: int(v.value) for v in tr.values.values()}
-    assert got == {"current": 3410, "prior": 2900, "prior_restated": 2950}
+    assert got == {"current": 3410, "prior": 2950, "prior_original": 2900}
+    flags = {v.period_label: v.confidence.flags for v in tr.values.values()}
+    assert flags == {"current": [], "prior": ["restated"], "prior_original": ["prior_original"]}
 
 
 def test_a_per_column_currency_annotation_beats_the_sheet_unit():
