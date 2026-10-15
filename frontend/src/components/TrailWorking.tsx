@@ -55,6 +55,8 @@ export function whyText(why: TrailWhy | null | undefined, present: Present, t: T
     case "not_selected":
     case "alternative":
     case "corroborates":
+    case "disagrees":
+    case "stated_not_located":
     case "no_figure":
     case "not_needed":
     case "not_located":
@@ -77,9 +79,11 @@ export function statusPill(c: RowContribution, period: Period, t: Translate): st
   return null;
 }
 
+/** A term a `max`/`min`/`first` chose between. Not one that printed no figure this year, nor an
+ *  amount the model stated that no note contains — the server's `derivation._candidate`. */
 function isCandidate(x: TrailTerm): boolean {
   return x.role !== "adjustment" && x.status !== "same_row" && x.status !== "missing"
-    && x.why?.code !== "no_figure";
+    && x.why?.code !== "no_figure" && x.why?.code !== "stated_not_located";
 }
 
 /** The figure a `max`/`min`/`first` compared a candidate it did not take at: its own, less what

@@ -86,6 +86,9 @@ class NoteSourcedStage(Stage):
         # figure for any other basis has no statement to sit on, so every write below asks first.
         # Each helper further down reads the same answer for itself.
         bases = printed_bases(doc)
+        # BELOW THIS, the model's figure and the declared note reading's are the same figure.
+        tolerance = Decimal(str(getattr(getattr(line_item_set, "cross_check_master", None),
+                                        "tolerance", None) or "0.5"))
         children_of: dict[str, list] = {}
         filled = touched = 0
         prose_filled = 0
@@ -188,6 +191,7 @@ class NoteSourcedStage(Stage):
                     # of an answer the model gave from the same notes.
                     if _llm_holds(row, basis, period):
                         row.confidence.flags.append(f"prose_deferred_to_llm:{amount}")
+                        _compare_with_model(row, item.key, basis, period, amount, tolerance, ctx)
                         ctx.log(f"note_sourced:{item.key}[{basis}:{period}]: prose {amount} "
                                 f"NOT written — the model answered this row")
                         continue
@@ -264,6 +268,7 @@ class NoteSourcedStage(Stage):
                 # cascade below exactly as a note-sourced one would.
                 if _llm_holds(row, basis, period):
                     row.confidence.flags.append(f"note_source_deferred_to_llm:{amount}")
+                    _compare_with_model(row, item.key, basis, period, amount, tolerance, ctx)
                     ctx.log(f"note_sourced:{item.key}[{basis}:{period}]: {amount} NOT written — "
                             f"the model answered this row; its figure joins the cascade instead")
                     continue
@@ -559,12 +564,16 @@ def _unit_of_terms(inputs, by_key: dict, basis: str, period: str):
 
 
 def _write(row: LineItem, basis: str, period: str, amount: Decimal,
-           *, by: str = "", provenance=None, unit_ctx=None) -> None:
+           *, by: str = "", provenance=None, unit_ctx=None, keep_printed: bool = False) -> None:
     """Put the figure on the row, replacing that slot if it already has one.
 
     Both `value` and `value_raw` are set to the same amount. `normalize` has already run, so there
     is no later pass to derive one from the other — and `value_raw` is what the audit trail and the
     reconciliation tolerances read.
+
+    `keep_printed=True` KEEPS THE PRINTED FIGURE IN `value_raw` where the slot already holds one:
+    the model's citation replacing a face row (`stages.line_item_llm._write`). `value` is the cited
+    figure; `value_raw` stays what the page printed, as `_write_prose` already does for a sentence.
 
     IT USED TO REPLACE A PRINTED FIGURE IN SILENCE, and that is what `by` and `provenance` are for.
     Measured with a spy provider: a face row matched by exact caption at confidence 1.0 holding
@@ -608,7 +617,10 @@ def _write(row: LineItem, basis: str, period: str, amount: Decimal,
             elif displaced and getattr(ev, "provenance", None) is not None:
                 row.confidence.flags.append(f"{by or 'value'}_kept_displaced_provenance")
             ev.value = amount
-            ev.value_raw = amount
+            if not (keep_printed and printed is not None):
+                ev.value_raw = amount
+            elif ev.value_raw is None:
+                ev.value_raw = printed
             return
     from app.core.models.enums import Basis
     try:
@@ -648,6 +660,26 @@ def _llm_holds(row: LineItem, basis: str, period: str) -> bool:
         return False
     ev = _slot(row, basis, period)
     return ev is not None and ev.value is not None
+
+
+def _compare_with_model(row: LineItem, key: str, basis: str, period: str, amount: Decimal,
+                        tolerance: Decimal, ctx) -> None:
+    """The model's figure took a slot the declared note reading also fills: compare the two.
+
+    The model's stands (`_llm_holds`); what was missing was any test of whether the two readings
+    agree. Where they differ by more than the cross-check tolerance the row carries
+    `llm_note_route_disagree:<model>:<note>`, one per slot, so the review queue can put both
+    figures in front of a reviewer.
+    """
+    ev = _slot(row, basis, period)
+    held = getattr(ev, "value", None)
+    if held is None or amount is None:
+        return
+    if abs(Decimal(str(held)) - Decimal(str(amount))) <= tolerance:
+        return
+    row.confidence.flags.append(f"llm_note_route_disagree:{held}:{amount}")
+    ctx.log(f"note_sourced:{key}[{basis}:{period}]: the model's {held} and the note reading's "
+            f"{amount} disagree")
 
 
 def _parent_rollup(all_items) -> dict[str, str]:

@@ -1,4 +1,5 @@
-"""A CITED TERM THAT CANNOT BE CONFIRMED IS COUNTED, NAMED AND SENT TO REVIEW — never dropped.
+"""A LOCATED TERM WHOSE CAPTION CANNOT BE CONFIRMED IS COUNTED AND NAMED; A STATED AMOUNT NOBODY
+LOCATED IS NOT COUNTED.
 
 NEW FILE -> backend/tests/test_unverified_terms.py
 
@@ -18,13 +19,14 @@ The second is the expensive one — a sign inversion on a statement — and neit
 decision is to keep every term in the model's own position, count it, and report which could not be
 confirmed, so the figure is the model's whole claim and the line cannot read as settled.
 
-TWO KINDS OF UNCONFIRMED TERM, and the difference matters to a reader:
+TWO KINDS OF UNCONFIRMED TERM, and they are treated differently:
 
   * REFUSED CAPTION — the row resolved, so the FIGURE IS REAL (it came off an extracted row). Only
-    its identity is in doubt.
+    its identity is in doubt. Counted, and named.
   * STATED BUT NOT FOUND — the model gave an amount that is not in the note's text. The figure
-    itself is unconfirmed. This is the case that would have published the fabricated RMB 6.6 bn the
-    corpus run caught, which is why the review flag is the load-bearing half of the change.
+    itself is unconfirmed: this is the case that published a RMB 6.6 bn figure no page prints. It is
+    NOT counted; `stated_not_located` lists it for the stage to flag, and the trail keeps it as not
+    used.
 
 A citation that names NOTHING — no matching row and no stated amount — contributes no term at all;
 `stages.line_item_llm._write_unanswered` records the answer on the row instead of writing a figure.
@@ -92,16 +94,27 @@ def test_the_sign_stays_with_the_term_the_model_gave_it():
     assert unverified[0]["sign"] == 1, "the refused term lost the sign the model gave it"
 
 
-def test_a_stated_amount_the_note_does_not_contain_is_counted_at_the_fallback_period():
-    """A bare amount carries no column, so it joins the period the caller names — and is reported
-    unverified, because this is the case that publishes a figure nobody located."""
+def test_a_stated_amount_the_note_does_not_contain_is_not_counted():
+    """THE FABRICATION DEFECT. The amount used to be counted at the fallback period, unscaled, and
+    published; nobody located it, so it is not a figure. It is listed for the stage to flag."""
+    from app.services.line_item_llm import stated_not_located
+
     figures, unverified = combine_terms(
         [_row(0, "Depreciation charge", "500000")],
         [_stated(1, "120000")], [1, -1], component=True, fallback_period="current")
 
-    assert figures == {"current": Decimal("380000")}
-    assert len(unverified) == 1
-    assert unverified[0]["amount"] == "120000"
+    assert figures == {"current": Decimal("500000")}, "a stated amount nobody located was counted"
+    assert unverified == []
+    assert stated_not_located([_stated(1, "120,000")]) == [
+        {"at": 1, "note": "7", "amount": "120000"}]
+
+
+def test_a_whole_answer_whose_only_figure_is_a_stated_amount_has_no_figure():
+    """The CR-11 probe: one citation, an amount the note does not contain. Nothing is published."""
+    figures, _unverified = combine_terms(
+        [], [{"amount": "6600000000", "why": "not in text"}], [], False, "current")
+
+    assert figures == {}
 
 
 def test_a_citation_that_names_nothing_contributes_no_term():
@@ -187,6 +200,11 @@ _CASES = {
     "whole, stated first": (
         [_cited(1, "8", "WIP", "3412.20")],
         [{"at": 0, "note": "8", "caption": "", "amount": "3400"}], [], False),
+    "whole, two citations disagree": (
+        [_cited(0, "13", "Loans to employees", "100"), _cited(1, "13", "Total", "250")],
+        [], [], False),
+    "whole, only a stated amount": (
+        [], [{"at": 0, "note": "8", "caption": "", "amount": "6600000000"}], [], False),
 }
 
 
@@ -210,3 +228,46 @@ def test_explain_terms_agrees_with_combine_terms(name):
         at = record["at"]
         expected = (signs[at] if component and at < len(signs) and signs[at] in (1, -1) else 1)
         assert {got["sign"] for got in record["periods"].values()} <= {expected}, record
+
+
+# ── a whole answer whose citations disagree ──────────────────────────────────────────────────
+
+def test_a_later_citation_with_a_different_figure_disagrees_rather_than_corroborates():
+    """The CR-04 probe: a whole answer citing 100 and 250. 100 is taken — the model's order — but
+    the 250 is not "the same whole figure", and the trail used to say it was."""
+    from app.services.line_item_llm import citations_disagree, explain_terms
+
+    resolved = [_cited(0, "13", "Loans to employees", "100", "90"),
+                _cited(1, "13", "Total", "250", "90.2")]
+    figures, _u = combine_terms(resolved, [], [], False, "current")
+    records = explain_terms(resolved, [], [], False, "current")
+
+    assert figures == {"current": Decimal("100"), "prior": Decimal("90")}
+    second = records[1]["periods"]
+    assert (second["current"]["status"], second["current"]["reason"]) == ("not_used", "disagrees")
+    # Within the tolerance it is the same figure.
+    assert second["prior"]["reason"] == "corroborates"
+    assert citations_disagree(records) == [("current", Decimal("100"), Decimal("250"))]
+    assert citations_disagree(records, periods={"prior"}) == []
+
+
+def test_the_tolerance_decides_what_disagrees():
+    from app.services.line_item_llm import explain_terms
+
+    resolved = [_cited(0, "13", "A", "100"), _cited(1, "13", "B", "100.4")]
+    assert explain_terms(resolved, [], [], False, "current")[1]["periods"]["current"]["reason"] \
+        == "corroborates"
+    assert explain_terms(resolved, [], [], False, "current", tolerance="0.1")[1]["periods"][
+        "current"]["reason"] == "disagrees"
+
+
+def test_a_stated_amount_is_in_the_trail_as_not_used():
+    from app.services.line_item_llm import explain_terms
+
+    records = explain_terms([_row(0, "Gross", "500000")], [_stated(1, "120000")], [1, -1], True,
+                            "current")
+    stated = records[1]
+    assert stated["located"] is False
+    assert stated["periods"]["current"] == {"status": "not_used", "used": Decimal(0), "sign": -1,
+                                            "reason": "stated_not_located",
+                                            "value": Decimal("120000")}

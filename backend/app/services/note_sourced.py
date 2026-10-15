@@ -1318,7 +1318,8 @@ def _by_column(row, ref, *, keys_are_periods: bool = False) -> tuple[dict | None
 def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
                     pages=None, allow_pages: bool = False,
                     allow_rows: bool = True,
-                    sections=None) -> tuple[list[dict], list[dict]]:
+                    sections=None, allow_notes: bool = True, notes_supplied=None,
+                    statements=None) -> tuple[list[dict], list[dict]]:
     """Match each citation the model gave against the extracted rows. Returns (resolved, unresolved).
 
     WHY THIS EXISTS RATHER THAN TRUSTING THE CITATION. The candidates offered to the model are
@@ -1363,6 +1364,22 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
     at all only because a line declares `route: anywhere` and the extractor was widened for it
     (`services.pdf_extract`). Refused by DEFAULT, because every other route's author said where the
     figure is printed and a citation pointing outside that is an answer to a question nobody asked.
+
+    THE ANSWER IS FENCED TO WHAT THE REQUEST SUPPLIED, and these three were not. Every note
+    citation resolved against ALL of the document's notes, and every statement citation against
+    every face row, so a `face` line given no notes cited note 7's "Land" row in an unrelated note
+    and its printed 100 became 555. Now:
+
+      * `allow_notes=False` is a `face` line (`services.line_item_routes.may_read_notes`): a note
+        citation is refused and named as the place being wrong.
+      * `notes_supplied` is the notes this line's request carried (`notes_of[key]`). A citation of
+        any other note is refused, and a caption cited without a note number is looked for in those
+        notes only.
+      * `statements` is the line's own statement tokens. A citation of another statement's row is
+        refused.
+
+    None leaves each one open — a caller with no request (the audit scripts) and a whole-document
+    request, which supplies every note and statement, both pass None.
     """
     import re as _re
 
@@ -1373,6 +1390,17 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
 
     def norm(text: str) -> str:
         return _re.sub(r"[^0-9a-z一-鿿]+", "", (text or "").lower())
+
+    supplied = (None if notes_supplied is None
+                else [str(n) for n in notes_supplied if str(n or "").strip()])
+    supplied_keys = None if supplied is None else {_note_key(n) for n in supplied}
+
+    def _was_supplied(number) -> bool:
+        return supplied_keys is None or _note_key(number) in supplied_keys
+
+    own_statements = (None if statements is None
+                      else sorted({normalize_statement(str(getattr(t, "value", t) or ""))
+                                   for t in statements} - {""}) or None)
 
     # (number, caption, row, table, block key, block heading) — the BLOCK being the one the request
     # showed the model this row in, by the same mapping the request was built with.
@@ -1487,6 +1515,14 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
                 "why": ("this line is read from its notes, not from the face of a statement — "
                         f"a row on {want_stmt} cannot be its source")})
             continue
+        if want_stmt and not want_note and own_statements and want_stmt not in own_statements:
+            unresolved.append({
+                "at": at, "note": "", "statement": want_stmt,
+                "caption": getattr(ref, "caption", ""), "quote": quote,
+                "why": (f"this line is printed on {', '.join(own_statements)}, not on "
+                        f"{want_stmt} — a row on {want_stmt} was not supplied to it and cannot be "
+                        f"its source")})
+            continue
         if want_stmt and not want_note:
             on_stmt = [f for f in face_rows if f[0] == want_stmt]
             on_face = best_caption(want_cap, on_stmt, key=lambda f: norm(f[1]))
@@ -1546,6 +1582,22 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
                              "row_id": str(getattr(row, "id", "") or "")})
             continue
 
+        # A NOTE CITATION FROM HERE ON — a page and a statement were handled above.
+        if not allow_notes:
+            unresolved.append({
+                "at": at, "note": want_note, "caption": getattr(ref, "caption", ""),
+                "quote": quote,
+                "why": ("this line is read from the face of its statement, not from a note — a "
+                        "note cannot be its source (route=face)")})
+            continue
+        if want_note and supplied is not None and not _notes_named(want_note, supplied):
+            unresolved.append({
+                "at": at, "note": want_note, "caption": getattr(ref, "caption", ""),
+                "quote": quote,
+                "why": (f"note {want_note} was not supplied to this line"
+                        + (f" — its notes are {', '.join(supplied[:12])}" if supplied
+                           else " — it was given no notes"))})
+            continue
         hit = None
         if want_cap and not allow_rows:
             # NAMED RATHER THAN SILENTLY FALLING THROUGH, the same way the statement refusal is:
@@ -1559,10 +1611,12 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
                         "sentence it is printed in instead")})
             continue
         if want_cap:
-            pool = rows
+            # ONLY THE NOTES THIS LINE WAS GIVEN, and that holds for a caption cited with no note
+            # number as much as for one cited with a number.
+            pool = [r for r in rows if _was_supplied(r[0])]
             if want_note:
-                named = _notes_named(want_note, {r[0] for r in rows})
-                pool = [r for r in rows if r[0] in named]
+                named = _notes_named(want_note, {r[0] for r in pool})
+                pool = [r for r in pool if r[0] in named]
             # THE BLOCK, WHEN THE CITATION NAMES ONE. Refused rather than widened when the note has
             # no such block: a citation of the wrong table is not made right by reading the note's
             # first matching caption instead, which is exactly the answer this narrowing replaces.
@@ -1629,7 +1683,8 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
             # 2025041600195 arrives as eight tables and only the eighth states the figure, so
             # asking one of them answers no about a note that says yes.
             stated = str(getattr(ref, "amount", "") or "").strip()
-            fragments = _notes_by_number(notes, want_note)
+            fragments = [t for t in _notes_by_number(notes, want_note)
+                         if _was_supplied(getattr(t, "note_number", ""))]
             if stated and fragments:
                 witness = "\n".join(getattr(t, "source_text", "") or "" for t in fragments)
                 found = _amount_in_text(stated, witness)

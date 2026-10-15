@@ -86,6 +86,10 @@ def _stage_run():
 
     key = "sub__fa_cp_investment_and_money_market_securities_note_total"
     st = load_line_item_set(json.loads(SEED.read_text(encoding="utf-8")), resolve=True)
+    # THE REQUEST SUPPLIES NOTE 22 TO THIS LINE, as it did on 嘉民: a citation of a note the line
+    # was never given is refused before the derivative rule is reached.
+    next(i for i in st.items if i.key == key).note_source.note_title_any = [
+        r"^DERIVATIVE FINANCIAL INSTRUMENTS"]
     row = NoteItem(raw_label="Interest rate swaps (note 30(c)(i)) 利率掉期合約（附註30(c)(i)）")
     row.values["v"] = ExtractedValue(basis=Basis.CONSOLIDATED, period_label="current",
                                      value=Decimal("950000"), value_raw=Decimal("950000"))

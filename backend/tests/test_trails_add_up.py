@@ -373,9 +373,10 @@ def _llm_write(resolved, unresolved=(), signs=(), role="whole"):
     doc.line_items = [row]
     item = SimpleNamespace(key="bs_icon__probe", label="Probe")
     answer = SimpleNamespace(role=role, signs=list(signs), confidence=0.9, reason="")
+    from app.services.line_item_llm import stated_not_located
     LineItemLlmStage()._write(doc, {"bs_icon__probe": row}, item, answer, list(resolved), figures,
                               PipelineContext(), unverified, unresolved=list(unresolved),
-                              fallback_period="current")
+                              fallback_period="current", stated=stated_not_located(unresolved))
     return row, figures
 
 
@@ -419,19 +420,24 @@ def test_a_component_answer_keeps_each_terms_sign():
     assert (_working(row, "current")["sum"], _working(row, "prior")["sum"]) == (11507.56, 10500.0)
 
 
-def test_a_stated_amount_the_note_does_not_contain_is_listed_and_counted():
-    """"500,000 less 120,000", the 120,000 not in the note's text. `combine_terms` counts it, and
-    the trail now lists it — beside the inputs, never among them."""
-    row, _f = _llm_write([_cited(0, "7", "Gross", "500000")],
-                         [{"at": 1, "note": "7", "caption": "Less", "amount": "120000"}],
-                         signs=[1, -1], role="component")
+def test_a_stated_amount_the_note_does_not_contain_is_listed_and_not_counted():
+    """"500,000 less 120,000", the 120,000 not in the note's text. It used to be counted and
+    published as 380,000. It is not a figure anybody located, so the line is the 500,000 the rows
+    give, the 120,000 is listed beside the inputs as not used, and the line goes to review."""
+    row, figures = _llm_write([_cited(0, "7", "Gross", "500000")],
+                              [{"at": 1, "note": "7", "caption": "Less", "amount": "120000"}],
+                              signs=[1, -1], role="component")
+    assert figures == {"current": Decimal("500000")}
     trail = row.derivation["consolidated:current"]
     (stated,) = trail["unlocated"]
     assert {k: stated[k] for k in ("value", "sign", "used", "status", "reason", "located")} == {
-        "value": "120000", "sign": -1, "used": "-120000", "status": "deducted",
+        "value": "120000", "sign": -1, "used": "0", "status": "not_used",
         "reason": "stated_not_located", "located": False}
     assert len(trail["inputs"]) == 1
-    assert _working(row, "current")["sum"] == 380000.0
+    w = _working(row, "current")
+    assert (w["sum"], w["how"]) == (500000.0, "adds_up")
+    assert "llm_stated_amount_not_in_filing:120000" in row.confidence.flags
+    assert "low_mapping_confidence" in row.confidence.flags
 
 
 def test_a_whole_answer_whose_first_citation_prints_one_year():
@@ -449,21 +455,39 @@ def test_a_whole_answer_whose_first_citation_prints_one_year():
 
 
 def test_a_models_citations_are_read_in_the_models_order():
-    """A whole answer takes the first figure IN THE MODEL'S ORDER. Here that is a stated amount no
-    row confirmed (position 0), ahead of a row that resolved (position 1). The rows were listed
-    before the stated terms, so the working read "first(120; 100) = 100" — the first of which is
-    120."""
+    """A whole answer takes the first figure IN THE MODEL'S ORDER, and the trail lists the citations
+    in that order too. Here position 0 is a stated amount no note contains, so it is listed first
+    and is not a figure: the first LOCATED figure, 120, is the line's, and the stated 100 is not
+    among the figures the working chose between."""
     row, figures = _llm_write([_cited(1, "8", "Closing WIP", "120")],
                               [{"at": 0, "note": "8", "caption": "Work in progress",
                                 "amount": "100"}])
-    assert figures == {"current": Decimal("100")}
+    assert figures == {"current": Decimal("120")}
     w = _working(row, "current")
     assert w["how"] == "adds_up"
     assert derivation.working_text(w, lambda x: f"{x:,.0f}").startswith(
-        "first(100; 120) = 100 — adds up.")
+        "first(120) = 120 — adds up.")
     _f, contributions = derivation.merge_for_basis(row.derivation, "consolidated")
     assert [c["label"] for c in contributions] == ["note 8: Work in progress",
                                                    "note 8: Closing WIP"]
+
+
+def test_a_whole_answer_whose_citations_disagree_is_flagged_and_says_so():
+    """The CR-04 probe: 100 and 250 cited as the whole figure. 100 is published — the model's
+    order — but the trail no longer says the 250 "states the same whole figure", and the line goes
+    to review naming both."""
+    row, figures = _llm_write([_cited(0, "13", "Loans to employees", "100"),
+                               _cited(1, "13", "Total", "250")])
+    assert figures == {"current": Decimal("100")}
+    second = row.derivation["consolidated:current"]["inputs"][1]
+    assert (second["status"], second["reason"]) == ("not_used", "disagrees")
+    assert "llm_citations_disagree:100:250" in row.confidence.flags
+    assert "low_mapping_confidence" in row.confidence.flags
+    w = _working(row, "current")
+    assert w["how"] == "adds_up"
+    assert derivation.why_text(w["terms"][1]["why"], str) == (
+        "states a different whole figure; the first is taken")
+    assert derivation.why_text(w["terms"][1]["why"], str, "zh") == "列示的总数不同；取第一个"
 
 
 # ── prose and note rows ─────────────────────────────────────────────────────────────────────

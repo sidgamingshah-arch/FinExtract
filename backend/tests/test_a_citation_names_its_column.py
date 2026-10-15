@@ -282,6 +282,12 @@ def _run(notes, cite):
     seed = (pathlib.Path(__file__).resolve().parent.parent / "app" / "sample" / "templates"
             / "output_csv_hk_line_items.json")
     shipped = load_line_item_set(json.loads(seed.read_text(encoding="utf-8")), resolve=True)
+    # THE CITED NOTE IS SUPPLIED TO THE LINE: a citation of a note its request never carried is
+    # refused before any column is read (`note_sourced.resolve_sources`, `notes_supplied`).
+    import re
+    titles = {t.title for t in notes if str(t.note_number) == cite[0] and t.title}
+    next(i for i in shipped.items if i.key == LEVEL3_KEY).note_source.note_title_any = [
+        "^" + re.escape(t) for t in sorted(titles)]
     spy = SpyLineItemLlm(only={LEVEL3_KEY}, cite={LEVEL3_KEY: cite})
     doc = DocumentModel(filename="f.pdf", locale="zh")
     doc.notes = list(notes)

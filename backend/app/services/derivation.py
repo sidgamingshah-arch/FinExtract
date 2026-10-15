@@ -49,8 +49,9 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 
 # THE STATUSES THAT PUT SOMETHING INTO THE FIGURE. Everything else — the same row read twice, a
-# candidate a `max` did not take, a citation that corroborates the first, a term the filing did not
-# print — is shown and contributes nothing.
+# candidate a `max` did not take, a citation that corroborates the first or disagrees with it, a term
+# the filing did not print, an amount the model stated that no note contains — is shown and
+# contributes nothing.
 ENTERED = ("used", "deducted")
 # Half a cent: every trail figure is a printed amount or a sum of them, so anything wider than this
 # is a different number, not rounding.
@@ -128,6 +129,9 @@ _WORDS: dict[str, dict[str, str]] = {
     "states the same whole figure; the first is taken": {
         "zh": "列示的是同一总数；取第一个", "ar": "يذكر الرقم الكلي نفسه؛ ويُعتمد الأول",
         "fr": "indique le même chiffre global ; le premier est retenu"},
+    "states a different whole figure; the first is taken": {
+        "zh": "列示的总数不同；取第一个", "ar": "يذكر رقمًا كليًا مختلفًا؛ ويُعتمد الأول",
+        "fr": "indique un autre chiffre global ; le premier est retenu"},
     "prints no figure for this year": {"zh": "本年度未列示数字", "ar": "لا يورد رقمًا لهذه السنة",
                                        "fr": "n'indique aucun chiffre pour cet exercice"},
     "the rule that answers no longer uses this part": {
@@ -158,6 +162,7 @@ _REASON_WORDS = {
     "not_selected": "the rule took another figure",
     "alternative": "another row was taken",
     "corroborates": "states the same whole figure; the first is taken",
+    "disagrees": "states a different whole figure; the first is taken",
     "no_figure": "prints no figure for this year",
     "not_needed": "the rule that answers no longer uses this part",
     "not_located": "the cited row was not found in the note",
@@ -579,12 +584,17 @@ def _short(text: str, limit: int = 60) -> str:
     return text if len(text) <= limit else text[:limit - 1].rstrip() + "…"
 
 
+#: Reasons a term had no figure to be chosen: it printed none in this period, or it was an amount
+#: the model stated and no note contains.
+_NOT_A_CANDIDATE = ("no_figure", "stated_not_located")
+
+
 def _candidate(item: dict, trail: dict | None) -> bool:
     """A term a `max`/`min`/`first` chooses between: not a deduction, not the same row read
     twice, and carrying a figure in this period."""
     return (item.get("role") != "adjustment"
             and _status(item, trail) not in ("same_row", "missing")
-            and (_why(item) or {}).get("code") != "no_figure")
+            and (_why(item) or {}).get("code") not in _NOT_A_CANDIDATE)
 
 
 def _formula_of(trail: dict | None) -> str:
@@ -757,7 +767,7 @@ def _arith(w: dict, fmt) -> str:
     else:
         candidates = [t for t in terms if t.get("role") != "adjustment"
                       and t.get("status") not in ("same_row", "missing")
-                      and (t.get("why") or {}).get("code") != "no_figure"]
+                      and (t.get("why") or {}).get("code") not in _NOT_A_CANDIDATE]
         figures = [show(t["used"]) if t.get("status") in ENTERED else show(_compared(t))
                    for t in candidates]
         out = f"{op}(" + "; ".join(figures) + ")"

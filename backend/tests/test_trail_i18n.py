@@ -60,8 +60,9 @@ def test_every_key_the_screen_uses_exists(dicts):
     # A key built from a status, an operator or a reason code: every value it can take is there.
     expansions = {"trail.status.": ("same_row", "not_used", "missing"),
                   "trail.op.": ("max", "min", "first"),
-                  "trail.reason.": ("not_selected", "alternative", "corroborates", "no_figure",
-                                    "not_needed", "not_located", "refused")}
+                  "trail.reason.": ("not_selected", "alternative", "corroborates", "disagrees",
+                                    "stated_not_located", "no_figure", "not_needed",
+                                    "not_located", "refused")}
     for prefix in prefixes:
         assert prefix in expansions, f"{prefix} is built from a value this test does not know"
         for value in expansions[prefix]:

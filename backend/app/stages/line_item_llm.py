@@ -332,11 +332,19 @@ class LineItemLlmStage(Stage):
                     # sentence; `stages.note_sourced` has always honoured that (`[] if route_of(item)
                     # == "prose"`) and this path did not, so a cited note row filled it.
                     may_rows = line_item_routes.may_read_table_rows(item)
+                    # AND ONLY WHAT THIS LINE WAS GIVEN. A note citation must name a note its
+                    # request supplied, and a statement citation the line's own statement — see
+                    # `note_sourced.resolve_sources`. A whole-document request supplied every note
+                    # and every statement, so there only the route fences hold.
+                    whole_document = document is not None
                     resolved, unresolved, _ = line_item_llm.resolve(
                         answer, doc.notes, face_context.face_index(doc), allow_face=may_face,
                         pages=face_context.other_page_index(doc) if may_pages else None,
                         allow_pages=may_pages, allow_rows=may_rows,
-                        sections=_banner_tokens(item))
+                        sections=_banner_tokens(item),
+                        allow_notes=line_item_routes.may_read_notes(item),
+                        notes_supplied=None if whole_document else tuple(notes_of.get(key, ())),
+                        statements=None if whole_document else _own_statements(item))
                     # A LINE THAT EXCLUDES DERIVATIVES REFUSES A DERIVATIVE CITATION — see
                     # `_refuse_derivative_citations`. Refused citations carry no figure, so they
                     # are recorded on the row and counted nowhere.
@@ -404,6 +412,9 @@ class LineItemLlmStage(Stage):
                     figures, unverified = line_item_llm.combine_terms(
                         resolved, unresolved, list(answer.signs or ()), component,
                         fallback_period=_current_period(doc) or "current")
+                    # AN AMOUNT THE MODEL STATED THAT THE NOTE DOES NOT CONTAIN IS NOT COUNTED, and
+                    # the row says so whichever way the answer goes from here.
+                    stated = line_item_llm.stated_not_located(unresolved)
                     # ONLY FILED PERIODS ARE WRITTEN — see `_FILED`. Said in the log, because a
                     # cited row whose only figures stand in other columns is answered with nothing.
                     unfiled = sorted(p for p in figures if p not in _FILED)
@@ -416,14 +427,15 @@ class LineItemLlmStage(Stage):
                         # so the answer is recorded on the row instead of vanishing — `_write_unanswered`
                         # says why, so the review queue and the workspace can show what the model said.
                         self._write_unanswered(doc, by_concept, item, answer, unresolved, ctx,
-                                               kept_printed)
+                                               kept_printed, stated=stated)
                         continue
                     answered += 1
                     # The SAME unresolved citations and fallback `combine_terms` was given, so the
                     # trail can show every term the figure counted — and every one it could not.
                     filled += self._write(doc, by_concept, item, answer, resolved, figures, ctx,
                                           unverified, unresolved=unresolved,
-                                          fallback_period=_current_period(doc) or "current")
+                                          fallback_period=_current_period(doc) or "current",
+                                          stated=stated)
                     if indian:
                         _record_explained(explained, item, resolved, list(answer.signs or ()),
                                           component)
@@ -509,11 +521,14 @@ class LineItemLlmStage(Stage):
 
     def _write(self, doc, by_concept: dict, item, answer, resolved: list[dict],
                figures: dict, ctx, unverified: list[dict] | None = None,
-               unresolved: list[dict] | None = None, fallback_period: str = "current") -> int:
+               unresolved: list[dict] | None = None, fallback_period: str = "current",
+               stated: list[dict] | None = None) -> int:
         """Write one line item's located figure, with the trail that says where it came from.
 
         `unresolved` and `fallback_period` are what `combine_terms` was given; they are read only
-        to record the arithmetic in the trail (`line_item_llm.explain_terms`).
+        to record the arithmetic in the trail (`line_item_llm.explain_terms`). `stated` is
+        `line_item_llm.stated_not_located(unresolved)`: amounts the model stated that the note does
+        not contain, flagged on the row and counted nowhere.
         """
         row = by_concept.get(item.key)
         if row is None:
@@ -543,20 +558,16 @@ class LineItemLlmStage(Stage):
         row.confidence.flags.append(f"line_item_llm:{len(resolved)} cited row(s)")
         # A FIGURE WITH AN UNVERIFIED TERM IN IT GOES TO REVIEW, and says which term.
         #
-        # `combine_terms` counts a refused caption and a stated-but-not-found amount so the
-        # arithmetic is the model's own rather than a silent partial sum. The price is that the
-        # published figure contains something nobody could confirm, so it must not read as settled.
-        # The flag is what the review queue and the grid pick up; each term is named so a reader
-        # sees WHICH part of the sum is in doubt rather than being told the whole line is.
+        # `combine_terms` counts a row whose caption was refused, so the arithmetic is the model's
+        # own rather than a silent partial sum; the figure is real and its identity is in doubt.
+        # Each term is named so a reader sees WHICH part of the sum is in doubt.
         for term in (unverified or ()):
-            what = ("stated but not found in the note's text"
-                    if term.get("amount") and not term.get("figures")
-                    else "caption refused by this line's row terms")
             row.confidence.flags.append(
                 f"llm_unverified_term:{str(term.get('caption') or term.get('note') or '?')[:60]}"
-                f" ({what})")
+                f" (caption refused by this line's row terms)")
         if unverified:
             row.confidence.flags.append(f"llm_unverified_terms:{len(unverified)}")
+        _flag_stated(row, stated, item.key, ctx)
         # A FIGURE OFF A PAGE THAT IS NEITHER A STATEMENT NOR A NOTE CARRIES AN UNVERIFIED SCALE,
         # and that is said on the row rather than assumed away. `stages.normalize` reads the units
         # a STATEMENT page declares — "RMB'000", "人民币万元" — and scales the document by them; a
@@ -620,8 +631,24 @@ class LineItemLlmStage(Stage):
         # the trail. A whole answer takes its first figure and the other citations corroborate it;
         # a component answer adds every term with the sign the model gave it at its position.
         component = str(answer.role or "").lower() == "component"
-        explained = {(e["source"], e["index"]): e for e in line_item_llm.explain_terms(
-            resolved, unresolved or [], list(answer.signs or ()), component, fallback_period)}
+        tolerance = _tolerance(ctx)
+        records = line_item_llm.explain_terms(
+            resolved, unresolved or [], list(answer.signs or ()), component, fallback_period,
+            tolerance=tolerance)
+        explained = {(e["source"], e["index"]): e for e in records}
+        # A WHOLE ANSWER WHOSE CITATIONS STATE DIFFERENT FIGURES. The first is still the figure —
+        # the model's order is the model's — but the two places it named do not agree, so the
+        # line is not settled: each pair is named and the line goes to review. The trail marks the
+        # later citation `disagrees` rather than `corroborates`.
+        if not component:
+            for _period, taken, other in line_item_llm.citations_disagree(
+                    records, periods={p for p in figures if p in _FILED}):
+                flag = f"llm_citations_disagree:{taken}:{other}"
+                if flag not in row.confidence.flags:
+                    row.confidence.flags.append(flag)
+                    ctx.log(f"line_item_llm:{item.key}: the cited figures disagree — {taken} is "
+                            f"taken, {other} is also cited as the whole")
+                _review(row)
         # A CITED FIGURE ON A BASIS THE STATEMENTS DO NOT PRINT IS REFUSED, as on the declared route
         # (`services.face_bases`): written, it would sit on a tab the filing never printed. Read
         # once per line, not per period.
@@ -636,8 +663,10 @@ class LineItemLlmStage(Stage):
             if refuse_unprinted(doc, row, item.key, basis, period, amount, by="line_item_llm",
                                 log=ctx.log, bases=faces):
                 continue
+            # THE PRINTED FIGURE STAYS IN `value_raw`. A face row the model's citation replaces
+            # keeps what the page printed beside the cited figure, so the two can be compared.
             _write(row, basis, period, amount, by="line_item_llm",
-                   provenance=_cited_provenance(resolved))
+                   provenance=_cited_provenance(resolved), keep_printed=True)
             row.derivation = note_sourced.derivation.record(
                 row.derivation, basis=basis, period_label=period,
                 derivation=note_sourced.trail(
@@ -675,7 +704,8 @@ class LineItemLlmStage(Stage):
         return written
 
     def _write_unanswered(self, doc, by_concept: dict, item, answer, unresolved: list[dict],
-                          ctx, kept_printed: list | None = None) -> int:
+                          ctx, kept_printed: list | None = None,
+                          stated: list[dict] | None = None) -> int:
         """The model answered and NOTHING could be located. Record the answer anyway.
 
         WHAT THIS REPLACES: `if not resolved: continue`. Nothing whatever reached the row — no
@@ -741,6 +771,8 @@ class LineItemLlmStage(Stage):
             row.confidence.flags.append(
                 f"llm_citation_unresolved:note {bad.get('note')!r} "
                 f"{str(bad.get('caption') or '')[:48]!r} — {str(bad.get('why') or '')[:120]}")
+        # A LINE WHOSE ONLY FIGURE WAS AN AMOUNT NOBODY LOCATED STAYS BLANK, and is sent to review.
+        _flag_stated(row, stated, item.key, ctx)
         ctx.log(f"line_item_llm:{item.key}: answered but nothing located — "
                 f"{len(unresolved)} citation(s) recorded on the row, no figure written")
         return 0
@@ -1011,6 +1043,41 @@ class LineItemLlmStage(Stage):
         return 1
 
 
+def _review(row) -> None:
+    """Send the row to review — the one flag the queue selects a doubtful line on."""
+    if "low_mapping_confidence" not in row.confidence.flags:
+        row.confidence.flags.append("low_mapping_confidence")
+
+
+def _flag_stated(row, stated: list[dict] | None, key: str, ctx) -> None:
+    """Name every amount the model stated that the cited note does not contain, and send the line
+    to review. None of them is counted (`services.line_item_llm.combine_terms`)."""
+    for entry in stated or ():
+        row.confidence.flags.append(f"llm_stated_amount_not_in_filing:{entry['amount']}")
+        ctx.log(f"line_item_llm:{key}: the model stated {entry['amount']}, which note "
+                f"{entry.get('note') or '?'} does not contain — not counted")
+    if stated:
+        _review(row)
+
+
+def _tolerance(ctx) -> Decimal:
+    """The cross-check tolerance of this run's line-item set: below it, two figures are one."""
+    master = getattr(getattr(ctx, "line_items", None), "cross_check_master", None)
+    raw = getattr(master, "tolerance", None)
+    return Decimal(str(raw)) if raw is not None else line_item_llm.DEFAULT_TOLERANCE
+
+
+def _own_statements(item) -> list[str] | None:
+    """The statement tokens this line is printed on — None for a line that names none, which the
+    gate reads as unconstrained."""
+    declared = list(getattr(item, "statements", None) or ())
+    single = getattr(item, "statement", None)
+    if not declared and single is not None:
+        declared = [single]
+    tokens = [str(getattr(t, "value", t) or "") for t in declared]
+    return [t for t in tokens if t] or None
+
+
 def _input_label(entry: dict) -> str:
     """A cited row as the derivation names it — note and caption, and the printed COLUMN when the
     citation picked one, so a reviewer reads "[Total 總計]" rather than a row of nine figures."""
@@ -1053,10 +1120,11 @@ def _explained_fields(record: dict | None, period: str, component: bool, *, at=N
 
 
 def _unlocated(unresolved: list[dict], explained: dict, period: str, component: bool) -> list[dict]:
-    """The citations no row confirmed, for the trail of one period: a stated amount the figure
-    COUNTED (`combine_terms` counts it at the reporting period), and a citation that named nothing
-    the note holds — which is how a component answer whose total did not resolve says that its
-    published figure is the deduction alone.
+    """The citations no row confirmed, for the trail of one period: a stated amount no note
+    contains (shown at the reporting period as not used, reason `stated_not_located` —
+    `combine_terms` does not count it), and a citation that named nothing the note holds — which
+    is how a component answer whose total did not resolve says that its published figure is the
+    deduction alone.
 
     TRAIL-LEVEL, NEVER AN INPUT. The face settlement and the note pruner walk `inputs`, and neither
     may see a figure no row printed.
@@ -1077,7 +1145,7 @@ def _unlocated(unresolved: list[dict], explained: dict, period: str, component: 
             continue
         got = (record.get("periods") or {}).get(period)
         if got is None:
-            # A stated amount is counted in one period only; in this one it added nothing.
+            # A stated amount is shown in one period only; in this one it is not listed as stated.
             out.append({**base, "value": None, "used": "0",
                         "status": "missing" if component else "not_used", "reason": "no_figure"})
             continue

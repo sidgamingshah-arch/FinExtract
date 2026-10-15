@@ -261,19 +261,13 @@ def test_a_prose_amount_is_verified_against_the_note_text_and_scaled(shipped):
     assert _value(doc, SUB) == Decimal("529841")
 
 
-def test_a_prose_figure_that_is_not_in_the_note_is_published_but_flagged(shipped):
-    """A STATED AMOUNT THAT IS NOT IN THE NOTE'S TEXT, and the posture that changed.
+def test_a_prose_figure_that_is_not_in_the_note_is_not_published_and_is_flagged(shipped):
+    """A STATED AMOUNT THAT IS NOT IN THE NOTE'S TEXT is not a figure, and the line stays blank.
 
-    This asserted `_value(doc, SUB) is None` — the figure was refused outright, on the rule that
-    "a figure the model stated rather than located is refused". That rule caught a fabricated
-    RMB 6.6 bn on the corpus run, and it also threw away the model's arithmetic whenever one term
-    of a sum could not be confirmed, publishing a silent partial sum instead.
-
-    THE DECISION IS NOW THE OTHER WAY: the term is counted, the figure is published, and the line
-    is flagged for review with the unverified term NAMED. A reader sees the whole claim and which
-    part of it nobody could confirm. The refusal is no longer silent in either direction — it used
-    to lose the figure without saying so, and it would now publish it without saying so, so the
-    flag is the load-bearing half of this test.
+    The posture went back and forth. It was refused outright; then it was counted, published at
+    the reporting period WITHOUT the prose scaling (so in full units beside a face in thousands),
+    and flagged with a word nothing read — the case that published a RMB 6.6 bn figure no page
+    prints. It is now not counted, and the row names the amount and goes to review.
     """
     prose = "Depreciation charges of approximately HK$529,841,000 are included in expenses"
     doc = _doc(_note("7", "PROFIT BEFORE TAX", [("Auditor's remuneration", "120")], prose=prose))
@@ -281,13 +275,13 @@ def test_a_prose_figure_that_is_not_in_the_note_is_published_but_flagged(shipped
         {"key": SUB, "confidence": 0.7,
          "sources": [{"note": "7", "caption": "", "quote": prose, "amount": "999,999,000"}]}])
 
-    # It is still reported as not located — that fact has not changed.
     assert any("citation NOT resolved" in line for line in ctx.logs), ctx.logs[-6:]
     row = next((li for li in doc.line_items if li.canonical_key == SUB), None)
     assert row is not None, "the answer left no trace on the row at all"
-    flags = " ".join(row.confidence.flags)
-    # …and the line cannot read as settled.
-    assert "llm_unverified_term" in flags or "llm_answered_nothing_located" in flags, flags
+    assert _value(doc, SUB) is None, "an amount the note does not contain was published"
+    assert "llm_stated_amount_not_in_filing:999999000" in row.confidence.flags
+    assert "low_mapping_confidence" in row.confidence.flags
+    assert "llm_answered_nothing_located:1 citation(s)" in row.confidence.flags
 
 
 # ── what is never asked about ──────────────────────────────────────────────────────────────────
