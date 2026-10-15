@@ -5197,6 +5197,10 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                      header_carry: HeaderModel | None = None,
                      header_out: list[HeaderModel | None] | None = None,
                      reporting_year: int | None = None,
+                     # THE BASES A TWO-BASIS HEADER BAND NAMED over these rows' columns — empty
+                     # when none was found and every column took the consolidated default. Out
+                     # only, so `notes_extract` can record that a note's bases were PRINTED.
+                     bands_out: list[tuple[str, ...]] | None = None,
                      # A CAPTION BROKEN ACROSS THE PAGE, in and out — the same in/out shape
                      # `carry_group`/`group_out` uses for the note-continuation carry.
                      # `carry_caption` is the previous page's last captioned row, passed only when
@@ -5351,6 +5355,8 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
     bands = _basis_bands(raw_rows, value_bands, _value_area(value_bands, col_xs),
                          signals=entity_signals, fmt=number_format,
                          log=log, page_index=page_index)
+    if bands_out is not None:
+        bands_out.append(tuple(sorted({b.value for b, _x in bands})))
     rows = _merge_wrapped_labels(raw_rows, number_format, steps, page_title=page_title,
                                  known=known_captions or frozenset())
     if carry_caption:

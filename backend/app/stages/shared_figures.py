@@ -6,7 +6,9 @@ against a figure counted twice would report a tie that is not true.
 
 The decision is the provider's; this stage only finds the contests and applies the answer. With no
 provider configured, or the setting off, the collisions are recorded and flagged and every figure
-stays exactly where it was — see services.shared_figures.
+stays exactly where it was — see services.shared_figures. An answer below
+`extraction.llm_shared_figure_min_confidence` is not applied either: the contest is flagged as
+unresolved and nothing is removed.
 """
 from __future__ import annotations
 
@@ -84,12 +86,28 @@ class SharedFiguresStage:
             ctx.log(f"shared_figures:unknown provider {provider_id!r}")
             return doc
 
-        kept_both = removed = unresolved = 0
+        floor = float(getattr(settings.extraction, "llm_shared_figure_min_confidence", 0.0)
+                      or 0.0)
+        kept_both = removed = unresolved = doubtful = 0
         for n, c in enumerate(collisions):
             keep, rationale, conf = resolve(
                 provider, c, definition_of,
                 locale=getattr(ctx, "locale", "en") or "en",
                 max_tokens=min(400, settings.llm.max_tokens))
+            if conf < floor and not rationale.startswith(PROVIDER_ERROR):
+                # AN ANSWER THE MODEL IS NOT SURE OF DECIDES NOTHING. Its proposal is recorded
+                # beside the contest, and the contest is left for review exactly as with no
+                # provider: flagged on every claimant, every figure where it was.
+                doubtful += 1
+                doc.shared_figures[n].update({"keep": "", "proposed": keep,
+                                              "rationale": rationale, "confidence": conf,
+                                              "min_confidence": floor})
+                for _key, _label, _d, idx, _v in c.claimants:
+                    _flag(doc, idx, f"shared_figure_unresolved:{'|'.join(c.keys)}")
+                ctx.log(f"shared_figures:{c.amount} on {'|'.join(c.keys)} NOT RESOLVED — the "
+                        f"answer ({keep}) has confidence {conf:.2f}, below {floor:.2f}; nothing "
+                        f"removed ({provider_id}: {rationale[:80]})")
+                continue
             doc.shared_figures[n].update({"keep": keep, "rationale": rationale,
                                           "confidence": conf})
             if keep == "both":
@@ -129,7 +147,9 @@ class SharedFiguresStage:
         # provider answered none of them.
         ctx.log(f"shared_figures:{len(collisions)} contest(s) — "
                 f"{kept_both - unresolved} kept on both, {unresolved} NOT RESOLVED "
-                f"(provider failed), {removed} figure(s) removed, by {provider_id}")
+                f"(provider failed), "
+                + (f"{doubtful} NOT RESOLVED (confidence below {floor:.2f}), " if doubtful else "")
+                + f"{removed} figure(s) removed, by {provider_id}")
         return doc
 
 

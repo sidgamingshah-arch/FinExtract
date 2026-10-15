@@ -41,7 +41,7 @@ from app.core.stage import PipelineContext, Stage
 from app.ports.registry import registry
 from app.services import (face_context, line_item_llm, line_item_notes, line_item_requests,
                           line_item_routes, note_columns, note_sourced)
-from app.services.face_bases import printed_bases, refuse_unprinted
+from app.services.face_bases import is_disclosure, note_basis_of, printed_bases, refuse_unprinted
 from app.services.mapping import authored_guidance
 from app.services.working_view import build_working_view
 # ONE WRITER FOR A FIGURE, so the two routes into a line cannot disagree about what writing one
@@ -480,7 +480,7 @@ class LineItemLlmStage(Stage):
             _explain_swept_rows(doc, line_item_set, explained, ctx)
         blanked = self._reconcile_claimed_printed_rows(kept_printed, claimed_face_rows, ctx)
         blanked += self._settle_shared_printed_rows(doc, face_claims, cited_by_key, by_concept,
-                                                    ctx)
+                                                    ctx, line_item_set)
         blanked += self._settle_shared_note_rows(doc, note_cells, by_concept, line_item_set, ctx)
         # THE RUN'S ONE-LINE TOKEN SUMMARY. `cached` is part of `input`, not added to it.
         hit = (100.0 * tok["cached"] / tok["input"]) if tok["input"] else 0.0
@@ -662,7 +662,9 @@ class LineItemLlmStage(Stage):
             if period not in _FILED:
                 continue
             if refuse_unprinted(doc, row, item.key, basis, period, amount, by="line_item_llm",
-                                log=ctx.log, bases=faces):
+                                log=ctx.log, bases=faces,
+                                note_basis=_cited_note_basis(doc, ctx, item, resolved, basis,
+                                                             faces)):
                 continue
             # THE PRINTED FIGURE STAYS IN `value_raw` (`note_sourced._write`). A face row the
             # model's citation replaces keeps what the page printed beside the cited figure, so the
@@ -835,7 +837,7 @@ class LineItemLlmStage(Stage):
     @staticmethod
     def _settle_shared_printed_rows(doc, face_claims: dict[str, list[str]],
                                     cited_by_key: dict[str, list[str | None]],
-                                    by_concept: dict, ctx) -> int:
+                                    by_concept: dict, ctx, line_item_set=None) -> int:
         """One printed row, one line: when the model gave the SAME printed face row to two lines.
 
         THE CASE. The filing prints "Interest and other borrowing costs paid" once, under Financing
@@ -852,9 +854,25 @@ class LineItemLlmStage(Stage):
         gives and for the same reason: an export counting one printed number twice cannot be
         unpicked downstream. A line whose figure ALSO rests on other citations is left as it is and
         said so, because emptying it would throw away figures nobody else claimed.
+
+        A PARENT AND ITS PART MAY BOTH STAND ON THE ROW. The part is inside the parent, so the row is
+        counted once in any total, and emptying either loses a figure the filing prints for it
+        (cf_oper_direct__income_taxes_paid_direct and its part sub__cf_direct_income_taxes_paid
+        cite the same "Income taxes paid"). A claimant that is the parent or a part of another
+        claimant is never emptied.
         """
         from app.services.mapping import section_of_banner, section_of_key
         rows = {str(getattr(li, "id", "") or ""): li for li in (doc.line_items or ())}
+        parent_of = {i.key: str(getattr(i, "parent", "") or "")
+                     for i in (getattr(line_item_set, "items", None) or ())}
+
+        def ancestors(key: str) -> set[str]:
+            out, up = set(), parent_of.get(key, "")
+            while up and up not in out:
+                out.add(up)
+                up = parent_of.get(up, "")
+            return out
+
         blanked = 0
         for rid, keys in face_claims.items():
             if len(keys) < 2:
@@ -869,6 +887,13 @@ class LineItemLlmStage(Stage):
                     continue
                 row = by_concept.get(key)
                 if row is None:
+                    continue
+                kin = [k for k in keys if k != key
+                       and (k in ancestors(key) or key in ancestors(k))]
+                if kin:
+                    ctx.log(f"line_item_llm:{key}: shares the printed row {caption!r} with "
+                            f"{kin[0]}, its {'parent' if kin[0] in ancestors(key) else 'part'} "
+                            f"— the row is counted once, left as is")
                     continue
                 if any(r != rid for r in cited_by_key.get(key, ())):
                     ctx.log(f"line_item_llm:{key}: shares the printed row {caption!r} with "
@@ -1164,6 +1189,29 @@ def _unlocated(unresolved: list[dict], explained: dict, period: str, component: 
                     "used": _amount_text(got["used"]), "status": got["status"],
                     "reason": got.get("reason") or "stated_not_located"})
     return out
+
+
+def _cited_note_basis(doc, ctx, item, resolved: list[dict], basis: str, faces) -> str:
+    """Why the note rows the model cited are on `basis` (`face_bases.note_basis_of`) — asked only
+    for a DISCLOSURE line on a basis the face statements do not print (`face_bases.is_disclosure`).
+    "" wherever a cited row is a face row or cannot be found in the note tables, so such a figure
+    is refused as before."""
+    if faces.prints(basis):
+        return ""
+    defs = {i.key: i for i in (getattr(getattr(ctx, "line_items", None), "items", None) or ())}
+    if not is_disclosure(item.key, defs):
+        return ""
+    cells = note_sourced.note_cells(doc)
+    tables = []
+    for entry in resolved:
+        if entry.get("prose"):
+            continue
+        located = None if entry.get("on_face") else cells.get(
+            note_sourced.cell_of(entry.get("provenance")))
+        if located is None:
+            return ""
+        tables.append(located[0])
+    return note_basis_of(tables)
 
 
 def _cited_provenance(resolved: list[dict]):

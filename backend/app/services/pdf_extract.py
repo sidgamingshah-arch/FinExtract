@@ -483,7 +483,8 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
         # company-only chapter opens stays the group's — see `extract_note_tables`.
         # The note still open when this page ended is the LAST section, so its grid — None
         # included — is what the next page's continuation inherits. Its printed-column header too.
-        return (((tables[-1].note_number, tables[-1].title, tables[-1].basis) if tables
+        return (((tables[-1].note_number, tables[-1].title, tables[-1].basis,
+                  tables[-1].basis_from) if tables
                  else carry_note),
                 grids[-1] if grids else None,
                 groups[-1] if groups else None,

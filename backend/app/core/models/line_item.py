@@ -463,6 +463,15 @@ class NotesTable(BaseModel):
     #: used to set `basis` from 母公司 and to write a log line, and then dropped.
     chapter_title: str = ""
     basis: Basis | None = None
+    #: WHY THE NOTE'S FIGURES ARE ON THE BASIS THEY ARE, as `notes_extract` decided it. With a
+    #: `basis`: "chapter" (a 母公司 chapter), "carried" (the explicit basis of the note this one
+    #: continues from the previous page) or "default" (the face's one basis, read onto a note that
+    #: prints none). With no `basis`: "band" when a Group|Company band over the note's columns gave
+    #: each value its basis, and "" when nothing did and the values carry the row builder's
+    #: consolidated default. "chapter", "carried" and "band" are what the filing itself prints;
+    #: "default" and "" are readings. See `services.face_bases.EXPLICIT_NOTE_BASES` for what an
+    #: explicit one permits.
+    basis_from: str = ""
     source_pages: list[int] = Field(default_factory=list)
     source_text: str = ""
     #: THE NOTE'S NARRATIVE ONLY — its text with the lines it TABULATES removed. `None` means

@@ -1123,6 +1123,10 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
         # caller before this — keeps the page's basis, which is what it always had.
         if len(carry_note) > 2:
             carried["basis"] = carry_note[2]
+        # …and why it had that basis, so a continuation of a 母公司 note is as explicit as its
+        # first page (`NotesTable.basis_from`).
+        if len(carry_note) > 3:
+            carried["basis_from"] = carry_note[3]
         current = carried
     # THE NUMBERED NOTE A BRACKETED SUB-TABLE BELONGS TO. A mainland note numbers three levels
     # deep — 十二、the chapter, 6、the note, （1）/① the tables inside it — and every level used to
@@ -1251,6 +1255,7 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
         else:
             offered = prev_header[0] if prev_header[1] == sec_note else None
         named: list = []
+        banded: list = []
         items, _ = build_line_items(row_words, page_index=page_index,
                                     document_id=document_id, source_kind=source_kind,
                                     on_face=False, scope=scope, normalisation=normalisation,
@@ -1261,7 +1266,7 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
                                     group_out=open_group, known_captions=known_captions,
                                     page_fold=fold,
                                     header_carry=offered, header_out=named,
-                                    reporting_year=reporting_year)
+                                    reporting_year=reporting_year, bands_out=banded)
         used_header = named[0] if named else None
         prev_header = (used_header, sec_note)
         if header_out is not None:
@@ -1289,6 +1294,14 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
                          if sec_chapter_title and _COMPANY_CHAPTER.search(sec_chapter_title)
                          else None)
         sec_basis = sec["basis"] if "basis" in sec else chapter_basis
+        # WHY, recorded beside it (`NotesTable.basis_from`): a continued note is explicit when
+        # the note it continues was; a basis carried from the face's default stays a default.
+        if "basis" in sec:
+            began = str(sec.get("basis_from") or "")
+            basis_from = ("" if sec_basis is None
+                          else "carried" if began in ("chapter", "carried") else began)
+        else:
+            basis_from = "chapter" if chapter_basis is not None else ""
         # A NOTE THAT SAYS NOTHING OF WHOSE IT IS TAKES THE FACE'S ONE BASIS — see
         # ``default_basis``. Only a table whose values are uniformly the row builder's no-band
         # CONSOLIDATED default: a note printing Group and Company columns carries both bases and
@@ -1297,8 +1310,13 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
                 and all(ev.basis == Basis.CONSOLIDATED
                         for li in items for ev in (li.values or {}).values())):
             sec_basis = default_basis
+            basis_from = "default"
+        # A NOTE PRINTING GROUP AND COMPANY COLUMNS gave each value its basis from the band.
+        if sec_basis is None and any(banded):
+            basis_from = "band"
         table = NotesTable(note_number=qualified_note_number(sec_numeral, sec["no"]),
-                           title=sec["title"], basis=sec_basis, source_pages=[page_index],
+                           title=sec["title"], basis=sec_basis, basis_from=basis_from,
+                           source_pages=[page_index],
                            # THE CHAPTER'S OWN HEADING, carried rather than discarded. `read_chapter`
                            # returns `(numeral, ordinal, title)` and the title was used only for the
                            # 母公司 basis test above and for a log line, so a `note_source` naming

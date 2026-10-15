@@ -569,6 +569,10 @@ class ExtractionSettings(BaseModel):
     # unchanged — the stage can only ever remove a figure on an explicit answer naming the line
     # that keeps it.
     llm_shared_figure_tiebreak: bool = True
+    # THE CONFIDENCE AN ANSWER NEEDS BEFORE IT REMOVES A FIGURE. The stage removes a figure from a
+    # line only when the model's answer carries at least this confidence (0 to 1); below it the
+    # contest is flagged `shared_figure_unresolved`, as with no provider, and every figure stays.
+    llm_shared_figure_min_confidence: float = 0.6
     # Contingent Liabilities' narrative. The deterministic pass in services.contingent_liabilities
     # always classifies every item and computes every total from the filing's own figures — the
     # model never sees a number it was not given and never changes one. Enabled, it only rewrites

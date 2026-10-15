@@ -21,6 +21,14 @@ failed to resolve and only the 母公司 pages did, a "sole company scope" answe
 group's notes to standalone. So the answer fails closed: unknown, which applies no default and
 refuses nothing.
 
+A DISCLOSURE LINE IS JUDGED BY ITS NOTE, WHEN THE NOTE SAYS WHOSE IT IS. A line on the "notes"
+statement (`notes__contingent_liabilities` and its parts) is not printed on any face, so a filing
+that prints only the group's statements can still disclose the company's guarantees in a note
+headed for the company. Its figure is accepted when the note's basis is EXPLICIT — a 母公司
+chapter, a Group|Company band over its columns, or the explicit basis of the note it continues —
+and refused, like any statement line's, when the basis is a default reading. The accepted figure
+is flagged `basis_from_note:<from>:<basis>:<period>` and logged.
+
 AN UNREAD "STATEMENT" INSIDE THE NOTES IS NOT COUNTED. A face page found among the notes with no
 entity read is far more often a note table the classifier took for a statement (f1 page 12, f5
 page 8), so it is listed under `ignored_pages` and does not decide the answer. A statement past the
@@ -43,6 +51,18 @@ _ENTITY_BASES: dict[str, tuple[str, ...]] = {
 
 # The row flag a refused figure leaves: `basis_not_printed:<basis>:<period>`.
 REFUSED_FLAG = "basis_not_printed"
+# The row flag a disclosure line's figure accepted on its note's explicit basis leaves:
+# `basis_from_note:<from>:<basis>:<period>`, <from> one of EXPLICIT_NOTE_BASES (several joined by
+# "+").
+ACCEPTED_FLAG = "basis_from_note"
+# The `NotesTable.basis_from` values the filing itself prints: a 母公司 chapter, a Group|Company
+# band over the note's columns, and the basis of the note a continued one began as. "default" (the
+# face's one basis, read onto a note that prints none) and "" (the row builder's consolidated
+# default) are readings, and accept nothing.
+EXPLICIT_NOTE_BASES = frozenset({"chapter", "band", "carried"})
+_WORDS_FOR = {"chapter": "a parent-company (母公司) chapter",
+              "band": "a Group|Company band over its columns",
+              "carried": "the note it continues"}
 
 
 def _text(value) -> str:
@@ -170,17 +190,69 @@ def printed_bases(doc) -> FaceBases:
     return fb if seen == set(fb.bases) else replace(fb, bases=frozenset(seen))
 
 
+def is_disclosure(key: str, defs: dict) -> bool:
+    """Whether a line belongs to the notes rather than to a statement: it, or the line it is a part
+    of at the top of its parents, is on the "notes" statement. `notes__contingent_liabilities` and
+    its parts are; `sub__ppe_depreciation`, read from a note but a part of a profit-and-loss line,
+    is not."""
+    item, seen = defs.get(key), set()
+    while item is not None and getattr(item, "parent", None) and item.key not in seen:
+        seen.add(item.key)
+        up = defs.get(str(item.parent))
+        if up is None:
+            break
+        item = up
+    if item is None:
+        return False
+    scope = [str(getattr(s, "value", s)) for s in (getattr(item, "section_scope", None) or ())]
+    return _text(getattr(item, "statement", None)) == "notes" or scope == ["notes"]
+
+
+def note_basis_of(hits) -> str:
+    """Why these note rows' figures are on their basis: the explicit sources, joined by "+", when
+    every row has one — and "" when any row's basis is a default reading."""
+    sources = {str(getattr(h, "basis_from", "") or "") for h in hits}
+    if not sources or not sources <= EXPLICIT_NOTE_BASES:
+        return ""
+    return "+".join(sorted(sources))
+
+
+def accepted_from(row, basis, period: str) -> str:
+    """The explicit note basis a row's figure in this column was accepted on, read back off its
+    `basis_from_note` flag — "" when it carries none."""
+    tail = f":{_text(basis)}:{period}"
+    for flag in getattr(getattr(row, "confidence", None), "flags", None) or ():
+        if flag.startswith(f"{ACCEPTED_FLAG}:") and flag.endswith(tail):
+            return flag[len(ACCEPTED_FLAG) + 1:-len(tail)]
+    return ""
+
+
 def refuse_unprinted(doc, row, key: str, basis, period: str, amount, *, by: str, log=None,
-                     bases: FaceBases | None = None) -> bool:
+                     bases: FaceBases | None = None, note_basis: str = "") -> bool:
     """Refuse a derived figure on a basis this filing's statements do not print.
 
     Returns True when the figure must not be written. The row (when there is one) is flagged
     ``basis_not_printed:<basis>:<period>`` once, and the run log names the figure, so a refused
     figure is visible on the row and in the run record rather than silently absent.
+
+    ``note_basis`` is passed for a DISCLOSURE line only (`is_disclosure`): why the note the figure
+    was read from is on this basis (`note_basis_of`). An explicit one accepts the figure, and the
+    row is flagged ``basis_from_note:<from>:<basis>:<period>`` and the run log says which.
     """
     fb = bases if bases is not None else printed_bases(doc)
     basis = _text(basis)
     if fb.prints(basis):
+        return False
+    sources = set(note_basis.split("+")) if note_basis else set()
+    if sources and sources <= EXPLICIT_NOTE_BASES:
+        flag = f"{ACCEPTED_FLAG}:{note_basis}:{basis}:{period}"
+        if row is not None and flag not in row.confidence.flags:
+            row.confidence.flags.append(flag)
+        if log is not None:
+            log(f"{by}:{key}[{basis}:{period}] ACCEPTED {amount}: this filing's statements print "
+                f"{', '.join(sorted(fb.bases))} figures only, but this is a disclosure line and "
+                f"its note says the figure is {basis} — "
+                + "; ".join(_WORDS_FOR[s] for s in sorted(sources)))
         return False
     flag = f"{REFUSED_FLAG}:{basis}:{period}"
     if row is not None and flag not in row.confidence.flags:

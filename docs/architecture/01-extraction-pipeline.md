@@ -289,7 +289,9 @@ The face and its cited notes are processed in this order:
     alone. Runs *after* every stage that writes a figure and *before* `reconcile` — a tie checked
     against a figure counted twice would report a tie that is not true. With no provider, or
     `extraction.llm_shared_figure_tiebreak` off, every contest is recorded on
-    `doc.shared_figures` and flagged on the rows and NO figure moves.
+    `doc.shared_figures` and flagged on the rows and NO figure moves. An answer whose confidence
+    is below `extraction.llm_shared_figure_min_confidence` (default 0.6) is treated the same way:
+    its proposal is recorded, the contest is flagged `shared_figure_unresolved`, nothing is removed.
 
 15. **Reconcile** (`stages/reconcile.py` + `services/reconcile.py`) — the §20 subtraction
     and the note→face tie grading (see [03-reconciliation](03-reconciliation.md)).

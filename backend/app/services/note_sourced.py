@@ -137,10 +137,11 @@ class NoteRowHit:
 
     __slots__ = ("key", "note_number", "note_title", "caption", "matched_by", "value", "amount",
                  "basis", "period", "column", "column_matched_by", "period_source", "printed",
-                 "rescaled")
+                 "rescaled", "basis_from")
 
     def __init__(self, *, key, note_number, note_title, caption, matched_by, value, amount,
-                 basis, period, column=None, column_matched_by=None, period_source=None):
+                 basis, period, column=None, column_matched_by=None, period_source=None,
+                 basis_from=""):
         self.key = key
         self.note_number = note_number
         self.note_title = note_title
@@ -150,6 +151,9 @@ class NoteRowHit:
         self.amount = amount
         self.basis = basis
         self.period = period
+        # WHY `basis` IS THIS NOTE'S — its table's `NotesTable.basis_from`: "chapter", "carried",
+        # "band", "default" or "" (see `services.face_bases.EXPLICIT_NOTE_BASES`).
+        self.basis_from = basis_from
         # WHICH PRINTED COLUMN selected this figure, for a part declaring `column_heading_any` /
         # `column_heading_none` — the heading as printed, the pattern that admitted it, and where
         # its period came from (`note_columns.period_of`: "column", "row_block" or "grid"). None
@@ -271,7 +275,8 @@ class _ColumnSelector:
                 key=item.key, note_number=str(getattr(table, "note_number", "")),
                 note_title=title, caption=caption, matched_by=matched,
                 value=value, amount=amount, basis=basis, period=period,
-                column=str(heading), column_matched_by=by, period_source=source))
+                column=str(heading), column_matched_by=by, period_source=source,
+                basis_from=str(getattr(table, "basis_from", "") or "")))
         out: list[NoteRowHit] = []
         for found in slots.values():
             if len({h.amount for h in found}) == 1:
@@ -514,7 +519,8 @@ def select_rows(item, notes, periods: set[str] | None = None,
                         key=item.key, note_number=str(getattr(table, "note_number", "")),
                         note_title=title, caption=caption, matched_by=matched,
                         value=value, amount=amount,
-                        basis=_table_basis(table, value), period=hint))
+                        basis=_table_basis(table, value), period=hint,
+                        basis_from=str(getattr(table, "basis_from", "") or "")))
                 continue
 
             # A movement table's rows are readable ONLY through the block period. One that did not
@@ -604,6 +610,7 @@ def select_rows(item, notes, periods: set[str] | None = None,
                     note_title=title, caption=caption, matched_by=matched,
                     value=value, amount=amount,
                     basis=_table_basis(table, value),
+                    basis_from=str(getattr(table, "basis_from", "") or ""),
                     # `label`, NOT `value.period_label`. The two are the same string for every
                     # part reading the primary measure — `label` was read off the value above —
                     # and they differ for a part declaring `measure`, where `label` has had the

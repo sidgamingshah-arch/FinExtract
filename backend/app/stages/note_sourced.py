@@ -27,10 +27,11 @@ from __future__ import annotations
 from decimal import Decimal, InvalidOperation
 
 from app.core.models.document import DocumentModel
-from app.core.models.line_item import ExtractedValue, LineItem
+from app.core.models.line_item import ExtractedValue, LineItem, base_note_number
 from app.core.stage import PipelineContext, Stage
 from app.services import note_sourced
-from app.services.face_bases import printed_bases, refuse_unprinted
+from app.services.face_bases import (accepted_from, is_disclosure, note_basis_of, printed_bases,
+                                      refuse_unprinted)
 
 
 class NoteSourcedStage(Stage):
@@ -87,6 +88,9 @@ class NoteSourcedStage(Stage):
         # figure for any other basis has no statement to sit on, so every write below asks first.
         # Each helper further down reads the same answer for itself.
         bases = printed_bases(doc)
+        # …EXCEPT A DISCLOSURE LINE'S, which may stand on its note's own explicit basis
+        # (`face_bases.is_disclosure`, `note_basis_of`).
+        defs = {i.key: i for i in all_items}
         # BELOW THIS, the model's figure and the declared note reading's are the same figure.
         tolerance = Decimal(str(getattr(getattr(line_item_set, "cross_check_master", None),
                                         "tolerance", None) or "0.5"))
@@ -274,14 +278,21 @@ class NoteSourcedStage(Stage):
             for flag in unit_flags:
                 if flag not in row.confidence.flags:
                     row.confidence.flags.append(flag)
+            disclosure = is_disclosure(item.key, defs)
             for (basis, period), (amount, inputs) in sorted(resolved.items()):
                 if (basis, period) in foreign:
                     a, b = foreign[(basis, period)]
                     ctx.log(f"note_sourced:{item.key}[{basis}:{period}]: {amount} NOT written — "
                             f"a row it reads is printed in {a}, the statement in {b}")
                     continue
+                # THE ROWS THE FIGURE WAS COUNTED FROM, in `resolve`'s order, for a disclosure
+                # line's note basis.
+                counted = [h for h, inp in zip([h for h in hits
+                                                if (h.basis, h.period) == (basis, period)], inputs)
+                           if inp.get("counted")]
                 if refuse_unprinted(doc, row, item.key, basis, period, amount,
-                                    by="note_sourced", log=ctx.log, bases=bases):
+                                    by="note_sourced", log=ctx.log, bases=bases,
+                                    note_basis=note_basis_of(counted) if disclosure else ""):
                     continue
                 # THE MODEL'S ANSWER STANDS — see `_llm_holds`. A `note_source` declaration is one
                 # route to this row's figure and the model's reading of the notes is another; where
@@ -407,6 +418,12 @@ class NoteSourcedStage(Stage):
                    if line.startswith("note_sourced:") and "] REFUSED " in line}
         if refused:
             ctx.log(f"note_sourced:basis_refused={len(refused)} "
+                    f"(face bases: {bases.describe()})")
+        # …AND EVERY DISCLOSURE FIGURE ACCEPTED ON ITS NOTE'S OWN BASIS instead, counted the same way.
+        accepted = {line.split("] ACCEPTED ", 1)[0] for line in ctx.logs[logs_at:]
+                    if line.startswith("note_sourced:") and "] ACCEPTED " in line}
+        if accepted:
+            ctx.log(f"note_sourced:basis_accepted_from_note={len(accepted)} "
                     f"(face bases: {bases.describe()})")
         ctx.log(f"note_sourced: {touched} item(s) filled from notes, {filled} figure(s), "
                 f"{parents} parent(s) resolved, {standalone} standalone line(s) computed")
@@ -1047,10 +1064,12 @@ def _fill_parents(children_of: dict[str, list], by_key: dict, doc: DocumentModel
             # Per (basis, period), because combining across columns would produce a figure the filing
             # states in neither.
             by_slot: dict[tuple[str, str], list] = {}
+            row_of: dict[int, LineItem] = {}
             for item, child in kids:
                 for ev in (child.values or {}).values():
                     if ev.value is None:
                         continue
+                    row_of[id(ev)] = child
                     by_slot.setdefault((_basis(ev), str(getattr(ev, "period_label", "") or "")),
                                        []).append((item, ev))
 
@@ -1085,10 +1104,14 @@ def _fill_parents(children_of: dict[str, list], by_key: dict, doc: DocumentModel
                         ctx.log(f"note_sourced:{parent_key}: printed {existing.value} kept over "
                                 f"note-derived {taken}")
                     continue
+                taken_from = offers[:1] if rollup == "alternatives" else offers
                 if refuse_unprinted(doc, parent, parent_key, basis, period,
                                     offers[0][1].value if rollup == "alternatives" else sum(
                                         (o[1].value for o in offers), Decimal(0)),
-                                    by="note_sourced", log=ctx.log, bases=bases):
+                                    by="note_sourced", log=ctx.log, bases=bases,
+                                    note_basis=(_parts_note_basis(
+                                        [row_of[id(ev)] for _i, ev in taken_from], basis, period)
+                                        if is_disclosure(parent_key, defs) else "")):
                     continue
                 if rollup == "alternatives":
                     item, ev = offers[0]
@@ -1438,7 +1461,9 @@ def _fill_by_cascade(parent_def, kids: list, by_key: dict, doc: DocumentModel,
         # A COLUMN THE STATEMENTS DO NOT PRINT IS NOT THIS CASCADE'S TO FILL — and, refused here,
         # it neither writes nor supersedes the printed carriers below.
         if refuse_unprinted(doc, parent, parent_def.key, basis, period, got.value,
-                            by="note_sourced", log=ctx.log, bases=bases):
+                            by="note_sourced", log=ctx.log, bases=bases,
+                            note_basis=(_inputs_note_basis(doc, got.inputs, basis, period)
+                                        if is_disclosure(parent_def.key, defs or {}) else "")):
             continue
         # THE CONTEST IS ACROSS EVERY CARRIER, because the figure a reader sees is
         # `concept_value` over all of them — deciding it against one row would leave the others
@@ -1593,6 +1618,24 @@ def _face_prints_line(parent_def, by_key: dict, defs: dict, basis: str, period: 
     return False
 
 
+def _parts_note_basis(rows, basis: str, period: str) -> str:
+    """The explicit note basis every part's figure in this column was accepted on, joined by "+" —
+    "" when any part's was not (`face_bases.accepted_from`). A disclosure parent's figure on a basis
+    the face does not print stands only on parts that each stood on their note's own basis."""
+    sources = [accepted_from(r, basis, period) for r in rows]
+    if not sources or not all(sources):
+        return ""
+    return "+".join(sorted({part for s in sources for part in s.split("+")}))
+
+
+def _inputs_note_basis(doc, inputs, basis: str, period: str) -> str:
+    """`_parts_note_basis` over the lines an evaluation's terms read in this column."""
+    refs = {str(e.get("ref")) for e in (inputs or ()) if e.get("ref")}
+    rows = [li for li in doc.line_items if li.canonical_key in refs
+            and (ev := _slot(li, basis, period)) is not None and ev.value is not None]
+    return _parts_note_basis(rows, basis, period)
+
+
 def _slot(row: LineItem, basis: str, period: str):
     for ev in (row.values or {}).values():
         if _basis(ev) == basis and str(getattr(ev, "period_label", "") or "") == period:
@@ -1669,6 +1712,7 @@ def _fill_childless_internal(all_items, children_of: dict[str, list], by_key: di
     # to drift.
     filled = 0
     bases = printed_bases(doc)
+    defs = {i.key: i for i in (all_items or ())}
     for item in sorted(candidates, key=lambda i: (int(getattr(i, "order", 0) or 0), i.key)):
         row = next((li for li in doc.line_items if li.canonical_key == item.key), None)
         wrote = []
@@ -1691,7 +1735,10 @@ def _fill_childless_internal(all_items, children_of: dict[str, list], by_key: di
                 continue
             # Asked before the row exists, so a line refused in every column is never created.
             if refuse_unprinted(doc, row, item.key, basis, period, ev.value,
-                                by="note_sourced", log=ctx.log, bases=bases):
+                                by="note_sourced", log=ctx.log, bases=bases,
+                                note_basis=(_inputs_note_basis(doc, getattr(ev, "inputs", None),
+                                                               basis, period)
+                                            if is_disclosure(item.key, defs) else "")):
                 continue
             if row is None:
                 row = LineItem(source_label=item.label or item.key, canonical_key=item.key)
@@ -1740,6 +1787,10 @@ def _children_by_parent(all_items) -> dict[str, list[str]]:
 # counted — the line's figure, one of its parts', or a note row it read — or equals a total the
 # note prints over a row the line read. Checked in BOTH periods wherever both are printed, because
 # two amounts agreeing in one year is a coincidence a filing produces; agreeing in both is not.
+# Where only one year can be compared — the face row or the line prints the other year nowhere —
+# the amount alone settles nothing: the face row must also cite a note the line read, or print
+# that note's own total over the row (containment). An LTP line read from note 26 used to go to 0
+# against a face row citing an unrelated note 9 that printed the same amount in its one year.
 #
 # THE CALCULATION STILL RUNS, and that is the other half. The money a face row prints is taken out
 # of the line's own calculation — the cascade is evaluated again with that part reduced by it — and
@@ -2018,15 +2069,59 @@ def _settle_against_the_face(doc: DocumentModel, ctx: PipelineContext, all_items
     def other_period(period: str) -> str | None:
         return {"current": "prior", "prior": "current"}.get(period)
 
-    def confirmed(face_row: LineItem, piece: _Piece, rel: str, line_key: str, basis: str,
-                  period: str) -> bool:
-        """The same relation in the other year, wherever both figures are printed."""
+    def trail_notes(trail: dict | None, seen: set[str], basis: str, period: str) -> set[str]:
+        """The notes whose rows a trail counted, following the parts it was built from."""
+        out: set[str] = set()
+        for inp in (trail or {}).get("inputs") or ():
+            if not inp or inp.get("counted") is False or inp.get("deducted"):
+                continue
+            ref = str(inp.get("canonical_key") or inp.get("ref") or "")
+            if ref:
+                if ref not in seen:
+                    seen.add(ref)
+                    for r in by_key.get(ref, ()):
+                        out |= trail_notes((r.derivation or {}).get(f"{basis}:{period}"), seen,
+                                           basis, period)
+                continue
+            if inp.get("note"):
+                out.add(str(inp["note"]))
+            located = cells.get(note_sourced.cell_of(inp.get("provenance")))
+            if located is not None and getattr(located[0], "note_number", None):
+                out.add(str(located[0].note_number))
+        return out
+
+    def notes_read(piece: _Piece, line_key: str, basis: str, period: str) -> set[str]:
+        """The notes the piece's money was read from: its own note for a row, every note the
+        line's (or the part's) trail counted otherwise."""
+        if piece.level == "row":
+            out = {piece.note} if piece.note else set()
+            located = cells.get(piece.cell)
+            if located is not None and getattr(located[0], "note_number", None):
+                out.add(str(located[0].note_number))
+            return out
+        key = line_key if piece.level == "line" else (piece.owner or "")
+        out = set()
+        for r in by_key.get(key, ()):
+            out |= trail_notes((r.derivation or {}).get(f"{basis}:{period}"), {key}, basis,
+                               period)
+        return out
+
+    def cites(face_row: LineItem, notes: set[str]) -> bool:
+        """Whether the face row prints a reference to one of these notes ("16(b)" names 16)."""
+        tokens = list(face_row.cited_notes())
+        tokens += [b for b in (base_note_number(t) for t in tokens) if b]
+        return any(note_sourced.same_note(t, n) for t in tokens for n in notes)
+
+    def compared(face_row: LineItem, piece: _Piece, rel: str, line_key: str, basis: str,
+                 period: str) -> bool | None:
+        """The same relation in the other year — or None where the face row or the line does not
+        print that year, so only one year can be compared."""
         other = other_period(period)
         if other is None:
-            return True
+            return None
         face_then = was(face_row, basis, other)
         if face_then is None:
-            return True
+            return None
         if piece.level == "line":
             then = figure_before(line_key, basis, other)
         elif piece.level == "part":
@@ -2038,9 +2133,28 @@ def _settle_against_the_face(doc: DocumentModel, ctx: PipelineContext, all_items
             else:
                 table, note_row = located
                 if rel == "contains":
+                    if _note_figure(note_row, basis, other) is None:
+                        return None
                     return face_then in _note_totals(table, note_row, basis, other)
                 then = _note_figure(note_row, basis, other)
-        return then is None or then == face_then
+        return None if then is None else then == face_then
+
+    def confirmed(face_row: LineItem, piece: _Piece, rel: str, line_key: str, basis: str,
+                  period: str) -> bool:
+        """BOTH YEARS where both are printed. Where only one year can be compared, the amount alone
+        is a coincidence a filing produces: it settles only when the face row cites a note the
+        line read, or when the face row prints that note's own total over the row (containment).
+        """
+        both = compared(face_row, piece, rel, line_key, basis, period)
+        if both is not None:
+            return both
+        if rel == "contains" or cites(face_row, notes_read(piece, line_key, basis, period)):
+            return True
+        ctx.log(f"note_sourced:face_settlement: {line_key}[{basis}:{period}] "
+                f"{piece.label[:60]!r} {piece.amount} equals {face_row.canonical_key} "
+                f"({str(face_row.source_label)[:60]!r}) in one year only, and the face row cites "
+                f"no note the line read — not settled")
+        return False
 
     def match(piece: _Piece, others: list[LineItem], key: str, home: str, basis: str,
               period: str, absorbed: dict[int, Decimal]):
