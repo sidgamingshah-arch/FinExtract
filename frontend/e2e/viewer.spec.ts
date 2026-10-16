@@ -6,7 +6,7 @@
 // `test` comes from ./fixtures, not from @playwright/test: it carries an auto fixture that
 // ABORTS any request leaving this machine. See e2e/fixtures.ts — an off-box asset on the
 // critical path is what made this suite fail at a different test on each run.
-import { expect, type Page, test } from "./fixtures";
+import { chooseTemplate, expect, type Page, test } from "./fixtures";
 
 const DCL = { waitUntil: "domcontentloaded" as const };
 
@@ -43,6 +43,7 @@ test("find-in-document jumps to the page that carries the phrase", async ({ page
   test.setTimeout(180_000);
   await loginAs(page, "analyst");
   await page.goto("/upload", DCL);
+  await chooseTemplate(page);
   await page.setInputFiles('input[type="file"]', "e2e/fixtures/sample.pdf");
   await expect(page.getByTestId("doc-row").filter({ hasText: "sample.pdf" }))
     .toBeVisible({ timeout: 15_000 });

@@ -76,3 +76,16 @@ export const test = base.extend<{ blockedExternalRequests: string[] }>({
 });
 
 export { expect, type Page };
+
+/** A run needs a template. With more than one template in force (the shipped data has three), the
+ *  Upload screen asks rather than guessing one, so a test that extracts chooses one as an analyst
+ *  would: the HK output template unless it names another. The choice is remembered by the screen. */
+export async function chooseTemplate(page: Page, key = "output_csv_hk_v1"): Promise<void> {
+  const meta = page.getByTestId("tpl-active-meta");
+  await expect(meta).toBeVisible({ timeout: 15_000 });
+  if ((await meta.innerText()).startsWith(`${key} ·`)) return;
+  await page.getByRole("button", { name: "Choose another" }).click();
+  await page.getByTestId("tpl-option").filter({ hasText: `${key} ·` }).first().click();
+  await expect(meta).toContainText(`${key} ·`);
+}
+

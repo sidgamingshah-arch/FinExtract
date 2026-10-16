@@ -6,7 +6,7 @@
  *  balance sheet, 6 the cash flow, 7–8 notes, 9 a five-year summary. */
 // `test` comes from ./fixtures, not from @playwright/test: it carries an auto fixture that
 // ABORTS any request leaving this machine. See e2e/fixtures.ts.
-import { expect, type Page, test } from "./fixtures";
+import { chooseTemplate, expect, type Page, test } from "./fixtures";
 
 const DCL = { waitUntil: "domcontentloaded" as const };
 
@@ -32,6 +32,7 @@ test("page scope: a section's pages change with one click, a section switches of
   test.setTimeout(240_000);
   await loginAs(page, "analyst");
   await page.goto("/upload", DCL);
+  await chooseTemplate(page);
   await page.setInputFiles('input[type="file"]', "e2e/fixtures/scope-report.pdf");
   await expect(page.getByTestId("doc-row").filter({ hasText: "scope-report.pdf" }).first())
     .toBeVisible({ timeout: 15_000 });

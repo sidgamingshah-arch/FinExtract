@@ -198,6 +198,7 @@ test("note references are hyperlinks to the All Notes screen", async ({ page }) 
 test("analyst uploads a document and views its extracted data with provenance", async ({ page }) => {
   await loginAs(page, "analyst");
   await page.goto("/upload", DCL);
+  await chooseTemplate(page, "output_csv_hk_v1");
   // The dropzone's hidden file input is real (browse is clickable).
   await page.setInputFiles('input[type="file"]', "e2e/fixtures/sample.pdf");
   await expect(page.getByTestId("doc-row").filter({ hasText: "sample.pdf" })).toBeVisible({ timeout: 15_000 });
@@ -217,6 +218,7 @@ test("analyst uploads a document and views its extracted data with provenance", 
 test("analyst uploads a spreadsheet and gets Excel cell-level click-to-source", async ({ page }) => {
   await loginAs(page, "analyst");
   await page.goto("/upload", DCL);
+  await chooseTemplate(page, "output_csv_hk_v1");
   await page.setInputFiles('input[type="file"]', "e2e/fixtures/sample.xlsx");
   await expect(page.getByTestId("doc-row").filter({ hasText: "sample.xlsx" })).toBeVisible({ timeout: 15_000 });
 
@@ -321,7 +323,10 @@ test("analyst cannot reach the config template screen but can select a template"
 
   // But the analyst still SELECTS a template on the Documents & Template (Upload) screen.
   await page.goto("/upload", DCL);
-  await expect(page.getByText("Selected")).toBeVisible({ timeout: 15_000 }); // a template is active
+  // More than one template has a line-item set in force, so none is chosen for the reader: the
+  // screen asks. Once one is chosen it is the active one.
+  await chooseTemplate(page, "output_csv_hk_v1");
+  await expect(page.getByText("Selected")).toBeVisible({ timeout: 15_000 });
 
   // WHICH VERSION IS ACTIVE BY DEFAULT: the latest, which is what the server flags. This test used
   // to click a row and assert only that the picker CLOSED — so it passed throughout the period when
