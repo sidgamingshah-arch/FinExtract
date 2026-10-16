@@ -2451,7 +2451,9 @@ _SWEPT_TYPES = frozenset({"swept"})
 _CONFLICT_TYPES = frozenset({"readings_disagree", "model_replaced_printed"})
 _REPORTED_OTHER = "reported_other"
 _DISAGREE_FLAG = "llm_note_route_disagree:"
-_DISPLACED_FLAG = "line_item_llm_displaced_printed:"
+# The model's cited-row write and its prose write record a displaced printed figure under their
+# own route names (`note_sourced._write`, `LineItemLlmStage._write_prose`).
+_DISPLACED_FLAGS = ("line_item_llm_displaced_printed:", "prose_value_displaced_printed:")
 
 
 def _amount(text) -> Decimal | None:
@@ -2576,7 +2578,8 @@ def _model_slots(r: dict) -> list[tuple[str, str]]:
     derivation records one entry per slot it answered."""
     slots: list[tuple[str, str]] = []
     for slot, d in (r.get("derivation") or {}).items():
-        if not str((d or {}).get("method") or "").startswith("line_item_llm"):
+        method = str((d or {}).get("method") or "")
+        if not (method.startswith("line_item_llm") or method == "prose_sourced"):
             continue
         basis, _, period = str(slot).partition(":")
         if basis and period:
@@ -2666,8 +2669,8 @@ def _conflict_checks(rows: list[dict], template_def: dict | None, locale: str,
             })
         # THE MODEL REPLACED A PRINTED FIGURE: `<printed>` per slot it displaced, in the order the
         # model wrote its slots. Raised only where the printed and new amounts differ.
-        printed = [p for p in (_amount(f[len(_DISPLACED_FLAG):]) for f in flags
-                               if f.startswith(_DISPLACED_FLAG)) if p is not None]
+        printed = [p for p in (_amount(f.split(":", 1)[1]) for f in flags
+                               if f.startswith(_DISPLACED_FLAGS)) if p is not None]
         if not printed:
             continue
         slots = _model_slots(r)

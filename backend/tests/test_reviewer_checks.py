@@ -576,6 +576,18 @@ def test_where_the_model_wrote_every_column_the_face_is_the_statements_page(hk_t
                                  ["Read on", "p.3", False]]
 
 
+def test_a_printed_figure_the_model_replaced_from_a_sentence_raises_the_same_card(hk_template_def):
+    """The model's prose write records the figure it displaced as `prose_value_displaced_printed:`
+    and its trail as `prose_sourced`; the card reads both, as it does the cited-row write."""
+    rows = _displaced()
+    rows[0]["flags"] = ["prose_value_displaced_printed:9999"]
+    rows[0]["derivation"] = {"consolidated:current": {"method": "prose_sourced"}}
+    review = _build_review(rows, "f.pdf", "en", template_def=hk_template_def)
+    card, = [c for c in review["checks"] if c["type"] == "model_replaced_printed"]
+    assert card["calc"][0] == ["Printed on the face · consolidated/current", "9,999", False]
+    assert card["calc"][2] == ["The model replaced it with · consolidated/current", "5,170", True]
+
+
 def test_no_card_where_the_printed_and_new_amounts_are_the_same(hk_template_def):
     review = _build_review(_displaced(now="9999"), "f.pdf", "en", template_def=hk_template_def)
     assert not [c for c in review["checks"] if c["type"] == "model_replaced_printed"]
