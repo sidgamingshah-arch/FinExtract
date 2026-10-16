@@ -4308,6 +4308,9 @@ def remap_review_row(document_id: str, body: RemapBody, locale: str = Depends(ou
     if key:
         flags = [f for f in flags if f != "low_mapping_confidence"]
     target["flags"] = flags
+    remap_event = _append_correction(
+        result, action="remap", slot=ref, before=prior, after=key,
+        reason=target["remap"]["reason"], by=target["remap"]["by"])
     for v in target.get("values") or []:
         conf = v.get("confidence")
         if isinstance(conf, dict):
@@ -4319,6 +4322,7 @@ def remap_review_row(document_id: str, body: RemapBody, locale: str = Depends(ou
     run.result = result
     flag_modified(run, "result")
     session.commit()
+    _audit_correction(document_id, run, remap_event)
     # The re-map SUCCEEDED either way — the concept moved and is recorded. What can be missing is
     # the section tag that follows it, and only because the rulebook this run pinned cannot be read
     # back. Reported in the coverage-band idiom ({"available": ..., "reason": ...}) so the screen can
@@ -4442,6 +4446,36 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
+def _append_correction(result: dict, *, action: str, slot: str, before, after,
+                       reason: str = "", by: str = "") -> dict:
+    """Append one correction event to the run's ``history`` and return it.
+
+    The history is append-only: an edit, a re-map, a revert and a comment change each ADD an event,
+    so the figure an analyst typed on Monday and replaced on Tuesday is still on the record, and a
+    revert is an event rather than an eraser. ``before``/``after`` are what the slot held either side
+    of the action (a list of values for a row-wide revert, a key for a re-map).
+    """
+    event = {"action": action, "slot": slot, "before": copy.deepcopy(before),
+             "after": copy.deepcopy(after), "reason": (reason or "")[:2000], "by": by or "",
+             "at": _now_iso(), "seq": len(result.get("history") or []) + 1}
+    result["history"] = [*(result.get("history") or []), event]
+    return event
+
+
+def _audit_correction(document_id: str, run, event: dict) -> None:
+    """The same event on the audit trail, under the document, after the run's commit.
+
+    The trail's ``run_id`` is unique per entry, so a correction is keyed by the run it corrects plus
+    its place in that run's history. No tokens and no duration: a correction spends nothing.
+    """
+    from app.services import audit
+
+    audit.record(document_id, audit.AuditEntry(
+        run_id=f"{run.id}:correction:{event['seq']}"[:128], entity=event["slot"][:255],
+        action=f"correction_{event['action']}", provider="", model="",
+        input_tokens=None, output_tokens=None, status="succeeded"))
+
+
 @router.patch("/{document_id}/line-items/{canonical_key:path}",
               dependencies=[Depends(require(Permission.EXTRACTION_EDIT)), Depends(authorized_document)])
 def edit_document_line_item(document_id: str, canonical_key: str, body: LineItemEdit,
@@ -4509,6 +4543,9 @@ def edit_document_line_item(document_id: str, canonical_key: str, body: LineItem
         slot = {"period_label": body.period, "basis": body.basis, "value": None,
                 "provenance": None}
         values.append(slot)
+    value_before = slot.get("value")
+    comment_before = ((target.get("edit_comments") or {})
+                      .get(_slot_id(body.basis, body.period)) or {}).get("text", "")
 
     # A formula drives the value: evaluate it against the other line items (same basis and
     # period), so a real formula shows its computed result. If a formula is given alongside an
@@ -4585,10 +4622,26 @@ def edit_document_line_item(document_id: str, canonical_key: str, body: LineItem
     else:
         target.pop("edit_comments", None)
 
+    # THE CORRECTION ON THE RECORD. The slot overlay above is the figure in force; the history is
+    # every figure that was ever in force, so an edit that replaces an earlier edit does not erase it.
+    by = getattr(principal, "username", "") or ""
+    comment_after = (comments.get(slot_id) or {}).get("text", "")
+    events = []
+    if slot["value"] != value_before or computed is not None:
+        events.append(_append_correction(result, action="edit", slot=f"{canonical_key}|{slot_id}",
+                                         before=value_before, after=slot["value"],
+                                         reason=comment_after, by=by))
+    if comment_after != comment_before:
+        events.append(_append_correction(result, action="comment",
+                                         slot=f"{canonical_key}|{slot_id}",
+                                         before=comment_before, after=comment_after,
+                                         reason=comment_after, by=by))
     result["rows"] = rows
     run.result = result
     flag_modified(run, "result")
     session.commit()
+    for ev in events:
+        _audit_correction(document_id, run, ev)
     return {"ok": True, "canonical_key": canonical_key, "basis": body.basis,
             "period": body.period, "value": slot["value"], "formula": target.get("formula"),
             "status": "edited", "label": target.get("source_label") or "",
@@ -4603,7 +4656,8 @@ def edit_document_line_item(document_id: str, canonical_key: str, body: LineItem
 @router.delete("/{document_id}/line-items/{canonical_key:path}",
                dependencies=[Depends(require(Permission.EXTRACTION_EDIT)), Depends(authorized_document)])
 def revert_document_line_item(document_id: str, canonical_key: str,
-                              session: Session = Depends(db)) -> dict:
+                              session: Session = Depends(db),
+                              principal: Principal = Depends(current_principal)) -> dict:
     """Revert an edited line item to its original machine-extracted values, dropping the
     manual value(s) and formula. A line that only ever existed as a manual entry is removed."""
     from app.db.models import Document
@@ -4624,6 +4678,9 @@ def revert_document_line_item(document_id: str, canonical_key: str,
     if not target.get("edited"):
         return {"ok": True, "canonical_key": canonical_key, "reverted": False, "status": None}
 
+    # The revert is an EVENT, not an eraser: what the row held before it, and what it holds after,
+    # go on the history beside the edits it undoes — the edits themselves stay there.
+    values_before = copy.deepcopy(target.get("values") or [])
     if target.get("manual"):
         # Nothing to restore: the line came from the analyst, not the document.
         rows = [r for r in rows if r is not target]
@@ -4645,10 +4702,15 @@ def revert_document_line_item(document_id: str, canonical_key: str,
         target.pop("edited_slots", None)
         target.pop("edit_comments", None)
 
+    event = _append_correction(
+        result, action="revert", slot=canonical_key, before=values_before,
+        after=[] if target.get("manual") else copy.deepcopy(target.get("values") or []),
+        reason="", by=getattr(principal, "username", "") or "")
     result["rows"] = rows
     run.result = result
     flag_modified(run, "result")
     session.commit()
+    _audit_correction(document_id, run, event)
     return {"ok": True, "canonical_key": canonical_key, "reverted": True, "status": None}
 
 

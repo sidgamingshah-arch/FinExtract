@@ -47,6 +47,7 @@ from app.ports.object_store import LocalObjectStore
 from app.schemas.loader import load_template
 from app.security import Permission, Principal, current_principal, require
 from app.services import audit as audit_svc
+from app.services import run_provenance
 from app.services.documents import run_extraction
 from app.services.page_sections import reads_current_pages
 
@@ -889,6 +890,24 @@ def _json_safe(value):
     return json.loads(json.dumps(value, default=str))
 
 
+def _json_safe(obj):
+    """``obj`` as plain JSON (Decimals and dates as strings), for a dict list the JSON column stores."""
+    import json
+
+    return json.loads(json.dumps(obj, default=str))
+
+
+def _is_sign_flag(flag: str) -> bool:
+    """A value flag that says the engine changed or questioned the figure's sign."""
+    return flag.startswith(("sign_", "label_sign"))
+
+
+def _is_unit_flag(flag: str) -> bool:
+    """A value flag that says the engine read, assumed or changed the figure's unit or scale."""
+    head = flag.split(":", 1)[0]
+    return "scale" in head or "unit" in head
+
+
 def _serialize_rows(doc_model, working_view=None) -> list[dict]:
     """Extracted line items in a view-friendly shape, each value with its provenance
     (sheet+cell for Excel, page+bbox for PDF) so the UI can show click-to-source.
@@ -940,6 +959,13 @@ def _serialize_rows(doc_model, working_view=None) -> list[dict]:
                 "column_index": ev.column_index,
                 "basis": ev.basis.value,
                 "value": (str(ev.value) if ev.value is not None else None),
+                # THE FIGURE AS PRINTED, beside the figure in force. A gate that zeroes a value, a
+                # sign rule that flips it and a settlement that lowers it all leave ``value_raw``
+                # alone, so a reader of the run can see what the page said without re-extracting.
+                "value_raw": (str(ev.value_raw) if ev.value_raw is not None else None),
+                "sign_normalised": bool(getattr(ev, "sign_normalised", False)),
+                "sign_flags": [f for f in cv.flags if _is_sign_flag(f)],
+                "unit_flags": [f for f in cv.flags if _is_unit_flag(f)],
                 # THE UNIT THIS FIGURE IS IN, per value rather than per document.
                 #
                 # Neither field was emitted, so every one of a run's values arrived at the screen
@@ -1251,6 +1277,16 @@ def _satisfies(existing, body) -> bool:
         return False
     if body.target_units is not None and body.target_units != opts.get("target_units"):
         return False
+    # THE SETTINGS IN FORCE ARE PART OF THE REQUEST, though no caller states them: an admin who
+    # switches OCR on, changes the model route or moves an evidence floor is asking for filings to
+    # be read differently, and the run read before the change does not answer that. A run recorded
+    # before provenance existed carries no identity and cannot be judged, so it still answers.
+    recorded = (opts.get("provenance") or {}).get("settings_identity")
+    if recorded:
+        from app.services.run_provenance import settings_identity
+
+        if recorded != settings_identity():
+            return False
     return True
 
 
@@ -1290,6 +1326,7 @@ def resolve_template_id(session: Session, pinned_template_id: str | None,
         return pinned_template_id
 
     q = select(TemplateVersion)
+    target = ""
     if pinned_line_item_id:
         # ``line_item_versions``, the ONE configuration store — the ``ontology_versions`` row this
         # used to read is gone, and with it the second engine a run could be pinned to.
@@ -1297,10 +1334,45 @@ def resolve_template_id(session: Session, pinned_template_id: str | None,
         target = (cfg.target_template_key or "") if cfg is not None else ""
         if target:
             q = q.where(TemplateVersion.template_key == target)
+    if not target:
+        # NOTHING PINNED: no fallback to whichever template was stored last. The default is the ONE
+        # template that has a line-item set in force; with none, or with several, there is no
+        # default and the caller has to choose (``start_extraction`` refuses, the Upload screen
+        # asks).
+        return default_template_id(session)
     row = session.execute(
         q.order_by(TemplateVersion.created_at.desc(), TemplateVersion.version.desc(),
                    TemplateVersion.id.desc()).limit(1)
     ).scalars().first()
+    return row.id if row is not None else None
+
+
+def configured_template_keys(session: Session) -> list[str]:
+    """The template keys that have a line-item set in force, sorted."""
+    from app.db.models import TemplateVersion
+    from app.services.config_select import select_for_template
+
+    keys = set(session.execute(select(TemplateVersion.template_key)).scalars().all())
+    return sorted(k for k in keys if k and select_for_template(session, k) is not None)
+
+
+def default_template_id(session: Session) -> str | None:
+    """The newest version of THE ONE template with a line-item set in force, else None.
+
+    A run that names no template used to be laid out on the template stored last, whatever it was —
+    a template uploaded to try something out became every unpinned run's spread. A default is only
+    honest when there is one candidate a run can actually map against; otherwise there is a choice
+    to make, and it is the reader's.
+    """
+    from app.db.models import TemplateVersion
+
+    keys = configured_template_keys(session)
+    if len(keys) != 1:
+        return None
+    row = session.execute(
+        select(TemplateVersion).where(TemplateVersion.template_key == keys[0])
+        .order_by(TemplateVersion.created_at.desc(), TemplateVersion.version.desc(),
+                  TemplateVersion.id.desc()).limit(1)).scalars().first()
     return row.id if row is not None else None
 
 
@@ -1660,6 +1732,10 @@ def _run_extraction_task(run_id: str, object_key: str, filename: str, options: d
             # Leftover lines a model placed in a section's Others to reconcile a printed subtotal
             # with its components — kept so the routing is inspectable, not silent.
             "gap_routings": list(doc_model.gap_routings or []),
+            # THE FIGURES A SHARED-FIGURE CONTEST TOOK OFF A ROW: amount, page, claimants, which one
+            # kept it and why. The stage deletes the losing value outright, so this is the only
+            # place the removed figure survives the run.
+            "shared_figures": _json_safe(list(getattr(doc_model, "shared_figures", None) or [])),
             # THE RESIDUAL ITEMISATION, per Others line: each row the sweep placed there (its own
             # caption, sign and figures), the section's reconciliation per column and the review
             # triggers that fired. The residual stage has always built it; it lived only on the
@@ -1820,6 +1896,19 @@ def start_extraction(
     # spread out on the shipped grid however many templates had been uploaded since.
     template_version_id = resolve_template_id(session, body.template_version_id,
                                               body.line_item_version_id)
+    # REFUSED ONLY WHEN THE CALLER NAMED NEITHER HALF. A pinned line-item set decides its own
+    # template, and a set written for a template that is not stored still runs without one, as it
+    # always has — the template is optional; the default is what is gone.
+    if template_version_id is None and not body.line_item_version_id:
+        keys = configured_template_keys(session)
+        raise HTTPException(status_code=422, detail={
+            "error": "template_required",
+            "message": ("Choose a template for this run: no template has a line-item set in force."
+                        if not keys else
+                        "Choose a template for this run: more than one template has a line-item "
+                        f"set in force ({', '.join(keys)})."),
+            "configured_templates": keys,
+        })
     line_item_version_id = resolve_configuration_id(session, body.line_item_version_id,
                                                     template_version_id)
     rulebook = configuration_record(session, line_item_version_id)
@@ -2027,7 +2116,10 @@ def start_extraction(
                    "page_overrides": doc.page_overrides or None,
                    "page_scope": sorted(doc.page_scope) if doc.page_scope else None,
                    "sections_off": sorted(doc.sections_off) if doc.sections_off else None,
-                   "stages": pipeline_stage_names()}
+                   "stages": pipeline_stage_names(),
+                   # WHAT PRODUCED THIS RUN beyond its pins: commit/build, the settings in force,
+                   # the reply contract's hash, the OCR / document engines and library versions.
+                   "provenance": run_provenance.snapshot()}
     run = ExtractionRun(
         id=run_id, document_id=doc.id,
         template_version_id=template_version_id,
@@ -2037,6 +2129,7 @@ def start_extraction(
         # changes every time one is published. Was ``ontology_version_id``, against a store that no
         # longer exists; ``line_item_versions`` is the one place configuration lives.
         line_item_version_id=line_item_version_id,
+        engine_version=str(run_options["provenance"]["engine_version"])[:32],
         # The stage list THIS run will walk, recorded at the moment it is queued. Serving the
         # live pipeline's list instead would make an old run disagree with itself the next time
         # a stage is added: its frozen `stage_count`/`stages_done` would be measured against a

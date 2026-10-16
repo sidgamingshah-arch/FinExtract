@@ -24,6 +24,7 @@ compared the pins alone and an existing test caught it: two requests differing o
 """
 from __future__ import annotations
 
+from tests.run_pins import newest_template_id, run_body
 import contextlib
 import time
 import uuid
@@ -65,8 +66,8 @@ def test_posting_twice_while_a_run_is_in_flight_returns_the_same_run(client):
     """THE REPORTED BUG, at the endpoint. Two POSTs, one pipeline — and the second answer names the
     run already working rather than a new one, so the screen watches what it should."""
     doc_id = _upload(client)
-    first = client.post(f"/api/v1/documents/{doc_id}/extractions", json={})
-    second = client.post(f"/api/v1/documents/{doc_id}/extractions", json={})
+    first = client.post(f"/api/v1/documents/{doc_id}/extractions", json=run_body())
+    second = client.post(f"/api/v1/documents/{doc_id}/extractions", json=run_body())
 
     assert first.status_code == 202
     assert second.json()["run_id"] == first.json()["run_id"]
@@ -79,10 +80,10 @@ def test_the_second_answer_carries_the_run_s_own_start_time(client):
     screen reads restarts at zero on a filing that has been extracting for minutes. The adopted
     answer has to lead the reader back to the ORIGINAL run's progress record."""
     doc_id = _upload(client)
-    first_id = client.post(f"/api/v1/documents/{doc_id}/extractions", json={}).json()["run_id"]
+    first_id = client.post(f"/api/v1/documents/{doc_id}/extractions", json=run_body()).json()["run_id"]
     started = client.get(f"/api/v1/extractions/{first_id}").json()["progress"]["started_at"]
 
-    again = client.post(f"/api/v1/documents/{doc_id}/extractions", json={}).json()
+    again = client.post(f"/api/v1/documents/{doc_id}/extractions", json=run_body()).json()
     progress = client.get(f"/api/v1/extractions/{again['run_id']}").json()["progress"]
     assert progress["started_at"] == started, "the clock was restarted"
 
@@ -92,10 +93,10 @@ def test_a_finished_run_is_handed_back_rather_than_run_again(client):
     The spread is already there, and re-running it spends the tokens a second time and replaces
     what the reader may have been reviewing."""
     doc_id = _upload(client)
-    first_id = client.post(f"/api/v1/documents/{doc_id}/extractions", json={}).json()["run_id"]
+    first_id = client.post(f"/api/v1/documents/{doc_id}/extractions", json=run_body()).json()["run_id"]
     _await(client, doc_id)
 
-    again = client.post(f"/api/v1/documents/{doc_id}/extractions", json={}).json()
+    again = client.post(f"/api/v1/documents/{doc_id}/extractions", json=run_body()).json()
     assert again["run_id"] == first_id and again["adopted"] is True
     assert len(_runs(doc_id)) == 1, "the finished filing was extracted a second time"
 
@@ -105,7 +106,7 @@ def test_a_pin_the_default_resolves_to_is_the_same_request(client):
     default resolves to are asking for the same run; comparing the raw requests would miss that and
     start a duplicate on the second arrival."""
     doc_id = _upload(client)
-    first = client.post(f"/api/v1/documents/{doc_id}/extractions", json={}).json()
+    first = client.post(f"/api/v1/documents/{doc_id}/extractions", json=run_body()).json()
     _await(client, doc_id)
 
     from app.db.base import SessionLocal
@@ -127,10 +128,10 @@ def test_an_option_that_steers_the_pipeline_makes_it_a_different_run(client):
     ``confirm_scope`` was handed the other one's run. Anything that changes what the pipeline does
     has to count."""
     doc_id = _upload(client)
-    first = client.post(f"/api/v1/documents/{doc_id}/extractions", json={}).json()
+    first = client.post(f"/api/v1/documents/{doc_id}/extractions", json=run_body()).json()
     _await(client, doc_id)
     other = client.post(f"/api/v1/documents/{doc_id}/extractions",
-                        json={"confirm_scope": True}).json()
+                        json=run_body({"confirm_scope": True})).json()
 
     assert other["run_id"] != first["run_id"], "confirm_scope was ignored by the idempotency key"
     assert len(_runs(doc_id)) == 2
@@ -140,10 +141,10 @@ def test_force_is_how_the_reextract_control_asks_for_another_run(client):
     """Without this the re-extract button hits the same idempotency rule and is handed back the run
     it was asked to replace — a control that does nothing."""
     doc_id = _upload(client)
-    first = client.post(f"/api/v1/documents/{doc_id}/extractions", json={}).json()
+    first = client.post(f"/api/v1/documents/{doc_id}/extractions", json=run_body()).json()
     _await(client, doc_id)
 
-    forced = client.post(f"/api/v1/documents/{doc_id}/extractions", json={"force": True}).json()
+    forced = client.post(f"/api/v1/documents/{doc_id}/extractions", json=run_body({"force": True})).json()
     assert forced["run_id"] != first["run_id"], "force did not start a new run"
     assert forced.get("adopted") is None
     assert len(_runs(doc_id)) == 2
@@ -156,14 +157,14 @@ def test_a_failed_run_is_retried_rather_than_handed_back(client):
     from app.db.models import ExtractionRun
 
     doc_id = _upload(client)
-    first_id = client.post(f"/api/v1/documents/{doc_id}/extractions", json={}).json()["run_id"]
+    first_id = client.post(f"/api/v1/documents/{doc_id}/extractions", json=run_body()).json()["run_id"]
     _await(client, doc_id)
     with SessionLocal() as session:
         run = session.get(ExtractionRun, first_id)
         run.status = "failed"
         session.commit()
 
-    again = client.post(f"/api/v1/documents/{doc_id}/extractions", json={}).json()
+    again = client.post(f"/api/v1/documents/{doc_id}/extractions", json=run_body()).json()
     assert again["run_id"] != first_id, "a failed run was served as the extraction"
 
 
@@ -186,7 +187,8 @@ def _held_open(doc_id: str, **options):
     with SessionLocal() as session:
         session.add(ExtractionRun(id=run_id, document_id=doc_id, status="running",
                                   created_at=datetime.now(timezone.utc),
-                                  options=dict(options), result=None))
+                                  options={"template_version_id": newest_template_id(),
+                                           **options}, result=None))
         session.commit()
     try:
         yield run_id
@@ -204,7 +206,7 @@ def test_a_different_request_while_a_run_is_working_is_refused_not_raced(client)
     doc_id = _upload(client, "clash.pdf")
     with _held_open(doc_id, confirm_scope=False) as in_flight:
         clash = client.post(f"/api/v1/documents/{doc_id}/extractions",
-                            json={"confirm_scope": True})
+                            json=run_body({"confirm_scope": True}))
         assert clash.status_code == 409, clash.text
         detail = clash.json()["detail"]
         assert detail["error"] == "run_in_flight"
@@ -217,7 +219,7 @@ def test_the_same_request_while_a_run_is_working_gets_that_run(client):
     than one that finished in the meantime."""
     doc_id = _upload(client, "adopt.pdf")
     with _held_open(doc_id) as in_flight:
-        again = client.post(f"/api/v1/documents/{doc_id}/extractions", json={})
+        again = client.post(f"/api/v1/documents/{doc_id}/extractions", json=run_body())
         assert again.status_code == 202
         assert again.json()["run_id"] == in_flight
         assert again.json()["adopted"] is True
@@ -229,7 +231,7 @@ def test_force_does_not_race_a_run_in_flight_either(client):
     It bypasses the settled-run rule; it does not bypass the in-flight one."""
     doc_id = _upload(client, "forced.pdf")
     with _held_open(doc_id) as in_flight:
-        forced = client.post(f"/api/v1/documents/{doc_id}/extractions", json={"force": True})
+        forced = client.post(f"/api/v1/documents/{doc_id}/extractions", json=run_body({"force": True}))
         assert forced.status_code == 202
         assert forced.json()["run_id"] == in_flight, "force started a second concurrent pipeline"
         assert len(_runs(doc_id)) == 1

@@ -232,9 +232,13 @@ export function activeTemplate(
   // one that has no configuration — the first latest row by key is the template-only primary
   // spread, and defaulting to it gave a reader who cannot list configurations a run that recognised
   // nothing. `configured` absent is not a refusal, so that server's default is unchanged.
-  return rows.find((t) => t.id === selectedId)
-    ?? rows.find((t) => t.is_default)
-    ?? rows.find((t) => t.is_latest && t.configured !== false)
+  //
+  // WITH NO KEY AND NO DEFAULT THERE IS NO ANSWER. The server flags a default only when exactly one
+  // template has a line-item set in force; otherwise the reader has a choice to make, and guessing
+  // one for them — the first latest configured row — is the fallback the server no longer applies.
+  const chosen = rows.find((t) => t.id === selectedId) ?? rows.find((t) => t.is_default);
+  if (chosen || !key) return chosen;
+  return rows.find((t) => t.is_latest && t.configured !== false)
     ?? rows.find((t) => t.is_latest)
     ?? rows[0];
 }
@@ -471,9 +475,13 @@ export function useRunPins(pinnedId = "") {
   // had the filing read against exactly that: a version the adopted one replaces. The run's own
   // record is what exposed it, reporting a pinned older version while this screen was still calling
   // it in force. A named key cannot follow an adoption; the shared rule can, so it decides.
-  const inForce =
-    configurationInForce(cfgQ.data, (o) => o.target_template_key === selectedKey) ||
-    configurationInForce(cfgQ.data);
+  //
+  // NO SET IN FORCE FOR THE CHOSEN TEMPLATE IS SAID, NOT PAPERED OVER. The fallback to "the one in
+  // force among everything stored" switched the run to ANOTHER template's set — the reader chose
+  // HK and the run read the filing against ICON. `noConfigForTemplate` lets the screen say so.
+  const inForce = selectedKey
+    ? configurationInForce(cfgQ.data, (o) => o.target_template_key === selectedKey)
+    : undefined;
   // A pin naming a version that is no longer served (deleted, or a stale shared link) must not
   // leave the screen blank: fall through to what is in force, which is also what the picker shows.
   const cfg = (pinnedId ? cfgQ.data?.find((o) => o.id === pinnedId) : undefined) ?? inForce;
@@ -496,9 +504,14 @@ export function useRunPins(pinnedId = "") {
   // the selection resolved went to the template stored last, and the POST that followed with the
   // selected one was refused as a second run in flight. Starting without one is still right where
   // the settled list holds no template this run could use.
-  const tplSettled = !!tpl || (tplQ.isFetched
+  // NOTHING CHOSEN AND NO SINGLE DEFAULT: the Upload screen asks for a choice; no run starts.
+  const noTemplateChosen = tplQ.isFetched && (tplQ.data?.length ?? 0) > 0 && !selectedKey
+    && !pinnedId;
+  const noConfigForTemplate = ready && cfgQ.isSuccess && !!selectedKey && !inForce && !cfg;
+  const tplSettled = !!tpl || (tplQ.isFetched && !noTemplateChosen && !noConfigForTemplate
                                && !activeTemplate(tplQ.data, null, cfg?.target_template_key));
-  return { cfgQ, tplQ, selectedKey, ready, inForce, cfg, tpl, tplSettled };
+  return { cfgQ, tplQ, selectedKey, ready, inForce, cfg, tpl, tplSettled,
+           noTemplateChosen, noConfigForTemplate };
 }
 
 /** Cells around a value's spreadsheet origin — the Excel click-to-source backdrop.

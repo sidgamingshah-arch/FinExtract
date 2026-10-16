@@ -20,6 +20,7 @@ it.
 """
 from __future__ import annotations
 
+from tests.run_pins import run_body
 import importlib
 import time
 from datetime import datetime, timedelta, timezone
@@ -266,7 +267,7 @@ def test_a_real_extraction_writes_its_own_entry(client):
     """End to end: the trail is written by the pipeline, not only by these tests. The run's own id
     is what the entry is keyed on, so the trail row and the run can be lined up."""
     doc_id = _upload(client, "e2e.pdf")
-    client.post(f"/api/v1/documents/{doc_id}/extractions", json={})
+    client.post(f"/api/v1/documents/{doc_id}/extractions", json=run_body())
     for _ in range(100):
         if client.get(f"/api/v1/documents/{doc_id}/run").json().get("status") == "succeeded":
             break

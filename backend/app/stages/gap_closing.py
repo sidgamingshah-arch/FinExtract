@@ -79,6 +79,11 @@ class GapClosingStage:
                 if not (0 <= idx < len(doc.line_items)):
                     continue
                 li = doc.line_items[idx]
+                # The key and method the line held BEFORE it was routed, kept on the routing (which
+                # the run serialises) — overwritten below, they were otherwise lost.
+                routing.setdefault("previous", []).append(
+                    {"index": idx, "canonical_key": li.canonical_key,
+                     "method": getattr(li.confidence, "method", None)})
                 li.canonical_key = routing["others_key"]
                 # ``confidence.method`` — a LineItem has no ``mapping_method`` field, and assigning
                 # one raised ValueError on a strict pydantic model, so this stage crashed the whole

@@ -2,6 +2,7 @@
 line items with page + normalized-bbox provenance."""
 from __future__ import annotations
 
+from tests.run_pins import run_body
 import json
 import pathlib
 import time
@@ -120,7 +121,7 @@ def test_extraction_api_returns_rows_with_provenance(client):
     doc_id = client.post(
         "/api/v1/documents", files={"file": ("bs.pdf", make_native_pdf(), "application/pdf")}
     ).json()["id"]
-    r = client.post(f"/api/v1/documents/{doc_id}/extractions", json={})
+    r = client.post(f"/api/v1/documents/{doc_id}/extractions", json=run_body())
     assert r.status_code == 202, r.text
     assert r.json()["status"] == "running"                  # async: kicked off, poll for result
     rows = _await_run(client, doc_id)["rows"]
@@ -152,7 +153,7 @@ def test_real_review_and_export_from_extraction(client):
     doc_id = client.post(
         "/api/v1/documents", files={"file": ("bs.pdf", make_native_pdf(), "application/pdf")}
     ).json()["id"]
-    client.post(f"/api/v1/documents/{doc_id}/extractions", json={})
+    client.post(f"/api/v1/documents/{doc_id}/extractions", json=run_body())
     assert _await_run(client, doc_id)["rows"]
 
     # Latest run is fetchable for the export preview/counts.

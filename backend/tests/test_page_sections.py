@@ -8,6 +8,7 @@ the first test runs the reader and holds the label to what it actually read.
 """
 from __future__ import annotations
 
+from tests.run_pins import run_body
 import time
 
 import pytest
@@ -50,7 +51,7 @@ def _read_for(card):
 
 
 def _extract(client, doc_id, **body):
-    started = client.post(f"/api/v1/documents/{doc_id}/extractions", json=body)
+    started = client.post(f"/api/v1/documents/{doc_id}/extractions", json=run_body(body))
     assert started.status_code == 202, started.text
     for _ in range(400):
         status = client.get(f"/api/v1/documents/{doc_id}/run-status").json()["status"]

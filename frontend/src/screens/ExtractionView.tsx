@@ -758,7 +758,8 @@ export default function ExtractionView() {
   // WHICH CONFIGURATION AND TEMPLATE THE RUN IS LAUNCHED AGAINST, resolved in one place
   // (`useRunPins`) because Page Scope's "Extract again" has to launch the same run this screen then
   // watches.
-  const { cfgQ, selectedKey, ready, inForce, cfg, tpl, tplSettled } = useRunPins(pinnedId);
+  const { cfgQ, selectedKey, ready, inForce, cfg, tpl, tplSettled, noTemplateChosen,
+          noConfigForTemplate } = useRunPins(pinnedId);
   // `rulebook` is the wire name for what THIS run recorded about its CONFIGURATION — keyed on this
   // document and this choice, so switching the pick cannot leave the previous run's configuration
   // labelling the new one. `progress`, `stages` and `logTail` come back BESIDE `data` because `data`
@@ -867,6 +868,19 @@ export default function ExtractionView() {
         {t("ex.back")}
       </button>
 
+      {/* THE CHOSEN TEMPLATE CANNOT BE EXTRACTED AGAINST, said plainly instead of switching the run
+          to another template's line-item set — and no run starts (`tplSettled` is false). */}
+      {canRun && !rulebook && (noTemplateChosen || noConfigForTemplate) && (
+        <div role="alert" data-testid="ex-template-blocked"
+             style={{ padding: "12px 14px", marginBottom: 14, borderRadius: 9, fontSize: 12.5,
+                      border: `1px solid ${color.amberFg}`, background: color.amberBg,
+                      color: color.amberFg }}>
+          {noTemplateChosen
+            ? t("ex.noTemplateChosen")
+            : t("ex.noConfigForTemplate").split("{tpl}").join(selectedKey ?? "")}
+        </div>
+      )}
+
       {/* Above the results, and present while one is still running: which line-item configuration
           governs this run is a decision, so it belongs where the run is, not only in a file on the
           server — and what the run RECORDED belongs next to the figures it produced. For a reader
@@ -936,7 +950,7 @@ export default function ExtractionView() {
       {/* A run — this reader's own, or the one already in flight that this screen adopted rather
           than raced. Before either exists the panel says "starting", because that is all that is
           true. */}
-      {awaitingRun && (
+      {awaitingRun && !(canRun && !rulebook && (noTemplateChosen || noConfigForTemplate)) && (
         <RunProgress progress={progress} stages={stages} logTail={logTail} t={t}
                      live={runStatus !== "succeeded" && runStatus !== "failed" && runStatus !== "canceled"}
                      canStop={canRun && !!extr.runId && runStatus === "running"}

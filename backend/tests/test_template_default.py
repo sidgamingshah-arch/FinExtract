@@ -1,4 +1,8 @@
-"""Which template a run lays its spread out on when the caller pins none: THE LATEST ONE STORED.
+"""Which template a run lays its spread out on when the caller pins none.
+
+NOW: the ONE template with a line-item set in force, else the run is refused (`template_required`).
+The history below is why the default stopped being the shipped template; it has since stopped
+being "the latest one stored" too, because that let an unconfigured upload become every run's spread.
 
 THE DEFAULT USED TO BE THE SHIPPED TEMPLATE, and that is the defect this module exists for. A run
 that pinned nothing resolved against ``shipped_template_key()``, so an uploaded template never became
@@ -104,43 +108,52 @@ def _stored(run_id: str) -> tuple:
 
 # --- the default -----------------------------------------------------------------------------------
 
-def test_a_run_that_pins_nothing_uses_the_latest_template_not_the_shipped_one(client):
-    """THE REPORTED DEFECT, end to end. Publish a template of your own and it is what the next run
-    lays its spread out on — without pinning it, which is what the upload screen sends."""
-    from app.sample.reference import shipped_template_key
+def test_a_run_that_pins_nothing_is_refused_when_several_templates_are_configured(client):
+    """NO FALLBACK TO THE NEWEST TEMPLATE. The shipped data puts three templates in force, so an
+    unpinned run has no single default — it is refused with a plain error naming them, rather than
+    laid out on whichever template was stored last."""
+    _publish_template(client, "my_csv_spread", name="My CSV spread")
+    doc_id = client.post("/api/v1/documents",
+                         files={"file": ("bs.pdf", make_unmapped_row_pdf(),
+                                         "application/pdf")}).json()["id"]
+    r = client.post(f"/api/v1/documents/{doc_id}/extractions", json={})
+    assert r.status_code == 422, r.text
+    detail = r.json()["detail"]
+    assert detail["error"] == "template_required"
+    assert len(detail["configured_templates"]) > 1
+    assert "Choose a template" in detail["message"]
 
-    mine = _publish_template(client, "my_csv_spread", name="My CSV spread")
-    assert shipped_template_key() != "my_csv_spread", "the fixture must not be the shipped key"
 
-    run = _run(client)                                   # no pins at all
-    col, opt, key = _stored(run["run_id"])
-
-    assert key == "my_csv_spread", "the run laid its spread out on the shipped template"
-    assert col == mine["id"] and opt == mine["id"]
-
-
-def test_the_resolver_prefers_the_newest_version_of_any_template(client):
-    """"Latest" is the newest VERSION OF ANY TEMPLATE, not the newest key to appear.
-
-    Re-publishing a revision of an older template makes that template current again, which is what
-    an author editing a spread means by publishing it. Asserted with THREE publishes so the two
-    readings diverge: by newest key the answer would be ``second``, by newest version it is
-    ``first`` — which is republished last.
-    """
+def test_an_unconfigured_template_published_last_is_not_the_default(client):
+    """The template stored LAST used to be every unpinned run's spread. A template with no line-item
+    set in force cannot be mapped against, so it is never the default."""
     from app.api.routes.extractions import resolve_template_id
     from app.db.base import SessionLocal
-    from app.db.models import TemplateVersion
 
     _publish_template(client, "first_spread")
     _publish_template(client, "second_spread")
-    _publish_template(client, "first_spread")          # a second version of the FIRST key
+    with SessionLocal() as session:
+        assert resolve_template_id(session, None, None) is None
 
+
+def test_the_one_configured_template_is_the_default(client, monkeypatch):
+    """With exactly one template that has a set in force, an unpinned run uses it — its newest
+    version — and the template list flags that row as the default."""
+    from app.api.routes.extractions import resolve_template_id
+    from app.db.base import SessionLocal
+    from app.db.models import TemplateVersion
+    from app.services import config_select
+
+    real = config_select.select_for_template
+    only = "output_csv_hk_v1"
+    monkeypatch.setattr(config_select, "select_for_template",
+                        lambda session, key: real(session, key) if key == only else None)
+    _publish_template(client, "unconfigured_newest")
     with SessionLocal() as session:
         tid = resolve_template_id(session, None, None)
-        row = session.get(TemplateVersion, tid)
-
-    assert row.template_key == "first_spread", "the newest KEY won instead of the newest version"
-    assert row.version == 2
+        assert session.get(TemplateVersion, tid).template_key == only
+    defaults = [r for r in client.get("/api/v1/templates").json() if r.get("is_default")]
+    assert [r["id"] for r in defaults] == [tid]
 
 
 def test_a_caller_pin_always_wins(client):
@@ -191,7 +204,7 @@ def test_the_run_records_the_template_it_resolved(client):
     from app.db.models import ExtractionRun
 
     mine = _publish_template(client, "recorded_spread")
-    run = _run(client)
+    run = _run(client, {"template_version_id": mine["id"]})
     col, opt, key = _stored(run["run_id"])
 
     # BOTH places, because either can be the only one a caller populates and the two readers of
@@ -208,7 +221,7 @@ def test_the_worker_lays_the_spread_out_on_the_resolved_template(client):
     ``options["template_version_id"]``; a run that names a template and does not use it is worse
     than one that names none."""
     mine = _publish_template(client, "worker_spread")
-    run = _run(client)
+    run = _run(client, {"template_version_id": mine["id"]})
     col, opt, _key = _stored(run["run_id"])
 
     assert opt == mine["id"] == col, \

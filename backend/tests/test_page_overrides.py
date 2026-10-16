@@ -8,6 +8,7 @@ parts it is made of top to bottom, and every later run reads the page that way.
 """
 from __future__ import annotations
 
+from tests.run_pins import run_body
 import io
 
 import pytest
@@ -176,7 +177,7 @@ def test_saving_an_override_asks_for_a_new_run_which_records_it(client):
     doc_id = _upload(client, _two_statement_page(), "two-run.pdf")
 
     def extract():
-        res = client.post(f"/api/v1/documents/{doc_id}/extractions", json={}).json()
+        res = client.post(f"/api/v1/documents/{doc_id}/extractions", json=run_body()).json()
         for _ in range(200):
             r = client.get(f"/api/v1/documents/{doc_id}/run")
             if r.status_code == 200 and r.json().get("status") in ("succeeded", "failed"):

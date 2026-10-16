@@ -29,6 +29,7 @@ FOUR THINGS ARE EASY TO GET WRONG HERE and each has a test below.
 """
 from __future__ import annotations
 
+from tests.run_pins import run_body
 import time
 
 import pytest
@@ -292,7 +293,7 @@ def _extract(client) -> str:
     doc_id = client.post("/api/v1/documents",
                          files={"file": ("bs.pdf", make_native_pdf(),
                                          "application/pdf")}).json()["id"]
-    client.post(f"/api/v1/documents/{doc_id}/extractions", json={})
+    client.post(f"/api/v1/documents/{doc_id}/extractions", json=run_body())
     for _ in range(100):
         r = client.get(f"/api/v1/documents/{doc_id}/run")
         if r.status_code == 200 and r.json().get("status") == "succeeded":

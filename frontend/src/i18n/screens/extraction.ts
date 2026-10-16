@@ -12,6 +12,8 @@ import type { Locale } from "../../types";
 export const extraction: Record<Locale, Record<string, string>> = {
   en: {
     "ex.back": "← Documents",
+    "ex.noConfigForTemplate": "Template {tpl} has no line-item set in force, so this filing cannot be extracted against it. Publish a line-item set for {tpl}, or choose another template on the Documents screen.",
+    "ex.noTemplateChosen": "Choose a template on the Documents screen first: more than one template could lay out this run, and none is the default.",
     "ex.title": "Extracted data",
     "ex.running": "Extracting…",
     "ex.failed": "Extraction failed",
@@ -119,6 +121,8 @@ export const extraction: Record<Locale, Record<string, string>> = {
   },
   zh: {
     "ex.back": "← 文档",
+    "ex.noConfigForTemplate": "模板 {tpl} 没有生效的科目集，因此无法按该模板提取本文件。请为 {tpl} 发布科目集，或在文档页面选择其他模板。",
+    "ex.noTemplateChosen": "请先在文档页面选择模板：有多个模板可用于本次提取，且没有默认模板。",
     "ex.title": "提取的数据",
     "ex.running": "提取中…",
     "ex.failed": "提取失败",
@@ -219,6 +223,8 @@ export const extraction: Record<Locale, Record<string, string>> = {
   },
   ar: {
     "ex.back": "← المستندات",
+    "ex.noConfigForTemplate": "لا توجد مجموعة بنود سارية للقالب {tpl}، لذا لا يمكن استخراج هذا الملف وفقًا له. انشر مجموعة بنود للقالب {tpl}، أو اختر قالبًا آخر في شاشة المستندات.",
+    "ex.noTemplateChosen": "اختر قالبًا في شاشة المستندات أولاً: يمكن لأكثر من قالب تنظيم هذا التشغيل، ولا يوجد قالب افتراضي.",
     "ex.title": "البيانات المستخرجة",
     "ex.running": "جارٍ الاستخراج…",
     "ex.failed": "فشل الاستخراج",
@@ -319,6 +325,8 @@ export const extraction: Record<Locale, Record<string, string>> = {
   },
   fr: {
     "ex.back": "← Documents",
+    "ex.noConfigForTemplate": "Le modèle {tpl} n'a aucun jeu de postes en vigueur : ce document ne peut pas être extrait selon ce modèle. Publiez un jeu de postes pour {tpl}, ou choisissez un autre modèle dans l'écran Documents.",
+    "ex.noTemplateChosen": "Choisissez d'abord un modèle dans l'écran Documents : plusieurs modèles peuvent structurer cette extraction et aucun n'est le modèle par défaut.",
     "ex.title": "Données extraites",
     "ex.running": "Extraction…",
     "ex.failed": "Échec de l'extraction",

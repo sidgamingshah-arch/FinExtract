@@ -1090,8 +1090,10 @@ function useRunDefaults() {
   const tplQ = useTemplates();
   const selectedTemplateId = useUI((s) => s.selectedTemplateId);
   const selectedKey = activeTemplate(tplQ.data, selectedTemplateId)?.template_key ?? null;
-  const cfg = configurationInForce(cfgQ.data, (c) => c.target_template_key === selectedKey)
-    ?? configurationInForce(cfgQ.data);
+  // The set in force for the CHOSEN template only — never another template's (see `useRunPins`).
+  const cfg = selectedKey
+    ? configurationInForce(cfgQ.data, (c) => c.target_template_key === selectedKey)
+    : undefined;
   // The version a RE-EXTRACT should use: the analyst's selection when it belongs to this
   // configuration's template, else the latest. The comment here used to say the list "serves the
   // CURRENT version per key" — it does not, it serves every version, and `find` by key took the

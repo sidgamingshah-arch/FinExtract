@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from tests.run_pins import run_body
 import pytest
 
 from tests.fixtures.generate import make_native_pdf
@@ -112,7 +113,7 @@ def test_starting_an_extraction_names_the_progress_mechanism_that_exists(client)
     doc_id = client.post("/api/v1/documents",
                          files={"file": ("poll.pdf", make_native_pdf(),
                                          "application/pdf")}).json()["id"]
-    started = client.post(f"/api/v1/documents/{doc_id}/extractions", json={})
+    started = client.post(f"/api/v1/documents/{doc_id}/extractions", json=run_body())
     assert started.status_code == 202, started.text
     body = started.json()
 
@@ -134,7 +135,7 @@ def test_extraction_confirm_scope_defaults_to_auto(client):
     ).json()["id"]
 
     # Default: no confirm_scope in body → auto mode (False).
-    r = client.post(f"/api/v1/documents/{doc_id}/extractions", json={})
+    r = client.post(f"/api/v1/documents/{doc_id}/extractions", json=run_body())
     assert r.status_code == 202, r.text
     run_id = r.json()["run_id"]
     from app.db.base import SessionLocal
@@ -145,7 +146,7 @@ def test_extraction_confirm_scope_defaults_to_auto(client):
 
     # Explicit confirm mode round-trips.
     r = client.post(
-        f"/api/v1/documents/{doc_id}/extractions", json={"confirm_scope": True}
+        f"/api/v1/documents/{doc_id}/extractions", json=run_body({"confirm_scope": True})
     )
     assert r.status_code == 202, r.text
     with SessionLocal() as s:

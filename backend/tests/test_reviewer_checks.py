@@ -17,6 +17,7 @@ nothing on screen to question it:
 """
 from __future__ import annotations
 
+from tests.run_pins import run_body
 import copy
 import json
 import pathlib
@@ -486,7 +487,7 @@ def test_the_run_keeps_the_residual_itemisation(client, monkeypatch):
     doc_id = client.post("/api/v1/documents",
                          files={"file": ("rich.pdf", make_rich_pdf(),
                                          "application/pdf")}).json()["id"]
-    client.post(f"/api/v1/documents/{doc_id}/extractions", json={})
+    client.post(f"/api/v1/documents/{doc_id}/extractions", json=run_body())
     for _ in range(200):
         if client.get(f"/api/v1/documents/{doc_id}/run").json().get("status") == "succeeded":
             break

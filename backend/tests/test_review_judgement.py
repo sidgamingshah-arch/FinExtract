@@ -15,6 +15,7 @@ it. ``_ROW_SHAPED_TYPES`` is where the current answer lives.)
 """
 from __future__ import annotations
 
+from tests.run_pins import run_body
 import time
 
 import pytest
@@ -908,7 +909,7 @@ def _extracted_with_findings(client) -> str:
     doc_id = client.post("/api/v1/documents",
                          files={"file": ("bs.pdf", make_unmapped_row_pdf(),
                                          "application/pdf")}).json()["id"]
-    client.post(f"/api/v1/documents/{doc_id}/extractions", json={})
+    client.post(f"/api/v1/documents/{doc_id}/extractions", json=run_body())
     for _ in range(200):
         r = client.get(f"/api/v1/documents/{doc_id}/run")
         if r.status_code == 200 and r.json().get("status") == "succeeded":

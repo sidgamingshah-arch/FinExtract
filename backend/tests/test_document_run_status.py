@@ -23,6 +23,7 @@ enumerates them has to know about.
 """
 from __future__ import annotations
 
+from tests.run_pins import run_body
 import contextlib
 import time
 import uuid
@@ -79,7 +80,7 @@ def _run_row(doc_id: str, **fields):
 
 
 def _run_to_completion(client, doc_id: str) -> str:
-    started = client.post(f"/api/v1/documents/{doc_id}/extractions", json={})
+    started = client.post(f"/api/v1/documents/{doc_id}/extractions", json=run_body())
     assert started.status_code == 202, started.text
     run_id = started.json()["run_id"]
     for _ in range(200):

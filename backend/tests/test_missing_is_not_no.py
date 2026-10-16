@@ -18,6 +18,7 @@ export's validation caption names the pages.
 """
 from __future__ import annotations
 
+from tests.run_pins import run_body
 import io
 import json
 import pathlib
@@ -360,7 +361,7 @@ def test_a_page_left_out_of_the_selection_reaches_coverage_the_workspace_and_the
     keep = [p["no"] - 1 for p in pages if p["no"] - 1 not in pl]
     assert client.put(f"/api/v1/documents/{doc_id}/scope",
                       json={"included_pages": keep}).status_code == 200
-    client.post(f"/api/v1/documents/{doc_id}/extractions", json={})
+    client.post(f"/api/v1/documents/{doc_id}/extractions", json=run_body())
     for _ in range(200):
         if client.get(f"/api/v1/documents/{doc_id}/run").json().get("status") == "succeeded":
             break

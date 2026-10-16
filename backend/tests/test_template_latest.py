@@ -126,9 +126,13 @@ def test_exactly_one_template_is_the_default_and_it_is_the_one_an_unpinned_run_u
     try:
         rows = client.get("/api/v1/templates").json()
         defaults = [r for r in rows if r.get("is_default")]
-        assert len(defaults) == 1, [(r["template_key"], r["version"]) for r in defaults]
+        assert len(defaults) <= 1, [(r["template_key"], r["version"]) for r in defaults]
         with SessionLocal() as s:
-            assert defaults[0]["id"] == resolve_template_id(s, None) == newest
+            expected = resolve_template_id(s, None)
+        # The flag and the resolver agree — and a template stored last with no line-item set in
+        # force is NOT the default (no fallback to the newest template).
+        assert [d["id"] for d in defaults] == ([expected] if expected else [])
+        assert expected != newest
     finally:
         with SessionLocal() as s:
             s.delete(s.get(TemplateVersion, newest))

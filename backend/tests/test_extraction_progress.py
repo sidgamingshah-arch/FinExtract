@@ -16,6 +16,7 @@ COMMITTED to the database while the pipeline ran. Drop ``progress_cb`` from the 
 """
 from __future__ import annotations
 
+from tests.run_pins import run_body
 import contextlib
 import time
 import uuid
@@ -68,7 +69,7 @@ def _upload(client, name: str = "progress.pdf") -> str:
 
 
 def _run_to_completion(client, doc_id: str, body: dict | None = None) -> str:
-    started = client.post(f"/api/v1/documents/{doc_id}/extractions", json=body or {})
+    started = client.post(f"/api/v1/documents/{doc_id}/extractions", json=run_body(body))
     assert started.status_code == 202, started.text
     run_id = started.json()["run_id"]
     for _ in range(200):
@@ -389,7 +390,7 @@ def test_pinning_only_one_of_the_two_stays_legal(client):
     cfg, tpl = _shipped_pins(client)
     doc_id = _upload(client)
     for body in ({"line_item_version_id": cfg["id"]}, {"template_version_id": tpl["id"]}, {}):
-        r = client.post(f"/api/v1/documents/{doc_id}/extractions", json=body)
+        r = client.post(f"/api/v1/documents/{doc_id}/extractions", json=run_body(body))
         assert r.status_code == 202, (body, r.text)
 
 
@@ -538,7 +539,7 @@ def test_reading_a_run_requires_a_session(anon_client, auth):
                           files={"file": ("owned.pdf", make_native_pdf(), "application/pdf")},
                           headers=auth("analyst"))
     doc_id = up.json()["id"]
-    run_id = anon_client.post(f"/api/v1/documents/{doc_id}/extractions", json={},
+    run_id = anon_client.post(f"/api/v1/documents/{doc_id}/extractions", json=run_body(),
                               headers=auth("analyst")).json()["run_id"]
 
     assert anon_client.get(f"/api/v1/extractions/{run_id}").status_code == 401

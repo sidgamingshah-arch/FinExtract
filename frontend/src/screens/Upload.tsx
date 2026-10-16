@@ -280,7 +280,9 @@ function TemplateCard({
         </span>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 12.5, fontWeight: 600 }}>
-            {active ? active.name : isPending ? t("u.loadingTemplates") : t("u.noTemplates")}
+            {/* No single default and nothing chosen: the reader is asked, not handed a guess. */}
+            {active ? active.name : isPending ? t("u.loadingTemplates")
+              : list.length > 0 ? t("u.chooseTemplate") : t("u.noTemplates")}
           </div>
           {/* Testid because "which VERSION is active" is the claim this line makes, and it had no
               way of being asserted — the e2e test could only see that the picker closed. */}

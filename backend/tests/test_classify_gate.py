@@ -2,6 +2,7 @@
 is enforced at the API boundary (Req 17)."""
 from __future__ import annotations
 
+from tests.run_pins import run_body
 import io
 
 import pytest
@@ -127,7 +128,7 @@ def test_integrity_gate_blocks_extraction(client):
     doc_id = up.json()["id"]
     report = up.json().get("integrity_report") or {}
     assert any(f.get("severity") == "blocker" for f in report.get("findings", []))
-    r = client.post(f"/api/v1/documents/{doc_id}/extractions", json={})
+    r = client.post(f"/api/v1/documents/{doc_id}/extractions", json=run_body())
     assert r.status_code == 422
     assert r.json()["detail"]["error"] == "integrity_blocked"
 
