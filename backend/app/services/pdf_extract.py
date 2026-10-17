@@ -262,6 +262,47 @@ def _rotation_at(lines: list[tuple[tuple[float, float, float, float], int]],
     return None if best is None else best[0]
 
 
+# HOW FAR a character may start BEFORE the previous one ends, as a fraction of the font size, and
+# still be the same word. Kerning tucks a glyph under its neighbour by a fraction of a point; two
+# strings drawn separately and touching ("machinery" right-aligned in one column header,
+# "installations" in the next) step back by several points, and PyMuPDF's word list, which splits
+# on whitespace only, joins them into one word ("machineryinstallations") as wide as two columns.
+_OVERDRAW_STEP = 0.3
+
+
+def _overdrawn_words(page) -> dict[tuple, list[tuple]]:
+    """Words PyMuPDF joined across a backward step of the pen, keyed by (text, rounded box), each
+    mapped to its pieces as ``(x0, y0, x1, y1, text)``. Empty for almost every page."""
+    try:
+        blocks = page.get_text("rawdict").get("blocks", [])
+    except Exception:                        # a malformed page keeps PyMuPDF's own words
+        return {}
+    out: dict[tuple, list[tuple]] = {}
+    for block in blocks:
+        for line in block.get("lines", []):
+            for span in line.get("spans", []):
+                chars = span.get("chars") or []
+                size = float(span.get("size", 0.0)) or 1.0
+                token: list[dict] = []
+                for ch in chars + [{"c": " "}]:
+                    if not ch["c"].isspace():
+                        token.append(ch)
+                        continue
+                    cuts = [k for k in range(1, len(token))
+                            if token[k]["bbox"][0] < token[k - 1]["bbox"][2] - _OVERDRAW_STEP * size]
+                    if cuts:
+                        bounds = [0, *cuts, len(token)]
+                        pieces = [token[a:b] for a, b in zip(bounds, bounds[1:])]
+                        if all(len(pc) >= 2 for pc in pieces):
+                            key = ("".join(c["c"] for c in token),
+                                   round(token[0]["bbox"][0], 1), round(token[-1]["bbox"][2], 1))
+                            out[key] = [(pc[0]["bbox"][0], min(c["bbox"][1] for c in pc),
+                                         pc[-1]["bbox"][2], max(c["bbox"][3] for c in pc),
+                                         "".join(c["c"] for c in pc)) for pc in pieces]
+                    token = []
+    return out
+
+
 def _native_words(page, w: float, h: float, rotation: int | None = None) -> list[Word]:
     """The page's words, in reading space, with the words drawn at some OTHER angle removed.
 
@@ -283,7 +324,15 @@ def _native_words(page, w: float, h: float, rotation: int | None = None) -> list
                  for ln in _text_lines(page)
                  if any(sp.get("text", "").strip() for sp in ln.get("spans", []))]
     out: list[Word] = []
-    for x0, y0, x1, y1, text, *_ in page.get_text("words"):
+    words = page.get_text("words")
+    overdrawn = _overdrawn_words(page)
+    if overdrawn:
+        split: list[tuple] = []
+        for word in words:
+            pieces = overdrawn.get((word[4], round(word[0], 1), round(word[2], 1)))
+            split.extend(pieces if pieces else [word])
+        words = split
+    for x0, y0, x1, y1, text, *_ in words:
         if not text.strip():
             continue
         if lines:

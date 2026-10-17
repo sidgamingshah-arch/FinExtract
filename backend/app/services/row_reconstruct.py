@@ -23,7 +23,7 @@ import statistics
 import unicodedata
 from contextlib import contextmanager
 from contextvars import ContextVar
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from functools import lru_cache
@@ -3205,6 +3205,40 @@ def _declared_value_columns(rows: list[list[Word]], fmt=None) -> list[float]:
     return []
 
 
+def _printed_header_bands(printed, figure_rows: list[list[Word]], fmt=None) -> list[float]:
+    """Value columns placed by the PRINTED header's own column extents, or [] when the figures do
+    not fit them.
+
+    The same contract as `_header_declared_bands`, read from `read_printed_columns` instead — the
+    reader that splits an ageing header into its buckets. Every money figure must stand under
+    exactly one heading's extent (with a quarter of the narrowest pitch of slack), no two of a
+    row's figures under the same one, and each heading must hold at least one figure; a column is
+    placed at its figures' median centre.
+    """
+    cols = list(getattr(printed, "columns", None) or ())
+    if len(cols) < 2:
+        return []
+    centres = [(c.x0 + c.x1) / 2 for c in cols]
+    slack = 0.25 * min(b - a for a, b in zip(centres, centres[1:])) if len(cols) > 1 else 0.0
+    members: list[list[float]] = [[] for _ in cols]
+    for figures in figure_rows:
+        taken: set[int] = set()
+        for w in figures:
+            text = w.text.strip()
+            value = _num(text, fmt)
+            if (value is None or not _is_money_like(text, fmt)
+                    or (_is_date_ish(value) and not _AMOUNT_SHAPED.match(text))):
+                continue
+            hits = [k for k, c in enumerate(cols) if c.x0 - slack <= _xc(w) <= c.x1 + slack]
+            if len(hits) != 1 or hits[0] in taken:
+                return []
+            taken.add(hits[0])
+            members[hits[0]].append(_xc(w))
+    if any(not m for m in members):
+        return []
+    return [sorted(m)[len(m) // 2] for m in members]
+
+
 def _header_declared_bands(rows: list[list[Word]], figure_rows: list[list[Word]],
                            fmt=None) -> list[float]:
     """The value columns of a table TOO SHORT TO SHOW THEM, as its own header declares them.
@@ -4798,8 +4832,15 @@ def _caption_words(row: list[Word], m: _Matrix) -> dict[int, list[Word]]:
         spanned = {b for b in (_band_of(w, m.bands) for w in run) if b is not None}
         if len(spanned) >= 2 and len(run) >= 3:      # a group spanner, not a column caption
             continue
+        # A phrase that STARTS in the label column is a heading running out into the columns
+        # ("(A) Property, plant and equipment" over f1 note 3), not the caption of one of them.
+        if _xc(run[0]) <= m.bands[0][0]:
+            continue
         for w in run:
-            if w.bbox.x1 - w.bbox.x0 > m.pitch:      # too wide to belong to one column
+            # Too wide to belong to one column. With some slack: a long caption word set in a
+            # narrow schedule ("installations" under "Electrical", f1 note 3) overhangs its
+            # column's left edge by a few characters and still captions that column alone.
+            if w.bbox.x1 - w.bbox.x0 > 1.25 * m.pitch:
                 continue
             if _UNITS_TOKEN.search(w.text) or _NOTE_TOKEN.search(w.text):
                 continue
@@ -4843,6 +4884,15 @@ def _matrix_column_names(m: _Matrix) -> list[str] | None:
     while (start > 0 and per_row[start - 1]
            and _tight_below(_row_box(m.rows[start - 1]), _row_box(m.rows[start]))):
         start -= 1
+    # …and DOWNWARD through the lines the caption wraps on. An Ind AS PP&E schedule puts the first
+    # word or two of every class on the line that names every column and the rest beneath it
+    # ("Plant and" / "machinery", "Office" / "equipment" / "and" / "computers"), so a band read from
+    # the anchor alone named the columns 'Plant and', 'Office', 'Freehold'. The walk stops at the
+    # first line that captions nothing — the group label ("Gross carrying amount") sits in the label
+    # column, not under a component — and never reaches the first movement row.
+    while (end + 1 < m.first_data and per_row[end + 1]
+           and _tight_below(_row_box(m.rows[end]), _row_box(m.rows[end + 1]))):
+        end += 1
 
     names: list[str] = []
     for k in range(len(m.bands)):
@@ -5077,6 +5127,37 @@ def _matrix_items(m: _Matrix, names: list[str], *, page_index: int, document_id:
     return items, ordinal
 
 
+# A SUB-TABLE'S OWN HEADING: "(B) Capital work-in-progress", "(ii) Movement in …", "4A. …" — an
+# enumerator and a short capitalised title on a line with no figures.
+_SUB_TABLE_HEADING = re.compile(r"^\s*(?:[(（](?:[A-Za-z]|[ivx]{1,4}|\d{1,2})[)）]|\d{1,2}[A-Za-z]?[.)])"
+                                r"\s+[A-Z]")
+
+
+def _sub_table_cut(m: _Matrix, fmt=None) -> int | None:
+    """The row at which a SECOND table printed under the matrix begins, or None.
+
+    f1 note 3 prints (A) its PP&E schedule, eight classes wide, and beneath it (B) the capital
+    work-in-progress movement, two years wide, and its ageing. The matrix ran to the foot of the
+    page, so the CWIP figures fell in its right-hand bands and went out keyed 'Vehicles' / 'Total'
+    for 2025 / 2024. The cut is the first enumerated sub-heading BELOW the matrix's last full-width
+    row (figures in two thirds of its columns — the CWIP ageing's five do not make it one), so a banner inside the matrix (an equity statement's year banner) never ends it; a long
+    line is a footnote that happens to open with "(a)", not a heading.
+    """
+    wide = [i for i in range(m.first_data, len(m.rows))
+            if sum(1 for w in _matrix_cells(m.rows[i], fmt)
+                   if _band_of(w, m.bands) is not None) * 3 >= len(m.bands) * 2]
+    if not wide:
+        return None
+    for i in range(wide[-1] + 1, len(m.rows)):
+        row = m.rows[i]
+        if _matrix_cells(row, fmt):
+            continue
+        text = " ".join(w.text for w in row)
+        if _SUB_TABLE_HEADING.match(text) and len(text.split()) <= 8:
+            return i
+    return None
+
+
 def _maybe_matrix(words: list[Word], *, statement: str | None,
                   fmt=None, page_fold=DETECT_FOLD) -> tuple[_Matrix | None, list[str] | None]:
     """Matrix geometry + column names for a matrix page, else (None, None).
@@ -5256,6 +5337,65 @@ def _breakdown_parent(open_breakdowns: list[_Breakdown], label_words: list[Word]
     return open_breakdowns[-1].parent if open_breakdowns else None
 
 
+# AN AGEING BUCKET'S OWN NUMBERS. "Less than 6 months", "6 months - 1 year", "1-2 years", "More than
+# 3 years": the digits are part of the label, and the header line that prints them carries nothing
+# else a number could be.
+_BUCKET_NUMBER = re.compile(r"^\d{1,2}(?:\s*[-–]\s*\d{1,2})?$")
+_BUCKET_UNIT = re.compile(r"^(?:days?|months?|years?|yrs?)[,.;:]?$", re.IGNORECASE)
+
+
+def _fuse_bucket_numbers(words: list[Word], fmt=None) -> list[Word]:
+    """Words with each ageing-bucket number fused onto the word it belongs to.
+
+    f1 note 10 prints its receivables ageing header over two lines — "Not due | Less than 6 | 6
+    months - | 1-2 years | 2-3 years | More than | Total" and beneath it "months | 1 year | 3 years" —
+    and the "6", "1-2", "2-3", "1" and "3" in it made both lines FIGURE rows: `column_headings` found
+    its first figure on the header itself and named no column, the bands were laid over the
+    bucket digits, and the header went out to the model as two rows carrying 6 and 1.
+
+    A line qualifies only when every number on it is a bucket number (one or two digits, or a
+    range of them) and it names a bucket unit at least twice; any amount on the line — "less than
+    three months 450.00" — leaves it alone. Each number is joined to its nearer alphabetic
+    neighbour on the line ("than 6", "6 months", "1-2 years"), which keeps every printed word and
+    takes the digits out of the figure count.
+    """
+    if not any(_BUCKET_NUMBER.match(w.text.strip()) for w in words):
+        return words
+    fused: dict[int, Word] = {}
+    dropped: set[int] = set()
+    for row in _group_rows(words):
+        texts = [w.text.strip() for w in row]
+        numbers = [k for k, t in enumerate(texts) if _BUCKET_NUMBER.match(t)]
+        if not numbers or sum(1 for t in texts if _BUCKET_UNIT.match(t)) < 2:
+            continue
+        if any(k not in numbers and (_num(t, fmt) is not None or re.search(r"\d", t))
+               for k, t in enumerate(texts)):
+            continue
+        ordered = sorted(row, key=lambda w: w.bbox.x0)
+        for k, w in enumerate(ordered):
+            if not _BUCKET_NUMBER.match(w.text.strip()):
+                continue
+            cands = []
+            for j in (k - 1, k + 1):
+                if 0 <= j < len(ordered) and re.search(r"[A-Za-z]", ordered[j].text):
+                    o = ordered[j]
+                    gap = o.bbox.x0 - w.bbox.x1 if j > k else w.bbox.x0 - o.bbox.x1
+                    cands.append((max(gap, 0.0), j))
+            if not cands:
+                continue
+            _gap, j = min(cands)
+            host = fused.get(id(ordered[j]), ordered[j])
+            pair = sorted([host, w], key=lambda x: x.bbox.x0)
+            fused[id(ordered[j])] = Word(
+                text=f"{pair[0].text} {pair[1].text}", bbox=pair[0].bbox.union(pair[1].bbox),
+                page_bbox=(pair[0].source_bbox.union(pair[1].source_bbox)
+                           if host.page_bbox or w.page_bbox else None))
+            dropped.add(id(w))
+    if not fused:
+        return words
+    return [fused.get(id(w), w) for w in words if id(w) not in dropped]
+
+
 def build_line_items(words: list[Word], *, page_index: int, document_id: str | None,
                      source_kind: str, ordinal_start: int = 0,
                      number_format=None, statement: str | None = None,
@@ -5333,6 +5473,8 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
     first: without the carry, page two onward reads four columns positionally again — which is the
     defect the grid exists to close, reappearing three rows later. ``grid_out``, when given, is
     appended the grid these rows were actually read with, so the caller can carry it forward."""
+    _call_args = dict(locals())
+    words = _fuse_bucket_numbers(words, number_format)
     if scope is None or normalisation is None:
         in_force_scope, in_force_norm = in_force_rules()
         scope = scope if scope is not None else in_force_scope
@@ -5346,6 +5488,25 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
     if matrix is not None and names is not None:
         if log:
             log(f"extract:page={page_index}:equity_matrix_columns={len(names)}")
+        cut = _sub_table_cut(matrix, number_format)
+        if cut is not None:
+            # A SUB-TABLE PRINTED UNDER THE MATRIX IS ITS OWN TABLE. The matrix is read down to its
+            # heading; the rows from the heading on are read again as the table they are.
+            y_cut = min(w.bbox.y0 for w in matrix.rows[cut])
+            if log:
+                log(f"extract:page={page_index}:matrix_ends_at_sub_table={cut}")
+            items, ordinal = _matrix_items(
+                replace(matrix, rows=matrix.rows[:cut]), names, page_index=page_index,
+                document_id=document_id, source_kind=source_kind, ordinal_start=ordinal_start,
+                fmt=number_format,
+                unit_ctx=_unit_context(_statement_unit(matrix.rows, unit_signals,
+                                                       number_format), page_index),
+                dims=dims, log=log, page_scope=page_scope if on_face else None)
+            rest_args = {**_call_args, "ordinal_start": ordinal}
+            rest_args.pop("words")
+            more, ordinal = build_line_items(
+                [w for w in words if w.bbox.y0 >= y_cut - 1e-6], **rest_args)
+            return items + more, ordinal
         # A matrix face declares its unit in its own header like any other statement, and
         # "persist unit on every fact" is not qualified by layout.
         return _matrix_items(matrix, names, page_index=page_index, document_id=document_id,
@@ -5437,6 +5598,21 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
         value_bands = _header_declared_bands(raw_rows, col_words, number_format)
         if value_bands and log:
             log(f"extract:page={page_index}:value_columns=header_declared({len(value_bands)})")
+    elif not on_face:
+        # …AND A WIDE NOTE TABLE WHOSE SPARSE COLUMNS THE FIGURES CANNOT SHOW. An ageing schedule
+        # prints most of its rows as nil dashes, so its "Not due" and "More than 3 years" columns
+        # hold two figures each and fall under `_COL_MIN_ROWS`: f1 note 10 read three columns of
+        # seven, and 10,486.15 not yet due was filed nowhere. The header declares all seven, and
+        # the declared reading is taken only when every figure sits under exactly one of them.
+        declared = (_header_declared_bands(raw_rows, col_words, number_format)
+                    or _printed_header_bands(read_printed_columns(
+                        raw_rows, number_format, page_chrome, reporting_year=reporting_year),
+                        col_words, number_format))
+        if len(declared) > len(value_bands):
+            if log:
+                log(f"extract:page={page_index}:value_columns=header_declared"
+                    f"({len(declared)}>{len(value_bands)})")
+            value_bands = declared
     bands = _basis_bands(raw_rows, value_bands, _value_area(value_bands, col_xs),
                          signals=entity_signals, fmt=number_format,
                          log=log, page_index=page_index)

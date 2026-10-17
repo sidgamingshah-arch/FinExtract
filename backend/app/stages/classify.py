@@ -458,6 +458,21 @@ def _dated_title_candidates(lines: list[dict]) -> list[dict]:
     return out
 
 
+def _on_a_figure_row(line: dict, lines: list[dict], tol: float = 1.5) -> bool:
+    """Whether a line is the LABEL of a table row: another line on the same baseline carries a figure.
+
+    A statement title printed part-way down a page stands on a row of its own. A notes table's row
+    label that names a statement does not: f1 page 12 is the borrowings, lease and deferred-tax
+    notes, and its row "Charged to the Statement of Profit and Loss | 98.55 | 76.30" in the
+    deferred-tax movement resolved as a profit-and-loss title, so the page became a P&L face (and
+    its numbered note headings, suppressed by the strong title, counted for nothing).
+    """
+    y = float(line.get("y", 0.0))
+    return any(other is not line and abs(float(other.get("y", 0.0)) - y) <= tol
+               and _AMOUNT_LINE.search(other.get("text") or "")
+               for other in lines)
+
+
 def _mid_page_statement(lines: list[dict], title_zone: list[dict], *, dated_titles: bool = False
                         ) -> tuple[str | None, bool, str | None, bool]:
     """Find an exact statement title that starts below a completed table on the same page.
@@ -476,9 +491,10 @@ def _mid_page_statement(lines: list[dict], title_zone: list[dict], *, dated_titl
     """
     zone_ids = {id(line) for line in title_zone}
     candidates = [dict(line) for line in lines if id(line) not in zone_ids
-                  and _looks_like_heading(line["text"])]
+                  and _looks_like_heading(line["text"]) and not _on_a_figure_row(line, lines)]
     if dated_titles:
-        candidates += _dated_title_candidates([line for line in lines if id(line) not in zone_ids])
+        candidates += _dated_title_candidates([line for line in lines if id(line) not in zone_ids
+                                               and not _on_a_figure_row(line, lines)])
     return _resolve_statement(candidates, coverage=_MID_PAGE_TITLE_COVERAGE)
 
 
@@ -509,7 +525,8 @@ def _closing_statement(lines: list[dict], title_zone: list[dict], title_y: float
         return None, None, None
     zone_ids = {id(line) for line in title_zone}
     below = [line for line in lines if id(line) not in zone_ids
-             and float(line.get("y", 0.0)) > title_y and _looks_like_heading(line["text"])]
+             and float(line.get("y", 0.0)) > title_y and _looks_like_heading(line["text"])
+             and not _on_a_figure_row(line, lines)]
     for cand in sorted(below, key=lambda line: float(line.get("y", 0.0)), reverse=True):
         name, _combined, title, _ambig = _resolve_statement([dict(cand)],
                                                             coverage=_MID_PAGE_TITLE_COVERAGE)

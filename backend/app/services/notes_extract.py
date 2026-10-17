@@ -17,6 +17,7 @@ from app.core.models.line_item import NoteItem, NotesTable
 from app.services import page_spread
 from app.services.row_reconstruct import (
     _AGE_UNIT, _CAPTION_GAP, DATE_TOKEN, DETECT_FOLD, GRID_FLAG, ColumnGrid, Word, _caption_text,
+    _carries_amounts, _fuse_bucket_numbers,
     _group_rows, _measure_slug, _prc_period_slot, _scan_row, _x_runs, build_line_items,
     row_tolerance)
 
@@ -393,6 +394,34 @@ def qualified_note_number(chapter: str | None, number: str | None) -> str | None
     if split_note_number(number)[0]:
         return number                      # already an identity — see the docstring
     return f"{chapter}、{number}"
+
+
+# THE COLUMN HEADER AN IND AS NOTE TABLE OPENS WITH: "Particulars | As at 31 March 2025 | …",
+# "Particulars | Not due | Less than 6 months | …".
+_SUB_TABLE_HEADER = re.compile(r"^\s*particulars\b", re.IGNORECASE)
+
+
+def _opens_a_sub_table(row: list[Word]) -> bool:
+    """Whether this figure-less row is the column header of a NEW table inside the open note.
+
+    f1 note 10 prints the receivables table (two years across), then an ageing schedule per year
+    (seven buckets across), each under its own "Particulars …" header and none under a numbered or
+    bracketed heading. Read as one section they shared one set of value bands: the two-year
+    columns and the seven buckets were counted together into nine "column N" keys and no bucket
+    could be named. A header row that follows rows carrying figures opens its own section of the
+    same note, so each table is read with its own bands and its own printed columns.
+    """
+    words = sorted(row, key=lambda w: w.bbox.x0)
+    if not words or not _SUB_TABLE_HEADER.match(words[0].text):
+        return False
+    # Its own bucket digits ("Less than 6 months") and dates ("As at 31 March 2025") are not figures.
+    return not _carries_amounts(_fuse_bucket_numbers(row))
+
+
+def _rows_since(rows: list[list[Word]], i: int, section: dict) -> list[list[Word]]:
+    """The rows before ``i`` whose words are in ``section`` — the rows the open section holds."""
+    held = {id(w) for w in section.get("words", ())}
+    return [r for r in rows[:i] if r and id(r[0]) in held]
 
 
 def _is_heading(row: list[Word]) -> tuple[str, str] | None:
@@ -799,7 +828,8 @@ def _declared_categories(rows: list[list[Word]], fmt=None
 # guard the Han ones: there is no boundary between two Han characters, so `\b` after 截至 would
 # never match the date that follows it.
 _PERIOD_PREFIX = re.compile(
-    r"^\s*(?:(?:as\s+at|at|for\s+the\s+(?:year|period)\s+ended?"
+    r"^\s*(?:(?:(?:(?:opening|closing)\s+)?balances?\s+(?:as\s+)?at|as\s+at|at"
+    r"|for\s+the\s+(?:year|period)\s+ended?"
     r"|(?:year|period)\s+ended?)\b|於|于|截至)", re.I)
 _YEAR_IN_CAPTION = re.compile(r"(?:19|20)\d{2}")
 # A YEAR WRITTEN IN HAN NUMERALS, which is how a Traditional-Chinese filing dates its blocks:
@@ -872,12 +902,31 @@ def _period_anchors(rows: list[list[Word]], fmt=None) -> list[tuple[float, int, 
     direction the year applies in — see this block's comment.
     """
     out: list[tuple[float, int, bool]] = []
-    for row in rows:
-        if not row:
-            continue
+    rows = [row for row in rows if row]
+    for k, row in enumerate(rows):
         _labels, _refs, value_words = _scan_row(row, fmt, extract_note_refs=False)
         figures = [w for w in (value_words or ())
                    if not _DATE_TOKEN.match(w.text.strip().strip(",.()"))]
+        # A BALANCE CAPTION WRAPPED BEFORE ITS YEAR — "Balance as at 31 March" over "2024 | 1,245.60
+        # | …" (f1 note 3, whose label column is too narrow for the date). The year and the figures
+        # are on the next line, and the anchor is the caption's: without this the 2024 and 2025
+        # closing balances anchored nothing, and every movement row above the net carrying amounts
+        # took the first dated row below it — "prior" for both years.
+        if not figures and k + 1 < len(rows):
+            head = " ".join(w.text for w in sorted(row, key=lambda w: w.bbox.x0)).strip()
+            nxt = rows[k + 1]
+            _l2, _r2, nxt_values = _scan_row(nxt, fmt, extract_note_refs=False)
+            nxt_figures = [w for w in (nxt_values or ())
+                           if not _DATE_TOKEN.match(w.text.strip().strip(",.()"))]
+            nxt_skip = {id(w) for w in nxt_figures}
+            # A nil dash ("-" under Freehold land in the depreciation block) is a cell, not text.
+            tail = " ".join(w.text for w in sorted(nxt, key=lambda w: w.bbox.x0)
+                            if id(w) not in nxt_skip
+                            and not re.fullmatch(r"[-–—−]", w.text.strip())).strip()
+            if (nxt_figures and _PERIOD_PREFIX.match(head) and _year_of(head) is None
+                    and re.fullmatch(r"(?:19|20)\d{2}", tail)):
+                out.append((min(w.bbox.y0 for w in row), int(tail), True))
+                continue
         # THE CAPTION IS THE ROW WITHOUT ITS FIGURES — and WITH its date, wherever the date landed.
         # Reading the whole row would put a closing balance's six class amounts in the caption and
         # push it past the length guard, which is how the PP&E anchors were missed; reading only the
@@ -1218,6 +1267,18 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
         elif current is not None:
             if current is carried and carried not in sections:
                 sections.append(carried)
+            if (_opens_a_sub_table(row) and i > 0
+                    and any(_carries_amounts(r) for r in _rows_since(rows, i, current))):
+                # A SECOND TABLE OF THE SAME NOTE, under its own column header — see
+                # `_opens_a_sub_table`. The caption line just above the header goes with it.
+                prev = rows[i - 1]
+                lead = list(prev) if _title_only_row(prev) is not None else []
+                if lead:
+                    ids = {id(w) for w in lead}
+                    current["words"] = [w for w in current["words"] if id(w) not in ids]
+                current = {k: v for k, v in current.items() if k != "words"}
+                current["words"] = lead
+                sections.append(current)
             current["words"].extend(row)
         i += 1
 
