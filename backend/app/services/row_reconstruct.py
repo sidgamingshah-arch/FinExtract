@@ -781,7 +781,10 @@ def _scan_row(row: list[Word], fmt=None, *, extract_note_refs: bool = True) -> t
             label_words.append(row[i])
             i += 1
             continue
-        if _num(tok, fmt) is not None:
+        if (not value_words and _num(tok, fmt) is not None
+                and _words_follow_in_the_cell(row, i, fmt)):
+            label_words.append(row[i])
+        elif _num(tok, fmt) is not None:
             value_words.append(row[i])
         elif not value_words:   # text before any number is part of the label
             label_words.append(row[i])
@@ -791,6 +794,29 @@ def _scan_row(row: list[Word], fmt=None, *, extract_note_refs: bool = True) -> t
 
 # AN ACCOUNTING STANDARD NAMED IN A CAPTION, and the number that follows it. Upper-case only, so
 # the English word "as" in "such as 15" is never a standard; "Ind AS" needs its "Ind".
+def _words_follow_in_the_cell(row: list[Word], i: int, fmt=None) -> bool:
+    """Whether the number at ``row[i]`` is followed, in the same run of tightly set words, by a
+    word — so it is a count written INTO the caption, not a figure in a column.
+
+    f1's share-capital note prints its captions as "2,50,00,000 (31 March 2024: 2,50,00,000)
+    equity shares" / "of ₹ 10 each   2,500.00   2,500.00". Read token by token, the share count
+    and the "10" were figures, and the note reached the model laid out as a table of columns
+    called "Particulars Authorised" and "at 31 March 2024" with a row captioned "of ₹". A figure
+    stands in a column with clear air to its right; a word set tight after it is still the caption.
+    Latin words only: a CJK caption has its own rules for counts it carries (see `_AGE_COUNT`).
+    """
+    j = i + 1
+    while j < len(row) and _tight_after(row[j - 1], row[j]):
+        t = row[j].text.strip()
+        # A month is not such a word: "at 31 March 2024  486.20" is a dated caption whose numerals
+        # `_label_keeping_its_date` already gives back to it, and they must stay where it finds them.
+        if (_num(t, fmt) is None and re.search(r"[A-Za-z]{2,}", t)
+                and not DATE_TOKEN.match(t.strip("(),:;"))):
+            return True
+        j += 1
+    return False
+
+
 _STANDARD_NUMBER = re.compile(r"^\d{1,3}[A-Z]?[,.;:)）]?$")
 _STANDARD_NAME = re.compile(r"^(?:HK)?(?:IFRS|FRS|IAS|AS|IFRIC|SIC)$|^HK\(IFRIC\)$|^HKAS$|^SFRS$")
 
@@ -1140,10 +1166,104 @@ def _is_page_title(label_words: list[Word], page_title: str | None) -> bool:
     return bool(text) and text in normalize_label(page_title)
 
 
+#: A notes page's running header — the company and report, or the notes' own title.
+_NOTES_CHROME = re.compile(
+    _RUNNING_HDR.pattern + r"|notes\s+(?:forming\s+part\s+of|to)\b", re.IGNORECASE)
+
+#: The first caption of a note table's column header ("Particulars | As at 31 March 2025 | …").
+_COLUMN_HEADER_LEAD = re.compile(r"^\s*particulars\b", re.IGNORECASE)
+
+
+def _titles_the_table(head: list[Word], nxt_label: list[Word]) -> bool:
+    """Whether a figure-less line in a NOTE is the title of the table whose column header is
+    printed directly under it — "(a) Payment to auditors", "Current (unsecured, considered good)"
+    over "Particulars | As at …". Every row of that table is printed under it."""
+    if not head or not nxt_label:
+        return False
+    text = " ".join(w.text for w in head).strip()
+    lead = " ".join(w.text for w in sorted(nxt_label, key=lambda w: w.bbox.x0))
+    return (bool(text) and not text.endswith((".", ",", ";")) and len(text.split()) <= 12
+            and not _HAN.search(text) and bool(_LATIN.search(text))
+            and not _COLUMN_HEADER_LEAD.match(text) and bool(_COLUMN_HEADER_LEAD.match(lead)))
+
+
+#: A row that ENDS the block printed above it rather than starting the next: its total, or the
+#: closing balance of a movement ("Balance at the end of the year").
+_CLOSES_A_BLOCK = re.compile(
+    r"^\s*(?:sub-?\s*total|total|closing\b"
+    r"|balance\s+(?:at|as\s+at)\s+(?:the\s+)?(?:end|close)\b)", re.IGNORECASE)
+
+
+def _closes(label: str, heading: str) -> bool:
+    """Whether ``label`` is the closing line of the block ``heading`` heads. A closing balance is;
+    a total is when it names what the heading names ("Total sale of products" under "(a) Sale of
+    products") — a bare "Total", or "Total income tax expense" after a "Deferred tax" block, is
+    the table's, not the block's."""
+    m = _CLOSES_A_BLOCK.match(label)
+    if not m:
+        return False
+    if not re.match(r"(?i)\s*(?:sub-?\s*)?total", m.group(0)):
+        return True
+    words = lambda t: {w for w in re.findall(r"[a-z]{4,}", t.lower())} - {"total"}  # noqa: E731
+    return bool(words(label[m.end():]) & words(heading))
+
+
+def _under_sub_heading(stack: list[tuple[float, str]], label_words: list[Word], label: str,
+                       promoted: bool) -> str:
+    """The sub-heading a valued note row is printed under, popping from ``stack`` (the open
+    headings of `_heads_indented_rows`, outermost first) every block the row has left.
+
+    A row indented inboard of the innermost heading is in its block. A row set flush with it is
+    the block's closing line when its caption closes one — "Total sale of products", "Balance at
+    the end of the year", a bare subtotal under the block — and then the block ends after it;
+    otherwise it is the next line at the heading's own level ("(b) Sale of services", "Vehicle
+    loans from banks" beside "Term loans from banks"), outside the block, under whatever encloses
+    it. The empty string when no heading encloses the row: none is printed over it. The heading
+    is the path of every open one — see `heading_path`.
+    """
+    if promoted or not label_words:
+        under = heading_path(stack)
+        if stack:
+            stack.pop()
+        return under
+    x0 = min(w.bbox.x0 for w in label_words)
+    while stack and x0 <= stack[-1][0] + _INDENT_MIN:
+        if abs(x0 - stack[-1][0]) <= _INDENT_MIN and _closes(label, stack[-1][1]):
+            under = heading_path(stack)
+            stack.pop()
+            return under
+        stack.pop()
+    return heading_path(stack)
+
+
+class OpenHeadings(str):
+    """The sub-heading still open at the foot of a page — the string `carry_group` always was —
+    carrying the headings `_heads_indented_rows` had open, so the next page continues the blocks
+    rather than only their caption. f1's payment-to-auditors table breaks after "As auditor": on
+    the next page "In other capacity" closes that block and the table's "Total" is the title's,
+    "(a) Payment to auditors", which only the open headings know."""
+
+    stack: tuple[tuple[float, str], ...]
+
+    def __new__(cls, text: str, stack) -> "OpenHeadings":
+        obj = super().__new__(cls, text)
+        obj.stack = tuple(stack)
+        return obj
+
+
+def heading_path(stack: list[tuple[float, str]]) -> str:
+    """The open headings as ONE caption, outermost first: "Non-current (unsecured, considered
+    good) / Provision for employee benefits". The innermost alone would send note 19's two
+    "Gratuity" rows — one per table, each under the same "Provision for employee benefits" —
+    with nothing to tell them apart."""
+    return " / ".join(text for _x, text in stack)
+
+
 def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
                           steps: tuple[tuple[str, object], ...] = (),
                           page_title: str | None = None,
-                          known: frozenset[str] = frozenset()) -> list[list[Word]]:
+                          known: frozenset[str] = frozenset(),
+                          on_face: bool = True) -> list[list[Word]]:
     """Fold a label-only line into the following valued row when the two are clearly one
     wrapped label: tight vertical spacing *and* left-alignment inside the label column.
 
@@ -1336,6 +1456,11 @@ def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
             # but the last two (see `_wrap_reaches_a_value`).
             and _wrap_reaches_a_value(rows, idx, fmt, steps)
             and _wrap_adjacent(_row_box(row), _row_box(nxt), _scan_row(nxt, fmt)[0])
+            # IN A NOTE, A HEADING OVER INDENTED ROWS is not their caption's first line — see
+            # `_heads_indented_rows`. Faces are left as they were: their captions are what the
+            # mapper's aliases were written against.
+            and (on_face or not (_heads_indented_rows(label_words, _scan_row(nxt, fmt)[0])
+                                 or _titles_the_table(label_words, _scan_row(nxt, fmt)[0])))
         )
         if is_wrap:
             pending = pending + row
@@ -1537,6 +1662,52 @@ def _wrap_adjacent(cur: BBox, nxt: BBox, nxt_label: list[Word]) -> bool:
         return True
     label_x0 = min(w.bbox.x0 for w in nxt_label)
     return abs(cur.x0 - label_x0) <= 0.06                # left-aligned in the label column
+
+
+def _heads_indented_rows(head: list[Word], nxt_label: list[Word]) -> bool:
+    """Whether a figure-less line in a NOTE is the sub-heading of the indented rows printed under
+    it, rather than the first line of a caption that wraps into the next row.
+
+    f1 prints its notes as a heading at the label column's edge and its rows indented beneath it:
+
+        Inventories at the end of the year
+            Work-in-progress                 3,412.20   3,108.77
+            Finished goods                   2,805.45   2,544.10
+        Inventories at the beginning of the year
+            Work-in-progress                 3,108.77   2,876.40
+            Finished goods                   2,544.10   2,301.55
+
+    `_wrap_adjacent` allows a continuation to start up to 0.06 to the right — a hanging indent —
+    so the heading was folded into the first row ("Inventories at the end of the year
+    Work-in-progress") and the second "Finished goods" reached the model with nothing to say it
+    was the opening stock. Likewise "Retained earnings" / "Balance at the beginning of the year",
+    "As auditor" / "Statutory audit fee", "(a) Sale of products" / "Domestic".
+
+    A hanging continuation reads as one: the head ends mid-phrase ("Property, plant and") or the
+    tail opens with a connective or in lower case ("equipment", "and cash equivalents"). A heading
+    is a finished phrase over a caption that begins one of its own.
+    """
+    if not head or not nxt_label:
+        return False
+    indent = min(w.bbox.x0 for w in nxt_label) - min(w.bbox.x0 for w in head)
+    if indent <= _INDENT_MIN:          # inboard of the heading, as a block member is
+        return False
+    head_text = " ".join(w.text for w in head).strip()
+    tail_text = " ".join(w.text for w in sorted(nxt_label, key=lambda w: w.bbox.x0)).strip()
+    if not head_text or not tail_text or head_text.endswith((".", ",", ";")):
+        return False
+    # LATIN CAPTIONS ONLY. A mainland note's figure-less lines over indented rows are its column
+    # header (项目名称 / 关联方) and its colon groups, which `notes_extract` reads as categories.
+    if _HAN.search(head_text) or not _LATIN.search(head_text):
+        return False
+    # A heading the reader already knows — a colon sub-heading, an ALL-CAPS banner — keeps the
+    # scope it always had: a colon block's `group` runs on past its subtotal, by design (see
+    # `test_note_block_subtotal`), where this one's ends with its block.
+    if _looks_like_header(head) or head_text.endswith(("：", "﹕")):
+        return False
+    if _HEAD_INCOMPLETE.search(head_text) or _CONT_STARTS.match(tail_text):
+        return False
+    return not tail_text[0].islower()
 
 
 # ── The line-item set's scope_selection / normalisation blocks ───────────────────────────────
@@ -5712,7 +5883,7 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
     reader_scope: dict = ({"rule": "band", "band": sorted({b.value for b, _x in bands})}
                           if bands else {})
     rows = _merge_wrapped_labels(raw_rows, number_format, steps, page_title=page_title,
-                                 known=known_captions or frozenset())
+                                 known=known_captions or frozenset(), on_face=on_face)
     if carry_caption:
         joined = _caption_continued_from_the_previous_page(
             rows, number_format, steps, known_captions or frozenset(), carry_caption,
@@ -5885,6 +6056,29 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
     # Rows whose figures took their periods from the order they are printed in — said once per
     # page, after the rows are read.
     rows_by_order = 0
+    # THE FIGURE-LESS LINES THAT HEAD INDENTED ROWS, in a note — see `_heads_indented_rows`. They
+    # are kept apart from a wrap by `_merge_wrapped_labels`; here each becomes the `group` of the
+    # rows printed under it, where before it was not a heading by any test below and was dropped.
+    sub_heads: set[int] = set()
+    titles: set[int] = set()
+    # The ones still open, outermost first, as (left edge, caption): "Secured" over "Term loans
+    # from banks" over the banks. See `_under_sub_heading` for when a row leaves one.
+    sub_stack: list[tuple[float, str]] = list(getattr(carry_group, "stack", ()) or ())
+    sub_open = bool(sub_stack)
+    if not on_face:
+        for i, row in enumerate(rows[:-1]):
+            lw, nref, vw = _scan_row(row, number_format, extract_note_refs=False)
+            if not lw or vw or nref is not None:
+                continue
+            # THE PAGE'S RUNNING HEADER IS NOT A HEADING of the rows under it, though it is a
+            # figure-less line set over them: "DEVGIRI AUTOCOMP LIMITED  Annual Report 2024-25".
+            if _NOTES_CHROME.search(_join_words(lw)):
+                continue
+            nxt = _scan_row(rows[i + 1], number_format, extract_note_refs=False)[0]
+            if _titles_the_table(lw, nxt):
+                titles.add(id(row))
+            elif _heads_indented_rows(lw, nxt):
+                sub_heads.add(id(row))
     for row in rows:
         label_words, note_ref, value_words = _scan_row(
             row, number_format, extract_note_refs=on_face)
@@ -6005,7 +6199,10 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                          if d is not None]
             all_years = bool(bare_vals) and all(1990 <= abs(int(v)) <= 2099
                                                 for v in bare_vals if int(v) == v)
-            if aligned and not all_years and group.rstrip(":："):
+            # Not under a heading `_heads_indented_rows` opened: those blocks were never promoted
+            # on alignment alone, and a bare figure under one is left to `_bare_subtotal_of`,
+            # which promotes it only when it adds up.
+            if aligned and not all_years and group.rstrip(":：") and not sub_stack:
                 # THE BLOCK'S OWN CAPTION, AS THE FILING PRINTED IT, and nothing appended. An
                 # earlier version appended the English word "subtotal", which put untranslated
                 # English inside a caption whose other half is the filing's words — "本年度即期稅項
@@ -6115,7 +6312,9 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                 # spelled in profit-and-loss captions), and no defect is known there; the balance
                 # sheet's five sections are closed, so anything else named on one is a caption.
                 banner = None
-            if label and caption and not value_words and (heading or banner is not None):
+            sub_head = id(row) in sub_heads or id(row) in titles
+            if label and caption and not value_words and (heading or banner is not None
+                                                          or sub_head):
                 if _is_units_caption(label_words):
                     # A units caption is not a section, whatever it is printed in. The declared
                     # unit-and-currency annotation step strips the currencies the RULEBOOK NAMES,
@@ -6129,12 +6328,26 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                     # The leftovers of a caption that wrapped, which is not a section even when it
                     # reads as one on its own line — see ``_TAIL_CONTINUATION``.
                     continue
-                if banner is not None or not _ends_with_colon(label, steps):
+                if banner is not None or (heading and not _ends_with_colon(label, steps)):
                     section = label
                     group = ""          # a new section ends the sub-heading's scope
                     open_breakdowns.clear()     # …and every 其中 breakdown above it
                 else:
                     group = label
+                if sub_head:
+                    # A banner phrase heading an indented block in a note — "Other comprehensive
+                    # income" over its own movement — still scopes as a banner, AND names the rows
+                    # under it, which only `group` reaches the model with. A heading at this one's
+                    # level or outboard of it ends the blocks it was nested in.
+                    # A table's title encloses every row of the table, whatever its indent.
+                    x0 = (float("-inf") if id(row) in titles
+                          else min(w.bbox.x0 for w in label_words))
+                    while sub_stack and sub_stack[-1][0] >= x0 - _INDENT_MIN:
+                        sub_stack.pop()
+                    sub_stack.append((x0, label))
+                    group = heading_path(sub_stack)
+                else:
+                    sub_stack.clear()
                 # THE ONE BOUNDARY THAT DECIDES ANYTHING, and three others were removed for saying
                 # so falsely: a promotion needs members, and members only accumulate under a
                 # heading, so a reset paired with `group = ""` is code a reader reasons about for
@@ -6175,6 +6388,9 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
         # same numbering is a sub-note enumeration and means nothing about totals.
         statement_line = on_face and (bool(_CAS_STATEMENT_LINE.match(label))
                                      or bool(_CAS_TOTAL_LINE.search(label)))
+        if sub_stack:
+            group = _under_sub_heading(sub_stack, label_words, label, promoted)
+            sub_open = True
         li = LineItem(source_label=label, ordinal=ordinal,
                       role=(LineRole.SUBTOTAL if promoted
                             else LineRole.TOTAL if statement_line else LineRole.LINE),
@@ -6183,6 +6399,9 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                                           if promoted else []),
                       section_hint=section, group_hint=group, source=ValueSource.MACHINE,
                       parent_id=breakdown_of.id if breakdown_of is not None else None)
+        if sub_open and not sub_stack:
+            group = ""          # the last block a printed heading opened has ended
+            sub_open = False
         # THE HEADING'S BOX FOR A BORROWED CAPTION. A promoted row has no label words of its own, so
         # this was None — and `_prov_anchor` then falls back to the value box's vertical band alone,
         # which two sub-tables printed on one baseline share. The judgement layer refuses to attribute
@@ -6336,7 +6555,7 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
         log(f"extract:page={page_index}:period_selection=by_position"
             f"(rows={rows_by_order},figures_in_printed_order)")
     if group_out is not None:
-        group_out.append(group)
+        group_out.append(OpenHeadings(group, sub_stack) if sub_stack else group)
     if not on_face:
         named = _name_note_columns(items, placed_at, value_bands, printed, header_carry,
                                    headings, heading_spans, fmt=number_format,

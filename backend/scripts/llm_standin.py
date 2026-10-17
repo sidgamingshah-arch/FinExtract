@@ -408,7 +408,11 @@ def lint_request(req: dict, run: RunIndex, budget_tokens: int = DEFAULT_BUDGET_T
             if why:
                 hit("fragment_as_row", f"{label}: '{cap}' ({why}) carries {json.dumps(figs, ensure_ascii=False)}")
             if _has_figure(r):
-                place = " / ".join(t for t in (r.get("group", ""), r.get("period", ""), cap) if t)
+                # A ROW IS TOLD APART BY THE HEADING IT IS PRINTED UNDER: a note row's `group`, a
+                # statement row's `under` (the section banner) and `subheading`. Borrowings under
+                # non-current and under current liabilities are two rows, and the request says so.
+                place = " / ".join(t for t in (r.get("under", ""), r.get("subheading", ""),
+                                               r.get("group", ""), r.get("period", ""), cap) if t)
                 by_caption[place].add(json.dumps(figs, sort_keys=True))
             if kind == "statement_rows" and _has_figure(r):
                 src = run.source_of(cap, figs)

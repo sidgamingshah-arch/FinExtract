@@ -144,6 +144,23 @@ def test_each_lint_check_fires(check: str, payload, run_dir: Path):
     assert check in _checks(payload(), run_dir)
 
 
+def test_one_caption_under_two_printed_headings_is_not_a_duplicate(run_dir: Path):
+    """f1's standalone balance sheet prints "(ia) Lease liabilities" under non-current AND under
+    current liabilities, and each row says which in `under`. Two rows, told apart, not one caption
+    with two figures; the same caption under the SAME heading still is."""
+    p = _payload()
+    rows = p["statement_rows"][0]["rows"]
+    rows += [{"caption": "(ia) Lease liabilities", "under": "Non-current liabilities",
+              "figures": {"current": "955.23", "prior": "809.15"}},
+             {"caption": "(ia) Lease liabilities", "under": "Current liabilities",
+              "figures": {"current": "196.80", "prior": "172.45"}}]
+    hits = standin.lint_request(_request(p, 100), standin.RunIndex(run_dir / "run"), 1000)
+    assert not [h for h in hits if h["check"] == "duplicate_caption" and "Lease" in h["evidence"]]
+    rows[-1]["under"] = "Non-current liabilities"
+    hits = standin.lint_request(_request(p, 100), standin.RunIndex(run_dir / "run"), 1000)
+    assert [h for h in hits if h["check"] == "duplicate_caption" and "Lease" in h["evidence"]]
+
+
 def test_oversize_fires_above_budget(run_dir: Path):
     assert _checks(_payload(), run_dir, est_tokens=5000) == {"oversize"}
 
