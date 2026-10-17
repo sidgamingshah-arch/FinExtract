@@ -499,7 +499,7 @@
   "unbound_row_policy": "Route an unclaimed face value only to the residual for its resolved printed section. Never borrow a neighbouring concept or cross a section. After all mapping and gap-closing opportunities, the engine-level face_mapping_contract gives any remaining face value a unique engine_unclassified_face key outside the ontology/template namespaces. This keeps the row stored and reviewable without feeding it into an unrelated calculation. Verified non-additive aggregates replaced by mapped components remain evidence-only.",
   "match_priority": "Integer 0-99, higher evaluated first. Long specific captions rank above short generic ones so 'Total assets less current liabilities' cannot be pre-empted by 'Total current liabilities' on token overlap. Residuals are 0 and unreachable by matching."
  },
- "prompt": "ICON is an Indian bank credit-monitoring (CMA-style) spread: an operating statement, an analysis of the balance sheet, and contingent liabilities with other information, filled from a borrower's financial statements. Filings may follow Ind AS (Schedule III, Division II) or Indian GAAP (Revised Schedule VI), and are often scaled in lakhs or crores; do not assume either from the units alone. Extract only figures supported by filing citations. Keep standalone and consolidated reporting separate. Preserve reporting date, period duration, presentation currency and scale. Distinguish raw-material consumption from closing inventory, period charges from accumulated balances, funded borrowing from guarantees, and recognised liabilities from unprovided exposure. Do not treat unavailable as zero or calculate amounts in a citation-only answer.",
+ "prompt": "ICON is an Indian bank credit-monitoring (CMA-style) spread: an operating statement, an analysis of the balance sheet, and contingent liabilities with other information, filled from a borrower's financial statements. Filings may follow Ind AS (Schedule III, Division II) or Indian GAAP (Revised Schedule VI), and are often scaled in lakhs or crores; do not assume either from the units alone. Extract only figures supported by filing citations. Keep standalone and consolidated reporting separate. Preserve reporting date, period duration, presentation currency and scale. Distinguish raw-material consumption from closing inventory, period charges from accumulated balances, funded borrowing from guarantees, and recognised liabilities from unprovided exposure. Do not treat unavailable as zero or calculate amounts in a citation-only answer. Every ICON line is read from the face of the statements only: cite a printed statement row, never a note. A breakdown printed only in a note is left empty.",
  "global_rules": {
   "source_fact_id": "document_id|entity_scope|period|currency|unit|page|table_or_note|source_row_id",
   "sign_convention": {
@@ -643,19 +643,12 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "income",
    "match_priority": 80,
+   "route": "face",
    "exclude_criteria": [
     "Export sales",
     "Other operating revenue such as scrap sales and export incentives",
     "Other income"
    ],
-   "note_source": {
-    "note_terms": [
-     "revenue from operations",
-     "revenue from contracts with customers",
-     "disaggregation of revenue",
-     "segment information"
-    ]
-   },
    "aliases": [
     "Domestic Sales",
     "Domestic revenue",
@@ -707,18 +700,11 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "income",
    "match_priority": 80,
+   "route": "face",
    "exclude_criteria": [
     "Export incentives, duty drawback, RoDTEP and MEIS benefits",
     "Domestic and deemed-domestic sales"
    ],
-   "note_source": {
-    "note_terms": [
-     "revenue from operations",
-     "revenue from contracts with customers",
-     "disaggregation of revenue",
-     "segment information"
-    ]
-   },
    "aliases": [
     "Export Sales",
     "Export revenue",
@@ -837,14 +823,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "expenses",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "revenue from operations",
-     "revenue from contracts with customers",
-     "disaggregation of revenue",
-     "sale of products"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Excise Duty",
     "Excise duty on sale of goods",
@@ -952,18 +931,11 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "income",
    "match_priority": 80,
+   "route": "face",
    "exclude_criteria": [
     "Interest, dividend and fair-value income in 'Other income'",
     "Sale of products"
    ],
-   "note_source": {
-    "note_terms": [
-     "revenue from operations",
-     "revenue from contracts with customers",
-     "disaggregation of revenue",
-     "sale of products"
-    ]
-   },
    "aliases": [
     "Other recurring income incidental to main business",
     "Other operating revenue",
@@ -1163,14 +1135,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "expenses",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "cost of materials consumed",
-     "cost of raw materials consumed",
-     "raw materials consumed",
-     "imported and indigenous raw materials"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Imported raw materials",
     "Imported raw materials consumed",
@@ -1216,14 +1181,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "expenses",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "cost of materials consumed",
-     "cost of raw materials consumed",
-     "raw materials consumed",
-     "imported and indigenous raw materials"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Indigenous raw materials",
     "Indigenous raw materials consumed",
@@ -1268,14 +1226,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "expenses",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "other expenses",
-     "manufacturing expenses",
-     "manufacturing and other expenses",
-     "operating and other expenses"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Other Spares",
     "Consumption of stores and spares",
@@ -1360,18 +1311,11 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "expenses",
    "match_priority": 80,
+   "route": "face",
    "exclude_criteria": [
     "Sale of power",
     "Office electricity of a non-manufacturing company"
    ],
-   "note_source": {
-    "note_terms": [
-     "other expenses",
-     "manufacturing expenses",
-     "manufacturing and other expenses",
-     "operating and other expenses"
-    ]
-   },
    "aliases": [
     "Power and Fuel",
     "Power & Fuel",
@@ -1425,14 +1369,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "expenses",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "employee benefits expense",
-     "other expenses",
-     "manufacturing expenses",
-     "employee costs"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Direct Labour (Factory wages & salaries)",
     "Direct Labour (Factory wages and salaries)",
@@ -1542,14 +1479,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "expenses",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "other expenses",
-     "manufacturing expenses",
-     "manufacturing and other expenses",
-     "operating and other expenses"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Processing / Job Work Charges",
     "Job work charges",
@@ -1608,17 +1538,10 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "expenses",
    "match_priority": 80,
+   "route": "face",
    "exclude_criteria": [
     "Freight outward and forwarding on sales"
    ],
-   "note_source": {
-    "note_terms": [
-     "other expenses",
-     "manufacturing expenses",
-     "manufacturing and other expenses",
-     "operating and other expenses"
-    ]
-   },
    "aliases": [
     "Freight and Transportation Charges",
     "Freight & Transportation Charges",
@@ -1698,18 +1621,11 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "expenses",
    "match_priority": 80,
+   "route": "face",
    "exclude_criteria": [
     "Selling, administrative and corporate expenses",
     "Repairs to buildings"
    ],
-   "note_source": {
-    "note_terms": [
-     "other expenses",
-     "manufacturing expenses",
-     "manufacturing and other expenses",
-     "operating and other expenses"
-    ]
-   },
    "aliases": [
     "Manufacturing expenses",
     "Factory expenses",
@@ -1774,14 +1690,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "expenses",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "depreciation and amortisation expense",
-     "depreciation and amortization expense",
-     "property plant and equipment",
-     "fixed assets"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Depreciation",
     "Depreciation and amortisation expense",
@@ -1866,14 +1775,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "expenses",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "depreciation and amortisation expense",
-     "depreciation and amortization expense",
-     "other intangible assets",
-     "intangible assets"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Amortization",
     "Amortisation",
@@ -1929,12 +1831,7 @@
    "sign_convention": "either",
    "analyst_bucket": "expenses",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "changes in inventories of finished goods work in progress and stock in trade",
-     "changes in inventories"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Changes in inventory",
     "Changes in inventories",
@@ -2159,18 +2056,11 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "expenses",
    "match_priority": 80,
+   "route": "face",
    "exclude_criteria": [
     "Directors' sitting fees and commission in 'Other expenses'",
     "Contract labour charges"
    ],
-   "note_source": {
-    "note_terms": [
-     "employee benefits expense",
-     "employee benefit expenses",
-     "employee costs",
-     "payments to and provisions for employees"
-    ]
-   },
    "aliases": [
     "Salary and staff expenses",
     "Salary & staff expenses",
@@ -2285,14 +2175,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "expenses",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "other expenses",
-     "administrative and other expenses",
-     "selling and distribution expenses",
-     "administrative expenses"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Rent , Rates and Taxes",
     "Rent , Rates & Taxes",
@@ -2352,14 +2235,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "expenses",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "other expenses",
-     "administrative and other expenses",
-     "selling and distribution expenses",
-     "administrative expenses"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Lease rentals",
     "Lease rent",
@@ -2424,14 +2300,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "expenses",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "other expenses",
-     "administrative and other expenses",
-     "selling and distribution expenses",
-     "administrative expenses"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Bad Debts",
     "Bad debts written off",
@@ -2493,14 +2362,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "expenses",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "other expenses",
-     "administrative and other expenses",
-     "selling and distribution expenses",
-     "administrative expenses"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Travelling & conveyance expenses",
     "Travelling and conveyance expenses",
@@ -2558,14 +2420,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "expenses",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "other expenses",
-     "administrative and other expenses",
-     "selling and distribution expenses",
-     "administrative expenses"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Advertisements and Sales Promotions",
     "Advertisements & Sales Promotions",
@@ -2649,14 +2504,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "expenses",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "other expenses",
-     "administrative and other expenses",
-     "selling and distribution expenses",
-     "administrative expenses"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Commission, discount & service charges",
     "Commission, discount and service charges",
@@ -2722,14 +2570,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "expenses",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "other expenses",
-     "administrative and other expenses",
-     "selling and distribution expenses",
-     "administrative expenses"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Legal & professional charges",
     "Legal and professional charges",
@@ -2809,14 +2650,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "expenses",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "other expenses",
-     "employee benefits expense",
-     "related party disclosures",
-     "managerial remuneration"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Directors remuneration",
     "Director's remuneration",
@@ -2878,14 +2712,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "expenses",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "other expenses",
-     "payment to auditors",
-     "auditors remuneration",
-     "administrative and other expenses"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Auditors remuneration",
     "Auditor's remuneration",
@@ -2946,18 +2773,11 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "expenses",
    "match_priority": 80,
+   "route": "face",
    "exclude_criteria": [
     "The 'Other expenses' note total when its rows are cited",
     "Rows claimed by power and fuel, stores, job work, freight inward, rent, rates, bad debts, travel, advertisement, commission, legal, directors' and auditors' remuneration"
    ],
-   "note_source": {
-    "note_terms": [
-     "other expenses",
-     "administrative and other expenses",
-     "selling and distribution expenses",
-     "administrative expenses"
-    ]
-   },
    "aliases": [
     "Other expenses",
     "Other expense",
@@ -3271,18 +3091,11 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "interest",
    "match_priority": 80,
+   "route": "face",
    "exclude_criteria": [
     "Interest on cash credit and working-capital loans",
     "Bank charges and processing fees"
    ],
-   "note_source": {
-    "note_terms": [
-     "finance costs",
-     "finance cost",
-     "interest and finance charges",
-     "borrowing costs"
-    ]
-   },
    "aliases": [
     "Interest on Fixed Loans / Term loans",
     "Interest on term loans",
@@ -3340,17 +3153,10 @@
    "sign_convention": "either",
    "analyst_bucket": "interest",
    "match_priority": 80,
+   "route": "face",
    "exclude_criteria": [
     "Interest on term loans, debentures and lease liabilities"
    ],
-   "note_source": {
-    "note_terms": [
-     "finance costs",
-     "finance cost",
-     "interest and finance charges",
-     "borrowing costs"
-    ]
-   },
    "aliases": [
     "Interest on Working capital loans",
     "Interest on working capital",
@@ -3418,14 +3224,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "interest",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "finance costs",
-     "finance cost",
-     "interest and finance charges",
-     "borrowing costs"
-    ]
-   }
+   "route": "face"
   },
   {
    "key": "pl_icon__operating_profit_after_interest",
@@ -3502,13 +3301,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "non_operating",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "other income",
-     "other non operating income",
-     "non operating income"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Interest received",
     "Interest income",
@@ -3613,13 +3406,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "non_operating",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "other income",
-     "other non operating income",
-     "non operating income"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Dividend income",
     "Dividends received",
@@ -3714,13 +3501,7 @@
    "sign_convention": "either",
    "analyst_bucket": "non_operating",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "other income",
-     "other non operating income",
-     "non operating income"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Profit on sale of fixed assets",
     "Profit on sale of fixed assets (net)",
@@ -3833,19 +3614,13 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "non_operating",
    "match_priority": 80,
+   "route": "face",
    "exclude_criteria": [
     "Interest income",
     "Dividend income",
     "Gain on disposal",
     "Fair-value gains and liabilities written back"
    ],
-   "note_source": {
-    "note_terms": [
-     "other income",
-     "other non operating income",
-     "non operating income"
-    ]
-   },
    "aliases": [
     "Misc Income",
     "Miscellaneous income",
@@ -3953,13 +3728,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "non_operating",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "other income",
-     "other non operating income",
-     "non operating income"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Liabilities no longer required written back",
     "Provisions no longer required written back",
@@ -4087,14 +3856,7 @@
    "sign_convention": "either",
    "analyst_bucket": "non_operating",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "other expenses",
-     "finance costs",
-     "exceptional items",
-     "other income"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Realised foreign exchange loss",
     "Realised exchange loss",
@@ -4170,13 +3932,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "non_operating",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "exceptional items",
-     "other expenses",
-     "prior period items"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Work-in-progress written off",
     "Write-off of work-in-progress"
@@ -4220,13 +3976,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "non_operating",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "exceptional items",
-     "other expenses",
-     "prior period items"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Finished goods written off",
     "Write-off of finished goods"
@@ -4266,12 +4016,7 @@
    "sign_convention": "either",
    "analyst_bucket": "non_operating",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "other expenses",
-     "exceptional items"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Loss on sale of fixed assets",
     "Loss on sale of fixed assets (net)",
@@ -4375,13 +4120,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "non_operating",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "exceptional items",
-     "other expenses",
-     "prior period items"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Prior period expenses",
     "Prior period expenditure",
@@ -4424,13 +4163,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "non_operating",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "exceptional items",
-     "other expenses",
-     "prior period items"
-    ]
-   }
+   "route": "face"
   },
   {
    "key": "pl_icon__non_operating_expense_cash_subtotal",
@@ -4500,14 +4233,7 @@
    "sign_convention": "either",
    "analyst_bucket": "non_operating",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "other expenses",
-     "finance costs",
-     "exceptional items",
-     "other income"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Unrealised foreign exchange loss",
     "Unrealised exchange loss",
@@ -4571,13 +4297,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "non_operating",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "exceptional items",
-     "other expenses",
-     "prior period items"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Provision for diminution in value of investments",
     "Provision for diminution in the value of investments",
@@ -5191,19 +4911,11 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "expenses",
    "match_priority": 80,
+   "route": "face",
    "exclude_criteria": [
     "Dividend distribution tax",
     "Prior year's final dividend paid in the current year"
    ],
-   "note_source": {
-    "note_terms": [
-     "dividends",
-     "distributions made and proposed",
-     "proposed dividend",
-     "reserves and surplus",
-     "other equity"
-    ]
-   },
    "aliases": [
     "Interim dividend",
     "Interim dividend on equity shares",
@@ -5300,18 +5012,12 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_liabilities",
    "match_priority": 80,
+   "route": "face",
    "exclude_criteria": [
     "Current maturities of long-term borrowings",
     "Loans from related parties and inter-corporate deposits",
     "Sanctioned but undrawn limits"
    ],
-   "note_source": {
-    "note_terms": [
-     "current borrowings",
-     "short term borrowings",
-     "borrowings"
-    ]
-   },
    "aliases": [
     "From applicant bank",
     "Cash credit",
@@ -5412,16 +5118,10 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_liabilities",
    "match_priority": 80,
+   "route": "face",
    "exclude_criteria": [
     "Current maturities of long-term borrowings"
    ],
-   "note_source": {
-    "note_terms": [
-     "current borrowings",
-     "short term borrowings",
-     "borrowings"
-    ]
-   },
    "aliases": [
     "From other banks"
    ],
@@ -5486,13 +5186,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_liabilities",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "current borrowings",
-     "short term borrowings",
-     "borrowings"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Short term borrowings from others (including mobilization advance)",
     "Inter-corporate deposits",
@@ -5564,14 +5258,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_liabilities",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "current borrowings",
-     "short term borrowings",
-     "borrowings",
-     "related party disclosures"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Short term borrowings from Related Parties",
     "Loans from related parties",
@@ -5721,13 +5408,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_liabilities",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "other current liabilities",
-     "other liabilities",
-     "contract liabilities"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Advance payments from customers",
     "Advance from customers",
@@ -5781,14 +5462,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_liabilities",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "current tax liabilities",
-     "short term provisions",
-     "provisions",
-     "income tax"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Provision for taxation",
     "Provision for tax",
@@ -5855,13 +5529,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_liabilities",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "other financial liabilities",
-     "other current liabilities",
-     "short term provisions"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Dividend payable",
     "Dividends payable",
@@ -5918,12 +5586,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_liabilities",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "other current liabilities",
-     "other liabilities"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Other statutory liabilities (due within 1 year)",
     "Statutory dues",
@@ -6000,14 +5663,7 @@
    "sign_convention": "either",
    "analyst_bucket": "current_liabilities",
    "match_priority": 90,
-   "note_source": {
-    "note_terms": [
-     "current borrowings",
-     "short term borrowings",
-     "other current liabilities",
-     "borrowings"
-    ]
-   },
+   "route": "face",
    "extraction_mode": "extract_or_derive",
    "terms": [
     {
@@ -6069,14 +5725,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_liabilities",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "current borrowings",
-     "short term borrowings",
-     "other current liabilities",
-     "borrowings"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Current maturities of debentures",
     "Current maturities of non-convertible debentures",
@@ -6120,14 +5769,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_liabilities",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "current borrowings",
-     "short term borrowings",
-     "other current liabilities",
-     "borrowings"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Current maturities of redeemable preference shares",
     "Current maturities of preference shares"
@@ -6165,18 +5807,11 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_liabilities",
    "match_priority": 80,
+   "route": "face",
    "exclude_criteria": [
     "Non-current portion of term loans",
     "Interest accrued on term loans"
    ],
-   "note_source": {
-    "note_terms": [
-     "current borrowings",
-     "short term borrowings",
-     "other current liabilities",
-     "borrowings"
-    ]
-   },
    "aliases": [
     "Current maturities of term loans",
     "Current maturities of term loans from banks",
@@ -6239,14 +5874,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_liabilities",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "current borrowings",
-     "short term borrowings",
-     "other current liabilities",
-     "borrowings"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Current maturities of foreign currency term loans",
     "Current maturities of foreign currency loans",
@@ -6286,14 +5914,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_liabilities",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "current borrowings",
-     "short term borrowings",
-     "other current liabilities",
-     "lease liabilities"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Current lease liabilities",
     "Lease liabilities (current)",
@@ -6383,13 +6004,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_liabilities",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "trade payables",
-     "other financial liabilities",
-     "other current liabilities"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Creditors for expenses",
     "Sundry creditors for expenses",
@@ -6452,12 +6067,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_liabilities",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "other financial liabilities",
-     "other current liabilities"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Employee expenses payable",
     "Employee benefits payable",
@@ -6541,12 +6151,7 @@
    "sign_convention": "either",
    "analyst_bucket": "current_liabilities",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "other financial liabilities",
-     "other current liabilities"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "MTM forex loss",
     "Derivative liabilities",
@@ -6601,12 +6206,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_liabilities",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "other financial liabilities",
-     "other current liabilities"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Interest accrued but not due on borrowings",
     "Interest accrued and due on borrowings",
@@ -6667,12 +6267,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_liabilities",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "other financial liabilities",
-     "other current liabilities"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Outstanding lease rentals",
     "Lease rentals payable",
@@ -6717,6 +6312,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_liabilities",
    "match_priority": 80,
+   "route": "face",
    "residual_policy": {
     "framework": "residual_framework",
     "section_scope": "bs_cl",
@@ -6863,13 +6459,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "non_current_liabilities",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "non current borrowings",
-     "long term borrowings",
-     "borrowings"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Debentures & Preference Shares (not maturing within 1 year)",
     "Debentures and Preference Shares (not maturing within 1 year)",
@@ -6981,17 +6571,11 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "non_current_liabilities",
    "match_priority": 80,
+   "route": "face",
    "exclude_criteria": [
     "Current maturities of long-term borrowings",
     "Lease liabilities"
    ],
-   "note_source": {
-    "note_terms": [
-     "non current borrowings",
-     "long term borrowings",
-     "borrowings"
-    ]
-   },
    "aliases": [
     "Rupee Term loans (excl. instalments payable within 1 year)",
     "Term loans",
@@ -7074,13 +6658,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "non_current_liabilities",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "non current borrowings",
-     "long term borrowings",
-     "borrowings"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Foreign currency loans (excl. instalments payable within 1 year)",
     "Foreign currency term loans",
@@ -7134,13 +6712,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "non_current_liabilities",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "non current borrowings",
-     "long term borrowings",
-     "borrowings"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Term deposits including mobilization advance (repayable after 1 year)",
     "Public deposits",
@@ -7198,14 +6770,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "non_current_liabilities",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "non current borrowings",
-     "long term borrowings",
-     "borrowings",
-     "related party disclosures"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Long term borrowings from Related parties",
     "Loans from related parties",
@@ -7548,12 +7113,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "equity",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "other equity",
-     "reserves and surplus"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "General Reserve",
     "General reserves"
@@ -7588,12 +7148,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "equity",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "other equity",
-     "reserves and surplus"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Revaluation Reserve",
     "Revaluation surplus",
@@ -7640,16 +7195,11 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "equity",
    "match_priority": 80,
+   "route": "face",
    "exclude_criteria": [
     "Securities premium, general reserve and retained earnings",
     "The 'Other equity' total when its rows are cited"
    ],
-   "note_source": {
-    "note_terms": [
-     "other equity",
-     "reserves and surplus"
-    ]
-   },
    "aliases": [
     "Other Reserves (excluding Provisions)",
     "Other reserves",
@@ -7733,12 +7283,7 @@
    "sign_convention": "either",
    "analyst_bucket": "equity",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "other equity",
-     "reserves and surplus"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Surplus (+) or deficit (-) in Profit & Loss a/c",
     "Surplus (+) or deficit (-) in Profit and Loss a/c",
@@ -7820,12 +7365,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "equity",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "other equity",
-     "reserves and surplus"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Share Premium",
     "Securities premium",
@@ -7869,12 +7409,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "equity",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "other equity",
-     "reserves and surplus"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Capital Redemption Reserve"
    ],
@@ -7946,12 +7481,7 @@
    "sign_convention": "either",
    "analyst_bucket": "equity",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "other equity",
-     "reserves and surplus"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Foreign currency translation reserve",
     "Foreign exchange translation reserve",
@@ -8043,14 +7573,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "equity",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "non current borrowings",
-     "long term borrowings",
-     "borrowings",
-     "other equity"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Quasi Equity"
    ],
@@ -8083,12 +7606,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "equity",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "other equity",
-     "reserves and surplus"
-    ]
-   },
+   "route": "face",
    "residual_policy": {
     "framework": "residual_framework",
     "section_scope": "bs_equity",
@@ -8358,13 +7876,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_assets",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "cash and cash equivalents",
-     "cash and bank balances",
-     "bank balances other than cash and cash equivalents"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Cash on hand",
     "Cash in hand",
@@ -8413,13 +7925,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_assets",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "cash and cash equivalents",
-     "cash and bank balances",
-     "bank balances other than cash and cash equivalents"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Balances with banks",
     "Balance with banks",
@@ -8519,12 +8025,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_assets",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "current investments",
-     "investments"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Government securities",
     "Govt. securities",
@@ -8582,18 +8083,11 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_assets",
    "match_priority": 80,
+   "route": "face",
    "exclude_criteria": [
     "Margin money and deposits under lien",
     "Balances in current accounts"
    ],
-   "note_source": {
-    "note_terms": [
-     "cash and cash equivalents",
-     "cash and bank balances",
-     "bank balances other than cash and cash equivalents",
-     "other financial assets"
-    ]
-   },
    "aliases": [
     "Fixed deposits",
     "Fixed deposits with banks",
@@ -8730,16 +8224,11 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_assets",
    "match_priority": 80,
+   "route": "face",
    "exclude_criteria": [
     "Receivables overdue more than six months",
     "Allowance for expected credit loss as a separate figure"
    ],
-   "note_source": {
-    "note_terms": [
-     "trade receivables",
-     "sundry debtors"
-    ]
-   },
    "aliases": [
     "Domestic Receivables",
     "Domestic trade receivables",
@@ -8785,12 +8274,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_assets",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "trade receivables",
-     "sundry debtors"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Export Receivables",
     "Trade receivables - export",
@@ -8838,13 +8322,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_assets",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "trade receivables",
-     "sundry debtors",
-     "other financial assets"
-    ]
-   }
+   "route": "face"
   },
   {
    "key": "bs_icon__inventory",
@@ -8963,11 +8441,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_assets",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "inventories"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Imported raw materials",
     "Raw materials - imported"
@@ -9005,11 +8479,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_assets",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "inventories"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Indigenous raw materials",
     "Raw materials - indigenous",
@@ -9060,11 +8530,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_assets",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "inventories"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Work-in-progress",
     "Work in process",
@@ -9115,11 +8581,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_assets",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "inventories"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Finished goods",
     "Finished goods (including goods in transit)",
@@ -9168,11 +8630,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_assets",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "inventories"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Stores and spares",
     "Stores & spares",
@@ -9233,14 +8691,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_assets",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "other current assets",
-     "short term loans and advances",
-     "loans and advances",
-     "other financial assets"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Advances to suppliers",
     "Advance to suppliers",
@@ -9289,14 +8740,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_assets",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "current tax assets",
-     "income tax assets",
-     "short term loans and advances",
-     "other current assets"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Advance payment of taxes",
     "Advance tax",
@@ -9409,13 +8853,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_assets",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "other financial assets",
-     "other current assets",
-     "short term loans and advances"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Interest Receivable",
     "Interest accrued",
@@ -9465,14 +8903,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_assets",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "other current assets",
-     "short term loans and advances",
-     "loans and advances",
-     "other financial assets"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Prepaid Expenses",
     "Prepaid expense",
@@ -9515,14 +8946,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_assets",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "trade receivables",
-     "contract assets",
-     "other financial assets",
-     "other current assets"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Retention money",
     "Retention money receivable",
@@ -9567,14 +8991,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_assets",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "other current assets",
-     "short term loans and advances",
-     "loans and advances",
-     "other financial assets"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Advances recoverable in cash or in kind",
     "Advances recoverable in cash or kind",
@@ -9634,6 +9051,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "current_assets",
    "match_priority": 80,
+   "route": "face",
    "residual_policy": {
     "framework": "residual_framework",
     "section_scope": "bs_ca",
@@ -9777,14 +9195,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "non_current_assets",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "property plant and equipment",
-     "fixed assets",
-     "right of use assets",
-     "tangible assets"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Gross block",
     "Gross fixed assets",
@@ -9844,13 +9255,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "non_current_assets",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "capital work in progress",
-     "property plant and equipment",
-     "fixed assets"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Capital work-in-progress",
     "Capital works in progress"
@@ -9890,14 +9295,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "non_current_assets",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "property plant and equipment",
-     "fixed assets",
-     "right of use assets",
-     "tangible assets"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Accumulated depreciation",
     "Accumulated depreciation and impairment",
@@ -10011,14 +9409,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "non_current_assets",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "non current investments",
-     "investments",
-     "loans",
-     "related party disclosures"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Investments in subsidiaries",
     "Investment in subsidiaries",
@@ -10093,14 +9484,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "non_current_assets",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "non current investments",
-     "investments",
-     "loans",
-     "related party disclosures"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Loans to subsidiaries",
     "Loans and advances to subsidiaries",
@@ -10160,14 +9544,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "non_current_assets",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "non current investments",
-     "investments",
-     "long term loans and advances",
-     "loans"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Other non-current investments",
     "Other investments",
@@ -10233,14 +9610,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "non_current_assets",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "other non current assets",
-     "long term loans and advances",
-     "other financial assets",
-     "loans"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Capital advances",
     "Capital advance",
@@ -10345,14 +9715,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "non_current_assets",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "other non current assets",
-     "long term loans and advances",
-     "other financial assets",
-     "loans"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Security Deposits",
     "Security deposit",
@@ -10400,13 +9763,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "non_current_assets",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "related party disclosures",
-     "loans",
-     "long term loans and advances"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Loans to directors",
     "Loans and advances to directors",
@@ -10462,13 +9819,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "non_current_assets",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "bank balances other than cash and cash equivalents",
-     "other financial assets",
-     "cash and bank balances"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "FDs under Lien",
     "Margin money deposits",
@@ -10533,12 +9884,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "non_current_assets",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "trade receivables",
-     "sundry debtors"
-    ]
-   }
+   "route": "face"
   },
   {
    "key": "bs_icon__retention_money_non_current_portion",
@@ -10560,13 +9906,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "non_current_assets",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "trade receivables",
-     "other financial assets",
-     "contract assets"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Retention money",
     "Retention money receivable",
@@ -10608,6 +9948,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "non_current_assets",
    "match_priority": 80,
+   "route": "face",
    "residual_policy": {
     "framework": "residual_framework",
     "section_scope": "bs_nca",
@@ -10682,14 +10023,7 @@
    "sign_convention": "either",
    "analyst_bucket": "non_current_assets",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "other intangible assets",
-     "intangible assets",
-     "deferred tax assets",
-     "fixed assets"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Intangible assets",
     "Other intangible assets",
@@ -10755,13 +10089,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "non_current_assets",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "other intangible assets",
-     "intangible assets",
-     "fixed assets"
-    ]
-   }
+   "route": "face"
   },
   {
    "key": "bs_icon__net_intangible_assets",
@@ -10978,17 +10306,11 @@
    "sign_convention": "either",
    "analyst_bucket": "others",
    "match_priority": 95,
+   "route": "face",
    "exclude_criteria": [
     "Capital commitments",
     "Other commitments"
    ],
-   "note_source": {
-    "note_terms": [
-     "contingent liabilities",
-     "contingent liabilities and commitments",
-     "commitments"
-    ]
-   },
    "extraction_mode": "extract_or_derive",
    "terms": [
     {
@@ -11073,14 +10395,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "others",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "contingent liabilities",
-     "contingent liabilities and commitments",
-     "commitments",
-     "share capital"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Arrears of Cumulative Dividends",
     "Arrears of fixed cumulative dividends on preference shares",
@@ -11133,14 +10448,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "others",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "contingent liabilities",
-     "contingent liabilities and commitments",
-     "commitments",
-     "employee benefits"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Gratuity Liability Not Provided For",
     "Liability for gratuity not provided for",
@@ -11185,13 +10493,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "others",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "contingent liabilities",
-     "contingent liabilities and commitments",
-     "commitments"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Disputed income tax demands",
     "Income tax demands disputed",
@@ -11279,13 +10581,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "others",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "contingent liabilities",
-     "contingent liabilities and commitments",
-     "commitments"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Claims against the company not acknowledged as debts",
     "Claims against the company not acknowledged as debt",
@@ -11332,13 +10628,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "others",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "contingent liabilities",
-     "contingent liabilities and commitments",
-     "commitments"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Outstanding LCs",
     "Letters of credit",
@@ -11399,13 +10689,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "others",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "contingent liabilities",
-     "contingent liabilities and commitments",
-     "commitments"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Bills discounted",
     "Bills discounted with banks",
@@ -11466,13 +10750,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "others",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "contingent liabilities",
-     "contingent liabilities and commitments",
-     "commitments"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Outstanding BGs",
     "Bank guarantees",
@@ -11534,13 +10812,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "others",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "contingent liabilities",
-     "contingent liabilities and commitments",
-     "commitments"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Financial Guarantees issued by the company",
     "Corporate guarantees",
@@ -11609,14 +10881,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "others",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "contingent liabilities",
-     "contingent liabilities and commitments",
-     "commitments",
-     "borrowings"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "Redemption premium not provided for",
     "Premium payable on redemption of debentures",
@@ -11665,14 +10930,7 @@
    "sign_convention": "either",
    "analyst_bucket": "others",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "contingent liabilities",
-     "contingent liabilities and commitments",
-     "commitments",
-     "financial instruments"
-    ]
-   },
+   "route": "face",
    "aliases": [
     "MTM loss on derivatives not provided for",
     "Mark-to-market losses on derivative contracts not provided for",
@@ -11718,13 +10976,7 @@
    "sign_convention": "either",
    "analyst_bucket": "others",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "other equity",
-     "reserves and surplus",
-     "contingent liabilities"
-    ]
-   }
+   "route": "face"
   },
   {
    "key": "cov_icon__accumulated_depreciation_on_disposals",
@@ -11747,12 +10999,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "others",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "property plant and equipment",
-     "fixed assets"
-    ]
-   }
+   "route": "face"
   },
   {
    "key": "cov_icon__accumulated_amortization_on_disposals",
@@ -11775,12 +11022,7 @@
    "sign_convention": "positive_expected",
    "analyst_bucket": "others",
    "match_priority": 80,
-   "note_source": {
-    "note_terms": [
-     "other intangible assets",
-     "intangible assets"
-    ]
-   }
+   "route": "face"
   },
   {
    "key": "cov_icon__write_off_stock_in_process",
@@ -11894,5 +11136,6 @@
     "amortization"
    ]
   }
- }
+ },
+ "strict_face_route": true
 }

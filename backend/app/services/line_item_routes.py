@@ -129,3 +129,22 @@ def any_reads_every_page(line_item_set) -> bool:
     """
     return any(reads_every_page(i)
                for i in (getattr(line_item_set, "items", None) or ()))
+
+
+def may_take_note_split(item, strict_face: bool = False) -> bool:
+    """Whether a COMPONENT a note itemises, split off a face row, may become this line's figure.
+
+    THE SPLIT IS A NOTE FIGURE WEARING A FACE STAMP. `stages.map_ontology` un-files a printed face
+    row and files the rows its cited note prints onto the section's lines, each stamped
+    `printed_in = FACE`. So the face side of the fence (`may_read_face`) has always had to be true
+    for the receiving line — a note-only line never takes one — and that stays.
+
+    THE NOTE SIDE IS THE SET'S CHOICE (`LineItemSet.strict_face_route`). On a set that does not
+    declare it, a `face` line takes a split component, which is what the HK and Ind AS sets rely
+    on. On a set that does, `face` means the statement and nothing else, so a declared `face` line
+    refuses the component exactly as it refuses every other note figure. Silence on the LINE is
+    still permissive either way: only a declared `face` is restricted.
+    """
+    if not may_read_face(item):
+        return False
+    return not (strict_face and declared_route(item) == "face")

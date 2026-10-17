@@ -41,6 +41,12 @@ WHAT IT DECIDES, and why:
   Revised Schedule VI wording and reviewed; each line's regex hint additionally lets its captions
   bind behind a leading enumerator or "Less:"/"Add:" ("IV. Expenses", "Less: Excise duty",
   "Profit before tax (V-VI)"), which the matcher does not strip.
+* FACE ONLY. Every extracted line, and every calculated line a filing may print, declares
+  ``route: face``, no line carries a ``note_source``, and the set declares ``strict_face_route``, so
+  no stage puts a note's figure on an ICON line: not the note reader, not the prose route, not the
+  model (its requests carry statement rows and no notes), and not the split that files a face
+  row's note components. Calculated lines keep their cascades over those face figures; a line the
+  face does not print is left empty. Notes are still read as evidence for a face figure.
 * POLICY BLOCKS are the Ind AS set's (lakh/crore units, Standalone/Consolidated, the residual
   framework), except the sign convention above. One catch-all per balance-sheet section sweeps the
   rows no line claims; the P&L has none.
@@ -343,7 +349,9 @@ PROMPT = (
     "presentation currency and scale. Distinguish raw-material consumption from closing "
     "inventory, period charges from accumulated balances, funded borrowing from guarantees, and "
     "recognised liabilities from unprovided exposure. Do not treat unavailable as zero or "
-    "calculate amounts in a citation-only answer.")
+    "calculate amounts in a citation-only answer. Every ICON line is read from the face of the "
+    "statements only: cite a printed statement row, never a note. A breakdown printed only in a "
+    "note is left empty.")
 
 
 # ── the workbook ICON's output is written into ─────────────────────────────────────────────────
@@ -656,17 +664,22 @@ def build() -> tuple[dict, dict, dict]:
         }
         if k in APPEND_NOTES and not cap.get("definition"):
             item["definition"] = f"{item['definition'].rstrip('. ')}. {APPEND_NOTES[k]}"
-        # "(none)" is a reviewed decision that the line has no route: face and notes both.
-        if cap.get("route") in ROUTES:
+        # EVERY FIGURE COMES OFF THE FACE. An extracted line, and a calculated line the filing may
+        # print (`extract_or_derive`), declare `route: face`, whatever `captions.json` reviewed:
+        # its `route` and `note_terms` are kept there as the record of where a note would have
+        # been read, and are no longer emitted. A line `derive` computes only from its cascade, so
+        # a route says nothing about it and the reviewed one (if any) is kept as it was.
+        reads_a_figure = not calculated or k not in DERIVE
+        if reads_a_figure:
+            item["route"] = "face"
+        elif cap.get("route") in ROUTES:
             item["route"] = cap["route"]
         if cap.get("exclude_criteria"):
             item["exclude_criteria"] = [_prose(x) for x in cap["exclude_criteria"] if _prose(x)]
-        # WHICH NOTES THE MODEL IS SHOWN. Only a line declaring a `note_source` has its notes' TEXT
-        # attached to its request (`services.note_context.identified_notes`); without one the
-        # request names the notes and carries none of them. Heading words only — no row rules, so
-        # the deterministic note reader reads nothing on their account.
-        if cap.get("note_terms"):
-            item["note_source"] = {"note_terms": list(cap["note_terms"])}
+        # NO `note_source`. It only ever said which notes' TEXT a request carries
+        # (`services.note_context.identified_notes`), and a `face` line is given no notes
+        # (`services.line_item_notes`, `line_item_routes.may_read_notes`), so on a face line it is
+        # a declaration nothing acts on.
         if calculated:
             item["extraction_mode"] = "derive" if k in DERIVE else "extract_or_derive"
             item["terms"] = terms
@@ -753,6 +766,9 @@ def build() -> tuple[dict, dict, dict]:
                                        "figure is compared with the computed one.",
                                "keys": CROSS_CHECK, "tolerance": 0.5},
         "prose_grammar": copy.deepcopy(indas["prose_grammar"]),
+        # `face` is strict here: a face line takes no component a note itemises either
+        # (`LineItemSet.strict_face_route`, `stages.map_ontology.route_fenced_decompositions`).
+        "strict_face_route": True,
     }
     workbook_map = _workbook_map(draft, keys, labels)
     return template, line_items, workbook_map

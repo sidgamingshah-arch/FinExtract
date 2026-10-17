@@ -353,7 +353,7 @@ def _same_section_decompositions(ontology) -> list[tuple[str, list[str], str]]:
     return out
 
 
-def route_fenced_decompositions(decls, defs):
+def route_fenced_decompositions(decls, defs, strict_face: bool = False):
     """`(kept, declined)` — the split candidates the ROUTE FENCE allows, and the aggregates it refused.
 
     The fence `services.line_item_routes` draws around a BINDING, applied to a SPLIT, in both
@@ -382,6 +382,11 @@ def route_fenced_decompositions(decls, defs):
 
     `defs` maps a key to its `LineItemDef`; a key it does not know is left alone, which is what a
     run with no line-item set (a rulebook-only ontology) gets.
+
+    `strict_face` IS THE SET'S `strict_face_route`. With it, a declared `face` line takes no split
+    component either — a component is a note's row, and a strict face line reads the statement
+    only (`line_item_routes.may_take_note_split`). A split left with no receiving line is declined
+    and the face row keeps its printed figure.
     """
     from app.services import line_item_routes
 
@@ -393,7 +398,11 @@ def route_fenced_decompositions(decls, defs):
             declined.append(aggregate)
             continue
         survivors = [c for c in children
-                     if defs.get(c) is None or line_item_routes.may_read_face(defs[c])]
+                     if defs.get(c) is None
+                     or line_item_routes.may_take_note_split(defs[c], strict_face)]
+        if strict_face and not survivors:
+            declined.append(aggregate)
+            continue
         if survivors:
             kept.append((aggregate, survivors, section))
     return kept, declined
@@ -1294,10 +1303,13 @@ class MapOntologyStage:
                 dynamic.add(key)
         # THE ROUTE FENCE — see `route_fenced_decompositions`.
         defs = {i.key: i for i in (getattr(getattr(ctx, "line_items", None), "items", None) or ())}
-        decls, fence_declined = route_fenced_decompositions(decls, defs)
+        strict_face = bool(getattr(getattr(ctx, "line_items", None), "strict_face_route", False))
+        decls, fence_declined = route_fenced_decompositions(decls, defs, strict_face)
         for aggregate in fence_declined:
-            ctx.log(f"map_line_items:split_declined({aggregate}): a face PART states the "
-                    f"face and is not decomposed by its note")
+            ctx.log(f"map_line_items:split_declined({aggregate}): "
+                    + ("route face is strict in this set, so no line may take a component its "
+                       "note itemises" if strict_face else
+                       "a face PART states the face and is not decomposed by its note"))
         if not decls:
             return 0
         tol = Decimal(str(ctx.settings.extraction.recon_abs_tolerance))

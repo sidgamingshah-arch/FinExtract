@@ -2252,6 +2252,25 @@ class LineItemSet(BaseModel):
     # HOW A SENTENCE PLACES A FIGURE — the subject and connective vocabularies every prose line
     # shares, so a line says only where the figure landed. See `ProseGrammar`.
     prose_grammar: ProseGrammar = Field(default_factory=ProseGrammar)
+    # WHETHER `route: face` IS STRICT IN THIS SET — a `face` line takes no figure a note supplies,
+    # not even a component of a face row that the row's cited note itemises.
+    #
+    # `face` already refuses every note READER (`services.line_item_routes.may_read_notes`): the
+    # note-sourced stage, the prose route, the model's note citations and the notes a request is
+    # given. What it did NOT refuse is the dynamic SPLIT in `stages.map_ontology`, which un-files a
+    # printed face row and files the components its cited note prints onto the section's other
+    # lines. Those components are note figures stamped `printed_in = FACE`, and a face line takes
+    # them — deliberately, on the HK and Ind AS sets, where most template lines declare `face` and
+    # the split is how a combined face caption reaches its parts
+    # (`tests/test_a_deduction_is_one_row_once::test_a_template_face_line_still_splits`).
+    #
+    # SO IT IS A SET'S DECLARATION, NOT A NEW MEANING OF `face`. Flipping `face` for every set would
+    # stop every split on the HK and Ind AS filings, which is a change to figures nobody asked for.
+    # A set that is read from the statements ONLY (ICON) says so here, and then a split's
+    # component may land only on a line that declares a route other than `face`; with none left,
+    # the split is declined and the face row keeps its printed figure. False is the default and
+    # changes nothing for a set that does not say it.
+    strict_face_route: bool = False
     items: list[LineItemDef] = Field(default_factory=list)
 
     @model_validator(mode="after")
