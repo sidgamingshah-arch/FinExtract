@@ -8,6 +8,7 @@ import re
 
 from app.core.models.enums import Basis, PageKind, PageSourceKind, PrintedIn
 from app.core.models.geometry import BBox
+from app.core.models.line_item import LineItem
 from app.core.stage import PipelineContext
 from app.services.mapping import known_captions
 from app.services.buckets import PRINTED_ON_FLAG

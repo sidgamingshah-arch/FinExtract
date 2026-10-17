@@ -124,18 +124,9 @@ def face_rows(doc, statements) -> list[dict]:
         statement = stmt_of_page.get(page if page is not None else -1, "")
         if statement not in want:
             continue
-        # WHAT THE RUN ITSELF MARKS AS A NOTE STAYS OUT of a statement block: a row read off a page
-        # the classifier called notes, or one `buckets` placed as printed in the notes. The
-        # statement block is that statement as printed, and a note row in it reads as a line of
-        # the face. (A notes page the classifier read AS a statement is not second-guessed here.)
-        if page in notes_pages or _printed_in_notes(row):
+        if not _shown_on_face(row, page, notes_pages):
             continue
         caption = getattr(row, "source_label", "") or ""
-        # THE STATEMENT'S FOOTER AND SIGNATURE BLOCK — "The accompanying notes …", "As per our
-        # report of even date", the signatories, place and date — is not a row of the statement.
-        # The pattern is `gap_explanation`'s, which already refuses these as missing lines.
-        if _BOILERPLATE.search(caption):
-            continue
         unit = units.row_unit(row, doc_unit)
         for entity, (figures, legend) in _figures_by_entity(row).items():
             entry: dict = {"caption": caption, "figures": figures, "_unit": unit}
@@ -193,6 +184,47 @@ def is_identity_line(text: str, chrome=()) -> bool:
     return bool(t) and (bool(_IDENTITY_LINE.search(t)) or _chrome_key(t) in set(chrome or ()))
 
 
+# THE SECOND LINE OF A TWO-LINE COLUMN HEADING. A face prints "Note | Year ended 31 March | Year
+# ended 31 March" over "No. | 2025 | 2024", and the reader took the lower line for a row: f1's
+# standalone profit and loss opened with a row "No." whose figures were 2025 and 2024. The caption
+# is a heading word of the note-reference or particulars column, and every figure is a year — the
+# two together, because neither alone says the row is a heading.
+_HEADING_CAPTION = re.compile(
+    r"(?i)^\W*(?:note\s*no|note|notes|no|sr\.?\s*no|s\.?\s*no|particulars|year|years)\W*$")
+_YEAR = re.compile(r"^(?:19|20)\d\d$")
+
+
+def is_column_heading_row(row) -> bool:
+    """Whether `row` is a line of the statement's column heading read as though it were a row."""
+    if not _HEADING_CAPTION.match(getattr(row, "source_label", "") or ""):
+        return False
+    figures = [str(getattr(ev, "value", "")).strip()
+               for ev in (getattr(row, "values", None) or {}).values()
+               if getattr(ev, "value", None) is not None]
+    return bool(figures) and all(_YEAR.match(f) for f in figures)
+
+
+def _shown_on_face(row, page, notes_pages) -> bool:
+    """Whether a statement block may carry `row` — the one rule `face_rows` and `face_index` share.
+
+    WHAT THE RUN ITSELF MARKS AS A NOTE STAYS OUT of a statement block: a row read off a page the
+    classifier called notes, or one `buckets` placed as printed in the notes. The statement block
+    is that statement as printed, and a note row in it reads as a line of the face. (A notes page
+    the classifier read AS a statement is not second-guessed here.)
+
+    THE STATEMENT'S FOOTER AND SIGNATURE BLOCK — "The accompanying notes …", "As per our report of
+    even date", the signatories, place and date — is not a row of the statement. The pattern is
+    `gap_explanation`'s, which already refuses these as missing lines.
+
+    A LINE OF THE COLUMN HEADING read as a row is not one either (`is_column_heading_row`).
+    """
+    if page in notes_pages or _printed_in_notes(row):
+        return False
+    if _BOILERPLATE.search(getattr(row, "source_label", "") or ""):
+        return False
+    return not is_column_heading_row(row)
+
+
 def _notes_pages(doc) -> set[int]:
     from app.core.models.enums import PageKind
 
@@ -240,6 +272,12 @@ def face_index(doc) -> list[tuple[str, str, object]]:
 
     A ROW WITH NO CAPTION IS OMITTED, because a citation is matched BY caption and an empty one
     would match every citation whose own caption normalised to nothing.
+
+    THE SAME ROWS `face_rows` SENDS, apart from the statement filter: a row it leaves out — a notes
+    page's, one printed in the notes, a footer or signature line, a column-heading line, one with
+    no figure — is left out here too (`_shown_on_face`), so a citation can only land on a row the
+    model was shown. Before, the lookup still held every row, and a citation of a caption the
+    request never carried could resolve to a note row of the same wording.
     """
     # FOLDED, for the reason `face_rows` gives at length: the two sides of this join spell the
     # equity statement differently, and a citation naming the spelling its own line declares must
@@ -247,12 +285,15 @@ def face_index(doc) -> list[tuple[str, str, object]]:
     stmt_of_page = {int(getattr(p, "index", -1)):
                     normalize_statement(str(getattr(p, "statement", "") or ""))
                     for p in (getattr(doc, "pages", None) or ())}
+    notes_pages = _notes_pages(doc)
     out: list[tuple[str, str, object]] = []
     for row in (getattr(doc, "line_items", None) or ()):
         caption = getattr(row, "source_label", "") or ""
         if not caption:
             continue
         page = _page_of(row)
+        if not _shown_on_face(row, page, notes_pages):
+            continue
         out.append((stmt_of_page.get(page if page is not None else -1, ""), caption, row))
     return out
 
