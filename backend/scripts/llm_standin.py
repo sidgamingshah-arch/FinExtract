@@ -567,7 +567,7 @@ def load_key(path: Path) -> Key:
     raw = json.loads(path.read_text(encoding="utf-8"))
     lines = {}
     for k, v in (raw.get("lines") or {}).items():
-        v = dict(v)
+        v = dict(v or {})  # `null`: the filing prints nothing for this line
         for p in ("current", "prior"):
             if v.get(p) is not None and not isinstance(v[p], str):
                 v[p] = repr(float(v[p])) if isinstance(v[p], float) else str(v[p])
@@ -614,7 +614,8 @@ def cmd_validate(a) -> int:
 # report
 # ------------------------------------------------------------------------------------------------
 
-CAUSES = ("correct", "lost_in_context", "not_in_filing", "model_misread", "unanswered", "deterministic")
+CAUSES = ("correct", "lost_in_context", "not_in_filing", "model_misread", "unanswered", "deterministic",
+          "derived")
 CODE_FOR = {
     "statement_rows": "app/services/face_context.py (statement_rows blocks)",
     "notes": "app/services/note_context.py (note blocks)",
@@ -629,16 +630,75 @@ def _close(a: float | None, b: float | None) -> bool:
     return abs(a - b) <= max(0.01, 0.005 * abs(b))
 
 
-def payload_has(req: dict, figure: float) -> list[str]:
-    """Blocks of the request whose rows print this figure."""
+SUM_MAX_ROWS = 4  # a printed figure carried as the sum of at most this many rows of one block
+
+
+def key_is_sum(key_line: KeyLine) -> bool:
+    """The key says the line is printed as parts ('A + B', or computed from other lines)."""
+    w = (key_line.where or "").lower()
+    return "+" in w or w.startswith("computed")
+
+
+def payload_has(req: dict, figure: float, parts: bool = False) -> list[str]:
+    """Where the request carries this figure: a row printing it, compared by magnitude so a
+    bracketed '(519.65)' carries 519.65. With `parts` (the key says the line is 'A + B'), also rows
+    in one period column that add up to it to the cent: two rows anywhere in the request, or up to
+    SUM_MAX_ROWS rows of one block."""
+    p = payload_of(req["body"])
+    out: list[str] = []
+    if not isinstance(p, dict):
+        return out
+    target = round(abs(figure), 2)
+    allcols: dict[str, list[tuple[str, float]]] = {}
+    sums: list[str] = []
+    for kind, label, b in _blocks(p):
+        cols: dict[str, list[tuple[str, float]]] = {}
+        for r in b.get("rows") or []:
+            for col, v in (r.get("figures") or {}).items():
+                n = _num(v)
+                if n is None:
+                    continue
+                if _close(abs(n), target):
+                    out.append(f"{label}: '{r.get('caption')}'")
+                elif n and abs(n) < target:
+                    cols.setdefault(col, []).append((f"{label}: '{r.get('caption')}'", round(abs(n), 2)))
+        for col, vals in cols.items():
+            allcols.setdefault(col, []).extend(vals)
+            hit = parts and _sum_of(vals, target, SUM_MAX_ROWS)
+            if hit:
+                sums.append(" + ".join(hit) + f" ({col})")
+    if parts and not sums:
+        for col, vals in allcols.items():
+            hit = _sum_of(vals, target, 2)
+            if hit:
+                sums.append(" + ".join(hit) + f" ({col})")
+    return list(dict.fromkeys(out + [f"sum of {x}" for x in sums[:1]]))
+
+
+def _sum_of(vals: list[tuple[str, float]], target: float, most: int) -> list[str] | None:
+    from itertools import combinations
+    for n in range(2, most + 1):
+        for combo in combinations(vals[:60], n):
+            if abs(round(sum(v for _, v in combo), 2) - target) < 0.005:
+                return [c for c, _ in combo]
+    return None
+
+
+def prose_has(req: dict, figure: float) -> list[str]:
+    """Blocks whose prose (not rows) prints the figure: the table reached the model only as text."""
     p = payload_of(req["body"])
     out = []
     if isinstance(p, dict):
         for kind, label, b in _blocks(p):
-            for r in b.get("rows") or []:
-                if any(_close(_num(v), figure) for v in (r.get("figures") or {}).values()):
-                    out.append(f"{label}: '{r.get('caption')}'")
+            prose = str(b.get("prose") or "")
+            if any(_close(abs(n), abs(figure)) for n in
+                   (_num(t) for t in re.findall(r"\(?[\d,]+\.\d+\)?", prose)) if n is not None):
+                out.append(label)
     return out
+
+
+# A check that cannot take a figure out of the payload; it is not named as the cause of a figure lost.
+NOT_A_LOSS = {"no_unit"}
 
 
 def classify(key_line: KeyLine, period: str, published: float | None, asking: list[dict],
@@ -651,15 +711,21 @@ def classify(key_line: KeyLine, period: str, published: float | None, asking: li
         return "correct", ""
     if not asking:
         return "deterministic", "the line was not asked"
-    had = [(r["id"], b) for r in asking for b in payload_has(r, printed)]
+    if (key_line.where or "").lower().startswith("computed"):
+        # no page prints it: the key adds other lines, so the miss follows those lines, not a payload
+        return "derived", f"the key computes it ({(key_line.where or '')[:80]}); see its parts"
+    had = [(r["id"], b) for r in asking for b in payload_has(r, printed, key_is_sum(key_line))]
     if had:
         rid, where = had[0]
         if rid in answered or any(r["id"] in answered for r in asking):
             return "model_misread", f"payload {rid} had it at {where}"
         return "unanswered", f"payload {rid} had it at {where}; no answer recorded"
-    causes = sorted({h["check"] for r in asking for h in lint.get(r["id"], [])}
-                    | {pr["kind"] for r in asking for pr in (audits.get(r["id"]) or {}).get("problems", [])})
-    return "lost_in_context", "faults: " + (", ".join(causes) or "none detected (figure absent from payload)")
+    causes = sorted(({h["check"] for r in asking for h in lint.get(r["id"], [])}
+                     | {pr["kind"] for r in asking for pr in (audits.get(r["id"]) or {}).get("problems", [])})
+                    - NOT_A_LOSS)
+    prose = [(r["id"], b) for r in asking for b in prose_has(r, printed)]
+    tail = f"; in prose only: {prose[0][1]} ({prose[0][0]})" if prose else ""
+    return "lost_in_context", "faults: " + (", ".join(causes) or "none detected (figure absent from payload)") + tail
 
 
 def fix_site(check: str) -> str:
@@ -722,7 +788,7 @@ def build_report(d: Path, key: Key | None) -> str:
                 cause, detail = classify(kl, period, _num(pub), asking, answered, lint, audits)
                 tally[cause] += 1
                 if cause == "lost_in_context":
-                    faults.update(c for c in detail.removeprefix("faults: ").split(", ")
+                    faults.update(c for c in detail.removeprefix("faults: ").split("; ")[0].split(", ")
                                   if not c.startswith("none"))
                 if cause != "correct":
                     where = f"p{kl.page} " if kl.page else ""

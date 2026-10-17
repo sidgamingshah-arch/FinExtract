@@ -208,3 +208,49 @@ def test_report_classifies_each_cause():
     c, detail = standin.classify(missing, "current", None, [req], set(), lint, {})
     assert c == "lost_in_context" and "fragment_as_row" in detail
     assert cause(standin.KeyLine(current=None), 5.0, [req]) == "not_in_filing"
+
+
+def test_report_sees_a_figure_carried_as_parts_or_in_brackets():
+    """A key line printed as 'A + B' is carried when A and B are rows of one block; a bracketed
+    '(519.65)' carries 519.65. Neither is a figure lost in context."""
+    notes = [{"note": "30", "title": "Finance costs",
+              "rows": [{"caption": "Other borrowing costs", "figures": {"current": "38.20", "prior": "41.55"}},
+                       {"caption": "Bank charges", "figures": {"current": "29.65", "prior": "26.80"}},
+                       {"caption": "Disposals", "figures": {"current": "(519.65)", "prior": "(420.45)"}}]}]
+    req = _request(_payload(notes=notes))
+    rid = req["id"]
+    lint = {rid: [{"check": "no_unit", "evidence": "x"}]}
+    c, detail = standin.classify(standin.KeyLine(current="67.85", where="note 30: other + bank charges"), "current", None, [req], set(), lint, {})
+    assert c == "unanswered" and "sum of note 30 'Finance costs': 'Other borrowing costs' + note 30 'Finance costs': 'Bank charges'" in detail
+    # only when the key says the line is made of parts
+    c, _ = standin.classify(standin.KeyLine(current="67.85"), "current", None, [req], set(), lint, {})
+    assert c == "lost_in_context"
+    c, _ = standin.classify(standin.KeyLine(current="519.65"), "current", None, [req], {rid}, lint, {})
+    assert c == "model_misread"
+    # a figure the rows cannot make is still lost; a missing unit is not named as what lost it
+    c, detail = standin.classify(standin.KeyLine(current="7777.00"), "current", None, [req], set(), lint, {})
+    assert c == "lost_in_context" and "no_unit" not in detail
+
+
+def test_report_says_when_a_lost_figure_is_only_in_prose():
+    notes = [{"note": "3", "title": "PPE", "prose": "Disposals - - (452.30) (38.40) (28.95) (519.65)",
+              "rows": [{"caption": "Disposals"}]}]
+    req = _request(_payload(notes=notes))
+    c, detail = standin.classify(standin.KeyLine(current="519.65"), "current", None, [req], set(), {}, {})
+    assert c == "lost_in_context" and "in prose only: note 3 'PPE'" in detail
+
+
+def test_key_null_line_means_not_printed(tmp_path: Path):
+    k = tmp_path / "key.json"
+    k.write_text(json.dumps({"filing": "f", "lines": {"a": None}}))
+    line = standin.load_key(k).lines["a"]
+    assert line.current is None and line.prior is None
+    assert standin.classify(line, "current", None, [], set(), {}, {})[0] == "correct"
+
+
+def test_report_puts_a_computed_key_line_down_to_its_parts():
+    req = _request(_payload())
+    line = standin.KeyLine(current="7777.00", where="computed (ICON arithmetic): +Domestic +Export")
+    c, _ = standin.classify(line, "current", None, [req], set(), {}, {})
+    assert c == "derived"
+    assert standin.classify(line, "current", 7777.0, [req], set(), {}, {})[0] == "correct"

@@ -124,7 +124,7 @@ What the filing prints, written by someone reading the filing:
                         "where": "note 26 row 'Other income'", "comment": "..." } } }
 ```
 
-`null` means the filing does not print it. The older scratch shape (numbers instead of strings,
+`null` (the whole entry, or a period) means the filing does not print it. The older scratch shape (numbers instead of strings,
 `units`, `source` for `where`, `confidence`) is accepted and converted.
 
 ## The report
@@ -141,6 +141,14 @@ What the filing prints, written by someone reading the filing:
   - `model_misread` — the request carried the figure, it was answered, and the result is still wrong;
   - `unanswered` — the request carried the figure but has no answer yet;
   - `deterministic` — the line was not asked; the miss is in the rule-based route.
+  - `derived` — the key computes the line from other lines (`where` starts "computed"); no page
+    prints it, so its miss follows its parts.
+
+  A figure counts as carried when a row prints it (by magnitude: `(519.65)` carries 519.65) or, when
+  the key's `where` gives it as parts (`A + B`), when rows add up to it to the cent: two rows anywhere
+  in the request or up to four rows of one block. A `lost_in_context` row says when the figure is in a
+  block's prose only. `no_unit` is reported in the lint and audit but is not named as what lost a
+  figure, since a missing unit does not remove one.
 - **Top fixes:** the context faults behind the most `lost_in_context` misses, with the code that
   builds that part of the payload (`face_context.py` for statement rows, `note_context.py` for note
   blocks, `line_item_notes.py` for which notes a line gets, `line_item_llm.py` for the payload).
