@@ -288,6 +288,8 @@ LINT_CHECKS = ("rows_not_from_statement", "period_label_unclear", "fragment_as_r
                "duplicate_caption", "note_not_supplied", "entity_doubtful", "oversize")
 _TRAILING = {"₹", "rs", "rs.", "in", "of", "to", "for", "from", "at", "by", "on", "with", "and",
              "or", "the", "a", "an", "under", "as", "towards", "including", "less", "net"}
+# A heading's enumeration printed INSIDE a caption, after its first word: "… income A. (i) Items".
+_INNER_ENUMERATOR = re.compile(r"\S\s+(?:[IVX]{1,5}\.|[A-H]\.|\((?:[ivx]{1,4}|[a-h])\))\s")
 _NOTE_REF = re.compile(r"\bnotes?\b|附注|附註", re.I)
 _NOT_A_NOTE = re.compile(r"\bnot (?:in|from) (?:a|any|the) notes?\b", re.I)  # "its figure is not in a note"
 _UNIT_KEYS = {"unit", "units", "scale", "currency", "unit_scale", "amounts_in"}
@@ -330,7 +332,12 @@ def is_fragment(caption: str) -> str | None:
     if not c:
         return None
     words = c.split()
-    if len(words) > 18:
+    # A LONG CAPTION IS A JOIN only when it shows the seam: a heading's own numbering inside it
+    # ("X. Other comprehensive income A. (i) Items …") or a bracket it never closes. f1 prints
+    # single captions of 19-30 words — "Estimated amount of contracts remaining to be executed on
+    # capital account and not provided for (net of capital advances)", the dividend sentences of
+    # note 36 — and those are what the filing prints, not fragments.
+    if len(words) > 18 and (_INNER_ENUMERATOR.search(c) or c.count("(") != c.count(")")):
         return f"{len(words)} words"
     last = words[-1].lower().rstrip(",:;-")
     if last in _TRAILING or c.endswith(("₹", "-", ",", ":")):
@@ -338,6 +345,20 @@ def is_fragment(caption: str) -> str | None:
     if c.count("(") > c.count(")"):
         return "unclosed '('"
     return None
+
+
+def heads_its_own_caption(caption: str, group: str | None) -> str | None:
+    """A caption that still opens with the heading it is sent under, a new caption following it —
+    "Gross carrying amount Balance as at 1 April 2023" in the group "Gross carrying amount": the
+    heading was joined onto the row and also given as its group."""
+    head = str(group or "").split(" / ")[-1].strip().rstrip(":：")
+    c = (caption or "").strip()
+    if not head or len(c) <= len(head) or not c.casefold().startswith(head.casefold() + " "):
+        return None
+    # …AND A NEW CAPTION STARTS AFTER IT. "Current tax on profits for the year" under "Current tax:"
+    # names its group in its own words; "Balance" after "Gross carrying amount" is a second caption.
+    rest = c[len(head):].lstrip()
+    return f"opens with its group '{head}'" if rest[:1].isupper() else None
 
 
 class RunIndex:
@@ -404,7 +425,8 @@ def lint_request(req: dict, run: RunIndex, budget_tokens: int = DEFAULT_BUDGET_T
                 hit("period_label_unclear", f"{label}: '{cap}' figures keyed {odd}: {json.dumps(figs, ensure_ascii=False)}")
             elif "prior" in figs and "current" not in figs and with_current:
                 hit("period_label_unclear", f"{label}: '{cap}' has prior {figs['prior']} but no current")
-            why = is_fragment(cap) if _has_figure(r) else None
+            why = (is_fragment(cap) or heads_its_own_caption(cap, r.get("group"))
+                   if _has_figure(r) else None)
             if why:
                 hit("fragment_as_row", f"{label}: '{cap}' ({why}) carries {json.dumps(figs, ensure_ascii=False)}")
             if _has_figure(r):

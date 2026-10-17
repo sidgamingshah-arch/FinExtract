@@ -798,6 +798,11 @@ def _scan_row(row: list[Word], fmt=None, *, extract_note_refs: bool = True) -> t
             label_words.append(row[i])
             i += 1
             continue
+        if (not value_words and label_words and _num(tok, fmt) is not None
+                and _number_inside_the_caption(row, i, label_words)):
+            label_words.append(row[i])
+            i += 1
+            continue
         if (not value_words and _num(tok, fmt) is not None
                 and _words_follow_in_the_cell(row, i, fmt)):
             label_words.append(row[i])
@@ -807,6 +812,50 @@ def _scan_row(row: list[Word], fmt=None, *, extract_note_refs: bool = True) -> t
             label_words.append(row[i])
         i += 1
     return label_words, note_ref, value_words
+
+
+_CURRENCY_WORD = re.compile(r"^(?:₹|Rs\.?|INR)$")
+_MONTH_WORD = re.compile(r"^(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?"
+                         r"|aug(?:ust)?|sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)$",
+                         re.I)
+_DAY = re.compile(r"^\d{1,2}$")
+_BRACKETED_YEAR = re.compile(r"^(?:19|20)\d{2}\)?[,;:]?$")
+
+
+def _number_inside_the_caption(row: list[Word], i: int, label_words: list[Word]) -> bool:
+    """Whether the number at ``row[i]`` is written INTO the caption the label words have begun.
+
+    f1 note 36 prints its dividends as sentences: "Interim dividend for the year ended 31 March
+    2025 of ₹ 1.50" / "per share (previous year: nil)   273.60   -", and "(previous year: ₹ 3.00 per
+    share for the year ended 31 March 2024)   364.80   547.20". Read token by token, the per-share
+    rate was the row's current figure, and the date in the bracket filled two figure slots before
+    the real ones — the model was shown {current: 31, prior: 2024, col2: 364.80, col3: 547.20}.
+
+    Two shapes, both Latin and both set tight against the caption's own words:
+
+    * a RATE: the number directly after a currency word that itself follows a word of the caption
+      ("of ₹ 1.50", "of Rs. 10") — a figure column may print its currency, but not tight after
+      the caption's last word;
+    * a DATE INSIDE AN OPEN BRACKET: the day before a month name, and the year after one, while
+      the caption has a bracket open — "(previous year: … ended 31 March 2024)". Outside a
+      bracket a dated caption keeps its date through `_label_keeping_its_date`, which this leaves
+      alone.
+    """
+    w = row[i]
+    tok = w.text.strip()
+    prev = label_words[-1]
+    if not _tight_after(prev, w):
+        return False
+    if _CURRENCY_WORD.match(prev.text.strip()):
+        return (len(label_words) >= 2 and _tight_after(label_words[-2], prev)
+                and bool(re.search(r"[A-Za-z]{2,}", label_words[-2].text)))
+    if _open_brackets(label_words) <= 0:
+        return False
+    if _DAY.match(tok):
+        return (i + 1 < len(row) and _tight_after(w, row[i + 1])
+                and bool(_MONTH_WORD.match(row[i + 1].text.strip(",.;:"))))
+    return (bool(_BRACKETED_YEAR.match(tok)) and bool(_MONTH_WORD.match(prev.text.strip(",.;:")))
+            and len(label_words) >= 2 and bool(_DAY.match(label_words[-2].text.strip("("))))
 
 
 # AN ACCOUNTING STANDARD NAMED IN A CAPTION, and the number that follows it. Upper-case only, so
@@ -893,6 +942,69 @@ _HEADED_PERIOD_LABEL = re.compile(
     r"^\s*(?:gross\s+carrying\s+amount|gross\s+block|net\s+carrying\s+amount|net\s+block"
     r"|accumulated\s+(?:depreciation|amortisation|amortization|impairment)"
     r"(?:\s+and\s+impairment)?)\s+(?:as\s+at|balance\s+(?:at|as\s+at))\s*$", re.I)
+
+
+# THE HEADING OF ONE BLOCK OF A MOVEMENT SCHEDULE, printed on a line of its own at the label
+# column's edge — flush with the rows under it, not over them. Latin movement-schedule headings
+# only: the `_HEADED_PERIOD_LABEL` vocabulary, alone on its line.
+_MOVEMENT_HEAD = re.compile(
+    r"^\s*(?:gross\s+carrying\s+(?:amount|value)|gross\s+block|net\s+carrying\s+(?:amount|value)"
+    r"|net\s+block|accumulated\s+(?:depreciation|amortisation|amortization|impairment)"
+    r"(?:\s+and\s+(?:impairment|amortisation|amortization))?)\s*:?\s*$", re.I)
+# …over the block's first row, which opens on its balance.
+_OPENS_ON_A_BALANCE = re.compile(r"^\s*(?:balance\s+(?:as\s+)?at|as\s+at)\b", re.I)
+
+
+# THE NUMBERING OF A SCHEDULE III STATEMENT FACE: "IV.", "X." for its lines, "A." for a part of one.
+_FACE_NUMBER = re.compile(r"^(?:[IVX]{1,5}|[A-H])\.$")
+_ROMAN_NUMBER = re.compile(r"^[IVX]{1,5}\.$")
+
+
+def _heads_numbered_face_block(head: list[Word], nxt_label: list[Word]) -> bool:
+    """Whether a figure-less line on a statement face is the numbered heading of the indented rows
+    under it rather than the first line of their caption.
+
+    f1's profit and loss prints "IV. Expenses" over "Cost of materials consumed" (indented), and
+    "X. Other comprehensive income" over "A. (i) Items that will not be reclassified to profit or
+    loss" over "Remeasurements of the defined benefit plans" (each indented under the last). The
+    wrap merge joined all of them, and the model was shown "X. Other comprehensive income A. (i)
+    Items that will not be reclassified to profit or loss Remeasurements of the defined benefit
+    plans" as one caption holding the remeasurement's figures.
+
+    Narrow on purpose — faces keep the captions the mapper's aliases were written against: the
+    head opens on a Schedule III number ("IV.", "X.", "A."), is Latin, reads as a finished phrase,
+    and the next line starts inboard of it. "XII. Earnings per equity share (face value of ₹" over
+    a flush "10 each)" is a caption that wraps and is still joined.
+    """
+    if not head or not nxt_label:
+        return False
+    first = min(head, key=lambda w: w.bbox.x0)
+    if not _FACE_NUMBER.match(first.text.strip()):
+        return False
+    text = " ".join(w.text for w in head).strip()
+    if _HAN.search(text) or not _LATIN.search(text) or _HEAD_INCOMPLETE.search(text):
+        return False
+    if text.endswith((",", ";")) or _open_brackets(head) > 0:
+        return False
+    return min(w.bbox.x0 for w in nxt_label) - first.bbox.x0 > _INDENT_MIN
+
+
+def _heads_a_movement_block(head: list[Word], nxt_label: list[Word]) -> bool:
+    """Whether a figure-less line is the heading of a movement schedule's block rather than the
+    first line of the caption below it.
+
+    f1's right-of-use and intangible notes print "Gross carrying amount" over "Balance as at 1
+    April 2023", "Accumulated amortisation" over the next block's opening balance and "Net
+    carrying amount" over "As at 31 March 2024" — all flush at the label column's edge, so
+    `_heads_indented_rows` does not see a heading and the wrap merge joined them: the model got
+    "Gross carrying amount Balance as at 1 April 2023" as one caption, and the block's other rows
+    with nothing to say which block they were in. The heading is the rows' group instead.
+    """
+    if not head or not nxt_label:
+        return False
+    head_text = " ".join(w.text for w in head)
+    tail_text = " ".join(w.text for w in sorted(nxt_label, key=lambda w: w.bbox.x0))
+    return bool(_MOVEMENT_HEAD.match(head_text)) and bool(_OPENS_ON_A_BALANCE.match(tail_text))
 
 
 def _label_keeping_its_date(row: list[Word], label_words: list[Word],
@@ -1496,8 +1608,13 @@ def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
             # IN A NOTE, A HEADING OVER INDENTED ROWS is not their caption's first line — see
             # `_heads_indented_rows`. Faces are left as they were: their captions are what the
             # mapper's aliases were written against.
+            # ON A FACE, A NUMBERED HEADING OVER INDENTED ROWS — see `_heads_numbered_face_block`.
+            and not (on_face and _heads_numbered_face_block(pending + label_words,
+                                                            _scan_row(nxt, fmt)[0]))
             and (on_face or not (_heads_indented_rows(label_words, _scan_row(nxt, fmt)[0])
-                                 or _titles_the_table(label_words, _scan_row(nxt, fmt)[0])))
+                                 or _titles_the_table(label_words, _scan_row(nxt, fmt)[0])
+                                 or _heads_a_movement_block(label_words,
+                                                            _scan_row(nxt, fmt)[0])))
         )
         if is_wrap:
             pending = pending + row
@@ -4982,11 +5099,30 @@ def _matrix_cells(row: list[Word], fmt=None) -> list[Word]:
     """The value-shaped tokens of a row. A nil dash counts: it carries no amount but it does
     mark a column position, which is what the column geometry is derived from."""
     out: list[Word] = []
-    for w in row:
+    for i, w in enumerate(row):
         t = _cell_text(w.text)
+        if _NIL_CELL.match(t) and _dash_inside_a_caption(row, i):
+            continue
         if _NIL_CELL.match(t) or _num(t, fmt) is not None:
             out.append(w)
     return out
+
+
+def _dash_inside_a_caption(row: list[Word], i: int) -> bool:
+    """Whether the dash at ``row[i]`` joins two words of a caption rather than standing in a column.
+
+    f1 note 22's ageing schedule captions its dispute rows "(iii) Disputed dues - MSME", and read
+    as a nil cell that dash made a column of its own in the label area (it is on two rows of five,
+    enough support). The first real bucket then started there, so "MSME" and "Others" fell right of
+    the label column's edge and the rows reached the model captioned "(i)" and "(ii)". A dash set
+    tight between two Latin words, on both sides, is the caption's own punctuation.
+    """
+    if i == 0 or i + 1 >= len(row):
+        return False
+    before, after = row[i - 1], row[i + 1]
+    return (_tight_after(before, row[i]) and _tight_after(row[i], after)
+            and bool(re.search(r"[A-Za-z]{2,}", before.text))
+            and bool(re.search(r"[A-Za-z]{2,}", after.text)))
 
 
 def _strong_cells(cells: list[Word], fmt=None) -> int:
@@ -5301,12 +5437,28 @@ def _matrix_items(m: _Matrix, names: list[str], *, page_index: int, document_id:
     pending: list[Word] = []                 # label lines waiting for the row that has figures
     tail: BBox | None = None                 # box of the LAST pending line, for the wrap test
     spliced: set[int] = set()                # rows already consumed as a caption's TAIL
+    # THE BLOCK OF THE MOVEMENT SCHEDULE the rows are in — "Gross carrying amount", "Accumulated
+    # depreciation" — sent as their group and not joined into the first row's caption: see
+    # `_heads_a_movement_block`. The heading over the first block is printed above the first
+    # movement row, so it is read from there.
+    block = ""
+    if m.first_data > 0:
+        above = [w for w in m.rows[m.first_data - 1] if _xc(w) <= value_left]
+        first = [w for w in m.rows[m.first_data] if _xc(w) <= value_left]
+        if above and not _matrix_cells(m.rows[m.first_data - 1], fmt) \
+                and _heads_a_movement_block(above, first):
+            block = _join_words(above)
     for i in range(m.first_data, len(m.rows)):
         if i in spliced:
             continue
         row = m.rows[i]
         label_words = [w for w in row if _xc(w) <= value_left]
         cells = [w for w in _matrix_cells(row, fmt) if _band_of(w, m.bands) is not None]
+        if (not cells and label_words and i + 1 < len(m.rows)
+                and _heads_a_movement_block(label_words,
+                                            [w for w in m.rows[i + 1] if _xc(w) <= value_left])):
+            block, pending, tail = _join_words(label_words), [], None
+            continue
 
         # A movement in equity always touches at least its component and a total column, so a
         # lone figure on a line is chrome (a page footer's year), not a row of the matrix.
@@ -5397,7 +5549,7 @@ def _matrix_items(m: _Matrix, names: list[str], *, page_index: int, document_id:
         # rulebook declares no equity-statement concepts or section scopes for one to be compared
         # against. A sticky banner here would be a mechanism with nothing to gate.
         li = LineItem(source_label=label, ordinal=ordinal, role=LineRole.LINE,
-                      source=ValueSource.MACHINE)
+                      group_hint=block, source=ValueSource.MACHINE)
         label_bbox = _union([w.source_bbox for w in label_words])
         for cw in cells:
             # A nil dash is printed for "no movement"; it is not a figure, so no value is
@@ -5521,6 +5673,9 @@ _COLUMN_EDGE_SLACK = 0.02
 # that a filing indenting less still parses and large enough that sub-pixel drift on a row that is
 # genuinely flush does not read as an indent.
 _INDENT_MIN = 0.01
+# Where a movement schedule's block heading is placed on the open-headings stack: left of every
+# printed row, right of a table's title (``-inf``). See `build_line_items`' ``block_heads``.
+_BLOCK_HEAD_X0 = -1e9
 
 
 # A 其中 ("OF WHICH") BREAKDOWN ON A STATEMENT FACE, BEYOND ITS FIRST LINE.
@@ -6123,6 +6278,9 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
     # rows printed under it, where before it was not a heading by any test below and was dropped.
     sub_heads: set[int] = set()
     titles: set[int] = set()
+    # THE HEADINGS OF A MOVEMENT SCHEDULE'S BLOCKS, flush with their rows — see
+    # `_heads_a_movement_block`. Each encloses every row up to the next one, whatever its indent.
+    block_heads: set[int] = set()
     # The ones still open, outermost first, as (left edge, caption): "Secured" over "Term loans
     # from banks" over the banks. See `_under_sub_heading` for when a row leaves one.
     sub_stack: list[tuple[float, str]] = list(getattr(carry_group, "stack", ()) or ())
@@ -6139,8 +6297,24 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
             nxt = _scan_row(rows[i + 1], number_format, extract_note_refs=False)[0]
             if _titles_the_table(lw, nxt):
                 titles.add(id(row))
+            elif _heads_a_movement_block(lw, nxt):
+                block_heads.add(id(row))
             elif _heads_indented_rows(lw, nxt):
                 sub_heads.add(id(row))
+    # THE NUMBERED HEADINGS OF A SCHEDULE III FACE, kept apart from the rows under them by
+    # `_heads_numbered_face_block`: a roman-numbered one ("X. Other comprehensive income") is the
+    # section of the rows under it, a lettered one ("A. (i) Items that will not be reclassified to
+    # profit or loss") the sub-heading of the rows indented beneath it.
+    face_sections: set[int] = set()
+    if on_face:
+        for i, row in enumerate(rows[:-1]):
+            lw, nref, vw = _scan_row(row, number_format)
+            if not lw or vw:
+                continue
+            nxt = _scan_row(rows[i + 1], number_format)[0]
+            if _heads_numbered_face_block(lw, nxt):
+                lead = min(lw, key=lambda w: w.bbox.x0).text.strip()
+                (face_sections if _ROMAN_NUMBER.match(lead) else sub_heads).add(id(row))
     for row in rows:
         label_words, note_ref, value_words = _scan_row(
             row, number_format, extract_note_refs=on_face)
@@ -6349,7 +6523,7 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
             # that section's concepts: 投资性房地产 and 固定资产 mapped on the consolidated sheet
             # and reached NO concept on the parent's, having been offered only equity concepts.
             caption = apply_pipeline(label, steps)
-            heading = _looks_like_header(label_words, steps)
+            heading = _looks_like_header(label_words, steps) or id(row) in face_sections
             banner = section_of_banner_only(caption)
             if banner is None and _ends_with_colon(label, steps):
                 # A TRAILING COLON IS THE GEOMETRY EXHAUSTION STANDS IN FOR. ``section_of_banner``
@@ -6374,7 +6548,7 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                 # spelled in profit-and-loss captions), and no defect is known there; the balance
                 # sheet's five sections are closed, so anything else named on one is a caption.
                 banner = None
-            sub_head = id(row) in sub_heads or id(row) in titles
+            sub_head = id(row) in sub_heads or id(row) in titles or id(row) in block_heads
             if label and caption and not value_words and (heading or banner is not None
                                                           or sub_head):
                 if _is_units_caption(label_words):
@@ -6402,7 +6576,10 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                     # under it, which only `group` reaches the model with. A heading at this one's
                     # level or outboard of it ends the blocks it was nested in.
                     # A table's title encloses every row of the table, whatever its indent.
+                    # A block heading is flush with its rows, so it is set just inboard of a
+                    # title: it ends the block heading before it and no row ends it.
                     x0 = (float("-inf") if id(row) in titles
+                          else _BLOCK_HEAD_X0 if id(row) in block_heads
                           else min(w.bbox.x0 for w in label_words))
                     while sub_stack and sub_stack[-1][0] >= x0 - _INDENT_MIN:
                         sub_stack.pop()
