@@ -631,6 +631,64 @@ def enumerated_rows(on: bool):
         _ENUMERATED_ROWS.reset(token)
 
 
+def _bare_subtotal_of(value_words: list[Word],
+                      recent: list[tuple[int, float, list[tuple[float, Decimal]]]],
+                      headings: list[tuple[str, float, int]],
+                      fmt=None) -> tuple[str, list[int]] | None:
+    """The caption and components of a figure-only note line that TOTALS the rows above it.
+
+    f1 note 17 prints "Secured" over "Term loans from banks" (State Bank of India and HDFC Bank
+    Limited, indented beneath it) and "Vehicle loans from banks", then 8,946.34 / 9,248.90 on a line
+    of its own — the Secured subtotal — before "Less: Current maturities". No colon group is open,
+    so the block promotion gave it no caption and the line was dropped: the model saw the total and
+    the deduction, and not the figure the deduction is taken from.
+
+    THE ARITHMETIC IS THE EVIDENCE: the shortest run (two rows or more) of the valued rows directly
+    above, since the last total, whose figures in every one of the line's columns — matched on the
+    right edge, where a column of figures is aligned — add up to the line's figures exactly. Its
+    caption is the heading the run is printed under: the latest one opened before the run's first
+    row and set outboard of every row in it. With no such heading there is nothing to caption it
+    with, and the line stays dropped rather than being given an invented name.
+    """
+    bare: list[tuple[float, Decimal]] = []
+    for w in value_words:
+        v = _num(w.text, fmt)
+        if v is None:
+            return None
+        bare.append((w.bbox.x1, v))
+    if not bare or len(recent) < 2:
+        return None
+    for k in range(2, len(recent) + 1):
+        run = recent[-k:]
+        adds_up = True
+        for x1, target in bare:
+            total, hits = Decimal(0), 0
+            for _o, _x0, vals in run:
+                for vx1, v in vals:
+                    if abs(vx1 - x1) <= _COLUMN_EDGE_SLACK:
+                        total += v
+                        hits += 1
+                        break
+            if hits < 2 or total != target:
+                adds_up = False
+                break
+        if not adds_up:
+            continue
+        first = run[0][0]
+        inboard = min(x0 for _o, x0, _v in run)
+        for caption, x0, opened in reversed(headings):
+            if opened <= first and x0 + _INDENT_MIN < inboard and caption:
+                return caption, [o for o, _x, _v in run]
+        return None
+    return None
+
+
+def _open_brackets(words: list[Word]) -> int:
+    """How many round brackets the words open and leave unclosed."""
+    text = " ".join(w.text for w in words)
+    return text.count("(") + text.count("\uff08") - text.count(")") - text.count("\uff09")
+
+
 def _scan_row(row: list[Word], fmt=None, *, extract_note_refs: bool = True) -> tuple[list[Word], str | None, list[Word]]:
     """Split one visual row into (label words, note-ref, value words).
 
@@ -706,6 +764,20 @@ def _scan_row(row: list[Word], fmt=None, *, extract_note_refs: bool = True) -> t
         if (not value_words and _AGE_COUNT.match(tok) and i + 1 < len(row)
                 and _AGE_UNIT.match(row[i + 1].text.strip())
                 and _tight_after(row[i], row[i + 1])):
+            label_words.append(row[i])
+            i += 1
+            continue
+        # THE CLOSE OF A BRACKET THE CAPTION OPENED — "(included in note 21)" wrapped onto a second
+        # line, where "21)" parses as a number because `_NUM`'s brackets are each optional. A figure
+        # printed as a negative brackets BOTH sides; a lone closing bracket after an open "(" in
+        # the caption ends the caption's own aside, and reading it as a value dropped it as a stray.
+        #
+        # ONLY AFTER "note"/"notes": the aside is a cross-reference, and its number is the note's.
+        # A bracketed column heading — 1966's "Quoted prices in active market (Level 1)" — is read
+        # by the header reader, which needs its "1)" where it always was.
+        if (not value_words and label_words and tok.endswith(")") and not tok.startswith("(")
+                and label_words[-1].text.strip().lower() in ("note", "notes")
+                and _open_brackets(label_words) > 0):
             label_words.append(row[i])
             i += 1
             continue
@@ -1257,6 +1329,8 @@ def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
             # `_is_note_column_header`. Unconditional, with no `_is_wrapped_head` escape: a header
             # naming the measure columns is never the first line of a line item's name.
             and not _is_note_column_header(label_words, steps)
+            # …and is not a row of nil dashes, which is a whole row — see `_nil_row`.
+            and not _nil_row(label_words)
             # …and the caption reaches a figure. Not necessarily on the NEXT row: a caption may
             # wrap over three or more lines, and requiring the value immediately dropped every line
             # but the last two (see `_wrap_reaches_a_value`).
@@ -4650,6 +4724,23 @@ def _line_tol(words: list[Word]) -> float:
     return max(0.45 * _median(hs), 0.001)
 
 
+def _nil_row(label_words: list[Word]) -> bool:
+    """Whether a figure-less line ends in a nil dash per column: a ROW whose every figure is nil.
+
+    f1 note 10 prints "Trade receivables considered good - Secured  -  -" and an ageing schedule
+    whose dispute rows read "-" in all seven buckets. `_scan_row` takes a dash for a caption word,
+    so the line looked label-only — a wrapped caption's first line — and was folded into the caption
+    of the row beneath it: "Trade receivables considered good - Secured - - Trade receivables
+    considered good - Unsecured". Two dashes in a row end no caption.
+    """
+    trailing = 0
+    for w in reversed(label_words):
+        if not _NIL_CELL.match(_cell_text(w.text)):
+            break
+        trailing += 1
+    return trailing >= 2
+
+
 def _cell_text(t: str) -> str:
     return _FOOTMARK.sub("", t.strip())
 
@@ -5776,6 +5867,10 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
     block_value_x1s: list[float] = []
     # The sub-heading's own left edge and label box: the first decides membership by indent, the
     # second becomes the promoted row's `label_bbox`, since the caption it is given is the heading's.
+    # FOR A BARE SUBTOTAL NO OPEN BLOCK CLAIMS — see `_bare_subtotal_of`: every heading so far, as
+    # (caption, left edge, the ordinal the next row takes), and the valued rows since the last total.
+    heading_trail: list[tuple[str, float, int]] = []
+    recent_rows: list[tuple[int, float, list[tuple[float, Decimal]]]] = []
     group_x0: float | None = None
     group_label_bbox: BBox | None = None
     # See `_title_entity_basis`: the entity named by the most recent statement TITLE on this page,
@@ -5804,6 +5899,13 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                and _NIL_CELL.match(_cell_text(label_words[-1].text))
                and _over_value_columns(_xc(label_words[-1]), value_area)):
             label_words = label_words[:-1]
+        # IN A NOTE, two or more trailing dashes are nil cells wherever the bands put them: an ageing
+        # schedule's second table can be read with no value area of its own, and "(iii) Undisputed
+        # trade receivables - credit impaired - - -" reached the model with its three nil buckets in
+        # the caption. One dash is left alone — "Trade receivables - Secured" ends no caption.
+        if value_words and not on_face and _nil_row(label_words):
+            while label_words and _NIL_CELL.match(_cell_text(label_words[-1].text)):
+                label_words = label_words[:-1]
 
         if value_words:
             # Only for a VALUED row: a label-only row is already handled by the banner branch
@@ -5817,6 +5919,10 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
         # AFTER the banner split, so a banner just merged out of the label cannot be pulled back in
         # by rebuilding from the whole row; BEFORE the join, because it is the label's WORDS this
         # repairs. See `_label_keeping_its_date` for the measurement.
+        # A ROW OF NIL DASHES carries no figure and is no heading: read as one it would open a
+        # section over the rows beneath it. See `_nil_row`.
+        if not value_words and _nil_row(label_words):
+            continue
         label_words = _label_keeping_its_date(row, label_words, value_words, number_format)
         label = _join_words(_regroup_scripts(label_words))
         # WHICH ROW THIS LINE IS A 其中 BREAKDOWN OF, read before any branch below can drop the line:
@@ -5899,7 +6005,7 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                          if d is not None]
             all_years = bool(bare_vals) and all(1990 <= abs(int(v)) <= 2099
                                                 for v in bare_vals if int(v) == v)
-            if aligned and not all_years:
+            if aligned and not all_years and group.rstrip(":："):
                 # THE BLOCK'S OWN CAPTION, AS THE FILING PRINTED IT, and nothing appended. An
                 # earlier version appended the English word "subtotal", which put untranslated
                 # English inside a caption whose other half is the filing's words — "本年度即期稅項
@@ -5909,8 +6015,26 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                 # elsewhere on the page is `caption_borrowed`; neither needs a word in one language.
                 label = group.rstrip(":：")
                 promoted = True
+        # NO BLOCK, OR ONE WHOSE HEADING IS A SECTION AND NOT A COLON GROUP (so `group` is empty
+        # and the promotion above has no caption to give): the bare line is a subtotal only where
+        # the arithmetic says so — see `_bare_subtotal_of`.
+        bare_components: list[int] = []
+        if value_words and not label and not on_face and not promoted:
+            found = _bare_subtotal_of(value_words, recent_rows, heading_trail, number_format)
+            if found is not None:
+                label, bare_components = found
+                promoted = True
 
         if not label or not value_words:
+            # EVERY CAPTION-ONLY NOTE LINE IS A HEADING TO `_bare_subtotal_of`, whether or not the
+            # tests below recognise it as one: "Secured" over a block of loans is neither a banner
+            # nor a colon group, and is still the caption the block's printed subtotal goes by.
+            # One entry per PRINTED line: two caption-only lines can arrive here joined ("Secured"
+            # over "Term loans from banks"), and each heads its own indent.
+            if label and not value_words and not on_face and label_words:
+                for line in _group_rows(label_words, _line_tol(label_words), fold=None):
+                    heading_trail.append((_join_words(line).rstrip(":："),
+                                          min(w.bbox.x0 for w in line), ordinal))
             # A MAINLAND STATEMENT TITLE NAMING ITS ENTITY comes first, before the banner tests.
             # It is a label-only row like a banner, but it scopes the BASIS rather than the
             # section, and `_is_noise_row` below would otherwise drop it as a statement title with
@@ -6055,7 +6179,8 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                       role=(LineRole.SUBTOTAL if promoted
                             else LineRole.TOTAL if statement_line else LineRole.LINE),
                       caption_borrowed=promoted,
-                      component_ordinals=list(block_ordinals) if promoted else [],
+                      component_ordinals=(list(bare_components or block_ordinals)
+                                          if promoted else []),
                       section_hint=section, group_hint=group, source=ValueSource.MACHINE,
                       parent_id=breakdown_of.id if breakdown_of is not None else None)
         # THE HEADING'S BOX FOR A BORROWED CAPTION. A promoted row has no label words of its own, so
@@ -6181,6 +6306,12 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
         #
         # Emptying the member list is what stops a second bare figure promoting against a block that
         # has already been totalled.
+        if promoted or li.role is not LineRole.LINE:
+            recent_rows = []
+        elif not on_face and label_words:
+            recent_rows.append((ordinal - 1, min(w.bbox.x0 for w in label_words),
+                                [(w.bbox.x1, v) for w in value_words
+                                 if (v := _num(w.text, number_format)) is not None]))
         if promoted:
             block_ordinals, block_value_x1s = [], []
         elif not on_face and group_x0 is not None and label_words:

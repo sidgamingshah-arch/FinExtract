@@ -418,6 +418,110 @@ def _opens_a_sub_table(row: list[Word]) -> bool:
     return not _carries_amounts(_fuse_bucket_numbers(row))
 
 
+#: A running paragraph's lines, as `running_text_words` reads them.
+_RUN_MIN_WORDS = 6          # a line of a sentence, not a caption with a figure or two
+_RUN_FULL_WIDTH = 0.85      # of the section's own extent: the line is wrapped, not a caption cell
+_RUN_GAP_RATIO = 3.0        # the widest space on the line against its typical one
+_RUN_INDENT = 0.02          # how far a continuation line may start from its paragraph's left edge
+_SENTENCE_END = (".", ":", ";", "\u3002")
+
+
+def _even_spacing(row: list[Word]) -> bool:
+    """Whether a printed line is ONE run of words — no column gap anywhere along it.
+
+    Measured relative to the line itself, never in page units (the coordinates are normalised per
+    axis, so a gap cannot be compared with a height): a table row puts a column's width between
+    its caption and its figures, many times the space between two words of the caption, while a
+    justified sentence spaces every word alike.
+    """
+    words = sorted(row, key=lambda w: w.bbox.x0)
+    gaps = [max(b.bbox.x0 - a.bbox.x1, 0.0) for a, b in zip(words, words[1:])]
+    if not gaps:
+        return True
+    # AGAINST THE NARROWEST SPACE, not the median: on an ageing row seven figure columns outnumber
+    # the caption's two word spaces, so the median IS a column gap and the row reads as even.
+    narrowest = min(gaps)
+    if narrowest <= 0:
+        return False
+    return max(gaps) <= _RUN_GAP_RATIO * narrowest
+
+
+_LOWER_WORD = re.compile(r"^[(\[]?[a-z][a-z'\u2019\-]*[,.;:)\]]*$")
+
+
+def _wordy(row: list[Word]) -> bool:
+    """The line reads as a sentence: mostly words, and among them lower-case ones.
+
+    A sentence states a figure or two, a table row is mostly them. And a header band can be evenly
+    spaced across the full width too — 1966's property note prints nine column headings at a
+    regular pitch, "土地及樓宇 物業裝修 …" and a row of "RMB’000" — but it holds no lower-case running
+    words, which every line of an English paragraph does.
+    """
+    words = [w for w in row if any(c.isalpha() for c in w.text)]
+    lower = sum(1 for w in row if _LOWER_WORD.match(w.text.strip()))
+    return len(words) * 3 >= len(row) * 2 and lower >= 3
+
+
+def running_text_words(rows: list[list[Word]]) -> set[int]:
+    """The ids of the words printed as a RUNNING PARAGRAPH among a note section's lines.
+
+    A paragraph below a table — f1 note 17's "Nature of security and terms of repayment" — is the
+    note's prose, not its rows. Read as rows, every wrapped line became one, captioned with the
+    middle of a sentence and carrying whatever numbers the sentence happened to state: "(sanctioned
+    ₹" {current: 9000.00}, "equal quarterly instalments of ₹" {current: 250.00, prior: 17, col2:
+    31}. Those figures then took the value bands, so the TABLE's own current column was keyed
+    `current_col1`.
+
+    WHAT MAKES A LINE RUNNING TEXT, which is a question about the printed line and never about its
+    words: it holds a sentence's worth of words (`_RUN_MIN_WORDS`), it is evenly spaced
+    (`_even_spacing` — no column gap, so a header band "Particulars  As at …  As at …" and a row
+    with figures under columns are both refused), and it spans the section's text width, as only a
+    wrapped line does. The lines after it continue the paragraph while it wraps: evenly spaced,
+    starting at its left edge, and following a line that did not end its sentence — so the short
+    last line of a paragraph is in it, and a caption printed beneath a finished paragraph is not.
+    A figure-less heading line printed directly above a paragraph is its heading and goes with it.
+
+    The words stay in the section's text: `source_text` and the narrative are read from every word,
+    so a paragraph reaches the model as prose, whole, and only stops being rows.
+    """
+    if not rows:
+        return set()
+    every = [w for row in rows for w in row]
+    left = min(w.bbox.x0 for w in every)
+    extent = max(w.bbox.x1 for w in every) - left
+    if extent <= 0:
+        return set()
+    out: set[int] = set()
+    run_left: float | None = None
+    prev_open = False
+    for i, row in enumerate(rows):
+        words = sorted(row, key=lambda w: w.bbox.x0)
+        even = _even_spacing(words)
+        x0 = words[0].bbox.x0
+        span = (words[-1].bbox.x1 - left) / extent
+        starts = (even and len(words) >= _RUN_MIN_WORDS and span >= _RUN_FULL_WIDTH
+                  and _wordy(words))
+        continues = (run_left is not None and prev_open and even
+                     and abs(x0 - run_left) <= _RUN_INDENT)
+        if starts or continues:
+            if starts and run_left is None and i > 0:
+                above = sorted(rows[i - 1], key=lambda w: w.bbox.x0)
+                if (id(above[0]) not in out and _even_spacing(above)
+                        and not _carries_amounts(above) and _title_only_row(above) is not None):
+                    out.update(id(w) for w in above)
+            out.update(id(w) for w in words)
+            run_left = x0 if starts and run_left is None else run_left
+            prev_open = not words[-1].text.rstrip(")\u201d\u2019\"'").endswith(_SENTENCE_END)
+            if starts and not prev_open:
+                # A one-line sentence ends its paragraph; the next starts afresh.
+                run_left = None
+            elif not prev_open:
+                run_left = None
+        else:
+            run_left, prev_open = None, False
+    return out
+
+
 def _rows_since(rows: list[list[Word]], i: int, section: dict) -> list[list[Word]]:
     """The rows before ``i`` whose words are in ``section`` — the rows the open section holds."""
     held = {id(w) for w in section.get("words", ())}
@@ -1307,6 +1411,11 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
         cells = declared[0] if declared is not None else _category_cells(grouped)
         row_words = ([w for w in sec["words"] if id(w) not in declared[1]]
                      if declared is not None else sec["words"])
+        # A RUNNING PARAGRAPH IS THE NOTE'S PROSE, NOT ITS ROWS — see `running_text_words`. Only
+        # the rows lose it: `source_text` and the narrative below are read from every word.
+        running = running_text_words(grouped)
+        if running:
+            row_words = [w for w in row_words if id(w) not in running]
         # THE SAME NOTE'S HEADER, OFFERED: the carried section takes the previous page's; a later
         # section takes the one the section before it was named by, when both are the same note.
         sec_numeral_now = (sec.get("chapter") or page_start)[0]

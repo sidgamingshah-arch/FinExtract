@@ -471,6 +471,18 @@ _REPEAT_BLOCK = 40
 _REPEAT_WINDOW = 24_000
 
 
+#: Four lower-case words in a row: the shape of a sentence, and never of a column-header band.
+_SENTENCE_RUN = re.compile(r"(?:^|\s)(?:[a-z][a-z'\-]*,?\s+){3}[a-z][a-z'\-]*(?=[\s.,;:]|$)")
+
+
+def _word_starts(text: str, i: int) -> bool:
+    return i <= 0 or i >= len(text) or text[i - 1].isspace()
+
+
+def _word_ends(text: str, i: int) -> bool:
+    return i >= len(text) or i <= 0 or text[i].isspace()
+
+
 def dedupe_prose(pieces: list[str]) -> str:
     """Every fragment's prose in document order, with text that already appeared removed.
 
@@ -518,11 +530,34 @@ def dedupe_prose(pieces: list[str]) -> str:
             # Pulling both edges back to whitespace means a cut can only ever remove whole tokens,
             # so a figure is either wholly repeated — in which case the earlier copy survives — or
             # wholly kept.
+            #
+            # AT A WORD BOUNDARY, which is "the character before is a space", not "this character
+            # is one". A block that opens on the first letter of a word is already whole there; the
+            # old test stepped past that word to the next space and left it behind — f1 note 32's
+            # second fragment kept a lone "Year" of the "Year ended 31 March 2025 Year ended …"
+            # band it had otherwise cut, because the band opens the first fragment with no space
+            # before it. The same on both sides of the match: a block that begins mid-word in the
+            # text it repeats is not a whole word there either.
             start, end = block.b, block.b + block.size
-            while start < end and not text[start].isspace():
+            a_start = block.a
+            while start < end and not (_word_starts(text, start) and _word_starts(window, a_start)):
                 start += 1
-            while end > start and not text[end - 1].isspace():
+                a_start += 1
+            a_end = block.a + block.size
+            while end > start and not (_word_ends(text, end) and _word_ends(window, a_end)):
                 end -= 1
+                a_end -= 1
+            # A SENTENCE IS NOT FURNITURE. Legal and financing prose repeats its phrases: f1 note
+            # 17's two loan paragraphs both say "secured by a first pari passu charge on" and "It
+            # carries interest at the three-month", and on its continuation page the cut took those
+            # out of the second paragraph mid-sentence ("for the capacity expansion at Waluj
+            # property, plant and equipment …"). A repeat that sits INSIDE a fragment and reads as a
+            # sentence — a run of lower-case words — is left where it is; a repeat that opens the
+            # fragment, where a continuation page reprints its header band, is still cut. The cost
+            # is that such a phrase can appear twice, which loses nothing.
+            if (end - start >= _REPEAT_BLOCK and text[:start].strip()
+                    and _SENTENCE_RUN.search(text[start:end])):
+                continue
             if end - start >= _REPEAT_BLOCK:
                 drop.append((start, end))
         if drop:
