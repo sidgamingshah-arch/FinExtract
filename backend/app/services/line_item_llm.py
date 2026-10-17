@@ -85,6 +85,9 @@ REPLY_CONTRACT = (
     "These are the pages of the filing that are neither a statement nor a note, and only a line "
     "whose `read_from` says the whole filing may cite one.\n"
     "\n"
+    "Each note and statement block states the `unit` its figures are printed in, and a row "
+    "states its own where a block's rows differ.\n"
+    "\n"
     "WHAT A FIGURE KEY IS. `figures` is keyed by the column's POSITION — `current`, `prior`, "
     "`col2` … . Where a statement block or a note row carries `columns`, it gives each key's "
     "printed heading, and a note row's holds from that row on: on a table wider than two "
@@ -442,7 +445,7 @@ def build_document(doc, line_item_set, *, cited=None) -> dict:
     statements.discard("")
     statements.discard("None")
     out = {"notes": note_context.identified_notes(line_item_set, doc.notes, cited=cited,
-                                                  every_note=True),
+                                                  every_note=True, doc=doc),
            "statement_rows": face_context.face_rows(doc, sorted(statements))}
     other = face_context.other_page_rows(doc)
     if other:
@@ -708,7 +711,7 @@ def plan_and_notes(line_item_set, notes, settings, *, doc=None):
                                              cited=cited)
     notes_of = {p.keys[0] if len(p.keys) == 1 else k: p.notes
                 for p in plans for k in p.keys}
-    identified = note_context.identified_notes(line_item_set, notes, cited=cited)
+    identified = note_context.identified_notes(line_item_set, notes, cited=cited, doc=doc)
     return plans, by_key, notes_of, identified
 
 

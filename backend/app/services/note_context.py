@@ -540,6 +540,61 @@ def dedupe_prose(pieces: list[str]) -> str:
     return "\n".join(kept)
 
 
+def furniture_patterns(chrome) -> list[re.Pattern]:
+    """One pattern per page-template line (`DocumentModel.page_chrome`), matching it AS PRINTED.
+
+    A chrome key is the line with its digits removed (`pdf_extract._chrome_key`) — that is how
+    "Annual Report 2024-25" on one page and the same line on the next are one key — so the pattern
+    puts the digits back anywhere inside a word, and a word made of digits alone between words.
+
+    A KEY THAT STATES A PERIOD IS LEFT ALONE. "As at 31 March 2025" heads every balance-sheet page
+    and is chrome there, but in a note's prose it is what dates the columns. A key with no letter
+    (a lone ".") is no line at all.
+    """
+    from app.services.row_reconstruct import _MONTHS
+
+    out = []
+    for key in chrome or ():
+        words = [w for w in str(key).split() if w]
+        if not words or not re.search(r"[^\W\d_]", key):
+            continue
+        if any(re.fullmatch(_MONTHS, re.sub(r"\W", "", w), re.I) for w in words):
+            continue
+        body = r"\s+(?:\d+\s+)*".join(
+            r"\d*" + "".join(re.escape(c) + r"\d*" for c in w) for w in words)
+        out.append(re.compile(body, re.I))
+    return out
+
+
+def strip_page_furniture(text: str, patterns, folios=()) -> str:
+    """`text` without the running header, footer and page number printed at its EDGES.
+
+    A note's text is read page by page, so the page template lands at the start of a fragment
+    (the header: "DEVGIRI AUTOCOMP LIMITED Annual Report 2024-25") and at its end (the folio:
+    "Total 1,196.15 1,071.55 11", where 11 is the page number). ONLY THE EDGES, and repeatedly:
+    furniture is printed at the head and foot of the page, and the same words inside a sentence
+    are the sentence's. A page number is stripped only when it is THAT page's printed folio, so a
+    figure that happens to end the text is never taken for one.
+    """
+    text = (text or "").strip()
+    folio_pats = [re.compile(re.escape(f)) for f in folios if f]
+    while text:
+        before = text
+        for pat in patterns:
+            m = re.match(rf"(?:{pat.pattern})(?=\s|$)", text, pat.flags)
+            if m:
+                text = text[m.end():].lstrip()
+        # THE FOLIO AT THE END ONLY: at the start of a fragment the same number is as likely to be
+        # the note's own ("11 Other current assets").
+        for pat in list(patterns) + folio_pats:
+            m = re.search(rf"(?:^|(?<=\s))(?:{pat.pattern})$", text, pat.flags)
+            if m:
+                text = text[:m.start()].rstrip()
+        if text == before:
+            break
+    return text
+
+
 # A CONTINUATION MARKER, so a note printed across pages is still recognised as ONE note when its
 # later fragments re-title themselves "SEGMENT INFORMATION (CONTINUED)" / 附註（續）.
 _CONTINUED = re.compile(r"[（(]\s*(?:continued|cont'?d\.?|續|续)\s*[)）]"
@@ -596,7 +651,8 @@ def note_blocks(notes) -> list[tuple[tuple[str, str], str]]:
     return out
 
 
-def identified_notes(line_item_set, notes, *, cited=None, every_note: bool = False) -> list[dict]:
+def identified_notes(line_item_set, notes, *, cited=None, every_note: bool = False,
+                     doc=None) -> list[dict]:
     """Every note a `note_source` declaration names, IN FULL — all rows and all prose.
 
     `every_note` keeps the notes NO line claims too, in the same shape and order — the whole
@@ -761,6 +817,15 @@ def identified_notes(line_item_set, notes, *, cited=None, every_note: bool = Fal
     # schedule's buckets — read once, by the reading `note_sourced.resolve_sources` looks a citation
     # up with. See `note_columns.table_layout`.
     layout = note_columns.notes_layout(notes)
+    # `doc` IS OPTIONAL, like `plan_and_notes`': it supplies the document's unit (each row's
+    # fallback, `units.describe`) and the page template and folios the prose is cleaned of. With
+    # none, a row states its own unit or "not stated", and the prose is sent as read.
+    from app.services import units
+
+    doc_unit = getattr(doc, "unit_context", None)
+    furniture = furniture_patterns(getattr(doc, "page_chrome", None) or ())
+    folio_of = {int(getattr(p, "index", -1)): str(getattr(p, "printed_page", "") or "").strip()
+                for p in (getattr(doc, "pages", None) or ())}
     for table, (key, heading) in zip(notes or (), note_blocks(notes)):
         title = getattr(table, "title", "") or ""
         number = str(getattr(table, "note_number", "") or "")
@@ -805,7 +870,8 @@ def identified_notes(line_item_set, notes, *, cited=None, every_note: bool = Fal
                                                           not in (None, "", note_columns.UNSTATED))
                                 else {}),
                              **({"header": lay["header"]} if lay.get("header") else {}),
-                             **({"figures": laid} if laid else {})}
+                             **({"figures": laid} if laid else {}),
+                             "_unit": units.row_unit(row, doc_unit)}
                 printed = [h for h in (getattr(row, "printed_columns", None) or ()) if h]
                 if printed and note_columns.blank_columns(row) and printed != printed_prev:
                     entry_row["printed_columns"] = printed
@@ -837,7 +903,8 @@ def identified_notes(line_item_set, notes, *, cited=None, every_note: bool = Fal
             # (`note_sourced.select_rows`); the model was given the rows without it.
             group = str(getattr(row, "group_hint", "") or "").strip()
             entry_row = {"caption": caption, **({"group": group} if group else {}),
-                         **({"figures": figures} if figures else {})}
+                         **({"figures": figures} if figures else {}),
+                         "_unit": units.row_unit(row, doc_unit)}
             if legend and legend != legend_prev:
                 entry_row["columns"] = legend
                 legend_prev = legend
@@ -891,6 +958,9 @@ def identified_notes(line_item_set, notes, *, cited=None, every_note: bool = Fal
         acc["_legend"], acc["_groups"] = legend_prev, groups_prev
         acc["_printed"] = printed_prev
         prose = (getattr(table, "source_text", "") or "").strip()
+        if prose and doc is not None:
+            folios = {folio_of.get(int(i), "") for i in (getattr(table, "source_pages", None) or ())}
+            prose = strip_page_furniture(prose, furniture, folios - {""})
         if prose:
             acc["_prose"].append(prose)
 
@@ -903,6 +973,9 @@ def identified_notes(line_item_set, notes, *, cited=None, every_note: bool = Fal
                        # a line whose pattern matched only the continuation page still asked for
                        # this note.
                        "identified_for": sorted(acc["_for"])}
+        # THE UNIT THE NOTE'S FIGURES ARE IN, as the run knows it — see `units.describe`. A note
+        # with no rows states the document's: its prose figures are printed in it.
+        entry["unit"] = units.block_units(acc["_rows"], doc_unit)
         if acc["_rows"]:
             entry["rows"] = acc["_rows"]
         if acc["_prose"]:

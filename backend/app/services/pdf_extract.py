@@ -383,6 +383,7 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
 
     number_format = _resolve_number_format(ctx, doc)
     chrome, chrome_feet = _page_chrome(pdf, targets)
+    doc.page_chrome = sorted(chrome)
     if chrome:
         ctx.log(f"extract:page_chrome={sorted(chrome)[:6]}")
     if chrome_feet:

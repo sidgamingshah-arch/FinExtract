@@ -41,6 +41,10 @@ at 88 lines on one statement that fails the provider outright rather than merely
 """
 from __future__ import annotations
 
+import re
+
+from app.services import units
+from app.services.gap_explanation import _BOILERPLATE
 from app.services.mapping import normalize_statement
 
 
@@ -104,6 +108,9 @@ def face_rows(doc, statements) -> list[dict]:
     stmt_of_page = {int(getattr(p, "index", -1)):
                     normalize_statement(str(getattr(p, "statement", "") or ""))
                     for p in (getattr(doc, "pages", None) or ())}
+    notes_pages = _notes_pages(doc)
+    chrome = set(getattr(doc, "page_chrome", None) or ())
+    doc_unit = getattr(doc, "unit_context", None)
 
     # ONE BLOCK PER STATEMENT AND ENTITY. A mainland filing prints the group's statements and the
     # parent company's own, and the two blocks were one: 000709's 货币资金 arrived twice — 31.8bn
@@ -117,9 +124,23 @@ def face_rows(doc, statements) -> list[dict]:
         statement = stmt_of_page.get(page if page is not None else -1, "")
         if statement not in want:
             continue
+        # WHAT THE RUN ITSELF MARKS AS A NOTE STAYS OUT of a statement block: a row read off a page
+        # the classifier called notes, or one `buckets` placed as printed in the notes. The
+        # statement block is that statement as printed, and a note row in it reads as a line of
+        # the face. (A notes page the classifier read AS a statement is not second-guessed here.)
+        if page in notes_pages or _printed_in_notes(row):
+            continue
+        caption = getattr(row, "source_label", "") or ""
+        # THE STATEMENT'S FOOTER AND SIGNATURE BLOCK — "The accompanying notes …", "As per our
+        # report of even date", the signatories, place and date — is not a row of the statement.
+        # The pattern is `gap_explanation`'s, which already refuses these as missing lines.
+        if _BOILERPLATE.search(caption):
+            continue
+        unit = units.row_unit(row, doc_unit)
         for entity, (figures, legend) in _figures_by_entity(row).items():
-            entry: dict = {"caption": getattr(row, "source_label", "") or "", "figures": figures}
-            if banner := (getattr(row, "section_hint", None) or "").strip():
+            entry: dict = {"caption": caption, "figures": figures, "_unit": unit}
+            banner = (getattr(row, "section_hint", None) or "").strip()
+            if banner and not is_identity_line(banner, chrome):
                 entry["under"] = banner
             if sub := (getattr(row, "group_hint", "") or "").strip():
                 entry["subheading"] = sub
@@ -142,12 +163,46 @@ def face_rows(doc, statements) -> list[dict]:
         if legends.get((statement, entity)):
             # The printed heading of each figure key — the period's date, as the page states it.
             block["columns"] = legends[(statement, entity)]
+        # THE UNIT THE FIGURES ARE IN, as the run knows it — see `units.describe`.
+        block["unit"] = units.block_units(rows, doc_unit)
         block["rows"] = rows
         out.append(block)
     return out
 
 
 _ENTITY_ORDER = {"consolidated": 0, "standalone": 1}
+
+# A COMPANY IDENTITY LINE — the CIN, the registered office, the name banner, "Annual Report
+# 2024-25". It is printed at the top of every statement page, so the nearest-banner rule made it
+# the `under` of every row above the first real heading: f1's whole standalone profit and loss
+# arrived "under" its CIN. It names the company, not a section.
+_IDENTITY_LINE = re.compile(
+    r"(?i:^\W*CIN\b|\bregistered\s+office\b|\bannual\s+report\b)"
+    r"|^[A-Z0-9&.,'()\s-]*\b(?:LIMITED|LTD\.?|PLC|INC\.?)\W*$")
+
+
+def is_identity_line(text: str, chrome=()) -> bool:
+    """Whether `text` is a company identity line or a line of the page template.
+
+    `chrome` is `DocumentModel.page_chrome`, the lines the reader found printed at the head or
+    foot of page after page; a line the filing repeats that way is furniture whatever it says.
+    """
+    from app.services.pdf_extract import _chrome_key
+
+    t = (text or "").strip()
+    return bool(t) and (bool(_IDENTITY_LINE.search(t)) or _chrome_key(t) in set(chrome or ()))
+
+
+def _notes_pages(doc) -> set[int]:
+    from app.core.models.enums import PageKind
+
+    return {int(getattr(p, "index", -1)) for p in (getattr(doc, "pages", None) or ())
+            if getattr(p, "kind", None) is PageKind.NOTES}
+
+
+def _printed_in_notes(row) -> bool:
+    return str(getattr(getattr(row, "printed_in", None), "value",
+                       getattr(row, "printed_in", None)) or "").lower() == "notes"
 
 
 def _figures_by_entity(row) -> dict[str, tuple[dict[str, str], dict[str, str]]]:

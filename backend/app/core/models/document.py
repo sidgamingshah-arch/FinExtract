@@ -96,6 +96,11 @@ class DocumentModel(BaseModel):
     # switched-off section, or scanned with no OCR engine — as ``services.unread_pages`` entries.
     # Kept so a statement nobody read is never reported as one the filing does not contain.
     unread_pages: list[dict] = Field(default_factory=list)
+    # THE PAGE TEMPLATE: the keys (``pdf_extract._chrome_key``) of the lines the reader found
+    # printed at the head or foot of page after page — the running header, the entity banner, the
+    # CIN line. Kept so what is SENT to a model can drop the same furniture the row reader drops:
+    # a note's prose otherwise carries the header of every page it runs onto.
+    page_chrome: list[str] = Field(default_factory=list)
 
     def face_pages(self) -> list[PageSource]:
         return [p for p in self.pages if p.kind == PageKind.FACE]
