@@ -899,10 +899,15 @@ def identified_notes(line_item_set, notes, *, cited=None, every_note: bool = Fal
                         if getattr(ev, "value", None) is not None}
                 entry_row = {"caption": caption,
                              **({"group": lay["group"]} if lay.get("group") else {}),
-                             "period": lay.get("period") or note_columns.UNSTATED,
+                             "period": (lay.get("period")
+                                        or (note_columns.EARLIER if lay.get("earlier")
+                                            else note_columns.PER_COLUMN
+                                            if lay.get("key_periods")
+                                            else note_columns.UNSTATED)),
                              **({"period_as_printed": lay["period_text"]}
                                 if lay.get("period") or (lay.get("period_text")
-                                                          not in (None, "", note_columns.UNSTATED))
+                                                          not in (None, "", note_columns.UNSTATED,
+                                                                  note_columns.PER_COLUMN))
                                 else {}),
                              **({"header": lay["header"]} if lay.get("header") else {}),
                              **({"figures": laid} if laid else {}),

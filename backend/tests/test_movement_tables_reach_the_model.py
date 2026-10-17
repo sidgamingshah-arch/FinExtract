@@ -81,8 +81,8 @@ def test_a_movement_note_sends_its_figures_under_the_classes_with_each_blocks_pe
     opening = rows[0]
     assert opening["figures"] == {"Freehold land": "1245.60", "Buildings": "8412.35",
                                   "Total": "9657.95"}
-    # The opening balance is neither year's close: the table says so rather than guessing.
-    assert opening["period"] == "unstated" and opening["period_as_printed"] == "as at 1 April 2023"
+    # The opening balance is neither year's close: dated before both years, in neither slot.
+    assert opening["period"] == "earlier" and opening["period_as_printed"] == "as at 1 April 2023"
     closing = rows[6]
     assert (closing["period"], closing["period_as_printed"]) == ("current", "as at 31 March 2025")
     assert not any("columns" in r for r in rows)

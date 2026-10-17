@@ -405,6 +405,19 @@ _HEADER_FIGURE = re.compile(r"^(?:\d{1,2}|(?:19|20)\d{2})$")
 _YEAR_FIGURE = re.compile(r"^(?:19|20)\d{2}$")
 _POSITIONAL = re.compile(r"^(current|prior)(?:_col\d+)?$")
 UNSTATED = "unstated"
+# A BALANCE DATED BEFORE BOTH YEARS — the opening balance of the comparative year ("Balance as at
+# 1 April 2023" in a schedule closing 31 March 2024 and 31 March 2025). The table states its date,
+# so it is not `unstated`; it is neither year's figure, so it is in neither slot.
+EARLIER = "earlier"
+# A ROW WHOSE COLUMNS EACH PRINT THEIR OWN YEAR (a period × measure header): no one period is the
+# row's, and each figure is filed under the year over its column.
+PER_COLUMN = "per column"
+# THE DATED TITLE OF A TABLE PRINTED ONCE PER YEAR: "Trade receivables ageing schedule as at
+# 31 March 2024" over its own "Particulars | Not due | …" header. Its date is the period of every row
+# under it. Latin ageing schedules only — the shape f1 notes 10 and 22 print.
+_DATED_TITLE = re.compile(
+    r"\b(?:ageing|aging)\s+(?:schedule|analysis)\b[^.;:]{0,60}?\bas\s+(?:at|on)\s+"
+    r"\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]{3,9}\.?,?\s+(?:19|20)\d{2}\b", re.IGNORECASE)
 
 
 def _date_of(text: str) -> tuple[int, int, int] | None:
@@ -483,6 +496,69 @@ def _x1_of(ev) -> float | None:
     box = getattr(prov, "value_bbox", None) or getattr(prov, "bbox", None)
     x1 = getattr(box, "x1", None)
     return float(x1) if x1 is not None else None
+
+
+def _per_column_periods(row, keys: dict[str, str], newest):
+    """``({key: period}, keys)`` for a row whose columns are a period × measure header — two or
+    more headings each printing a different year, and the unheaded-by-year measure columns after
+    each ("% of total consumption") — else None. Each measure column takes the year of the dated
+    column before it, and its heading is given that date, so the two "% of total consumption"
+    columns are two keys and not one (the second used to overwrite the first)."""
+    figs = sorted(_figures(row), key=lambda kv: _x_of(kv[1]) or 0.0)
+    headed = [(k, getattr(ev, "column_heading", None)) for k, ev in figs]
+    if not all(h for _k, h in headed):
+        return None
+    dated = {k: _date_of(str(h)) for k, h in headed}
+    if len({d for d in dated.values() if d}) < 2 or not dated.get(headed[0][0]):
+        return None
+    periods: dict[str, str] = {}
+    out_keys = dict(keys)
+    last = None
+    for k, h in headed:
+        if dated[k]:
+            last = (dated[k], _date_text(str(h)))
+        else:
+            out_keys[k] = f"{keys.get(k, h)} ({last[1]})"
+        slot = _slot(last[0], newest)
+        if not slot:
+            return None
+        periods[k] = slot
+    return periods, out_keys
+
+
+def _earlier(date, newest) -> bool:
+    """Whether ``date`` falls before the comparative year's close."""
+    return bool(date and newest and date < (newest[0] - 1, newest[1], newest[2]))
+
+
+def _title_periods(rows, non_period, balance, text) -> dict[int, tuple[int, int, int] | None]:
+    """``{row index: date}`` for the rows printed under a dated table title (`_DATED_TITLE`): the
+    last such title before the row in the note's text, where every row between them is a
+    non-period row with no balance caption — the same table."""
+    titles = [(m.start(), _date_of(m.group(0)), _date_text(m.group(0)))
+              for m in _DATED_TITLE.finditer(text)]
+    if not titles:
+        return {}
+    pos: dict[int, int] = {}
+    cursor = 0
+    for i, row in enumerate(rows):
+        cap = unicodedata.normalize("NFKC", str(row.raw_label))
+        at = text.find(cap, cursor)
+        if at >= 0:
+            pos[i] = at
+            cursor = at + len(cap)
+    out: dict[int, tuple] = {}
+    for i in pos:
+        if not non_period[i] or balance.get(i):
+            continue
+        before = [t for t in titles if t[0] < pos[i]]
+        if not before:
+            continue
+        start, date, printed = before[-1]
+        between = [j for j in pos if start < pos[j] < pos[i]]
+        if date and all(non_period[j] and not balance.get(j) for j in between):
+            out[i] = (date, printed)
+    return out
 
 
 def note_newest(notes) -> dict[str, tuple[int, int, int]]:
@@ -652,6 +728,7 @@ def table_layout(table, newest: tuple[int, int, int] | None = None) -> dict[int,
     dates = {i: (_date_of(rows[i].raw_label) if _BALANCE.search(str(rows[i].raw_label)) else None)
              for i in np_rows}
     balance = {i: bool(_BALANCE.search(str(rows[i].raw_label))) for i in np_rows}
+    titled = _title_periods(rows, non_period, balance, text)
     for pos, i in enumerate(np_rows):
         row = rows[i]
         keys: dict[str, str] = {}
@@ -669,10 +746,23 @@ def table_layout(table, newest: tuple[int, int, int] | None = None) -> dict[int,
                 keys[k] = str(ev.period_label)
             else:
                 keys[k] = f"column {_column_n(k, ev)}"
+        per_column = _per_column_periods(row, keys, newest)
+        if per_column:
+            keys = per_column[1]
         period, period_text = "", UNSTATED
-        if not header_years.get(seg[i]):
+        earlier = False
+        if per_column:
+            # EACH COLUMN PRINTS ITS OWN YEAR — "Year ended 31 March 2025 (₹ in lakhs) | % of total
+            # consumption | Year ended 31 March 2024 …": the row is no one period's.
+            period_text = PER_COLUMN
+        elif not header_years.get(seg[i]):
             if dates.get(i):
                 period, period_text = _slot(dates[i], newest), "as at " + _date_text(row.raw_label)
+                earlier = not period and _earlier(dates[i], newest)
+            elif i in titled:
+                # A ROW UNDER A DATED TITLE takes the title's date, printed as the title prints it.
+                period = _slot(titled[i][0], newest)
+                period_text = "as at " + titled[i][1]
             elif not balance.get(i):
                 # A movement row: the balance closing its block, in the same group and segment.
                 close = next((k for k in np_rows[pos + 1:]
@@ -683,7 +773,9 @@ def table_layout(table, newest: tuple[int, int, int] | None = None) -> dict[int,
                     period_text = "to " + _date_text(rows[close].raw_label)
         out[id(row)] = {"keys": keys, "group": groups.get(i, ""), "period": period,
                         "period_text": period_text, "header": header_for.get(i, ""),
-                        "dated": any(dates.values())}
+                        "dated": any(dates.values()) or bool(titled),
+                        **({"earlier": True} if earlier else {}),
+                        **({"key_periods": per_column[0]} if per_column else {})}
     return out
 
 
@@ -691,9 +783,13 @@ def notes_layout(notes) -> dict[int, dict]:
     """`table_layout` for every table of a document, with each note's current period decided
     across all its fragments — the one call both the request and the resolver make."""
     newest = note_newest(notes)
+    # A note with no dated balance row of its own (an ageing note) is slotted by the filing's year
+    # end as its other notes print it: the latest balance date any note prints.
+    filing = max(newest.values(), default=None)
     out: dict[int, dict] = {}
     for table in notes or ():
-        out.update(table_layout(table, newest.get(str(getattr(table, "note_number", "") or ""))))
+        out.update(table_layout(table, newest.get(str(getattr(table, "note_number", "") or ""))
+                                or filing))
     return out
 
 
@@ -751,7 +847,13 @@ def pick_laid_out(row, lay: dict, want: str | None, *, reporting_period: str = "
                       f"({heads}) — give the column's whole heading as given")
         return out
     heading, key, ev = matched[0]
+    if lay.get("earlier"):
+        out["why"] = ("that row is a balance dated before both years (the opening balance of the "
+                      "comparative year) — it is neither year's figure")
+        return out
     period, source = (lay.get("period") or None), "row_block"
+    if period is None and key in (lay.get("key_periods") or {}):
+        period, source = lay["key_periods"][key], "column"
     if period is None and not lay.get("dated"):
         period, source = period_of(ev, row)
     if period is None:

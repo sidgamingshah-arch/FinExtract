@@ -274,6 +274,23 @@ def _is_period_only_label(label: str) -> bool:
     return not rest
 
 
+# A NOTE'S DATED BALANCE ROW, which reads exactly like a column header once its date is given back.
+# f1's right-of-use and intangible notes print "Net carrying amount" over "As at 31 March 2024" and
+# "As at 31 March 2025", each with its class amounts; the label is nothing but a period caption,
+# so the second row was dropped as a header line and the request never carried the closing year.
+# Latin "As at <day> <Month> <year>" only, in a note, and only with a figure that is not a date
+# fragment — a header band "As at 31 March 2025  As at 31 March 2024" carries nothing but 31s and
+# years.
+_DATED_BALANCE_LABEL = re.compile(
+    r"^\s*(?:balance\s+)?as\s+at\s+\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)"
+    r"[a-z]*,?\s+(?:19|20)\d{2}\s*$", re.IGNORECASE)
+
+
+def _dated_balance_with_figures(label: str, vals: list) -> bool:
+    return (bool(_DATED_BALANCE_LABEL.match(label or ""))
+            and any(not _is_date_ish(v) for v in vals))
+
+
 def _is_heading_with_note_only(label: str, vals: list) -> bool:
     """A section heading whose only "value" is a note reference that drifted into the row.
 
@@ -867,6 +884,17 @@ _PERIOD_ONLY_LABEL = re.compile(
     r"|^\s*(?:於|于|截至)\s*$", re.I)
 
 
+# THE SAME CAPTION UNDER A BLOCK HEADING SET BESIDE IT. f1's right-of-use and intangible notes
+# print the block heading in the label column on the balance row's own line ("Gross carrying
+# amount" wrapped beside "Balance as at 1 April 2023"), so the label reads "Gross carrying amount
+# Balance as at" and the anchored test above does not see the prefix. Latin movement-schedule
+# headings only, and only where the label then stops exactly where the date began.
+_HEADED_PERIOD_LABEL = re.compile(
+    r"^\s*(?:gross\s+carrying\s+amount|gross\s+block|net\s+carrying\s+amount|net\s+block"
+    r"|accumulated\s+(?:depreciation|amortisation|amortization|impairment)"
+    r"(?:\s+and\s+impairment)?)\s+(?:as\s+at|balance\s+(?:at|as\s+at))\s*$", re.I)
+
+
 def _label_keeping_its_date(row: list[Word], label_words: list[Word],
                             value_words: list[Word], fmt=None) -> list[Word]:
     """Give a period-prefixed caption its date back, leaving the VALUES untouched.
@@ -909,7 +937,9 @@ def _label_keeping_its_date(row: list[Word], label_words: list[Word],
     """
     if not label_words or not value_words:
         return label_words
-    if not _PERIOD_ONLY_LABEL.match(_join_words(label_words)):
+    joined = _join_words(label_words)
+    headed = not _PERIOD_ONLY_LABEL.match(joined) and bool(_HEADED_PERIOD_LABEL.match(joined))
+    if not headed and not _PERIOD_ONLY_LABEL.match(joined):
         return label_words
     figures = [w for w in value_words
                if not DATE_TOKEN.match(w.text.strip().strip(",.()"))]
@@ -917,6 +947,13 @@ def _label_keeping_its_date(row: list[Word], label_words: list[Word],
         # Nothing among the values was part of a date, so nothing was lost and there is no repair
         # to make. A row reading "At  7,939" keeps the caption it already had.
         return label_words
+    if headed:
+        # The heading's words interleave with the caption's by x, so the row is not re-read in x
+        # order: the label stays as read and the date tokens it lost follow it, in printed order.
+        taken = {id(w) for w in label_words} | {id(w) for w in figures}
+        date = [w for w in sorted(row, key=lambda w: w.bbox.x0)
+                if id(w) not in taken and DATE_TOKEN.match(w.text.strip().strip(",.()"))]
+        return list(label_words) + date if date else label_words
     skip = {id(w) for w in figures}
     kept = [w for w in sorted(row, key=lambda w: w.bbox.x0) if id(w) not in skip]
     return kept or label_words
@@ -2891,6 +2928,11 @@ _DATE_PHRASE = re.compile(rf"(?:19|20)\d{{2}}|{_MONTHS}|[〇零一二三四五�
                           re.IGNORECASE)
 
 
+# The Latin words a period heading opens with, and a bare year.
+_PHRASE_START = re.compile(r"^(?:as|year|for)$", re.IGNORECASE)
+_YEAR_ONLY = re.compile(r"(?:19|20)\d{2}")
+
+
 def _period_bands(rows: list[list[Word]], fmt=None) -> list[tuple[str, float]]:
     """Detect date-like column headers (e.g. '31 March 2025' / '2024' / 'FY2025') in the statement's
     header band and return each period phrase's (label, x-centre). Used to give value columns a real
@@ -2902,14 +2944,25 @@ def _period_bands(rows: list[list[Word]], fmt=None) -> list[tuple[str, float]]:
     periods then fell back to column position on the filings that most need the date read.
     """
     best: list[tuple[str, float]] = []
-    for row in _header_region(rows, fmt):
+    region = _header_region(rows, fmt)
+    best_at = -1
+    for at, row in enumerate(region):
         phrases: list[list[Word]] = []
         run: list[Word] = []
         for w in row:
-            dateish = bool(_DATEISH_WORD.match(w.text.strip(" .")))
+            # A token the PDF set with a space inside it ("ended 31") is date-ish when each of
+            # its parts is: read whole it matched nothing and broke "Year ended 31 March" in two.
+            dateish = all(_DATEISH_WORD.match(part.strip(" ."))
+                          for part in (w.text.split() or [w.text]))
             # A wide horizontal gap means a new column — flush the current phrase even between
             # two date-ish words (e.g. "…2025    31 March 2024" are two separate headers).
             gap = run and (w.bbox.x0 - run[-1].bbox.x1) > 0.05
+            # …and so does a phrase's opening word once the run already holds a month or a year:
+            # f1's faces set "As at 31 March 2025  As at 31 March 2024" closer than that gap, and
+            # the two headings were read as one, given to both columns.
+            if (dateish and run and _PHRASE_START.match(w.text.strip(" ."))
+                    and any(_DATE_PHRASE.search(r.text) for r in run)):
+                gap = True
             if dateish and not gap:
                 run.append(w)
             else:
@@ -2926,9 +2979,18 @@ def _period_bands(rows: list[list[Word]], fmt=None) -> list[tuple[str, float]]:
                 xc = sum((w.bbox.x0 + w.bbox.x1) / 2 for w in ph) / len(ph)
                 bands.append((text, xc))
         if len(bands) > len(best):
-            best = bands
+            best, best_at = bands, at
         if len(bands) >= 2:                        # a two-column header is a confident match
             break
+    # A HEADING WRAPPED BEFORE ITS YEAR — "Year ended 31 March" over "2025 | 2024" (f1's profit and
+    # loss and cash flow faces). The years are the next header line's, one under each heading.
+    if (len(best) >= 2 and not any(_YEAR_ONLY.search(t) for t, _x in best)
+            and 0 <= best_at < len(region) - 1):
+        years = [w for w in region[best_at + 1] if _YEAR_ONLY.fullmatch(w.text.strip(" ."))]
+        if len(years) == len(best):
+            ordered = sorted(best, key=lambda b: b[1])
+            ys = sorted(years, key=lambda w: w.bbox.x0)
+            best = [(f"{t} {y.text.strip(' .')}", x) for (t, x), y in zip(ordered, ys)]
     return best
 
 
@@ -6361,7 +6423,8 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
         # Drop running-header / statement-title / period-caption lines that leaked in as rows
         # (their only "value" is a date fragment) — never a genuine financial line.
         row_vals = [d for d in (_num(w.text, number_format) for w in value_words) if d is not None]
-        if _is_noise_row(label, row_vals, steps, entity_signals, page_chrome):
+        if (_is_noise_row(label, row_vals, steps, entity_signals, page_chrome)
+                and not (not on_face and _dated_balance_with_figures(label, row_vals))):
             continue
 
         # A heading is often printed on the SAME line as its first figure, so it never appears as
