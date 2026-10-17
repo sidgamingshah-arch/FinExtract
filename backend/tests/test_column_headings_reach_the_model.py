@@ -102,7 +102,10 @@ def test_statements_are_one_block_per_entity_and_a_side_by_side_row_keeps_both_f
     assert blocks[0]["columns"] == {"current": "2024 Group"}
 
 
-def test_a_note_row_names_its_columns_once_and_again_when_they_change():
+def test_a_note_row_keys_its_figures_by_the_heading_printed_over_them():
+    """The keys say what the page prints over each figure. A `columns` legend used to map
+    `current`/`prior` keys onto "Land" and "Buildings", so the keys claimed years the page never
+    printed; a table whose columns are not periods now keys its figures by the headings."""
     from app.services.note_context import identified_notes
 
     def note_row(label, figures):
@@ -126,9 +129,10 @@ def test_a_note_row_names_its_columns_once_and_again_when_they_change():
     seed = pathlib.Path(__file__).resolve().parents[1] / "app/sample/templates/output_csv_hk_line_items.json"
     shipped = load_line_item_set(json.loads(seed.read_text(encoding="utf-8")), resolve=True)
     rows = identified_notes(shipped, [note], every_note=True)[0]["rows"]
-    assert rows[0]["columns"] == {"current": "Land", "prior": "Buildings", "col2": "Total"}
-    assert "columns" not in rows[1]
-    assert rows[2]["columns"] == {"current": "2024", "prior": "2023"}
+    assert rows[0]["figures"] == {"Land": "1", "Buildings": "2", "Total": "3"}
+    assert rows[1]["figures"] == {"Land": "4", "Buildings": "5", "Total": "6"}
+    assert rows[2]["figures"] == {"2024": "7", "2023": "8"}
+    assert all("columns" not in r for r in rows)
 
 
 def test_a_mainland_period_over_its_measures_names_each_column_period_first():

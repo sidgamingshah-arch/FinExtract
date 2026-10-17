@@ -1334,6 +1334,28 @@ def _by_column(row, ref, *, keys_are_periods: bool = False) -> tuple[dict | None
     }, ""
 
 
+def _by_laid_out_column(row, lay: dict, ref) -> tuple[dict | None, str]:
+    """`_by_column` for a row of a table whose columns are not periods, through the printed column
+    the request keyed its figure under and the period of its block (`note_columns.pick_laid_out`)."""
+    want = str(getattr(ref, "column", "") or "").strip()
+    got = note_columns.pick_laid_out(row, lay, want)
+    if got["why"]:
+        return None, got["why"]
+    first = got["cells"][0]
+    figures = dict(got["figures"])
+    return {
+        "figures": figures,
+        "provenance": derivation._json_safe_provenance(
+            getattr(first["ev"], "provenance", None)),
+        "basis": got["basis"], "figures_by_basis": {got["basis"]: dict(figures)},
+        "group": lay.get("group") or "", "period_as_printed": lay.get("period_text") or "",
+        "column": {"want": want, "heading": first["heading"], "key": first["key"],
+                   "matched_by": got["matched_by"], "assumed": bool(got["assumed"]),
+                   "cells": [{k: c[k] for k in ("key", "heading", "period", "period_source",
+                                                "value")} for c in got["cells"]]},
+    }, ""
+
+
 def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
                     pages=None, allow_pages: bool = False,
                     allow_rows: bool = True,
@@ -1424,12 +1446,27 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
     # (number, caption, row, table, block key, block heading) — the BLOCK being the one the request
     # showed the model this row in, by the same mapping the request was built with.
     rows: list[tuple[str, str, object, object, tuple[str, str], str]] = []
+    # A TABLE WHOSE COLUMNS ARE NOT PERIODS is read back by the layout the request was built with
+    # (`note_columns.table_layout`): its group, the period of its block, and its figures by printed
+    # column. A header line the request did not send as a row is not citable.
+    layout = note_columns.notes_layout(notes)
     for table, (block, heading) in zip(notes or (), note_blocks(notes)):
         number = str(getattr(table, "note_number", "") or "")
         for row in getattr(table, "items", None) or ():
             caption = getattr(row, "raw_label", "") or ""
-            if caption:
+            if caption and not layout.get(id(row), {}).get("fragment"):
                 rows.append((number, caption, row, table, block, heading))
+
+    def _group_of(row) -> str:
+        return str((layout.get(id(row)) or {}).get("group") or getattr(row, "group_hint", "")
+                   or "")
+
+    def _period_is(row, want: str) -> bool:
+        lay = layout.get(id(row)) or {}
+        if not lay:
+            return False
+        return (want.casefold() == str(lay.get("period") or "").casefold()
+                or (bool(lay.get("period_text")) and norm(want) == norm(lay["period_text"])))
     face_rows = list(face or ())
 
     resolved: list[dict] = []
@@ -1658,10 +1695,16 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
             want_group = norm(getattr(ref, "group", ""))
             if want_group:
                 in_group = [r for r in pool
-                            if _caption_matches(want_group,
-                                                norm(getattr(r[2], "group_hint", "") or ""))]
+                            if _caption_matches(want_group, norm(_group_of(r[2])))]
                 if in_group:
                     pool = in_group
+            # THE PERIOD OF THE ROW'S BLOCK, where the request stated one: a movement schedule
+            # prints "Disposals" once per year under each group.
+            want_period = str(getattr(ref, "period", "") or "").strip()
+            if want_period:
+                in_period = [r for r in pool if _period_is(r[2], want_period)]
+                if in_period:
+                    pool = in_period
             hit = best_caption(want_cap, pool, key=lambda r: norm(r[1]))
             if hit is not None:
                 # A CAPTION THAT STILL NAMES SEVERAL ROWS IS REFUSED, where the request gave the
@@ -1671,11 +1714,20 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
                 # request presented identically keep the tie-break: nothing a model could have
                 # written would have named one of them.
                 tied = _tied_captions(want_cap, pool, key=lambda r: norm(r[1]))
-                places = {(r[4], norm(getattr(r[2], "group_hint", "") or "")) for r in tied}
-                figures = {tuple(sorted(_figures_by_basis(r[2])[0].items())) for r in tied}
+                places = {(r[4], norm(_group_of(r[2])),
+                           str((layout.get(id(r[2])) or {}).get("period_text") or ""))
+                          for r in tied}
+                # A laid-out row's figures are its printed columns' — a matrix row has no other.
+                figures = {tuple(sorted(
+                    {str(k): str(ev.value) for k, ev in (getattr(r[2], "values", None) or {})
+                     .items() if getattr(ev, "value", None) is not None}.items()
+                    if id(r[2]) in layout else _figures_by_basis(r[2])[0].items()))
+                    for r in tied}
                 if len(places) > 1 and len(figures) > 1:
                     where = list(dict.fromkeys(
-                        " / ".join(t for t in (r[5], str(getattr(r[2], "group_hint", "") or ""))
+                        " / ".join(t for t in (r[5], _group_of(r[2]),
+                                               str((layout.get(id(r[2])) or {})
+                                                   .get("period_text") or ""))
                                    if t) for r in tied))
                     unresolved.append({
                         "at": at, "note": want_note, "table": want_table,
@@ -1683,7 +1735,7 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
                         "caption": getattr(ref, "caption", ""), "quote": quote,
                         "why": (f"that caption names {len(tied)} rows with different figures — "
                                 f"under {'; '.join(where[:6])} — give the `table` and `group` "
-                                f"the row is printed under")})
+                                f"the row is printed under, and its `period` as given")})
                     continue
         if hit is None:
             # THE PROSE CASE. A figure stated in a footnote belongs to no row, so there is nothing
@@ -1761,8 +1813,10 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
                                               "and no sentence of the note contains it")})
             continue
         number, caption, row, table, _block, _heading = hit
+        lay = layout.get(id(row))
         if want_col:
-            picked, why = _by_column(row, ref)
+            picked, why = (_by_laid_out_column(row, lay, ref) if lay is not None
+                           else _by_column(row, ref))
             if picked is None:
                 unresolved.append({"at": at, "note": want_note or number,
                                    "table": str(getattr(ref, "table", "") or ""),

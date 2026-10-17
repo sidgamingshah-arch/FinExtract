@@ -244,7 +244,8 @@ def test_the_request_lists_every_printed_column_where_one_is_blank(fv_300319, fv
         sent = [r["printed_columns"] for r in rows if "printed_columns" in r]
         assert len(sent) == 1, sent
         assert any("第一层次" in h for h in sent[0]) and any("合计" in h for h in sent[0])
-        assert "columns" in rows[0]
+        # Keyed by the printed headings, not by `current`/`prior` with a legend beside them.
+        assert not ({"current", "prior"} & set(rows[0]["figures"])), rows[0]["figures"]
 
 
 def test_a_table_with_every_column_filled_sends_no_printed_columns(ppe_1966):

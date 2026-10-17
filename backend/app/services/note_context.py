@@ -757,6 +757,10 @@ def identified_notes(line_item_set, notes, *, cited=None, every_note: bool = Fal
     # appears once.
     by_number: dict[tuple[str, str], dict] = {}
     order: list[tuple[str, str]] = []
+    # THE TABLES WHOSE COLUMNS ARE NOT PERIODS — a movement schedule's asset classes, an ageing
+    # schedule's buckets — read once, by the reading `note_sourced.resolve_sources` looks a citation
+    # up with. See `note_columns.table_layout`.
+    layout = note_columns.notes_layout(notes)
     for table, (key, heading) in zip(notes or (), note_blocks(notes)):
         title = getattr(table, "title", "") or ""
         number = str(getattr(table, "note_number", "") or "")
@@ -780,6 +784,33 @@ def identified_notes(line_item_set, notes, *, cited=None, every_note: bool = Fal
         for row in getattr(table, "items", None) or ():
             caption = getattr(row, "raw_label", "") or ""
             if not caption:
+                continue
+            lay = layout.get(id(row))
+            if lay is not None:
+                # A LINE OF A COLUMN HEADER is not a row: it is joined into `header` below.
+                if lay.get("fragment"):
+                    continue
+                # A ROW OF A TABLE WHOSE COLUMNS ARE NOT PERIODS: each figure under its printed
+                # column, the row's group, and the period of its block — `unstated` where the table
+                # does not date it. Sent with no `columns` legend: the keys are the headings.
+                # Measured before this, f1's PP&E note sent "Disposals" four times with no figure.
+                laid = {lay["keys"].get(str(k), str(k)): str(ev.value)
+                        for k, ev in (getattr(row, "values", None) or {}).items()
+                        if getattr(ev, "value", None) is not None}
+                entry_row = {"caption": caption,
+                             **({"group": lay["group"]} if lay.get("group") else {}),
+                             "period": lay.get("period") or note_columns.UNSTATED,
+                             **({"period_as_printed": lay["period_text"]}
+                                if lay.get("period") or (lay.get("period_text")
+                                                          not in (None, "", note_columns.UNSTATED))
+                                else {}),
+                             **({"header": lay["header"]} if lay.get("header") else {}),
+                             **({"figures": laid} if laid else {})}
+                printed = [h for h in (getattr(row, "printed_columns", None) or ()) if h]
+                if printed and note_columns.blank_columns(row) and printed != printed_prev:
+                    entry_row["printed_columns"] = printed
+                    printed_prev = printed
+                rows.append(entry_row)
                 continue
             figures = {}
             legend = {}

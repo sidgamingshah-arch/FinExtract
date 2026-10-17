@@ -394,7 +394,12 @@ def lint_request(req: dict, run: RunIndex, budget_tokens: int = DEFAULT_BUDGET_T
         by_caption: dict[str, set] = defaultdict(set)
         for r in rows:
             cap, figs = r.get("caption", ""), r.get("figures") or {}
-            odd = [k for k in figs if k not in ("current", "prior")]
+            # A row of a table whose columns are not periods states its own `period` and keys its
+            # figures by the printed column (`note_columns.table_layout`); its keys are not periods.
+            odd = ([] if "period" in r else [k for k in figs if k not in ("current", "prior")])
+            if "period" in r and r["period"] == "unstated" and _has_figure(r):
+                hit("period_label_unclear", f"{label}: '{cap}' period unstated: "
+                    f"{json.dumps(figs, ensure_ascii=False)}")
             if odd:
                 hit("period_label_unclear", f"{label}: '{cap}' figures keyed {odd}: {json.dumps(figs, ensure_ascii=False)}")
             elif "prior" in figs and "current" not in figs and with_current:
@@ -403,7 +408,8 @@ def lint_request(req: dict, run: RunIndex, budget_tokens: int = DEFAULT_BUDGET_T
             if why:
                 hit("fragment_as_row", f"{label}: '{cap}' ({why}) carries {json.dumps(figs, ensure_ascii=False)}")
             if _has_figure(r):
-                by_caption[cap].add(json.dumps(figs, sort_keys=True))
+                place = " / ".join(t for t in (r.get("group", ""), r.get("period", ""), cap) if t)
+                by_caption[place].add(json.dumps(figs, sort_keys=True))
             if kind == "statement_rows" and _has_figure(r):
                 src = run.source_of(cap, figs)
                 if src:

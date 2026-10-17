@@ -125,6 +125,9 @@ class SourceRef(BaseModel):
                                                "given — needed when one note number has several "
                                                "blocks")
     group: str = Field(default="", description="the row's `group`, as given, when it has one")
+    # THE PERIOD OF THE ROW'S BLOCK, for a table whose columns are not periods: a movement schedule
+    # prints "Disposals" once per year under each group, and only this tells the two apart.
+    period: str = Field(default="", description="the row's `period`, as given, when it has one")
     caption: str = Field(default="", description="the row caption, quoted as the document prints it")
     # ONE COLUMN OF THE ROW, because a row of a table whose columns are fair-value levels, asset
     # classes or measures holds several figures of one year and the line is one of them. Without

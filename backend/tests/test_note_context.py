@@ -333,9 +333,11 @@ def test_no_declarations_means_no_block_rather_than_every_note():
     assert identified_notes(None, notes) == []
 
 
-def test_a_matrix_column_does_not_reach_the_identified_block_either():
-    """The same rule as the per-row context: a named component column is not a period, and a
-    segment figure presented as the year's amount is the defect that rule exists for."""
+def test_a_matrix_column_reaches_the_identified_block_under_its_column_not_a_period():
+    """A named component column is not a period: a segment figure presented as the year's amount
+    is the defect this guards. It used to be kept out of the block altogether, which also kept a
+    movement table's every figure from the model; it is now sent under its own column, and the
+    row's year figure keeps its period beside it."""
     from decimal import Decimal
     from types import SimpleNamespace
 
@@ -350,4 +352,4 @@ def test_a_matrix_column_does_not_reach_the_identified_block_either():
                                                   row_caption_any=[], row_caption_none=[]))])
     note = SimpleNamespace(note_number="5", title="Revenue", items=[row], source_text="")
     got = identified_notes(declaring, [note])
-    assert got[0]["rows"][0]["figures"] == {"current": "100"}
+    assert got[0]["rows"][0]["figures"] == {"current": "100", "col3": "40"}
