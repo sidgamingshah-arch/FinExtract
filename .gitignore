@@ -83,6 +83,8 @@ test.py
 # nothing is lost by keeping them out of the history — and a note caption is filing content.
 _filings/
 _vocab/
+# LLM stand-in outputs (backend/scripts/llm_standin.py): request bodies carry filing content.
+_standin/
 
 # Analysis scratch and measurement workbooks. The workbooks are built FROM real annual reports,
 # so they carry client figures; the JSON dumps are one-off probe output, not configuration.
