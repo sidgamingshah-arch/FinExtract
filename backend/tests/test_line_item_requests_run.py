@@ -374,6 +374,25 @@ def test_the_reply_contract_goes_first_and_the_master_prompt_after_it(shipped):
     assert "Policies to follow:" in system
 
 
+def test_a_face_only_set_is_sent_the_contract_without_its_note_passages(shipped):
+    """A set that reads every line from the faces sends no note, so the contract it is sent says
+    nothing about citing a note row, a note row's columns or a note's prose amount — those read as
+    an invitation to look for what it is never given. Every other set keeps the whole contract."""
+    face_only = line_item_llm.FACE_ONLY_REPLY_CONTRACT
+    for gone in ("A NOTE ROW", "A note row marked `nil`", "A note row that carries a `period`",
+                 "A line read from a note's rows", "THE ONE EXCEPTION", "THREE PLACES",
+                 "a note that splits a total"):
+        assert gone in line_item_llm.REPLY_CONTRACT and gone not in face_only, gone
+    for kept in ("TWO PLACES A FIGURE IS PRINTED", "A ROW ON THE FACE OF A STATEMENT",
+                 "A ROW ON ANY OTHER PAGE", "ONE COLUMN OF A ROW", "Do NOT state a figure.",
+                 "- Do not cite a note or a statement that was not supplied to you"):
+        assert kept in face_only, kept
+
+    doc = _doc(_note("7", "PROFIT BEFORE TAX", [("Auditor's remuneration", "120")]))
+    _ctx, provider = _run(shipped.model_copy(update={"strict_face_route": True}), doc, [])
+    assert provider.systems[0].startswith(face_only + "\n\n")
+
+
 def test_no_provider_means_a_fully_deterministic_run(shipped):
     doc = _doc(_note("7", "PROFIT BEFORE TAX",
                      [("Depreciation of property, plant and equipment", "5170")]))

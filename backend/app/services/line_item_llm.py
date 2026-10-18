@@ -158,6 +158,50 @@ REPLY_CONTRACT = (
     "can supply."
 )
 
+# THE FACE-ONLY CONTRACT. A set that reads every line from the faces (`strict_face_route`) sends
+# no note, so the passages that tell the model how to cite a note row, read a note row's columns
+# or state an amount from a note's prose describe material it is never given — and read as an
+# invitation to look for it. They are cut from the one contract rather than written twice, so the
+# two cannot drift apart; each cut is located by the text that starts it and the text it runs to,
+# and a rewording that loses either fails at import instead of leaving a note sentence in place.
+_FACE_ONLY_CUTS = (
+    ("- A NOTE ROW. ", "- A ROW ON THE FACE OF A STATEMENT. "),
+    ("A note row marked `nil` ", "A citation of a whole row "),
+    ("A note row that carries a `period` ", "\n\nEACH LINE SAYS"),
+    ("A line read from a note's rows ", "A line read from the face "),
+    (" THE ONE EXCEPTION is an amount stated in PROSE", "\n- Do not cite a note "),
+)
+_FACE_ONLY_WORDING = (
+    ("THREE PLACES A FIGURE IS PRINTED", "TWO PLACES A FIGURE IS PRINTED"),
+    ("Each note and statement block states", "Each statement block states"),
+    ("Where a statement block or a note row carries `columns`, it gives each key's printed "
+     "heading, and a note row's holds from that row on:",
+     "Where a statement block carries `columns`, it gives each key's printed heading:"),
+    ("Each entry names where the row is — a note or a statement — and quotes",
+     "Each entry names where the row is and quotes"),
+    ("a note that splits a total by function prints a row per function and the line is their sum",
+     "where a statement prints a line's parts as separate rows, the line is their sum"),
+)
+
+
+def _face_only(contract: str) -> str:
+    for start, end in _FACE_ONLY_CUTS:
+        i = contract.index(start)
+        contract = contract[:i] + contract[contract.index(end, i):]
+    for old, new in _FACE_ONLY_WORDING:
+        if contract.count(old) != 1:
+            raise ValueError(f"the face-only contract cannot reword {old!r}")
+        contract = contract.replace(old, new)
+    return contract
+
+
+FACE_ONLY_REPLY_CONTRACT = _face_only(REPLY_CONTRACT)
+
+
+def reply_contract(*, notes: bool) -> str:
+    """The contract for a run whose lines may (or, on a face-only set, may not) cite a note."""
+    return REPLY_CONTRACT if notes else FACE_ONLY_REPLY_CONTRACT
+
 
 class LineItemAnswer(BaseModel):
     """Where one line item's figure is printed, as the model reports it."""

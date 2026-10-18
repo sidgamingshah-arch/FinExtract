@@ -177,9 +177,12 @@ class LineItemLlmStage(Stage):
             plans = trimmed
 
         # The rulebook's judgement wording plus the master prompt, once for the run. The reply
-        # contract goes FIRST and is not configurable — see `line_item_llm.REPLY_CONTRACT`.
+        # contract goes FIRST and is not configurable — see `line_item_llm.REPLY_CONTRACT`. A
+        # face-only set is sent the contract without its note passages: it is given no note.
         working = getattr(ctx, "ontology", None) or build_working_view(line_item_set)
-        system = line_item_llm.REPLY_CONTRACT + "\n\n" + authored_guidance(working, ctx.settings)
+        contract = line_item_llm.reply_contract(
+            notes=not getattr(line_item_set, "strict_face_route", False))
+        system = contract + "\n\n" + authored_guidance(working, ctx.settings)
         # THE WHOLE DOCUMENT WITH EVERY QUESTION, when an admin has asked for it. Built once, before
         # the first request, and sent unchanged on every one — after the system text and before
         # the question, so everything up to the question is the same bytes on every call and a
