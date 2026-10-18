@@ -801,7 +801,7 @@ def _scan_row(row: list[Word], fmt=None, *, extract_note_refs: bool = True) -> t
         # A bracketed column heading — 1966's "Quoted prices in active market (Level 1)" — is read
         # by the header reader, which needs its "1)" where it always was.
         if (not value_words and label_words and tok.endswith(")") and not tok.startswith("(")
-                and label_words[-1].text.strip().lower() in ("note", "notes")
+                and label_words[-1].text.strip().lstrip("(（").lower() in ("note", "notes")
                 and _open_brackets(label_words) > 0):
             label_words.append(row[i])
             i += 1
@@ -1455,6 +1455,34 @@ def heading_path(stack: list[tuple[float, str]]) -> str:
     return " / ".join(text for _x, text in stack)
 
 
+# A CAPTION LINE THAT IS ONLY A BRACKETED NOTE REFERENCE: "(refer note 11)", "(Note 6)".
+_REFERENCE_ONLY = re.compile(r"^[(（]\s*(?:(?:refer|see)\s+)?notes?\b[^()（）]*[)）]$",
+                             re.IGNORECASE)
+
+
+def _continues_as_a_reference(prev: list[Word], row: list[Word], label_words: list[Word],
+                              fmt, steps) -> bool:
+    """Whether a valued row captioned only by a bracketed note reference is the last line of the
+    caption printed, without figures, directly above it.
+
+    f1's cash flow statement prints "Cash and cash equivalents at the end of the year" over
+    "(refer note 11)   1,023.13   824.56". The first line is a complete caption, so the wrap
+    merge (rightly) refuses to fold it forward as an unfinished head, and the figures were filed
+    under "(refer note 11)" alone — which the residual swept into other financing cash flows
+    (-1,375.77 against the (2,398.90) the statement prints). A reference names no line item of its
+    own, so a valued row captioned by nothing else belongs to the figure-less caption above it, when
+    that caption is a line (not a banner) set directly above it.
+    """
+    if not _REFERENCE_ONLY.match(_join_words(label_words).strip()):
+        return False
+    prev_labels, prev_note, prev_values = _scan_row(prev, fmt)
+    if prev_values or not prev_labels or prev_note is not None:
+        return False
+    if _looks_like_header(prev_labels, steps) or _any_banner_line(prev_labels, steps):
+        return False
+    return _wrap_adjacent(_row_box(prev), _row_box(row), label_words)
+
+
 def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
                           steps: tuple[tuple[str, object], ...] = (),
                           page_title: str | None = None,
@@ -1528,6 +1556,11 @@ def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
                     and _is_known_caption(_scan_row(pending, fmt)[0], steps, known)):
                 out.append(pending)
                 pending = []
+            # A BRACKETED NOTE REFERENCE PRINTED AS THE LAST LINE of a caption that is already
+            # complete on the line above — see `_continues_as_a_reference`.
+            if (not pending and out and label_words
+                    and _continues_as_a_reference(out[-1], row, label_words, fmt, steps)):
+                pending = out.pop()
             straddle = ((list(pending), _row_box(row))
                         if pending and not label_words else None)
             out.append(pending + row if pending else row)
@@ -1870,7 +1903,8 @@ def _wrap_adjacent(cur: BBox, nxt: BBox, nxt_label: list[Word]) -> bool:
     return abs(cur.x0 - label_x0) <= 0.06                # left-aligned in the label column
 
 
-def _heads_indented_rows(head: list[Word], nxt_label: list[Word]) -> bool:
+def _heads_indented_rows(head: list[Word], nxt_label: list[Word], *,
+                         complete: bool = False) -> bool:
     """Whether a figure-less line in a NOTE is the sub-heading of the indented rows printed under
     it, rather than the first line of a caption that wraps into the next row.
 
@@ -1892,6 +1926,13 @@ def _heads_indented_rows(head: list[Word], nxt_label: list[Word]) -> bool:
     A hanging continuation reads as one: the head ends mid-phrase ("Property, plant and") or the
     tail opens with a connective or in lower case ("equipment", "and cash equivalents"). A heading
     is a finished phrase over a caption that begins one of its own.
+
+    ``complete`` says the head is a caption the rulebook knows whole, so the wrap merge has already
+    refused to fold it forward: then a capitalised connective opening the row beneath is that row's
+    own first word, not the head's continuation. f2's note 22 prints "Dividend income" over
+    "From subsidiary company" / "From current investments"; read as a continuation, the heading
+    was neither merged nor opened, the rows stayed under "Interest income" above it, and interest
+    received read 35.32 against the 18.65 + 4.12 the note prints.
     """
     if not head or not nxt_label:
         return False
@@ -1911,7 +1952,7 @@ def _heads_indented_rows(head: list[Word], nxt_label: list[Word]) -> bool:
     # `test_note_block_subtotal`), where this one's ends with its block.
     if _looks_like_header(head) or head_text.endswith(("：", "﹕")):
         return False
-    if _HEAD_INCOMPLETE.search(head_text) or _CONT_STARTS.match(tail_text):
+    if not complete and (_HEAD_INCOMPLETE.search(head_text) or _CONT_STARTS.match(tail_text)):
         return False
     return not tail_text[0].islower()
 
@@ -6369,7 +6410,8 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                 titles.add(id(row))
             elif _heads_a_movement_block(lw, nxt):
                 block_heads.add(id(row))
-            elif _heads_indented_rows(lw, nxt):
+            elif _heads_indented_rows(lw, nxt, complete=_is_known_caption(
+                    lw, steps, known_captions or frozenset())):
                 sub_heads.add(id(row))
             elif _heads_a_qualifier_block(lw, nxt):
                 # Flush with its rows, like a movement block's heading, and held open the same way.

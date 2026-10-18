@@ -92,6 +92,27 @@ _HAN_RUN = re.compile(r"[㐀-鿿豈-﫿]")
 _HAN_PART = re.compile(r"[㐀-鿿豈-﫿　-〿＀-￯]+")
 
 
+# A BRACKETED ASIDE on a sub-heading: "Current (unsecured, considered good)".
+_HEADING_ASIDE = re.compile(r"[(（][^)）]*[)）]")
+
+
+def _names_own_portion(group: str, portions) -> bool:
+    """Whether a sub-heading NAMES this part's own side of a split note.
+
+    A row's sub-heading is vetoed like its caption (see the group gate in `note_row_hits`), and a
+    current part's vetoes refuse a caption that IS the split ("Current", "Non-current portion") —
+    right for a row, wrong for a heading. An Ind AS note prints each side as its own block under
+    "Non-current (unsecured, considered good)" / "Current (unsecured, considered good)", so the
+    current block's rows carry the heading "Current ..." and the current part refused all of them:
+    f1's other financial assets read nothing against the 30.35 / 30.25 the face prints. A heading
+    that this part's own `portion_row_any` names, its aside dropped, is the part's own block, so it
+    is not a veto; the other side's heading still is.
+    """
+    if not portions or not group:
+        return False
+    return bool(_matches_any(_HEADING_ASIDE.sub(" ", group).strip(), portions))
+
+
 def _script_halves(text: str) -> list[str]:
     """``[text]``, or ``[text, latin half, han half]`` when the caption carries both scripts."""
     if not (_HAN_RUN.search(text) and re.search(r"[A-Za-z]{2,}", text)):
@@ -473,7 +494,9 @@ def select_rows(item, notes, periods: set[str] | None = None,
                     bool(group) and _matches_any(group, counts))
                 if not matched:
                     continue
-                if _matches_any(caption, vetoes) or (group and _matches_any(group, vetoes)):
+                if _matches_any(caption, vetoes) or (
+                        group and _matches_any(group, vetoes)
+                        and not _names_own_portion(group, portions)):
                     continue
             # THE COLUMN GATE, ANDed after the row gates. A column-selected part reads the values
             # of this row that stand under a heading its patterns admit, in place of the block's
