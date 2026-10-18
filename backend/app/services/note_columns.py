@@ -27,6 +27,13 @@ from app.services.han import has_han, to_simplified
 # The value flag a two-level PRC header sets — mirrored from `row_reconstruct.GRID_FLAG` rather
 # than imported, so a reader of this module does not pull in the whole reconstructor.
 GRID_FLAG = "column_grid:period_x_measure"
+# …and the row flag of a note row printed nil in every column (`row_reconstruct.NIL_ROW_FLAG`).
+NIL_ROW_FLAG = "printed_nil"
+
+
+def printed_nil(row) -> bool:
+    """Whether the row was printed with a nil mark in every column and so carries no figure."""
+    return NIL_ROW_FLAG in (getattr(getattr(row, "confidence", None), "flags", None) or ())
 
 _SPACES = re.compile(r"\s+")
 # The joiner the reader puts between a period group and its column ("期末余额 · 账面余额").
@@ -611,7 +618,8 @@ def table_layout(table, newest: tuple[int, int, int] | None = None) -> dict[int,
     # 1. Header fragments, in runs; each run opens a segment.
     fragment = [False] * len(rows)
     for i, row in enumerate(rows):
-        fragment[i] = _header_fragment(row, i > 0 and fragment[i - 1])
+        fragment[i] = (not printed_nil(row)
+                       and _header_fragment(row, i > 0 and fragment[i - 1]))
     seg = [0] * len(rows)
     s = 0
     for i in range(len(rows)):
@@ -626,7 +634,11 @@ def table_layout(table, newest: tuple[int, int, int] | None = None) -> dict[int,
         if own[i]:
             seg_keys.setdefault(seg[i], set()).update(k for k, _ev in _figures(row))
     # Under a header the reader split into rows (segment 1 on), every figure row is that table's.
-    non_period = [own[i] or (not fragment[i] and bool(_figures(r)) and seg[i] in seg_keys
+    # A row printed nil in every column is a row of the table it is printed in: it has no figure
+    # to key, and its block and period are the table's — "(iii) Disputed dues - MSME" under an
+    # ageing schedule's dated title.
+    non_period = [own[i] or (not fragment[i] and (bool(_figures(r)) or printed_nil(r))
+                             and seg[i] in seg_keys
                              and (seg[i] > 0
                                   or {k for k, _ev in _figures(r)} <= seg_keys[seg[i]]))
                   for i, r in enumerate(rows)]
@@ -787,10 +799,66 @@ def notes_layout(notes) -> dict[int, dict]:
     # end as its other notes print it: the latest balance date any note prints.
     filing = max(newest.values(), default=None)
     out: dict[int, dict] = {}
+    previous = None
     for table in notes or ():
-        out.update(table_layout(table, newest.get(str(getattr(table, "note_number", "") or ""))
-                                or filing))
+        laid = table_layout(table, newest.get(str(getattr(table, "note_number", "") or ""))
+                            or filing)
+        _continue_the_period(previous, table, out, laid)
+        out.update(laid)
+        previous = table
     return out
+
+
+def _laid_rows(table, layout: dict[int, dict]) -> list:
+    return [r for r in (getattr(table, "items", None) or ())
+            if id(r) in layout and not layout[id(r)].get("fragment")]
+
+
+def _continue_the_period(previous, table, before: dict[int, dict], laid: dict[int, dict]) -> None:
+    """A TABLE CONTINUED ACROSS A PAGE BREAK IS THE SAME TABLE, and takes the period of the table
+    it continues. f1 note 10 prints its 31 March 2024 ageing schedule at the foot of one page and
+    its last three rows ("(v)", "(vi)", "Total") at the top of the next, under the same column
+    heading and with no title — so the continuation's rows were `unstated`.
+
+    Only where that can be SHOWN, never guessed: the fragment just before this one is the same
+    note on the page before; this fragment prints no dated title of its own; both print the same
+    columns; and the earlier fragment's rows are unfinished (its last row is no total) and dated by
+    its title. The rows taken over are the ones the table left `unstated`, and they say where the
+    period came from ("as at 31 March 2024 (carried from page 10)")."""
+    if previous is None or not laid:
+        return
+    number = str(getattr(table, "note_number", "") or "")
+    if not number or str(getattr(previous, "note_number", "") or "") != number:
+        return
+    pages, prev_pages = (list(getattr(table, "source_pages", None) or ()),
+                         list(getattr(previous, "source_pages", None) or ()))
+    if not pages or not prev_pages or pages[0] != prev_pages[-1] + 1:
+        return
+    if _DATED_TITLE.search(unicodedata.normalize(
+            "NFKC", str(getattr(table, "source_text", "") or ""))):
+        return
+    prev_rows = _laid_rows(previous, before)
+    rows = _laid_rows(table, laid)
+    if not prev_rows or not rows:
+        return
+    last = prev_rows[-1]
+    last_lay = before[id(last)]
+    if not last_lay.get("period") or not str(last_lay.get("period_text", "")).startswith("as at"):
+        return
+    if str(getattr(getattr(last, "role", ""), "value", getattr(last, "role", ""))) in (
+            "total", "subtotal"):
+        return                                   # the earlier table ended: this one is another
+    columns = [h for h in (getattr(rows[0], "printed_columns", None) or ()) if h]
+    if not columns or columns != [h for h in (getattr(last, "printed_columns", None) or ()) if h]:
+        return
+    carried = (f"{last_lay['period_text']} (carried from page {prev_pages[-1] + 1})")
+    for r in rows:
+        lay = laid[id(r)]
+        if (lay.get("period") or lay.get("key_periods") or lay.get("earlier")
+                or lay.get("period_text") != UNSTATED):
+            continue
+        lay["period"], lay["period_text"] = last_lay["period"], carried
+        lay["dated"] = True
 
 
 def pick_laid_out(row, lay: dict, want: str | None, *, reporting_period: str = "current") -> dict:

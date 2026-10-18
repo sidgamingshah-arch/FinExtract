@@ -16,7 +16,7 @@ from app.core.models.enums import Basis, LineRole
 from app.core.models.line_item import NoteItem, NotesTable
 from app.services import page_spread
 from app.services.row_reconstruct import (
-    _AGE_UNIT, _CAPTION_GAP, DATE_TOKEN, DETECT_FOLD, GRID_FLAG, ColumnGrid, Word, _caption_text,
+    _AGE_UNIT, _CAPTION_GAP, DATE_TOKEN, DETECT_FOLD, GRID_FLAG, NIL_ROW_FLAG, ColumnGrid, Word, _caption_text,
     _carries_amounts, _fuse_bucket_numbers,
     _group_rows, _measure_slug, _prc_period_slot, _scan_row, _x_runs, build_line_items,
     row_tolerance)
@@ -1550,6 +1550,8 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
                 # flag alone would be raised where nothing on this screen looks for it.
                 if GRID_FLAG in ev.confidence.flags and GRID_FLAG not in ni.confidence.flags:
                     ni.confidence.flags.append(GRID_FLAG)
+            if NIL_ROW_FLAG in li.confidence.flags:
+                ni.confidence.flags.append(NIL_ROW_FLAG)       # printed nil in every column
             table.items.append(ni)
         tables.append(table)
     return without_empty_duplicates(tables)

@@ -204,7 +204,10 @@ def test_a_dash_between_caption_words_is_not_a_column():
 
 def test_an_ageing_row_keeps_the_caption_after_its_marker():
     rows = [(li.source_label, _figures(li)) for li in _build(AGEING)]
-    assert [cap for cap, _f in rows] == ["(i) MSME", "(ii) Others", "Total"]
+    # The two disputed rows print a dash in every column: they are rows, with no figure.
+    assert [cap for cap, _f in rows] == ["(i) MSME", "(ii) Others", "(iii) Disputed dues - MSME",
+                                         "(iv) Disputed dues - Others", "Total"]
+    assert rows[2][1] == {} and rows[3][1] == {}
     assert rows[0][1] == {"Not due": "2048.90", "Less than 1 year": "135.46", "Total": "2184.36"}
 
 

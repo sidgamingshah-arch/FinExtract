@@ -911,6 +911,7 @@ def identified_notes(line_item_set, notes, *, cited=None, every_note: bool = Fal
                                 else {}),
                              **({"header": lay["header"]} if lay.get("header") else {}),
                              **({"figures": laid} if laid else {}),
+                             **({"nil": True} if note_columns.printed_nil(row) else {}),
                              "_unit": units.row_unit(row, doc_unit)}
                 printed = [h for h in (getattr(row, "printed_columns", None) or ()) if h]
                 if printed and note_columns.blank_columns(row) and printed != printed_prev:
@@ -944,6 +945,7 @@ def identified_notes(line_item_set, notes, *, cited=None, every_note: bool = Fal
             group = str(getattr(row, "group_hint", "") or "").strip()
             entry_row = {"caption": caption, **({"group": group} if group else {}),
                          **({"figures": figures} if figures else {}),
+                         **({"nil": True} if note_columns.printed_nil(row) else {}),
                          "_unit": units.row_unit(row, doc_unit)}
             if legend and legend != legend_prev:
                 entry_row["columns"] = legend

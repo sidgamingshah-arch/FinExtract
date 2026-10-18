@@ -1007,6 +1007,34 @@ def _heads_a_movement_block(head: list[Word], nxt_label: list[Word]) -> bool:
     return bool(_MOVEMENT_HEAD.match(head_text)) and bool(_OPENS_ON_A_BALANCE.match(tail_text))
 
 
+# A QUALIFIER PRINTED AS A HEADING over a note's rows, and nothing else on its line: "Current",
+# "Non-current", "Unsecured, considered good", "Current (unsecured, considered good)". Schedule III's
+# own vocabulary for the classification of a balance; a fixed list.
+_QUALIFIER_HEAD = re.compile(
+    r"^\s*(?:(?:non[-\s]?current|current)\b\s*)?"
+    r"(?:\(?\s*(?:(?:un)?secured\b\s*,?\s*)?(?:considered\s+(?:good|doubtful)\b)?\s*\)?)?"
+    r"\s*:?\s*$", re.I)
+_CAPTION_OPENS = re.compile(r"^[A-Z][a-z]")
+
+
+def _heads_a_qualifier_block(head: list[Word], nxt_label: list[Word]) -> bool:
+    """Whether a figure-less line is a QUALIFIER heading over the rows below rather than the first
+    line of the caption under it.
+
+    f1 prints "Current (unsecured, considered good)" over "Loans to employees", "Unsecured,
+    considered good" over "Advances to suppliers" and "Current" over "Interest accrued but not due
+    on borrowings", all flush with their rows and tightly set, so the wrap merge joined each onto
+    the caption below: the model was sent "Unsecured, considered good Advances to suppliers". The
+    qualifier is the rows' group. The heading must be nothing but the qualifier and the next line
+    must open a caption of its own (a capital, then a lower-case letter)."""
+    if not head or not nxt_label:
+        return False
+    head_text = " ".join(w.text for w in sorted(head, key=lambda w: w.bbox.x0)).strip()
+    tail_text = " ".join(w.text for w in sorted(nxt_label, key=lambda w: w.bbox.x0)).strip()
+    return (bool(head_text.strip(" :()")) and bool(_QUALIFIER_HEAD.match(head_text))
+            and bool(_CAPTION_OPENS.match(tail_text)))
+
+
 def _label_keeping_its_date(row: list[Word], label_words: list[Word],
                             value_words: list[Word], fmt=None) -> list[Word]:
     """Give a period-prefixed caption its date back, leaving the VALUES untouched.
@@ -1067,6 +1095,15 @@ def _label_keeping_its_date(row: list[Word], label_words: list[Word],
                 if id(w) not in taken and DATE_TOKEN.match(w.text.strip().strip(",.()"))]
         return list(label_words) + date if date else label_words
     skip = {id(w) for w in figures}
+    # A NIL DASH SET AMONG THE FIGURES IS A CELL, NOT A WORD OF THE CAPTION. f1 note 3's ageing
+    # schedule prints "As at 31 March 2025  1,186.25  177.15  -  -  1,363.40"; rebuilt from every
+    # non-figure word, the caption was "As at 31 March 2025 - -", which no dated-balance test reads
+    # as a date, and both rows were dropped as header lines. Only a dash to the RIGHT of the first
+    # figure is left out, so a dash inside a caption ("Disputed dues - MSME") is untouched.
+    first_x = min((w.bbox.x0 for w in figures), default=None)
+    if first_x is not None:
+        skip |= {id(w) for w in row
+                 if w.bbox.x0 > first_x and _NIL_MARK.match(w.text.strip())}
     kept = [w for w in sorted(row, key=lambda w: w.bbox.x0) if id(w) not in skip]
     return kept or label_words
 
@@ -1257,8 +1294,10 @@ def _join_words(words: list[Word]) -> str:
 
 
 def _wrap_reaches_a_value(rows: list[list[Word]], idx: int, fmt=None,
-                          steps: tuple[tuple[str, object], ...] = (), max_lines: int = 3) -> bool:
-    """Whether the label-only line at ``idx`` begins a caption that reaches a valued row.
+                          steps: tuple[tuple[str, object], ...] = (), max_lines: int = 3,
+                          nil_ends: bool = False) -> bool:
+    """Whether the label-only line at ``idx`` begins a caption that reaches a valued row (or, with
+    ``nil_ends`` — a note — a row printed nil in every column).
 
     THE DEFECT THIS CLOSES, reported off the notes to a real filing: a caption that wraps over MORE
     THAN TWO lines lost everything but its tail. "Deposits paid for acquisition of" / "land use
@@ -1278,7 +1317,7 @@ def _wrap_reaches_a_value(rows: list[list[Word]], idx: int, fmt=None,
         if j >= len(rows):
             return False
         label_words, _note, value_words = _scan_row(rows[j], fmt)
-        if value_words:
+        if value_words or (nil_ends and _nil_row(label_words)):
             return True
         if not label_words:
             return False
@@ -1448,7 +1487,10 @@ def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
     straddle: tuple[list[Word], BBox] | None = None
     for idx, row in enumerate(rows):
         label_words, note_ref, value_words = _scan_row(row, fmt)
-        if value_words:
+        # IN A NOTE, A ROW PRINTED NIL IN EVERY COLUMN ENDS ITS CAPTION as a row of figures does:
+        # f1 note 10's "(ii) Undisputed trade / receivables - which have / significant increase
+        # in credit / risk  -  -  -" is one row, and its head is no longer lost. See `_nil_row`.
+        if value_words or (not on_face and pending and _nil_row(label_words)):
             # A ROW THAT OPENS ITS OWN LINE DOES NOT INHERIT A PENDING FRAGMENT — see
             # `_opens_its_own_line`. Its enumeration says it starts a line of the statement, so
             # whatever label-only text is still pending above it belongs to something else.
@@ -1603,7 +1645,7 @@ def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
             # …and the caption reaches a figure. Not necessarily on the NEXT row: a caption may
             # wrap over three or more lines, and requiring the value immediately dropped every line
             # but the last two (see `_wrap_reaches_a_value`).
-            and _wrap_reaches_a_value(rows, idx, fmt, steps)
+            and _wrap_reaches_a_value(rows, idx, fmt, steps, nil_ends=not on_face)
             and _wrap_adjacent(_row_box(row), _row_box(nxt), _scan_row(nxt, fmt)[0])
             # IN A NOTE, A HEADING OVER INDENTED ROWS is not their caption's first line — see
             # `_heads_indented_rows`. Faces are left as they were: their captions are what the
@@ -1614,7 +1656,9 @@ def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
             and (on_face or not (_heads_indented_rows(label_words, _scan_row(nxt, fmt)[0])
                                  or _titles_the_table(label_words, _scan_row(nxt, fmt)[0])
                                  or _heads_a_movement_block(label_words,
-                                                            _scan_row(nxt, fmt)[0])))
+                                                            _scan_row(nxt, fmt)[0])
+                                 or _heads_a_qualifier_block(label_words,
+                                                             _scan_row(nxt, fmt)[0])))
         )
         if is_wrap:
             pending = pending + row
@@ -4580,6 +4624,9 @@ EQUITY_BALANCE_FLAG = "equity_matrix_balance"
 # knows the figure is not the comparative the spread shows.
 RESTATED_FLAG = "restated"
 BY_POSITION_FLAG = "period_by_position"
+# A NOTE ROW PRINTED WITH A NIL MARK IN EVERY COLUMN ("(iii) Disputed dues - MSME  -  -  -"): kept
+# as a row so the request can say it was printed, and carrying no figure at all.
+NIL_ROW_FLAG = "printed_nil"
 ORIGINAL_SUFFIX = "_original"
 
 
@@ -5416,7 +5463,8 @@ def _is_matrix_noise(label: str, row_text: str, vals: list) -> bool:
 def _matrix_items(m: _Matrix, names: list[str], *, page_index: int, document_id: str | None,
                   source_kind: str, ordinal_start: int, fmt=None,
                   unit_ctx: UnitContext | None = None, dims: tuple[str, ...] = (),
-                  log=None, page_scope: str | None = None) -> tuple[list[LineItem], int]:
+                  log=None, page_scope: str | None = None,
+                  on_face: bool = True) -> tuple[list[LineItem], int]:
     """One LineItem per MOVEMENT ROW, its values keyed by component-column name.
 
     Why one item per row rather than one per cell: ``LineItem.values`` is already a dict keyed by
@@ -5598,6 +5646,12 @@ def _matrix_items(m: _Matrix, names: list[str], *, page_index: int, document_id:
                     and len(li.values) * 3 >= len(m.bands) * 2):
                 li.confidence.flags.append(
                     f"{EQUITY_BALANCE_FLAG}:{when[0]:04d}-{when[1]:02d}-{when[2]:02d}")
+            items.append(li)
+            ordinal += 1
+        elif (not on_face and cells
+              and all(_NIL_CELL.match(_cell_text(w.text)) for w in cells)):
+            # A NOTE ROW PRINTED NIL IN EVERY COLUMN is still a printed row — see `NIL_ROW_FLAG`.
+            li.confidence.flags.append(NIL_ROW_FLAG)
             items.append(li)
             ordinal += 1
     return items, ordinal
@@ -5980,7 +6034,8 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                 fmt=number_format,
                 unit_ctx=_unit_context(_statement_unit(matrix.rows, unit_signals,
                                                        number_format), page_index),
-                dims=dims, log=log, page_scope=page_scope if on_face else None)
+                dims=dims, log=log, page_scope=page_scope if on_face else None,
+                on_face=on_face)
             rest_args = {**_call_args, "ordinal_start": ordinal}
             rest_args.pop("words")
             more, ordinal = build_line_items(
@@ -5995,7 +6050,7 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                                                                    number_format), page_index),
                              dims=dims, log=log,
                              # FACE ONLY, exactly as the two-column path applies it below.
-                             page_scope=page_scope if on_face else None)
+                             page_scope=page_scope if on_face else None, on_face=on_face)
     if statement == "changes_in_equity":
         # A named matrix we cannot attribute is worse than nothing: every figure would be filed
         # under a period that does not exist. Report it and emit no rows for the page. A page
@@ -6301,6 +6356,9 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                 block_heads.add(id(row))
             elif _heads_indented_rows(lw, nxt):
                 sub_heads.add(id(row))
+            elif _heads_a_qualifier_block(lw, nxt):
+                # Flush with its rows, like a movement block's heading, and held open the same way.
+                block_heads.add(id(row))
     # THE NUMBERED HEADINGS OF A SCHEDULE III FACE, kept apart from the rows under them by
     # `_heads_numbered_face_block`: a roman-numbered one ("X. Other comprehensive income") is the
     # section of the rows under it, a lettered one ("A. (i) Items that will not be reclassified to
@@ -6352,9 +6410,34 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
         # A ROW OF NIL DASHES carries no figure and is no heading: read as one it would open a
         # section over the rows beneath it. See `_nil_row`.
         if not value_words and _nil_row(label_words):
+            # IN A NOTE THE ROW IS STILL PRINTED, and it is read as a row with no figure: f1 note
+            # 22's ageing schedule prints "(iii) Disputed dues - MSME  -  -  -  -  -  -", and a
+            # request that leaves it out says nothing about whether the filing printed it nil or
+            # did not print it at all. No figure is made of the dashes — `NIL_ROW_FLAG` says what
+            # was printed, and the arithmetic still sees nothing. A face is left as it was.
+            if not on_face:
+                caption = list(label_words)
+                while caption and _NIL_CELL.match(_cell_text(caption[-1].text)):
+                    caption.pop()
+                text = _join_words(caption)
+                if _HAN.search(text) or _LATIN.search(text):
+                    nil = LineItem(source_label=text, ordinal=ordinal, role=LineRole.LINE,
+                                   section_hint=section,
+                                   group_hint=group, source=ValueSource.MACHINE)
+                    nil.confidence.flags.append(NIL_ROW_FLAG)
+                    items.append(nil)
+                    ordinal += 1
             continue
         label_words = _label_keeping_its_date(row, label_words, value_words, number_format)
         label = _join_words(_regroup_scripts(label_words))
+        # IN A NOTE, A DATED BALANCE'S DATE IS ITS CAPTION'S AND NOT ITS FIGURES'. The date tokens
+        # the caption took back stayed among the values, to be dropped by the column bands; an
+        # ageing schedule whose bucket headings ("Less than 1 year", "1-2 years") are not read as
+        # bands kept them, and f1 note 3's "As at 31 March 2025" row was sent {31, 2025, 1186.25 …}.
+        if not on_face and _DATED_BALANCE_LABEL.match(label):
+            in_label = {id(w) for w in label_words}
+            if any(id(w) in in_label for w in value_words):
+                value_words = [w for w in value_words if id(w) not in in_label]
         # WHICH ROW THIS LINE IS A 其中 BREAKDOWN OF, read before any branch below can drop the line:
         # the 其中：优先股 line that opens 永续债's breakdown has no figure and is dropped as a row.
         breakdown_of = (_breakdown_parent(open_breakdowns, label_words, label,
