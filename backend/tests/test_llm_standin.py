@@ -69,6 +69,18 @@ def run_dir(tmp_path: Path) -> Path:
 
 # ---- the recorded body and the answer parsing ------------------------------------------------
 
+def test_a_capture_into_a_reused_folder_keeps_only_its_own_requests(tmp_path: Path):
+    """A request a previous capture left behind was read as this run's (note 4's lost heading was
+    a stale file). Answers and audits stay: a replay answers from them."""
+    for d, name in (("requests", "old.json"), ("system", "old.md"), ("answers", "a.txt"),
+                    ("audit", "a.json")):
+        (tmp_path / d).mkdir()
+        (tmp_path / d / name).write_text("{}")
+    standin.Recorder(tmp_path)
+    assert not list((tmp_path / "requests").iterdir()) and not list((tmp_path / "system").iterdir())
+    assert (tmp_path / "answers" / "a.txt").exists() and (tmp_path / "audit" / "a.json").exists()
+
+
 def test_recorded_body_is_the_gateway_body(tmp_path: Path):
     rec = standin.Recorder(tmp_path)
     msgs = _messages(_payload())

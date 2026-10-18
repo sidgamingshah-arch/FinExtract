@@ -28,6 +28,7 @@ import json
 import os
 import random
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -122,6 +123,11 @@ class Recorder:
         self.answers = out / "answers"
         self.requests = out / "requests"
         self.system = out / "system"
+        # A capture records ONE run: requests a previous capture left in a reused folder would be
+        # read as this run's. Answers and audits are kept — a replay answers from them.
+        for d in (self.requests, self.system):
+            if d.exists():
+                shutil.rmtree(d)
         for d in (self.answers, self.requests, self.system):
             d.mkdir(parents=True, exist_ok=True)
         self.calls: list[dict] = []
