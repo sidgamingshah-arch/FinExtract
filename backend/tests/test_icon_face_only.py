@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import pathlib
+import re
 from decimal import Decimal
 
 import pytest
@@ -102,3 +103,50 @@ def test_the_hk_set_is_not_strict_and_its_face_lines_still_split():
     by_key = {i.key: i for i in hk.items}
     decl = ("bs_ca__other_current_assets", ["bs_ca__prepayments_cp"], "bs_ca")
     assert route_fenced_decompositions([decl], by_key, hk.strict_face_route) == ([decl], [])
+
+
+# A DEFINITION IS WHAT THE MODEL READS TO LOCATE A FIGURE (`line_item_llm.line_item_payload`), and an
+# ICON request carries statement rows only. A definition that names a note as where the figure sits
+# tells the model to read what it is not given. "not from a note" says a note figure is NOT taken
+# and is the one form allowed (the stand-in lint's `note_not_supplied` exempts the same form).
+_NOTE = re.compile(r"\bnotes?\b|附注|附註", re.I)
+_NOT_A_NOTE = re.compile(r"\bnot (?:in|from) (?:a|any|the) notes?\b", re.I)
+CAPTIONS = pathlib.Path(__file__).resolve().parents[1] / "scripts" / "sample_data" / "icon" / "captions.json"
+
+
+def _sends_to_a_note(text: str) -> bool:
+    return bool(_NOTE.search(_NOT_A_NOTE.sub("", text or "")))
+
+
+def test_no_icon_definition_sends_the_model_to_a_note(icon):
+    assert icon.strict_face_route is True
+    assert not [i.key for i in icon.items if _sends_to_a_note(i.definition)]
+    # The source the build script reads, so a regeneration cannot bring one back.
+    reviewed = json.loads(CAPTIONS.read_text(encoding="utf-8"))
+    assert not [k for k, v in reviewed.items() if _sends_to_a_note(v.get("definition") or "")]
+
+
+# Where a definition says a combined face row "belongs to" another line, the deterministic matcher
+# must land that row on the same line, or the model route and the deterministic route disagree.
+@pytest.mark.parametrize("caption,statement,key,named_by", [
+    ("Other expenses", "profit_and_loss", "pl_icon__sga_others", "pl_icon__power_and_fuel"),
+    ("Other income", "profit_and_loss", "pl_icon__misc_income", "pl_icon__interest_received"),
+    ("Depreciation and amortisation expense", "profit_and_loss", "pl_icon__depreciation",
+     "pl_icon__amortization"),
+    ("Employee benefits expense", "profit_and_loss", "pl_icon__salary_and_staff_expenses",
+     "pl_icon__directors_remuneration"),
+    ("Finance costs", "profit_and_loss", "pl_icon__interest", "pl_icon__bank_charges"),
+    ("Revenue from operations", "profit_and_loss", "pl_icon__total_operating_income",
+     "pl_icon__domestic_sales"),
+    ("Other equity", "balance_sheet", "bs_icon__other_reserves", "bs_icon__general_reserve"),
+    ("Reserves and surplus", "balance_sheet", "bs_icon__other_reserves", "bs_icon__share_premium"),
+    ("Inventories", "balance_sheet", "bs_icon__inventory", "bs_icon__finished_goods"),
+    ("Cash and cash equivalents", "balance_sheet", "bs_icon__cash_and_bank_balances",
+     "bs_icon__cash_balance"),
+    ("Trade receivables", "balance_sheet", "bs_icon__receivables", "bs_icon__export_receivables"),
+])
+def test_a_combined_face_row_lands_where_the_definitions_say(icon, caption, statement, key, named_by):
+    from app.services.line_item_matching import LineItemMatcher
+    assert LineItemMatcher(icon).match(caption, statement).key == key
+    definition = next(i.definition for i in icon.items if i.key == named_by)
+    assert f"'{caption}'" in definition and key in definition

@@ -637,7 +637,7 @@
     "pl_income"
    ],
    "order": 1,
-   "definition": "Sales of products and services to customers in India for the year, before excise duty. Ind AS filings print one face row, 'Revenue from operations'; the domestic/export split is in its note ('Sale of products - Domestic', 'Sale of services') or in the disaggregation of revenue / geographical segment note ('Within India'). Indian GAAP prints it in the 'Revenue from operations' note. Where only total sale of products is given with no geographical split, the whole is domestic. Other operating revenue (scrap, export incentives, job work) belongs to pl_icon__other_recurring_operating_income.",
+   "definition": "Sales of products and services to customers in India for the year, before excise duty. Taken from a face row that names it ('Sale of products - Domestic', 'Domestic sales', 'Sales within India'), which an Indian GAAP (Revised Schedule VI) face sometimes prints under 'Revenue from operations'. When the face prints only 'Revenue from operations' (the usual Ind AS, Schedule III Division II, face) leave this line blank: that row belongs to pl_icon__total_operating_income, and a bare 'Sale of products' to pl_icon__gross_sales_total. The figure is read off the face, not from a note. Other operating revenue (scrap, export incentives, job work) belongs to pl_icon__other_recurring_operating_income.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
@@ -694,7 +694,7 @@
     "pl_income"
    ],
    "order": 2,
-   "definition": "Sales of products and services to customers outside India for the year, including deemed exports, before excise duty. Printed in the 'Revenue from operations' note ('Sale of products - Export', 'Export sales') or the geographical disaggregation ('Outside India'). Export incentives, duty drawback and RoDTEP/MEIS benefits are not sales: they are pl_icon__other_recurring_operating_income.",
+   "definition": "Sales of products and services to customers outside India for the year, including deemed exports, before excise duty. Taken from a face row that names it ('Sale of products - Export', 'Export sales', 'Export turnover'). When the face prints only 'Revenue from operations' leave this line blank: that row belongs to pl_icon__total_operating_income. The figure is read off the face, not from a note. Export incentives, duty drawback and RoDTEP/MEIS benefits are not sales: they are pl_icon__other_recurring_operating_income.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
@@ -817,7 +817,7 @@
     "pl_income"
    ],
    "order": 4,
-   "definition": "Excise duty included in gross sales and deducted to reach net sales: the 'Less: Excise duty' row of an Indian GAAP P&L or revenue note, or the 'Excise duty' expense row of an Ind AS P&L for periods before GST (July 2017). Positive magnitude. GST is never included in revenue and is not this line.",
+   "definition": "Excise duty included in gross sales and deducted to reach net sales: the 'Less: Excise duty' row of an Indian GAAP (Revised Schedule VI) face, or the 'Excise duty' expense row of an Ind AS (Schedule III Division II) face for periods before GST (July 2017). Positive magnitude. Blank when the face prints no excise row. GST is never included in revenue and is not this line.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
@@ -925,7 +925,7 @@
     "pl_income"
    ],
    "order": 7,
-   "definition": "Operating income incidental to the main business: the 'Other operating revenue(s)' rows of the 'Revenue from operations' note - sale of scrap, export incentives, duty drawback, RoDTEP/MEIS, processing and job-work income, hire of equipment. 'Sale of services' printed beside 'Sale of products' is the business's own revenue and belongs to domestic or export sales, not here. Not 'Other income' (interest, dividends, disposal gains, fair-value gains), which is non-operating.",
+   "definition": "Operating income incidental to the main business - sale of scrap, export incentives, duty drawback, RoDTEP/MEIS, processing and job-work income, hire of equipment - taken from a face row such as 'Other operating revenue(s)', 'Other operating income' or 'Sale of scrap'. When the face prints only 'Revenue from operations' leave this line blank: that row belongs to pl_icon__total_operating_income. The figure is read off the face, not from a note. 'Sale of services' printed beside 'Sale of products' is the business's own revenue, not this line. Not 'Other income' (interest, dividends, disposal gains, fair-value gains), which is non-operating.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
@@ -1129,7 +1129,7 @@
     "pl_expenses"
    ],
    "order": 10,
-   "definition": "Imported raw materials and components consumed in the year: the 'Imported' row of the 'Value of imported and indigenous raw materials consumed' table (with its percentage), printed in or after the 'Cost of materials consumed' note. Not CIF value of imports, which measures purchases. Leave empty if the filing gives no imported/indigenous split.",
+   "definition": "Imported raw materials and components consumed in the year, taken only from a face row that names them ('Raw materials consumed - Imported'). The Ind AS and Indian GAAP faces print 'Cost of materials consumed' as one row, which belongs to pl_icon__raw_materials; leave this line blank then; the figure is read off the face, not from a note. Not CIF value of imports, which measures purchases.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
@@ -1220,7 +1220,7 @@
     "pl_expenses"
    ],
    "order": 12,
-   "definition": "Stores, spares and consumables consumed in manufacture: 'Consumption of stores and spares', 'Stores and spares consumed', 'Packing materials consumed' in the 'Other expenses' (Ind AS) or 'Manufacturing expenses' (Indian GAAP) note. Not raw materials, not repairs.",
+   "definition": "Stores, spares and consumables consumed in manufacture, taken from a face row such as 'Consumption of stores and spares', 'Stores and spares consumed' or 'Packing materials consumed'. When the face prints only 'Other expenses' (Ind AS) or 'Manufacturing expenses' (Indian GAAP) leave this line blank: 'Other expenses' belongs to pl_icon__sga_others and 'Manufacturing expenses' to pl_icon__other_manufacturing_expenses_others. The figure is read off the face, not from a note. Not raw materials, not repairs.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
@@ -1305,7 +1305,7 @@
     "pl_expenses"
    ],
    "order": 13,
-   "definition": "Power and fuel consumed in manufacture: the 'Power and fuel' row of the 'Other expenses' or 'Manufacturing expenses' note. Not office electricity of a trading or service company, which stays in pl_icon__sga_others.",
+   "definition": "Power and fuel consumed in manufacture, taken from a 'Power and fuel' face row. When the face prints only 'Other expenses' (Ind AS) or 'Manufacturing expenses' (Indian GAAP) leave this line blank: 'Other expenses' belongs to pl_icon__sga_others and 'Manufacturing expenses' to pl_icon__other_manufacturing_expenses_others. The figure is read off the face, not from a note. Not office electricity of a trading or service company, which stays in pl_icon__sga_others.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
@@ -1363,7 +1363,7 @@
     "pl_expenses"
    ],
    "order": 14,
-   "definition": "Factory labour: 'Contract labour charges', 'Labour charges', 'Wages' printed in the 'Other expenses' or 'Manufacturing expenses' note, or a factory wages row shown separately in 'Employee benefits expense'. When employee benefits expense is printed only as one total, it all belongs to pl_icon__salary_and_staff_expenses and this line is empty.",
+   "definition": "Factory labour - contract labour charges, labour charges, factory wages - taken from a face row that names it ('Contract labour charges', 'Labour charges', 'Wages'). When the face prints only 'Employee benefits expense' that row belongs to pl_icon__salary_and_staff_expenses, and when it prints only 'Other expenses' that row belongs to pl_icon__sga_others; leave this line blank. The figure is read off the face, not from a note.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
@@ -1473,7 +1473,7 @@
     "pl_expenses"
    ],
    "order": 16,
-   "definition": "Processing and job-work charges paid to outside parties for manufacture: 'Job work charges', 'Processing charges', 'Sub-contracting charges' in the 'Other expenses' or 'Manufacturing expenses' note. Construction or sub-contract costs of an EPC company printed as their own expense note are also cited here.",
+   "definition": "Processing and job-work charges paid to outside parties for manufacture, taken from a face row such as 'Job work charges', 'Processing charges' or 'Sub-contracting charges'; an EPC company's construction or sub-contract cost printed as its own face row is cited here too. When the face prints only 'Other expenses' or 'Manufacturing expenses' leave this line blank: those rows belong to pl_icon__sga_others and pl_icon__other_manufacturing_expenses_others. The figure is read off the face, not from a note.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
@@ -1532,7 +1532,7 @@
     "pl_expenses"
    ],
    "order": 17,
-   "definition": "Freight inward and transport of materials to the factory: 'Freight inward', 'Carriage inwards', 'Transportation charges' in the 'Other expenses' note. Freight outward / forwarding on sales is selling expense and belongs to pl_icon__sga_others.",
+   "definition": "Freight inward and transport of materials to the factory, taken from a face row such as 'Freight inward', 'Carriage inwards' or 'Transportation charges'. When the face prints only 'Other expenses' leave this line blank: that row belongs to pl_icon__sga_others. The figure is read off the face, not from a note. Freight outward / forwarding on sales is selling expense and belongs to pl_icon__sga_others.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
@@ -1615,7 +1615,7 @@
     "pl_expenses"
    ],
    "order": 18,
-   "definition": "The remaining manufacturing rows of the 'Other expenses' or 'Manufacturing expenses' note: repairs to plant and machinery, factory rent, insurance of plant, testing and inspection, other manufacturing expenses. Only rows that are clearly factory costs and that no other cost-of-sales line claims.",
+   "definition": "Factory costs no other cost-of-sales line claims - repairs to plant and machinery, factory rent, insurance of plant, testing and inspection, other manufacturing expenses - taken from face rows such as 'Manufacturing expenses', 'Factory expenses' or 'Repairs to machinery'. An Indian GAAP (Revised Schedule VI) face that prints one 'Manufacturing expenses' row cites it here. Only rows that are clearly factory costs; 'Other expenses' belongs to pl_icon__sga_others. The figure is read off the face, not from a note.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
@@ -1684,7 +1684,7 @@
     "pl_expenses"
    ],
    "order": 19,
-   "definition": "Depreciation charged for the year on property, plant and equipment, investment property and right-of-use assets: the depreciation rows of the 'Depreciation and amortisation expense' note, or the 'Depreciation for the year' row of the property, plant and equipment / fixed assets note. When the face prints only 'Depreciation and amortisation expense' and no split exists, cite that row. Amortisation of intangibles is pl_icon__amortization.",
+   "definition": "Depreciation charged for the year on property, plant and equipment, investment property and right-of-use assets, taken from a 'Depreciation' face row. When the face prints one combined 'Depreciation and amortisation expense' row (Ind AS and Indian GAAP alike) that row is cited here and pl_icon__amortization is left blank. The figure is read off the face, not from a note. Amortisation of intangibles printed as its own face row is pl_icon__amortization.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
@@ -1769,7 +1769,7 @@
     "pl_expenses"
    ],
    "order": 20,
-   "definition": "Amortisation of intangible assets for the year (software, technical know-how, licences): the amortisation row of the 'Depreciation and amortisation expense' note or the 'Amortisation for the year' row of the intangible assets note. Not depreciation of right-of-use assets.",
+   "definition": "Amortisation of intangible assets for the year (software, technical know-how, licences), taken only from a face row of its own ('Amortisation of intangible assets', 'Amortisation expense'). When the face prints one combined 'Depreciation and amortisation expense' row leave this line blank: that row belongs to pl_icon__depreciation. The figure is read off the face, not from a note. Not depreciation of right-of-use assets.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
@@ -2050,7 +2050,7 @@
     "pl_expenses"
    ],
    "order": 24,
-   "definition": "Employee benefits expense: salaries, wages and bonus, contribution to provident and other funds, gratuity, staff welfare - the 'Employee benefits expense' face row or the total of its note. Excludes directors' sitting fees and commission printed in 'Other expenses' and contract labour, which are separate lines.",
+   "definition": "Employee benefits expense - salaries, wages and bonus, contribution to provident and other funds, gratuity, staff welfare - taken from the 'Employee benefits expense' face row (Ind AS) or 'Employee benefits expense' / 'Employee cost' (Indian GAAP). The whole face row is cited here, not from a note. Excludes directors' sitting fees and commission and contract labour printed as their own face rows, which are separate lines.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
@@ -2169,7 +2169,7 @@
     "pl_expenses"
    ],
    "order": 25,
-   "definition": "'Rent' (short-term and low-value lease rent under Ind AS 116) and 'Rates and taxes' rows of the 'Other expenses' note, cited as components. Not lease liability interest or right-of-use depreciation.",
+   "definition": "Rent (short-term and low-value lease rent under Ind AS 116) and rates and taxes, taken from face rows such as 'Rent' and 'Rates and taxes', cited as components. When the face prints only 'Other expenses' leave this line blank: that row belongs to pl_icon__sga_others. The figure is read off the face, not from a note. Not lease liability interest or right-of-use depreciation.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
@@ -2229,7 +2229,7 @@
     "pl_expenses"
    ],
    "order": 26,
-   "definition": "Lease rentals or hire charges printed separately from rent in the 'Other expenses' note ('Lease rentals', 'Hire charges', 'Equipment hire'). Empty when only 'Rent' is printed; rent belongs to pl_icon__rent_rates_and_taxes.",
+   "definition": "Lease rentals or hire charges printed as their own face row, separate from rent ('Lease rentals', 'Hire charges', 'Short-term lease expense'). Blank when the face prints only 'Rent' (which belongs to pl_icon__rent_rates_and_taxes) or only 'Other expenses' (which belongs to pl_icon__sga_others). The figure is read off the face, not from a note.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
@@ -2294,7 +2294,7 @@
     "pl_expenses"
    ],
    "order": 27,
-   "definition": "Bad debts written off and the provision / allowance for doubtful debts or expected credit loss charged in the year, from the 'Other expenses' note, cited as components. Not the closing allowance balance.",
+   "definition": "Bad debts written off and the provision / allowance for doubtful debts or expected credit loss charged in the year, taken from face rows such as 'Bad debts written off' or 'Provision for doubtful debts', cited as components. When the face prints only 'Other expenses' leave this line blank: that row belongs to pl_icon__sga_others. The figure is read off the face, not from a note. Not the closing allowance balance.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
@@ -2356,7 +2356,7 @@
     "pl_expenses"
    ],
    "order": 28,
-   "definition": "'Travelling and conveyance' expense from the 'Other expenses' note.",
+   "definition": "Travelling and conveyance expense, taken from a 'Travelling and conveyance' face row. When the face prints only 'Other expenses' leave this line blank: that row belongs to pl_icon__sga_others. The figure is read off the face, not from a note.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
@@ -2414,7 +2414,7 @@
     "pl_expenses"
    ],
    "order": 29,
-   "definition": "'Advertisement', 'Sales promotion', 'Business promotion' rows of the 'Other expenses' or 'Selling and distribution expenses' note.",
+   "definition": "Advertisement, sales promotion and business promotion expense, taken from face rows that name them ('Advertisement and sales promotion'). When the face prints only 'Other expenses' or 'Selling and distribution expenses' leave this line blank: those rows belong to pl_icon__sga_others. The figure is read off the face, not from a note.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
@@ -2498,7 +2498,7 @@
     "pl_expenses"
    ],
    "order": 30,
-   "definition": "Selling commission, brokerage, discounts and service charges paid on sales from the 'Other expenses' or 'Selling and distribution expenses' note. Not directors' commission.",
+   "definition": "Selling commission, brokerage, discounts and service charges paid on sales, taken from face rows such as 'Commission on sales' or 'Commission and brokerage'. When the face prints only 'Other expenses' or 'Selling and distribution expenses' leave this line blank: those rows belong to pl_icon__sga_others. The figure is read off the face, not from a note. Not directors' commission.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
@@ -2564,7 +2564,7 @@
     "pl_expenses"
    ],
    "order": 31,
-   "definition": "'Legal and professional charges' / 'Legal and professional fees' from the 'Other expenses' note. Payment to auditors is pl_icon__auditors_remuneration.",
+   "definition": "Legal and professional charges or fees, taken from a face row that names them. When the face prints only 'Other expenses' leave this line blank: that row belongs to pl_icon__sga_others. The figure is read off the face, not from a note. Payment to auditors is pl_icon__auditors_remuneration.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
@@ -2644,7 +2644,7 @@
     "pl_expenses"
    ],
    "order": 32,
-   "definition": "Directors' sitting fees and commission to non-executive directors printed in the 'Other expenses' note, plus managerial remuneration only where printed separately from employee benefits expense. Remuneration already inside employee benefits expense is not cited again.",
+   "definition": "Directors' sitting fees and commission to non-executive directors, plus managerial remuneration, taken from a face row of its own ('Directors' remuneration', 'Directors' sitting fees and commission'). When the face prints only 'Employee benefits expense' or 'Other expenses' leave this line blank: those rows belong to pl_icon__salary_and_staff_expenses and pl_icon__sga_others. The figure is read off the face, not from a note.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
@@ -2706,7 +2706,7 @@
     "pl_expenses"
    ],
    "order": 33,
-   "definition": "'Payment to auditors' / 'Auditors' remuneration' in the 'Other expenses' note: audit fee, tax audit, other services and reimbursement. Cite the row in 'Other expenses', or the total of its sub-note, not both.",
+   "definition": "Payment to auditors - audit fee, tax audit, other services and reimbursement - taken from a face row such as 'Payment to auditors' or 'Auditors' remuneration'. When the face prints only 'Other expenses' leave this line blank: that row belongs to pl_icon__sga_others. The figure is read off the face, not from a note.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
@@ -2767,7 +2767,7 @@
     "pl_expenses"
    ],
    "order": 34,
-   "definition": "Every remaining row of the 'Other expenses' note that no other ICON expense line claims: freight outward, repairs to buildings and others, insurance, communication, printing, CSR expenditure, donations, security, miscellaneous expenses. Cite each such row as a component; never cite the note total together with its rows. When the filing prints only 'Other expenses' with no note, that face row is cited here.",
+   "definition": "Other, selling, general and administrative expenses that no other ICON expense line claims: freight outward, repairs to buildings and others, insurance, communication, printing, CSR expenditure, donations, security, miscellaneous expenses. On the Ind AS (Schedule III Division II) and Indian GAAP (Revised Schedule VI) faces this is the 'Other expenses' row, which is cited here whole, as are 'Selling and distribution expenses' and 'Administrative expenses' rows; the named expense lines (power, stores, rent, travel and the rest) take a figure only from a face row of their own. Never cite a face total together with its own rows. The figure is read off the face, not from a note.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
@@ -3085,7 +3085,7 @@
     "pl_expenses"
    ],
    "order": 38,
-   "definition": "Interest on term loans, debentures, vehicle loans and other long-term borrowings, and interest on lease liabilities, from the 'Finance costs' note. Not interest on cash credit or working-capital loans.",
+   "definition": "Interest on term loans, debentures, vehicle loans and other long-term borrowings, and interest on lease liabilities, taken from a face row that names it ('Interest on term loans', 'Interest on debentures'). When the face prints only 'Finance costs' leave this line blank: that row belongs to pl_icon__interest. The figure is read off the face, not from a note. Not interest on cash credit or working-capital loans.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
@@ -3147,7 +3147,7 @@
     "pl_expenses"
    ],
    "order": 39,
-   "definition": "Interest on cash credit, working-capital demand loans, packing credit, bill discounting and other short-term borrowings from the 'Finance costs' note.",
+   "definition": "Interest on cash credit, working-capital demand loans, packing credit, bill discounting and other short-term borrowings, taken from a face row that names it ('Interest on working capital loans', 'Interest on cash credit'). When the face prints only 'Finance costs' leave this line blank: that row belongs to pl_icon__interest. The figure is read off the face, not from a note.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "either",
@@ -3218,7 +3218,7 @@
     "pl_expenses"
    ],
    "order": 40,
-   "definition": "Bank charges, loan processing fees, guarantee and LC commission and 'Other borrowing costs' from the 'Finance costs' note (or bank charges in 'Other expenses'). Exchange differences regarded as borrowing cost belong here too.",
+   "definition": "Bank charges, loan processing fees, guarantee and LC commission and other borrowing costs, including exchange differences regarded as borrowing cost, taken from a face row that names them ('Bank charges', 'Other borrowing costs'). When the face prints only 'Finance costs' leave this line blank: that row belongs to pl_icon__interest. The figure is read off the face, not from a note.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
@@ -3295,7 +3295,7 @@
     "pl_income"
    ],
    "order": 42,
-   "definition": "Interest income from the 'Other income' note: on bank deposits, loans, income-tax refunds and other financial assets at amortised cost.",
+   "definition": "Interest income on bank deposits, loans, income-tax refunds and other financial assets at amortised cost, taken from a face row such as 'Interest income'. When the face prints only 'Other income' leave this line blank: that row belongs to pl_icon__misc_income. The figure is read off the face, not from a note.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
@@ -3400,7 +3400,7 @@
     "pl_income"
    ],
    "order": 43,
-   "definition": "Dividend income from investments (including mutual funds) from the 'Other income' note.",
+   "definition": "Dividend income from investments, including mutual funds, taken from a 'Dividend income' face row. When the face prints only 'Other income' leave this line blank: that row belongs to pl_icon__misc_income. The figure is read off the face, not from a note.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
@@ -3495,7 +3495,7 @@
     "pl_income"
    ],
    "order": 44,
-   "definition": "Net gain on sale or disposal of property, plant and equipment and realised gain on sale of investments, from the 'Other income' note.",
+   "definition": "Net gain on sale or disposal of property, plant and equipment and realised gain on sale of investments, taken from a face row that names it ('Profit on sale of fixed assets', 'Profit on sale of investments'). When the face prints only 'Other income' leave this line blank: that row belongs to pl_icon__misc_income. The figure is read off the face, not from a note.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "either",
@@ -3608,7 +3608,7 @@
     "pl_income"
    ],
    "order": 45,
-   "definition": "The remaining cash items of the 'Other income' note: miscellaneous income, rental income, insurance claims, net foreign-exchange gain. Not interest, dividends or disposal gains, and not non-cash items (fair-value gains, liabilities or provisions written back). When only 'Other income' is printed with no note, that row is cited.",
+   "definition": "Other income that no other non-operating income line claims: miscellaneous income, rental income, insurance claims, net foreign-exchange gain. On the Ind AS (Schedule III Division II) and Indian GAAP (Revised Schedule VI) faces this is the 'Other income' row, which is cited here whole; interest, dividends, disposal gains and amounts written back take a figure only from a face row of their own. The figure is read off the face, not from a note.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
@@ -3722,7 +3722,7 @@
     "pl_income"
    ],
    "order": 47,
-   "definition": "Non-cash items of the 'Other income' note: net gain on financial assets measured at fair value through profit or loss, liabilities and provisions no longer required written back, unwinding of discount.",
+   "definition": "Non-cash income: net gain on financial assets measured at fair value through profit or loss, liabilities and provisions no longer required written back, unwinding of discount, taken from a face row that names it ('Liabilities no longer required written back', 'Net gain on fair value changes'). When the face prints only 'Other income' leave this line blank: that row belongs to pl_icon__misc_income. The figure is read off the face, not from a note.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
@@ -3850,7 +3850,7 @@
     "pl_expenses"
    ],
    "order": 50,
-   "definition": "Realised net foreign-exchange loss charged in the year, from the 'Other expenses' or 'Finance costs' note. Not a gain.",
+   "definition": "Realised net foreign-exchange loss charged in the year, taken from a face row such as 'Foreign exchange loss (net)'. When the face prints only 'Other expenses' or 'Finance costs' leave this line blank: those rows belong to pl_icon__sga_others and pl_icon__interest. The figure is read off the face, not from a note. Not a gain.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "either",
@@ -4010,7 +4010,7 @@
     "pl_expenses"
    ],
    "order": 53,
-   "definition": "Net loss on sale, discard or write-off of property, plant and equipment or investments, from the 'Other expenses' note or exceptional items.",
+   "definition": "Net loss on sale, discard or write-off of property, plant and equipment or investments, taken from a face row that names it ('Loss on sale of fixed assets', 'Loss on sale of investments'). When the face prints only 'Other expenses' leave this line blank: that row belongs to pl_icon__sga_others. The figure is read off the face, not from a note.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "either",
@@ -4114,7 +4114,7 @@
     "pl_expenses"
    ],
    "order": 54,
-   "definition": "Exceptional items and prior-period items that are expenses: the 'Exceptional items' face row or its note (voluntary retirement, settlement, impairment where printed as exceptional).",
+   "definition": "Prior-period items that are expenses, taken from a 'Prior period expenses' / 'Prior period items' face row. An 'Exceptional items' face row is not this line's caption and is not cited here. The figure is read off the face, not from a note.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
@@ -4905,7 +4905,7 @@
     "is_pl"
    ],
    "order": 67,
-   "definition": "Equity dividend for the year, paid and proposed: interim dividend paid plus final dividend proposed or recommended for the year, from the 'Dividends' / 'Distribution made and proposed' note or, under Indian GAAP, the 'Proposed dividend' appropriation in the surplus. Exclude dividend distribution tax and the prior year's final dividend paid in this year.",
+   "definition": "Equity dividend for the year, paid and proposed: interim dividend paid plus final dividend proposed or recommended for the year, taken from 'Interim dividend' and 'Proposed dividend' rows printed on the face of the statement of profit and loss (the appropriation section of an older Indian GAAP face). An Ind AS (Schedule III Division II) face prints no dividend row, so the line is blank. The figure is read off the face, not from a note. Exclude dividend distribution tax and the prior year's final dividend paid in this year.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
@@ -5006,7 +5006,7 @@
     "bs_cl"
    ],
    "order": 71,
-   "definition": "Working-capital borrowings from the lending (applicant) bank at the balance-sheet date: cash credit, working-capital demand loan, packing credit, bill discounting from banks, from the current 'Borrowings' / 'Short-term borrowings' note. When the note names banks, cite the rows of the lead or consortium-leader bank; when it does not, cite all secured working-capital loans from banks. Exclude current maturities of long-term debt, loans from related parties and inter-corporate deposits.",
+   "definition": "Working-capital borrowings from the lending (applicant) bank at the balance-sheet date: cash credit, working-capital demand loan, packing credit, bill discounting from banks. Taken from a face row that names them ('Cash credit', 'Working capital demand loans'), and by convention from the current 'Borrowings' face row (Ind AS) or 'Short-term borrowings' face row (Indian GAAP) when the face prints only that combined row, since the face does not say which bank applied. The figure is read off the face, not from a note. Current maturities of long-term debt, related-party loans and inter-corporate deposits printed as their own face rows are other lines.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
@@ -5112,7 +5112,7 @@
     "bs_cl"
    ],
    "order": 72,
-   "definition": "Working-capital borrowings from banks other than the applicant bank, where the borrowings note names the banks. Empty when the note does not identify banks.",
+   "definition": "Working-capital borrowings from banks other than the applicant bank, taken only from a face row that names those banks. Blank otherwise: a combined current 'Borrowings' / 'Short-term borrowings' row belongs to bs_icon__bank_borrowings_applicant_bank. The figure is read off the face, not from a note.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
@@ -5180,7 +5180,7 @@
     "bs_cl"
    ],
    "order": 74,
-   "definition": "Short-term borrowings not from banks and not from related parties: inter-corporate deposits, commercial paper, short-term loans from NBFCs and others, mobilisation advances treated as borrowing, from the current borrowings note.",
+   "definition": "Short-term borrowings not from banks and not from related parties - inter-corporate deposits, commercial paper, short-term loans from NBFCs and others, mobilisation advances treated as borrowing - taken from a face row that names them. When the face prints only current 'Borrowings' or 'Short-term borrowings' leave this line blank: that row belongs to bs_icon__bank_borrowings_applicant_bank. The figure is read off the face, not from a note.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
@@ -5252,7 +5252,7 @@
     "bs_cl"
    ],
    "order": 75,
-   "definition": "Short-term loans from directors, promoters, subsidiaries or other related parties in the current borrowings note.",
+   "definition": "Short-term loans from directors, promoters, subsidiaries or other related parties, taken from a current-liabilities face row that names them ('Loans from related parties'). When the face prints only current 'Borrowings' or 'Short-term borrowings' leave this line blank: that row belongs to bs_icon__bank_borrowings_applicant_bank. The figure is read off the face, not from a note.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
@@ -5402,7 +5402,7 @@
     "bs_cl"
    ],
    "order": 77,
-   "definition": "'Advances from customers' and 'Contract liabilities' in the 'Other current liabilities' note.",
+   "definition": "Advances received from customers and contract liabilities, taken from a current-liabilities face row such as 'Advances from customers' or 'Contract liabilities'. When the face prints only 'Other current liabilities' leave this line blank: that row belongs to bs_icon__other_current_liabilities_others. The figure is read off the face, not from a note.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
@@ -5580,7 +5580,7 @@
     "bs_cl"
    ],
    "order": 80,
-   "definition": "'Statutory dues', 'Statutory liabilities' (GST, TDS, provident fund, ESIC) in the 'Other current liabilities' note.",
+   "definition": "Statutory dues payable within one year (GST, TDS, provident fund, ESIC), taken from a current-liabilities face row such as 'Statutory dues' or 'Statutory liabilities'. When the face prints only 'Other current liabilities' leave this line blank: that row belongs to bs_icon__other_current_liabilities_others. The figure is read off the face, not from a note.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
@@ -5719,7 +5719,7 @@
     "bs_cl"
    ],
    "order": 82,
-   "definition": "Current maturities of debentures (NCDs) due within one year, from the current borrowings or other current liabilities note.",
+   "definition": "Current maturities of debentures (NCDs) due within one year, taken from a face row that names them ('Current maturities of debentures'). When the face prints only current 'Borrowings' or 'Other current liabilities' leave this line blank: those rows belong to bs_icon__bank_borrowings_applicant_bank and bs_icon__other_current_liabilities_others. The figure is read off the face, not from a note.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
@@ -5801,7 +5801,7 @@
     "bs_cl"
    ],
    "order": 84,
-   "definition": "Current maturities of rupee term loans (including vehicle and equipment loans) from banks and financial institutions: the 'Current maturities of long-term borrowings' row of the current borrowings note (Ind AS) or 'Other current liabilities' note (Indian GAAP). Excludes foreign-currency loans and debentures.",
+   "definition": "Current maturities of rupee term loans (including vehicle and equipment loans) from banks and financial institutions, taken from a face row such as 'Current maturities of long-term borrowings' or 'Current maturities of term loans'. When the face prints only current 'Borrowings' (Ind AS) or 'Other current liabilities' (Indian GAAP) leave this line blank: those rows belong to bs_icon__bank_borrowings_applicant_bank and bs_icon__other_current_liabilities_others. The figure is read off the face, not from a note. Excludes foreign-currency loans and debentures.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
@@ -6453,7 +6453,7 @@
     "bs_ncl"
    ],
    "order": 96,
-   "definition": "Non-current debentures / NCDs and redeemable preference shares classified as borrowings, excluding the portion due within one year, from the non-current borrowings note.",
+   "definition": "Non-current debentures / NCDs and redeemable preference shares classified as borrowings, excluding the portion due within one year, taken from a non-current face row that names them ('Debentures', 'Non-convertible debentures'). When the face prints only non-current 'Borrowings' or 'Long-term borrowings' leave this line blank: that row belongs to bs_icon__rupee_term_loans. The figure is read off the face, not from a note.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
@@ -6565,7 +6565,7 @@
     "bs_ncl"
    ],
    "order": 98,
-   "definition": "Rupee term loans from banks and financial institutions (including vehicle and equipment loans) repayable after one year: the non-current / 'Long-term borrowings' note rows, excluding current maturities. When the note does not split lenders or currencies, the non-current 'Borrowings' face row is cited.",
+   "definition": "Rupee term loans from banks and financial institutions (including vehicle and equipment loans) repayable after one year, excluding current maturities. Taken from a face row that names them ('Term loans'), and by convention from the non-current 'Borrowings' face row (Ind AS) or 'Long-term borrowings' face row (Indian GAAP) when the face prints only that combined row. The figure is read off the face, not from a note.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
@@ -6652,7 +6652,7 @@
     "bs_ncl"
    ],
    "order": 99,
-   "definition": "Foreign-currency term loans (ECB, FCNR(B), foreign-currency term loans) repayable after one year, from the non-current borrowings note.",
+   "definition": "Foreign-currency term loans (ECB, FCNR(B), foreign-currency term loans) repayable after one year, taken from a non-current face row that names them. When the face prints only non-current 'Borrowings' or 'Long-term borrowings' leave this line blank: that row belongs to bs_icon__rupee_term_loans. The figure is read off the face, not from a note.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
@@ -6764,7 +6764,7 @@
     "bs_ncl"
    ],
    "order": 101,
-   "definition": "Long-term loans from directors, promoters or other related parties, unless subordinated and treated as quasi equity, from the non-current borrowings note.",
+   "definition": "Long-term loans from directors, promoters or other related parties, unless subordinated and treated as quasi equity, taken from a non-current face row that names them. When the face prints only non-current 'Borrowings' or 'Long-term borrowings' leave this line blank: that row belongs to bs_icon__rupee_term_loans. The figure is read off the face, not from a note.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
@@ -7107,7 +7107,7 @@
     "bs_equity"
    ],
    "order": 106,
-   "definition": "'General reserve' row of the 'Other equity' (Ind AS) or 'Reserves and surplus' (Indian GAAP) note, closing balance.",
+   "definition": "General reserve, closing balance, taken from a 'General reserve' face row. When the face prints only 'Other equity' (Ind AS) or 'Reserves and surplus' (Indian GAAP) leave this line blank: that row belongs to bs_icon__other_reserves. The figure is read off the face, not from a note.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
@@ -7142,7 +7142,7 @@
     "bs_equity"
    ],
    "order": 107,
-   "definition": "'Revaluation reserve' closing balance from the other equity / reserves and surplus note.",
+   "definition": "Revaluation reserve, closing balance, taken from a 'Revaluation reserve' face row. When the face prints only 'Other equity' or 'Reserves and surplus' leave this line blank: that row belongs to bs_icon__other_reserves. The figure is read off the face, not from a note.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
@@ -7189,7 +7189,7 @@
     "bs_equity"
    ],
    "order": 108,
-   "definition": "Reserves in the 'Other equity' / 'Reserves and surplus' note that no other net-worth line claims: other comprehensive income reserve, capital reserve, debenture redemption reserve, share-based payment reserve, cash-flow hedge reserve. Cite each as a component. When the filing prints only the 'Other equity' total, that row is cited.",
+   "definition": "Reserves no other net-worth line claims: other comprehensive income reserve, capital reserve, debenture redemption reserve, share-based payment reserve, cash-flow hedge reserve. On the Ind AS (Schedule III Division II) face this is the 'Other equity' row and on the Indian GAAP (Revised Schedule VI) face the 'Reserves and surplus' row, which is cited here whole; general reserve, securities premium, retained earnings and revaluation reserve take a figure only from a face row of their own. The figure is read off the face, not from a note.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
@@ -7277,7 +7277,7 @@
     "bs_equity"
    ],
    "order": 109,
-   "definition": "'Retained earnings' (Ind AS) or 'Surplus in the statement of profit and loss' (Indian GAAP) closing balance from the other equity / reserves and surplus note; a deficit is negative.",
+   "definition": "Retained earnings (Ind AS) or surplus in the statement of profit and loss (Indian GAAP), closing balance, taken from a face row that names it; a deficit is negative. When the face prints only 'Other equity' or 'Reserves and surplus' leave this line blank: that row belongs to bs_icon__other_reserves. The figure is read off the face, not from a note.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "either",
@@ -7359,7 +7359,7 @@
     "bs_equity"
    ],
    "order": 110,
-   "definition": "'Securities premium' closing balance from the other equity / reserves and surplus note.",
+   "definition": "Securities premium, closing balance, taken from a 'Securities premium' face row. When the face prints only 'Other equity' or 'Reserves and surplus' leave this line blank: that row belongs to bs_icon__other_reserves. The figure is read off the face, not from a note.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
@@ -7870,7 +7870,7 @@
     "bs_ca"
    ],
    "order": 120,
-   "definition": "'Cash on hand' and cheques/drafts on hand in the 'Cash and cash equivalents' (Ind AS) or 'Cash and bank balances' (Indian GAAP) note.",
+   "definition": "Cash on hand and cheques / drafts on hand, taken from a face row that names them ('Cash on hand'). When the face prints only 'Cash and cash equivalents' (Ind AS) or 'Cash and bank balances' (Indian GAAP) leave this line blank: that row belongs to bs_icon__cash_and_bank_balances. The figure is read off the face, not from a note.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
@@ -7919,7 +7919,7 @@
     "bs_ca"
    ],
    "order": 121,
-   "definition": "Balances with banks in current accounts, and earmarked balances such as unpaid dividend accounts, from the cash and cash equivalents / bank balances notes. Fixed deposits and margin money are other lines.",
+   "definition": "Balances with banks in current accounts, and earmarked balances such as unpaid dividend accounts, taken from a face row such as 'Balances with banks'. When the face prints only 'Cash and cash equivalents' or 'Cash and bank balances' leave this line blank: that row belongs to bs_icon__cash_and_bank_balances. The figure is read off the face, not from a note. Fixed deposits and margin money are other lines; 'Bank balances other than cash and cash equivalents' belongs to bs_icon__fixed_deposits_with_banks.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
@@ -8019,7 +8019,7 @@
     "bs_ca"
    ],
    "order": 123,
-   "definition": "Current investments: units of mutual funds, government securities, treasury bills, bonds held for the short term, from the 'Current investments' note or face row.",
+   "definition": "Current investments - units of mutual funds, government securities, treasury bills, bonds held for the short term - taken from the 'Current investments' face row (Indian GAAP) or the current 'Investments' row under current financial assets (Ind AS), or a face row that names the security.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
@@ -8268,7 +8268,7 @@
     "bs_ca"
    ],
    "order": 127,
-   "definition": "Trade receivables from overseas customers, where the trade receivables note or its text states them.",
+   "definition": "Trade receivables from overseas customers, taken only from a face row that names them ('Export receivables', 'Trade receivables - export'). When the face prints only 'Trade receivables' leave this line blank: that row belongs to bs_icon__receivables. The figure is read off the face, not from a note.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
@@ -8435,7 +8435,7 @@
     "bs_ca"
    ],
    "order": 131,
-   "definition": "Imported raw materials in inventory, where the 'Inventories' note splits imported and indigenous stock.",
+   "definition": "Imported raw materials in inventory, taken only from a face row that names them. When the face prints only 'Inventories' leave this line blank: that row belongs to bs_icon__inventory. The figure is read off the face, not from a note.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
@@ -8473,7 +8473,7 @@
     "bs_ca"
    ],
    "order": 132,
-   "definition": "Raw materials and components in inventory (including goods-in-transit) from the 'Inventories' note; all raw-material stock when no imported/indigenous split is given.",
+   "definition": "Raw materials and components in inventory (including goods-in-transit), all raw-material stock when no imported/indigenous split is printed, taken from a face row such as 'Raw materials'. When the face prints only 'Inventories' leave this line blank: that row belongs to bs_icon__inventory. The figure is read off the face, not from a note.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
@@ -8524,7 +8524,7 @@
     "bs_ca"
    ],
    "order": 133,
-   "definition": "'Work-in-progress' row of the 'Inventories' note.",
+   "definition": "Work-in-progress in inventory, taken from a 'Work-in-progress' face row. When the face prints only 'Inventories' leave this line blank: that row belongs to bs_icon__inventory. The figure is read off the face, not from a note.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
@@ -8575,7 +8575,7 @@
     "bs_ca"
    ],
    "order": 134,
-   "definition": "'Finished goods' and 'Stock-in-trade' (traded goods) rows of the 'Inventories' note, including goods-in-transit.",
+   "definition": "Finished goods and stock-in-trade (traded goods), including goods-in-transit, taken from face rows such as 'Finished goods' or 'Stock-in-trade'. When the face prints only 'Inventories' leave this line blank: that row belongs to bs_icon__inventory. The figure is read off the face, not from a note.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
@@ -8624,7 +8624,7 @@
     "bs_ca"
    ],
    "order": 135,
-   "definition": "'Stores and spares', 'Packing materials', 'Loose tools' rows of the 'Inventories' note.",
+   "definition": "Stores and spares, packing materials and loose tools in inventory, taken from a face row such as 'Stores and spares'. When the face prints only 'Inventories' leave this line blank: that row belongs to bs_icon__inventory. The figure is read off the face, not from a note.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
@@ -9189,7 +9189,7 @@
     "bs_nca"
    ],
    "order": 146,
-   "definition": "Gross block of tangible fixed assets at the year end: the 'Gross carrying amount - balance at the end of the year' total of the property, plant and equipment / fixed assets note, plus the right-of-use assets gross block. When only net carrying amounts are printed, cite the net figure.",
+   "definition": "Tangible fixed assets including right-of-use assets: gross block at the year end where the face prints it ('Gross block'), otherwise the net carrying amount the face prints - the 'Property, plant and equipment' and 'Right-of-use assets' rows (Ind AS) or 'Tangible assets' (Indian GAAP), cited as components. The figure is read off the face, not from a note.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
@@ -9249,7 +9249,7 @@
     "bs_nca"
    ],
    "order": 147,
-   "definition": "'Capital work-in-progress' closing balance (face row or its note).",
+   "definition": "Capital work-in-progress, closing balance, taken from the 'Capital work-in-progress' face row.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
@@ -9289,7 +9289,7 @@
     "bs_nca"
    ],
    "order": 148,
-   "definition": "Accumulated depreciation and impairment at the year end: the 'Accumulated depreciation - balance at the end of the year' total of the property, plant and equipment / fixed assets note, plus the right-of-use assets' accumulated depreciation.",
+   "definition": "Accumulated depreciation and impairment of tangible fixed assets and right-of-use assets at the year end, taken only from a face row that prints it ('Accumulated depreciation', 'Less: Depreciation'). The Ind AS and Indian GAAP faces print fixed assets net, so the line is usually blank, and bs_icon__land_building_plant_machinery then carries the net figure. The figure is read off the face, not from a note.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
@@ -10017,7 +10017,7 @@
     "bs_nca"
    ],
    "order": 163,
-   "definition": "Intangible assets including deferred tax assets, as the label says: the gross carrying amount at the year end of intangible assets (software, technical know-how, licences) from the intangible assets note, plus intangible assets under development, plus the 'Deferred tax assets (net)' and MAT credit entitlement rows - the CMA deducts all of them from tangible net worth. Cite each as a component. When only net intangibles are printed, cite net.",
+   "definition": "Intangible assets including deferred tax assets, as the label says: intangible assets (software, technical know-how, licences, goodwill), intangible assets under development, and the 'Deferred tax assets (net)' and MAT credit entitlement rows - the CMA deducts all of them from tangible net worth. Taken from the face rows ('Other intangible assets', 'Intangible assets', 'Intangible assets under development', 'Deferred tax assets (net)'), cited as components; the face prints intangibles net, and that net figure is cited.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "either",
@@ -10083,7 +10083,7 @@
     "bs_nca"
    ],
    "order": 164,
-   "definition": "Accumulated amortisation of intangible assets at the year end from the intangible assets note.",
+   "definition": "Accumulated amortisation of intangible assets at the year end, taken only from a face row that prints it. The Ind AS and Indian GAAP faces print intangibles net, so the line is usually blank, and bs_icon__intangible_assets then carries the net figure. The figure is read off the face, not from a note.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
@@ -10300,7 +10300,7 @@
     "bs_top_level"
    ],
    "order": 174,
-   "definition": "The total of contingent liabilities not provided for in the 'Contingent liabilities and commitments' note: claims not acknowledged as debts, disputed taxes, guarantees, LCs and bills discounted. Capital commitments are not contingent liabilities.",
+   "definition": "The total of contingent liabilities not provided for: claims not acknowledged as debts, disputed taxes, guarantees, LCs and bills discounted. Taken only where the balance sheet face prints a 'Contingent liabilities' row (some Indian GAAP faces print it below the totals); otherwise it is the sum of its parts or blank. The figure is read off the face, not from a note. Capital commitments are not contingent liabilities.",
    "temporality": "instant",
    "unit_of_account": "subtotal",
    "sign_convention": "either",
@@ -10487,7 +10487,7 @@
     "bs_top_level"
    ],
    "order": 177,
-   "definition": "Disputed income-tax, GST, excise, customs and service-tax demands under appeal, from the contingent liabilities note.",
+   "definition": "Disputed income-tax, GST, excise, customs and service-tax demands under appeal, taken only where the balance sheet face prints a row for them. Otherwise blank. The figure is read off the face, not from a note.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
@@ -10575,7 +10575,7 @@
     "bs_top_level"
    ],
    "order": 178,
-   "definition": "Other claims against the company not acknowledged as debts (customer, supplier, labour, legal claims) from the contingent liabilities note.",
+   "definition": "Other claims against the company not acknowledged as debts (customer, supplier, labour, legal claims), taken only where the balance sheet face prints a row for them. Otherwise blank. The figure is read off the face, not from a note.",
    "temporality": "instant",
    "unit_of_account": "balance",
    "sign_convention": "positive_expected",
