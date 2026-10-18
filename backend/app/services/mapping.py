@@ -1071,10 +1071,52 @@ def section_of_banner(text: str | None) -> str | None:
     folded = normalize_label(text)
     if ("equity" in folded or "权益" in folded) and ("liabilit" in folded or "负债" in folded):
         return None
+    heading = numbered_face_heading(text)
     for token, words in SECTION_WORDS:
-        if any(w in folded for w in words):
+        if any(names_heading(heading, w) if heading is not None else w in folded
+               for w in words):
             return token
     return None
+
+
+# THE NUMBERING OF A SCHEDULE III STATEMENT FACE: "IV." / "XII." for a line, "A." for a part of one.
+_FACE_NUMBERING = re.compile(r"^\s*(?:[IVX]{1,5}|[A-H])\.\s+")
+
+
+def strip_face_numbering(text: str) -> str:
+    """The text without a leading Schedule III face number ("IV. ", "A. ")."""
+    return _FACE_NUMBERING.sub("", text or "", count=1)
+
+
+def numbered_face_heading(text: str | None) -> str | None:
+    """The heading a NUMBERED face line names, folded, or None when the text is not numbered.
+
+    A numbered line is a heading in its own right — "IV. Expenses", "VIII. Tax expense:",
+    "XII. Earnings per equity share (face value of ₹ 10 each)" — so the section it names is the one
+    its heading IS, not one whose word happens to sit inside it. Matched anywhere, f1's EPS heading
+    named the equity section (the word "equity" in "per equity share") and "V. Profit before
+    exceptional items and tax" the exceptional-items one. The numbering, any bracketed aside
+    ("(III - IV)", "(face value of ₹ 10 each)") and anything after a colon are not the heading.
+    """
+    if not text or not _FACE_NUMBERING.match(text):
+        return None
+    head = _FACE_NUMBERING.sub("", text, count=1)
+    head = re.split(r"[:：]", head, maxsplit=1)[0]
+    head = re.sub(r"[(（][^)）]*(?:[)）]|$)", " ", head)
+    return normalize_label(head)
+
+
+def names_heading(heading: str, phrase: str) -> bool:
+    """Whether ``phrase`` is the heading's own head or tail rather than a word inside it:
+    "expenses", "tax expense", "revenue from operations" and "cash flow from operating activities"
+    are named; "earnings per equity share" and "profit before exceptional items and tax" are not.
+    """
+    if not heading or not phrase:
+        return False
+    if re.search(r"[\u3400-\u9fff]", phrase):
+        return heading.startswith(phrase) or heading.endswith(phrase)
+    return bool(re.match(rf"{re.escape(phrase)}\b", heading)
+                or re.search(rf"\b{re.escape(phrase)}$", heading))
 
 
 # The sections a statement prints as a HEADING ROW, and the only ones a data-less row may declare.
@@ -1165,6 +1207,26 @@ def section_of_banner_only(text: str | None) -> str | None:
         for word in words:
             remaining = remaining.replace(word, " ")
     return token if not remaining.strip() else None
+
+
+# THE PARTS OF ONE PROFIT-AND-LOSS SECTION. A rulebook whose income statement is the single
+# `income_and_expenses` section (the compact `is_pl`) has no concept scoped to revenue, expenses, tax
+# expense, exceptional or non-operating items — so a banner naming one of those, read literally,
+# refused EVERY concept of the statement beneath it. Measured on f1 with the Ind AS set: "Other
+# expenses" under "IV. Expenses" and "Profit for the year" under "VIII. Tax expense:" reached no
+# line, while both bind with no banner at all. For such a rulebook the part is read as the section
+# it is part of; a rulebook that does scope its concepts to the parts (ICON) keeps reading them.
+PL_SECTION_PARTS: frozenset[str] = frozenset({
+    "income", "expenses", "tax_expense", "exceptional_items", "non_operating_expenses"})
+PL_SECTION = "income_and_expenses"
+
+
+def section_as_declared(token: str | None, declared: frozenset[str] | set[str]) -> str | None:
+    """The section a banner token names in a rulebook declaring ``declared`` — see
+    ``PL_SECTION_PARTS``. Any other token is returned as it is."""
+    if (token in PL_SECTION_PARTS and token not in declared and PL_SECTION in declared):
+        return PL_SECTION
+    return token
 
 
 def section_of_key(canonical_key: str) -> str | None:
@@ -2189,6 +2251,16 @@ class OntologyMatcher:
     def _section_of(self, text: str | None) -> str | None:
         return section_of_banner(text)
 
+    @property
+    def _declared_sections(self) -> frozenset[str]:
+        """Every section some concept of this rulebook is scoped to."""
+        cached = self.__dict__.get("_declared_sections_cache")
+        if cached is None:
+            cached = frozenset().union(*self._section_scope.values()) if self._section_scope \
+                else frozenset()
+            self.__dict__["_declared_sections_cache"] = cached
+        return cached
+
     def _sections_of(self, canonical_key: str) -> frozenset[str]:
         """The sections the RULEBOOK says this concept may claim a row in.
 
@@ -2219,7 +2291,7 @@ class OntologyMatcher:
         banners are always allowed: like the statement constraint, this suppresses a confident wrong
         answer without dropping concepts it cannot place.
         """
-        want = section_of_banner(section)
+        want = section_as_declared(section_of_banner(section), self._declared_sections)
         if not want:
             return True
         have = self._sections_of(canonical_key)

@@ -352,7 +352,15 @@ def _is_noise_row(label: str, vals: list,
         return True
     if _is_basis_caption_row(label, vals, signals):
         return True
+    # THE NOTE COLUMN'S HEADER, split over two lines: "Note" over "No.", the second on the same
+    # baseline as the period headers' years. f1's profit and loss face sent "No." with 2025 and
+    # 2024 as a line, and the Ind AS residual swept the year 2025 into other operating expenses.
+    if bool(vals) and _NOTE_NO_HEADER.match(label) and all(_is_date_ish(v) for v in vals):
+        return True
     return bool(vals) and bool(_HDR_LABEL.search(label)) and all(_is_date_ish(v) for v in vals)
+
+
+_NOTE_NO_HEADER = re.compile(r"^\s*(?:notes?\s*)?no\.?\s*$", re.I)
 
 
 @dataclass
@@ -2657,6 +2665,13 @@ _AGE_BUCKET = re.compile(r"^\d{1,3}\s*(?:[-–—~至]\s*\d{1,3}\s*)?(?:年|个�
 # same statement. ``on_face`` at the call site: inside a NOTE, 合计 is the note table's own total
 # and the note→face tie already reads it as one.
 _CAS_TOTAL_LINE = re.compile(r"(合计|合計|总计|總計|小计|小計)\s*$")
+
+# A SCHEDULE III FACE PRINTS ITS TOTALS WITH THEIR ARITHMETIC: "III. Total income (I + II)",
+# "Total expenses (IV)", "V. Profit before exceptional items and tax (III - IV)". The bracket of
+# upper-case roman numerals is the face saying the line is computed from the lines it names, which
+# is what a total is — read as a line, f1's Ind AS run swept III, IV, V and VII into the
+# other-operating-expenses residual once "IX. Profit for the year" stopped being refused.
+_SCHEDULE_III_TOTAL_LINE = re.compile(r"\(\s*[IVX]{1,5}(?:\s*[-+]\s*[IVX]{1,5})*\s*\)\s*$")
 
 # TWO STATEMENTS, ONE PAGE, TWO ENTITIES. A mainland filing prints its primary statements in
 # numbered pairs — 1、合并资产负债表 then 2、母公司资产负债表, 5、合并现金流量表 then
@@ -6692,6 +6707,17 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
         # is one row carrying the owners' amount. The heading still scopes this row and the rows
         # under it — without that, the second "Non-controlling interests" of the income statement
         # stays under the profit split and is added to the first, which is meaningless.
+        # A ROMAN-NUMBERED LINE OF A FACE OPENS ITS OWN SECTION AND CLOSES THE ONE BEFORE IT, figures
+        # or none. Only the figure-less ones did, so f1's "V. Profit before exceptional items and
+        # tax (III - IV)" was read inside "IV. Expenses" and "IX. Profit for the year (VII - VIII)"
+        # inside "VIII. Tax expense:". The section it names is the one its heading IS
+        # (`numbered_face_heading`): none, for those two. Lettered parts ("A.") stay inside theirs.
+        if on_face and value_words and label_words and _ROMAN_NUMBER.match(
+                min(label_words, key=lambda w: w.bbox.x0).text.strip()) and not promoted:
+            section = label
+            group = ""
+            open_breakdowns.clear()
+            sub_stack.clear()
         head = re.split(r"[:：]", label)[0] if re.search(r"[:：]", label) else ""
         if head and section_of_banner(head) is not None:
             section = head.strip()
@@ -6710,7 +6736,8 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
         # pre-tax profit and the net profit added together. `on_face` because inside a NOTE the
         # same numbering is a sub-note enumeration and means nothing about totals.
         statement_line = on_face and (bool(_CAS_STATEMENT_LINE.match(label))
-                                     or bool(_CAS_TOTAL_LINE.search(label)))
+                                     or bool(_CAS_TOTAL_LINE.search(label))
+                                     or bool(_SCHEDULE_III_TOTAL_LINE.search(label)))
         if sub_stack:
             group = _under_sub_heading(sub_stack, label_words, label, promoted)
             sub_open = True

@@ -89,6 +89,7 @@ from app.services.mapping import (
     section_of_banner,
     section_of_key,
     section_token_of_scope,
+    strip_face_numbering,
 )
 from app.services.row_reconstruct import opens_a_bracket_it_never_closes
 from app.services.rollups import reconcile_section, section_members
@@ -762,8 +763,13 @@ def _dedicated_captions(ontology, members: dict) -> _Captions:
 
 
 def _untested_dedicated(captions: _Captions, section: str, label: str) -> str | None:
-    """The dedicated concept whose own caption this row is printed with, if any."""
-    norm = normalize_label(label)
+    """The dedicated concept whose own caption this row is printed with, if any.
+
+    A Schedule III face numbers its lines ("II. Other income"), and the numbering is no part of the
+    caption: compared with it, f1's Ind AS run swept "II. Other income" into the other-operating-
+    expenses residual although it is `is_pl__other_operating_income`'s own caption.
+    """
+    norm = normalize_label(strip_face_numbering(label))
     found = captions.get(section, {}).get(norm) if norm else None
     if found is None:
         return None

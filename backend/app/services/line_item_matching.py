@@ -58,7 +58,10 @@ from app.services.mapping import (
     SECTION_WORDS,
     MappingMethod,
     label_segments,
+    names_heading,
     normalize_label,
+    numbered_face_heading,
+    section_as_declared,
 )
 
 class Vocabulary:
@@ -142,8 +145,11 @@ class Vocabulary:
         if not self._umbrella and (("equity" in folded or "权益" in folded)
                                    and ("liabilit" in folded or "负债" in folded)):
             return None                  # the built-in umbrella rule, for a set declaring none
+        # A numbered face line names the section its heading IS — see `numbered_face_heading`.
+        heading = numbered_face_heading(text)
         for token, headings in self._banners:
-            if any(h in folded for h in headings):
+            if any(names_heading(heading, h) if heading is not None else h in folded
+                   for h in headings):
                 return token
         return None
 
@@ -269,6 +275,10 @@ class LineItemMatcher:
         # module constant, which is what makes the config the authority rather than a description.
         self.vocab = Vocabulary(line_items.vocabulary)
         self.by_key: dict[str, LineItemDef] = {d.key: d for d in line_items.items}
+        # Every section a definition is scoped to — see `mapping.PL_SECTION_PARTS`.
+        self._declared_sections: frozenset[str] = frozenset(
+            tok for d in line_items.items for sc in d.section_scope
+            if (tok := self.vocab.token_of_scope(sc)))
 
         # DECLARATION ORDER IS RECORDED, because it is the last tie-break and both engines use it.
         # For a caption whose claimants tie on every principled field, `OntologyMatcher` answers by
@@ -378,7 +388,8 @@ class LineItemMatcher:
         if want in self.vocab.statements and not d.claimable_on(
                 want, normalize=self.vocab.normalize_statement):
             return False
-        banner = self.vocab.section_of_banner(section)
+        banner = section_as_declared(self.vocab.section_of_banner(section),
+                                     self._declared_sections)
         # The resolver is what makes this the incumbent's gate rather than a string compare: a
         # scope id carries printed position as well as name, and `*_top_level` names no section, so
         # the statement-level totals must stay claimable under every banner in their statement.
