@@ -760,6 +760,30 @@ def plan_and_notes(line_item_set, notes, settings, *, doc=None):
     notes_of = {p.keys[0] if len(p.keys) == 1 else k: p.notes
                 for p in plans for k in p.keys}
     identified = note_context.identified_notes(line_item_set, notes, cited=cited, doc=doc)
+    # EVERY NOTE A PLAN NAMES IS A NOTE ITS REQUEST CARRIES. A line's `notes_supplied` is its plan's
+    # note set, and `build_request` takes the note TEXT from `identified` — a pool built only from
+    # the notes a `note_source` line claims, plus a bounded number of scored and cited ones. A
+    # face line's own printed citation, or a scored note past that bound, was therefore named to
+    # the model and never sent: measured on 000883, 51 of the 263 notes named across its requests
+    # (负债合计's 七、47 and 七、50 among them). `identified_notes` itself says the model "was
+    # pointed at a note it could not read, which is worse than not offering it". The bound kept
+    # one shared pool small when every request carried all of it; a request now carries only its
+    # own plan's notes, so the missing blocks are added from the whole document's, named for the
+    # lines that asked for them.
+    held = {str(n.get("note", "")) for n in identified}
+    wanted: dict[str, list[str]] = {}
+    for p in plans:
+        for number in p.notes:
+            if number and number not in held:
+                wanted.setdefault(str(number), []).extend(k for k in p.keys
+                                                          if k not in wanted.get(str(number), ()))
+    if wanted:
+        every = note_context.identified_notes(line_item_set, notes, cited=cited, doc=doc,
+                                              every_note=True)
+        for block in every:
+            number = str(block.get("note", ""))
+            if number in wanted:
+                identified.append({**block, "identified_for": sorted(set(wanted[number]))})
     return plans, by_key, notes_of, identified
 
 

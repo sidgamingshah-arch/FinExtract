@@ -140,8 +140,17 @@ def plan_requests(line_item_set, notes, settings, *, cited=None) -> list[Request
             for num in notes_of.get(key, ()):
                 if num not in merged:
                     merged.append(num)
+        # AND THE SECTIONS ITS LINES MAY BE CLAIMED UNDER, like every other plan. A line with a note
+        # set is not therefore a note-only line: the filing's own citation (`cited`) puts a FACE
+        # total into this branch — 000883 prints 七、47 and 七、50 against 负债合计 — and a plan here
+        # declared no sections, so `face_statements` built no statement block and the line was
+        # asked for "the printed subtotal" with no statement in the request. Measured on 000883:
+        # 24 face totals, 负债合计 / 利润总额 / 经营活动产生的现金流量净额 among them. Whether a line
+        # may READ the block is still `face_statements`' per-key route test, so a note-only line is
+        # given its notes and nothing more.
         plans.append(RequestPlan(name=keys[0] if len(keys) == 1 else f"{keys[0]}+{len(keys) - 1}",
-                                 keys=keys, notes=tuple(merged)))
+                                 keys=keys, notes=tuple(merged),
+                                 sections=_sections_of_keys(keys, by_key)))
     # Anything `note_sets` produced no entry for still has to be asked about — a line item whose
     # prose names no note scores nothing, and scoring nothing is not a reason to skip the line.
     #
@@ -227,6 +236,16 @@ def _sections_of_item(item) -> tuple[tuple[str, str], ...]:
     return tuple((st, sec) for st in (statements or [""]) for sec in (sections or [""]))
 
 
+def _sections_of_keys(keys, by_key: dict) -> tuple[tuple[str, str], ...]:
+    """Every `(statement, section)` pair the plan's lines may be claimed under, in key order."""
+    out: list[tuple[str, str]] = []
+    for key in keys:
+        for pair in (_sections_of_item(by_key[key]) if key in by_key else ()):
+            if pair not in out:
+                out.append(pair)
+    return tuple(out)
+
+
 def _by_section(keys, by_key: dict) -> dict[tuple[str, str], list[str]]:
     """Group keys by the one `(statement, section)` pair they are claimable under.
 
@@ -270,11 +289,13 @@ def _manual_plans(line_item_set, by_key: dict, notes_of: dict) -> list[RequestPl
                 if num not in merged:
                     merged.append(num)
         plans.append(RequestPlan(name=str(getattr(group, "name", "") or keys[0]),
-                                 keys=keys, notes=tuple(merged)))
+                                 keys=keys, notes=tuple(merged),
+                                 sections=_sections_of_keys(keys, by_key)))
         claimed.update(keys)
     for key in by_key:
         if key not in claimed:
-            plans.append(RequestPlan(name=key, keys=(key,), notes=notes_of.get(key, ())))
+            plans.append(RequestPlan(name=key, keys=(key,), notes=notes_of.get(key, ()),
+                                     sections=_sections_of_item(by_key[key])))
     return plans
 
 
