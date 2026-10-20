@@ -11378,7 +11378,12 @@
    "keyword_hints": [
     "Other Non-Income Related Taxes"
    ],
-   "sign_rule": {},
+   "sign_rule": {
+    "flip_if_label_matches": [
+     "税金及附加",
+     "稅金及附加"
+    ]
+   },
    "inherits": "is_pl",
    "face_only": false,
    "match_priority": 26,
@@ -11734,7 +11739,12 @@
    "keyword_hints": [
     "Total Income Tax"
    ],
-   "sign_rule": {},
+   "sign_rule": {
+    "flip_if_label_matches": [
+     "所得税费用",
+     "所得稅費用"
+    ]
+   },
    "inherits": "is_pl",
    "face_only": false,
    "is_gross_parent": true,
@@ -11878,7 +11888,20 @@
    "exclude_hints": [
     "comprehensive income"
    ],
-   "sign_rule": {},
+   "sign_rule": {
+    "flip_if_label_matches": [
+     "少数股东损益",
+     "少數股東損益",
+     "non-controlling interests?",
+     "minority interests?",
+     "非控股權益",
+     "非控股权益",
+     "非控制性權益",
+     "非控制性权益",
+     "非控股股東應佔",
+     "非控股股东应占"
+    ]
+   },
    "inherits": "is_pl",
    "section_scope": [
     "profit_attributable_to"
