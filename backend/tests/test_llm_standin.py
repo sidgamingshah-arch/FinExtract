@@ -348,3 +348,20 @@ def test_a_caption_and_figure_printed_on_two_statements_is_sourced_from_the_bloc
     (run / "rows.json").write_text(json.dumps(rows))
     payload = _with_face_row({"caption": "Loss before taxation", "figures": {"current": "-150.00"}})
     assert "rows_not_from_statement" not in _checks(payload, run_dir)
+
+
+def test_coverage_reaches_a_derived_line_through_its_parts_and_does_not_count_a_computed_one(tmp_path: Path):
+    """is_pl__sales_revenues is never asked about: its cascade reads a part that is. The part's
+    request carrying the printed figure covers it. A key line the key itself computes is printed
+    nowhere, so it is `derived` and not counted."""
+    req = _request(_payload())          # asks about bs_icon__finished_goods only
+    (tmp_path / "requests").mkdir()
+    (tmp_path / "requests" / f"{req['id']}.json").write_text(json.dumps(req))
+    (tmp_path / "index.json").write_text(json.dumps({"requests": [{"id": req["id"]}]}))
+    key = standin.Key(filing="x", template="t", lines={
+        "parent": standin.KeyLine(current="2805.45"),
+        "computed_line": standin.KeyLine(current="1.00", where="computed: A - B")})
+    got = {r["key"]: r["status"] for r in
+           standin.coverage_of(tmp_path, key, {"parent": {"bs_icon__finished_goods"}})}
+    assert got == {"parent": "carried", "computed_line": "derived"}
+    assert standin.set_for_folder(Path("x__output_csv_hk_v1")) == "output_csv_hk_line_items.json"

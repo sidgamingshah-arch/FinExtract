@@ -927,8 +927,33 @@ def cmd_report(a) -> int:
 # ------------------------------------------------------------------------------------------------
 
 COVERAGE = ("carried", "carried_other_key", "carried_as_parts", "prose_only", "not_carried",
-            "not_asked")
+            "not_asked", "derived")
 COVERED = ("carried", "carried_other_key", "carried_as_parts")
+
+
+def cascade_parts(set_name: str) -> dict[str, set[str]]:
+    """Every line's cascade parts, transitively: a line the model is never asked about (a derived
+    parent such as is_pl__sales_revenues) is reached through the requests for its parts."""
+    from app.schemas.line_items import load_line_item_set
+    path = Path(set_name) if Path(set_name).is_absolute() else TEMPLATES / set_name
+    items = load_line_item_set(json.loads(path.read_text(encoding="utf-8")), resolve=True).items
+    direct = {i.key: {t.ref for rung in (i.cascade or []) for t in rung.terms if t.ref}
+              for i in items}
+    out: dict[str, set[str]] = {}
+    for k in direct:
+        seen, todo = set(), list(direct[k])
+        while todo:
+            r = todo.pop()
+            if r not in seen:
+                seen.add(r)
+                todo.extend(direct.get(r, ()))
+        out[k] = seen
+    return out
+
+
+def set_for_folder(d: Path) -> str:
+    """The line-item set a capture folder was run with, from its `<stem>__<template>` name."""
+    return d.name.split("__")[-1].removesuffix("_v1") + "_line_items.json"
 
 
 def _rows_printing(req: dict, figure: float) -> list[tuple[str, str, str, str]]:
@@ -948,7 +973,7 @@ def _rows_printing(req: dict, figure: float) -> list[tuple[str, str, str, str]]:
     return out
 
 
-def coverage_of(d: Path, key: Key) -> list[dict]:
+def coverage_of(d: Path, key: Key, part_keys: dict[str, set[str]] | None = None) -> list[dict]:
     """For every line and period the key says the filing prints: did a request asking about the
     line carry that figure, and under that period's own key? No answer and no run figure is read:
     this is whether the context lets the figure be caught at all, which `report` cannot say once a
@@ -958,17 +983,24 @@ def coverage_of(d: Path, key: Key) -> list[dict]:
     `carried_other_key` — a row prints it under another key (a column heading, `col2`), so the model
     must work out which period it is; `carried_as_parts` — the key gives it as parts and rows add up
     to it; `prose_only` — only a block's prose prints it; `not_carried` — no request asking about the
-    line has it; `not_asked` — no request asks about the line."""
+    line has it; `not_asked` — no request asks about the line; `derived` — the key computes the line
+    (`where` starts "computed"), so no page prints it and it is not counted. A line the model is
+    never asked about is looked for in the requests for its cascade parts (`part_keys`), where given."""
     reqs = load_requests(d)
     ids = [i for i in current_ids(d) if i in reqs]
     out: list[dict] = []
     for k, kl in key.lines.items():
         asking = [reqs[i] for i in ids if k in reqs[i]["line_keys"]]
+        if not asking and part_keys:
+            asking = [reqs[i] for i in ids if part_keys.get(k, set()) & set(reqs[i]["line_keys"])]
         for period in ("current", "prior"):
             printed = _num(getattr(kl, period))
             if printed is None:
                 continue
             row = {"key": k, "period": period, "printed": printed, "request": "", "where": ""}
+            if (kl.where or "").lower().startswith("computed"):
+                out.append({**row, "status": "derived"})
+                continue
             if not asking:
                 out.append({**row, "status": "not_asked"})
                 continue
@@ -993,20 +1025,24 @@ def cmd_coverage(a) -> int:
     DIR/coverage.json with every line's status."""
     print("folder | printed | " + " | ".join(COVERAGE) + " | covered")
     total: Counter = Counter()
+    part_maps: dict[str, dict[str, set[str]]] = {}
     for d in a.dirs:
         kp = next((d / n for n in a.key_names if (d / n).exists()), None)
         if kp is None:
             print(f"{d.name} | no key ({', '.join(a.key_names)})")
             continue
-        rows = coverage_of(d, load_key(kp))
+        sname = a.set or set_for_folder(d)
+        if sname not in part_maps:
+            part_maps[sname] = cascade_parts(sname) if (TEMPLATES / sname).exists() or Path(sname).exists() else {}
+        rows = coverage_of(d, load_key(kp), part_maps[sname])
         (d / "coverage.json").write_text(json.dumps(rows, ensure_ascii=False, indent=1), encoding="utf-8")
         c = Counter(r["status"] for r in rows)
         total.update(c)
-        n = sum(c.values())
+        n = sum(v for s_, v in c.items() if s_ != "derived")
         cov = sum(c[s] for s in COVERED)
         print(f"{d.name} | {n} | " + " | ".join(str(c[s]) for s in COVERAGE)
               + f" | {cov}/{n} ({100 * cov / n:.0f}%)" if n else f"{d.name} | 0")
-    n = sum(total.values())
+    n = sum(v for s_, v in total.items() if s_ != "derived")
     if len(a.dirs) > 1 and n:
         cov = sum(total[s] for s in COVERED)
         print(f"ALL | {n} | " + " | ".join(str(total[s]) for s in COVERAGE) + f" | {cov}/{n} ({100 * cov / n:.0f}%)")
@@ -1035,6 +1071,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--key-name", dest="key_names", action="append",
                    help="key file name inside each folder, first found wins (default coverage_key.json, "
                         "then sample_key.json)")
+    p.add_argument("--set", help="line-item set for cascade parts (default: from the folder name)")
     a = ap.parse_args(argv)
     if a.cmd == "coverage" and not a.key_names:
         a.key_names = ["coverage_key.json", "sample_key.json"]
