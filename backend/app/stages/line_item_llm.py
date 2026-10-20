@@ -534,11 +534,36 @@ class LineItemLlmStage(Stage):
         `line_item_llm.stated_not_located(unresolved)`: amounts the model stated that the note does
         not contain, flagged on the row and counted nowhere.
         """
-        row = by_concept.get(item.key)
+        # A ROW figure is filed under the basis its own column carries; only a PROSE figure needs a
+        # basis chosen for it, because a sentence carries no column.
+        #
+        # THAT WAS THE COMMENT AND NOT THE CODE. Every figure went under `_prose_basis(doc)`, the
+        # document's majority basis, so a row cited from the company-only notes chapter (which
+        # `notes_extract` tags STANDALONE) was written into the CONSOLIDATED slot. The basis now
+        # travels with each resolved row (`note_sourced._figures_by_basis`) and is used when the
+        # rows agree on one. Rows that disagree cannot be one figure's basis, so they fall back to
+        # the document's and the row is flagged rather than guessed at.
+        if getattr(ctx, "indian_filing", False):
+            for e in resolved:
+                if _indian_note_is_the_companys(doc, e):
+                    e["basis"] = "standalone"
+        row_bases = {str(e.get("basis")) for e in resolved
+                     if e.get("basis") and not e.get("prose")}
+        basis = next(iter(row_bases)) if len(row_bases) == 1 else _prose_basis(doc)
+        # THE ROW THAT PRINTS THIS BASIS takes the figure. `by_concept` keeps the LAST row of each
+        # concept, and a mainland filing prints the consolidated and the company's statements as
+        # separate rows: the parent's 固定资产 came last, so a cited consolidated 65,174,285,084.63
+        # was written beside the consolidated face row's own 65,182,826,011.07 and both were added
+        # (000883 net fixed assets 140.8bn against 75.6bn). Written into the row already holding
+        # this basis, the printed figure it replaces stays beside it in `value_raw`.
+        row = _row_holding_basis(doc, item.key, basis, by_concept.get(item.key))
         if row is None:
             row = LineItem(source_label=item.label or item.key, canonical_key=item.key)
             doc.line_items.append(row)
-            by_concept[item.key] = row
+        by_concept[item.key] = row
+        if len(row_bases) > 1:
+            row.confidence.flags.append(
+                "llm_cited_rows_disagree_on_basis:" + ",".join(sorted(row_bases)))
         # `confidence.method` IS the non-interference signal, not a flag invented here:
         # `note_sourced._llm_holds` tests it, and the review queue and the export read the same
         # field to say where a figure came from. One spelling for "the model answered this".
@@ -608,28 +633,6 @@ class LineItemLlmStage(Stage):
             # row's page, note and caption are recovered here, so the reason is the one part of the
             # trace only the model can supply.
             row.confidence.flags.append(f"llm_reason:{answer.reason}")
-        # A ROW figure is filed under the basis its own column carries; only a PROSE figure needs a
-        # basis chosen for it, because a sentence carries no column.
-        #
-        # THAT WAS THE COMMENT AND NOT THE CODE. Every figure went under `_prose_basis(doc)`, the
-        # document's majority basis, so a row cited from the company-only notes chapter (which
-        # `notes_extract` tags STANDALONE) was written into the CONSOLIDATED slot. The basis now
-        # travels with each resolved row (`note_sourced._figures_by_basis`) and is used when the
-        # rows agree on one. Rows that disagree cannot be one figure's basis, so they fall back to
-        # the document's and the row is flagged rather than guessed at.
-        if getattr(ctx, "indian_filing", False):
-            for e in resolved:
-                if _indian_note_is_the_companys(doc, e):
-                    e["basis"] = "standalone"
-        row_bases = {str(e.get("basis")) for e in resolved
-                     if e.get("basis") and not e.get("prose")}
-        if len(row_bases) == 1:
-            basis = next(iter(row_bases))
-        else:
-            basis = _prose_basis(doc)
-            if len(row_bases) > 1:
-                row.confidence.flags.append(
-                    "llm_cited_rows_disagree_on_basis:" + ",".join(sorted(row_bases)))
         written = 0
         # HOW THE ANSWER'S TERMS MAKE THE FIGURE, per period — the walk `combine_terms` made, for
         # the trail. A whole answer takes its first figure and the other citations corroborate it;
@@ -706,8 +709,7 @@ class LineItemLlmStage(Stage):
             written += 1
             ctx.log(f"line_item_llm:{item.key}[{basis}:{period}] = {amount} "
                     f"from {len(resolved)} cited row(s)")
-            if getattr(ctx, "indian_filing", False):
-                _stand_down_other_rows(doc, row, item.key, basis, period, ctx)
+            _stand_down_other_rows(doc, row, item.key, basis, period, ctx)
         return written
 
     def _write_unanswered(self, doc, by_concept: dict, item, answer, unresolved: list[dict],
@@ -1351,6 +1353,24 @@ def _explain_swept_rows(doc, line_item_set, explained: dict, ctx) -> None:
                     f"left in the catch-all")
 
 
+def _basis_of(ev) -> str:
+    return str(getattr(getattr(ev, "basis", None), "value", getattr(ev, "basis", "")) or "")
+
+
+def _row_holding_basis(doc, key: str, basis: str, fallback):
+    """The row of ``key`` that already holds a figure on ``basis`` — ``fallback`` when it does, or
+    when no row of the key does."""
+    def holds(li) -> bool:
+        return any(_basis_of(ev) == basis for ev in (getattr(li, "values", None) or {}).values())
+
+    if fallback is None or holds(fallback):
+        return fallback
+    for li in (getattr(doc, "line_items", None) or ()):
+        if li is not fallback and str(getattr(li, "canonical_key", "") or "") == key and holds(li):
+            return li
+    return fallback
+
+
 def _stand_down_other_rows(doc, row, key: str, basis: str, period: str, ctx) -> None:
     """The figure just written is the line's WHOLE figure for this basis and period, so no other
     row carrying the line may still hold one there.
@@ -1363,8 +1383,13 @@ def _stand_down_other_rows(doc, row, key: str, basis: str, period: str, ctx) -> 
     was added to the face's own 2,945.15 and every profit line below it moved by that amount.
 
     The other row's figure for this basis and period is removed and the row says why; its other
-    periods and bases are untouched. Indian filings only, like the regime's other rules: the
-    reference corpus was not re-measured with it on.
+    periods and bases are untouched.
+
+    EVERY REGIME, no longer Indian filings only. On a mainland filing the same double count came
+    from the consolidated and the company's face rows of one concept: 000883's cited 税金及附加
+    193,625,794.60 went in beside the face row's own and the spread published 387,251,589.20. It
+    acts only where a model's answer was written, so a run with no answered line — every
+    reference filing on the deterministic route — moves no figure.
     """
     for other in (getattr(doc, "line_items", None) or ()):
         if other is row or str(getattr(other, "canonical_key", "") or "") != key:

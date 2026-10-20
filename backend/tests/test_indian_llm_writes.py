@@ -8,8 +8,9 @@
 * A face aggregate swept into a catch-all BEFORE the model was asked keeps only what its note's
   cited rows leave over, or the note's rows are counted twice.
 
-All three are switched on only for an Indian filing (`services.regime`), like the regime's
-reading rules.
+The first and third are switched on only for an Indian filing (`services.regime`), like the
+regime's reading rules. The second applies to every filing now — see
+`test_a_cited_figure_lands_on_its_own_basis_row` for the mainland double count it also caused.
 """
 from __future__ import annotations
 
