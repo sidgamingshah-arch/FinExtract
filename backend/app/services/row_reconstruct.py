@@ -2805,6 +2805,21 @@ def _header_region(rows: list[list[Word]], fmt=None) -> list[list[Word]]:
     return [r for r in rows if _row_box(r).y0 <= _HDR_PAGE_FRACTION]
 
 
+def _column_header_region(rows: list[list[Word]], fmt=None) -> list[list[Word]]:
+    """`_header_region`, starting at the last row that captions both periods in words.
+
+    A HEADER THAT NAMES BOTH PERIODS IN WORDS IS THE COLUMN HEADER, and what is printed above it is
+    not. 000883's consolidated balance sheet opens halfway down the page its audit report ends on:
+    the report's signing date 二〇二五年四月二十三日 was read as the period over both columns, and
+    its sentence "…对本期财务报表审计最为重要…" as a one-period header that declared no columns, so
+    the page's two figure rows showed no columns and 交易性金融资产 — printed under 期初余额 only —
+    was filed as the current year's. Rows below that header still count.
+    """
+    region = _header_region(rows, fmt)
+    worded = [i for i, row in enumerate(region) if _names_both_periods(row)]
+    return region[worded[-1]:] if worded else region
+
+
 def _bands_with_a_figure(value_bands: list[float], col_xs: list[list[tuple[float, str]]],
                          fmt=None) -> list[float]:
     """``value_bands`` less any band whose members are all date fragments.
@@ -2834,6 +2849,8 @@ def _bands_with_a_figure(value_bands: list[float], col_xs: list[list[tuple[float
 # created, so without this the column survived and every current-year figure on the page was
 # filed under a slot nothing reads.
 _FOLIO_SEP = re.compile(r"^[/／]$")
+# Where a page's foot begins, as a fraction of its height — a bare folio is printed below it.
+_FOLIO_FOOT = 0.9
 
 
 def _is_folio_row(row: list[Word], fmt=None) -> bool:
@@ -2844,7 +2861,17 @@ def _is_folio_row(row: list[Word], fmt=None) -> bool:
     grouped or fractional. "Total assets 12,218,911,386.38" fails the first, a two-column
     comparative fails the first, and "6 / 12" as a ratio row — were a filing to print one — has
     no caption either and is the case this deliberately also refuses.
+
+    AND A BARE PAGE NUMBER AT THE FOOT. 000883 prints its folio as "107" alone under the last
+    line, with no separator; counted as a figure under no column, it vetoed the header's own
+    column reading (`_header_declared_bands`) on the page where the balance sheet opens two rows
+    from the bottom. One token, an ungrouped integer of at most three digits, in the bottom
+    tenth of the page: a statement line carries its caption beside its figure.
     """
+    tokens = [w for w in row if w.text.strip()]
+    if (len(tokens) == 1 and re.fullmatch(r"\d{1,3}", tokens[0].text.strip())
+            and tokens[0].bbox.y0 >= _FOLIO_FOOT):
+        return True
     if not any(_FOLIO_SEP.match(w.text.strip()) for w in row):
         return False
     for w in row:
@@ -3161,7 +3188,7 @@ def _period_bands(rows: list[list[Word]], fmt=None) -> list[tuple[str, float]]:
     periods then fell back to column position on the filings that most need the date read.
     """
     best: list[tuple[str, float]] = []
-    region = _header_region(rows, fmt)
+    region = _column_header_region(rows, fmt)
     best_at = -1
     for at, row in enumerate(region):
         phrases: list[list[Word]] = []
@@ -3298,6 +3325,13 @@ def _prc_period_slot(text: str) -> int | None:
         if caption in text:
             return slot
     return None
+
+
+def _names_both_periods(row: list[Word]) -> bool:
+    """Whether a header row captions the reported AND the comparative period in words — 期末余额 and
+    期初余额, 本期发生额 and 上期发生额 — each as a phrase of its own."""
+    slots = {_prc_period_slot(w.text) for w in row if _opens_with_period(w.text)}
+    return {0, 1} <= slots
 
 
 def _opens_with_period(text: str) -> bool:
@@ -3704,7 +3738,7 @@ def _declared_value_columns(rows: list[list[Word]], fmt=None) -> list[float]:
     the reported period and its comparative, or a single period caption — so a movement schedule's
     期初余额 | 本期增加 | 本期减少 | 期末余额 declares nothing and keeps its printed order.
     """
-    region = _header_region(rows, fmt)
+    region = _column_header_region(rows, fmt)
     for idx, row in enumerate(region):
         if _carries_amounts(row, fmt):
             continue

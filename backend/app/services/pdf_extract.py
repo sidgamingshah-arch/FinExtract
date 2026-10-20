@@ -484,7 +484,8 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
     # is printed once at its start, so a filing that puts a face page or a signature page inside
     # its notes would lose every chapter after it. There is nothing to reset TO either: the
     # chapter only ever advances.
-    notes_chapter: list = [None, 0, ""]
+    # The fourth cell is the last note number read in the chapter — see `extract_note_tables`.
+    notes_chapter: list = [None, 0, "", None]
     # THE RULEBOOK'S OWN VOCABULARY, so reconstruction can tell a wrapped caption's first
     # line from a line item that simply has no figures this year. A CSRC balance sheet prints
     # every template line whether the filer uses it or not, and on such a filing the two are
@@ -688,6 +689,21 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
             if above or below:
                 outside = {id(word) for word in above + below}
                 words = [word for word in words if id(word) not in outside]
+        # THE NOTES THAT OPEN BELOW A STATEMENT'S LAST FIGURE — see
+        # `notes_extract.notes_below_the_face`. Read after the face, as a person's late notes parts
+        # are, so the chapter and the note they open carry on to the next page.
+        if ps.kind == PageKind.FACE and override_batches is None and "notes" not in off:
+            from app.services.notes_extract import notes_below_the_face
+            opens = notes_below_the_face(words, source_kind, fold,
+                                         notes_chapter[1] if notes_chapter[0] else 0)
+            tail = ([word for word in words if (word.bbox.y0 + word.bbox.y1) / 2 >= opens]
+                    if opens is not None else [])
+            if tail and len(tail) < len(words):
+                inside = {id(word) for word in tail}
+                words = [word for word in words if id(word) not in inside]
+                late_notes.append(tail)
+                ctx.log(f"extract:page={ps.index}:notes_below_face_from_y={opens:.3f}"
+                        f"({len(tail)}_words)")
         notes_carry = None
         notes_grid = None
         notes_group = None

@@ -18,8 +18,8 @@ from app.services import page_spread
 from app.services.row_reconstruct import (
     _AGE_UNIT, _CAPTION_GAP, DATE_TOKEN, DETECT_FOLD, GRID_FLAG, NIL_ROW_FLAG, ColumnGrid, Word, _caption_text,
     _carries_amounts, _fuse_bucket_numbers,
-    _group_rows, _measure_slug, _prc_period_slot, _scan_row, _x_runs, build_line_items,
-    row_tolerance)
+    _group_rows, _is_folio_row, _measure_slug, _prc_period_slot, _scan_row, _x_runs,
+    build_line_items, row_tolerance)
 
 # "Note 15: Trade receivables", "Note 15 Trade receivables", "15. Trade receivables"
 #
@@ -42,6 +42,13 @@ from app.services.row_reconstruct import (
 _HEADING = re.compile(
     r"^(?:note[s]?\.?\s+)?[（(]?(?P<no>\d{1,3})[）)]?\s*[:.\)\-]?\s*(?P<title>.*)$",
     re.IGNORECASE)
+# A capacity or rating written against its number with no space — 99MW, 2X1000MW, 400V, 110kV.
+_GLUED_UNIT = re.compile(r"^\d{1,4}(?:[xX×]\d|[kKMG]?W[hp]?|[kK]?VA?)(?![A-Za-z])")
+# HOW FAR A MAINLAND NOTE NUMBER MAY STEP FORWARD from the note still open in its chapter. Real
+# notes rise one at a time, skipping where a heading went unread (000883's 七、79 and 七、80 sit on
+# pages read as a cash-flow face, so 七、78 is followed by 七、81) or where an empty note publishes
+# nothing; measured over the four CAS filings no real step exceeds six.
+_NOTE_STEP_MAX = 10
 
 # A NOTE'S OWN SUBTOTAL OR TOTAL ROW, from its caption, in both languages the shipped rulebook
 # supports. THE one definition of the question "is this note row a total rather than a detail".
@@ -140,6 +147,21 @@ def _is_bracketed(row: list[Word]) -> bool:
     note numbers those became 七、1 and 七、2 — the ageing table filed under 交易性金融资产."""
     text = " ".join(w.text for w in row).strip().translate(_CIRCLED_DIGITS)
     return bool(re.match(r"^(?:[（(]\s*\d|\d{1,2}\s*[)）])", text))
+
+
+def _follows_open_note(open_note: str | None, number: str, chapter: str | None = None) -> bool:
+    """Whether heading ``number`` can be the note after ``open_note`` in the same chapter — strictly
+    greater, by at most ``_NOTE_STEP_MAX``. True when no note is open, its number is unreadable, or
+    it was opened in another chapter than ``chapter`` (a note carried onto the page where the next
+    chapter's numbering has already begun — 300319's 十七、1 before 十八's first note)."""
+    opened_in = str(open_note or "").rpartition("、")[0]
+    if opened_in and chapter and opened_in != chapter:
+        return True
+    current = re.search(r"(\d{1,3})$", str(open_note or ""))
+    if current is None or not str(number).isdigit():
+        return True
+    step = int(number) - int(current.group(1))
+    return 0 < step <= _NOTE_STEP_MAX
 
 
 def _bare_note_number(row: list[Word]) -> str | None:
@@ -314,6 +336,36 @@ def read_chapter(rows: list[list[Word]], seen: int) -> tuple[str, int, str] | No
     """
     found = chapter_headings(rows, seen)
     return found[-1][1] if found else None
+
+
+def notes_below_the_face(words: list[Word], source_kind: str, fold, seen: int) -> float | None:
+    """Where a FACE page's notes begin — the top of the first chapter heading printed below the
+    page's last row of figures — or None when the statement runs to the foot of the page.
+
+    THE PAGE THE NOTES OPEN ON CAN BE A STATEMENT'S LAST PAGE. 000883 ends its company
+    statement of changes in equity on PDF page 122 and prints 三、公司基本情况, 四、财务报表的编制基础
+    and 五、重要会计政策及会计估计 beneath it; the page is a face, so the notes reader never saw those
+    headings, and the 44 accounting-policy sections that follow came out as bare notes "2" to
+    "44" under no chapter. A statement's own numbered lines (一、经营活动产生的现金流量：) are
+    followed by rows of figures, so only a heading BELOW the last figure can open the notes, and
+    `chapter_headings`' strictly-increasing rule still has to accept it. A filing that prints no
+    chapters has none to find.
+    """
+    rows = _group_rows(words, row_tolerance(words, source_kind), fold=fold)
+    # The page's folio is printed below everything, and on 000883's page 122 it was the only
+    # "figure" on a page of notes text the classifier had called a face.
+    last = max((i for i, r in enumerate(rows) if _carries_amounts(r) and not _is_folio_row(r)),
+               default=-1)
+    # A STATEMENT'S OWN BANNER CAN ALSO SIT BELOW ITS LAST FIGURE. 300319's company income
+    # statement ends on "七、每股收益：" over two EPS lines it leaves blank, and read as chapter 七 it
+    # put the real 七、合并财务报表项目注释 out of reach. A banner ends in a colon, and a statement's
+    # blank lines are captions, not sentences: a chapter opening is followed by prose.
+    for index, (_numeral, _ordinal, title) in chapter_headings(rows, seen):
+        if index <= last or title.rstrip().endswith(("：", ":")):
+            continue
+        if any(_CJK_SENTENCE.search(" ".join(w.text for w in r)) for r in rows[index + 1:]):
+            return min(w.bbox.y0 for w in rows[index])
+    return None
 
 
 def chapter_headings(rows: list[list[Word]], seen: int) -> list[tuple[int, tuple[str, int, str]]]:
@@ -582,6 +634,11 @@ def _is_heading(row: list[Word]) -> tuple[str, str] | None:
     starts_note = text.lower().startswith("note")
     m = _HEADING.match(text)
     if not m:
+        return None
+    # A NUMBER GLUED TO A UNIT IS A QUANTITY, not a note: 000883's construction-in-progress table
+    # names its projects by capacity — "99MW 农光互补", "2X1000MW 超超临界", "400V 厂用电系统" —
+    # and a project whose figures sit on the next line read as notes 七、99, 七、2 and 七、400.
+    if _GLUED_UNIT.match(text):
         return None
     no = m.group("no")
     title = m.group("title").strip(" :.-")
@@ -1292,6 +1349,16 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
     # tables run on across pages; a chapter heading closes it.
     open_note: str | None = (carry_note[0] if carry_note is not None and carry_note[0]
                              and not str(carry_note[0]).endswith("、") else None)
+    # …AND WHEN NO NOTE WAS CARRIED, THE CHAPTER'S LAST ONE. The carry is reset by every page read
+    # as a face, and a mainland filing prints its cash-flow supplement inside 七: on the notes page
+    # after it, the supplement's own sections 2、3、4、 opened as notes 七、2 to 七、4, and every real
+    # note after them (000883's 七、81 外币货币性项目 to 七、84) was then refused as too far ahead.
+    # The chapter cell remembers the last note number read in its chapter (`chapter[3]`), and that
+    # is what a page with no carry continues from. Only a caller that passes the fourth cell gets
+    # it (`pdf_extract` does); a three-cell chapter keeps the carry as its only memory.
+    remembers = chapter is not None and len(chapter) > 3
+    if remembers and open_note is None and page_start[0]:
+        open_note = chapter[3]
     i = 0
     while i < len(rows):
         row = rows[i]
@@ -1316,6 +1383,25 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
             i += 1
             continue
         head = _is_heading(row)
+        # INSIDE A CHAPTER A NOTE NUMBER ONLY RISES. A mainland note prints numbered rows of its own
+        # — a movement table's "2.本期增加金额" and "4.期末余额", whose figures sit on the rows
+        # below, a payroll note's "1、工资、奖金、津贴" — and each one, read as a heading, minted a
+        # note under a number that belongs to a real note: 000883's 七、21 固定资产 put its
+        # movement rows under 七、2 交易性金融资产 and 七、3, and its cash-flow supplement's sections
+        # became 七、2 / 七、3 / 七、4. A number that does not step forward from the open note
+        # within `_NOTE_STEP_MAX` is a row of that note, read as one. Bracketed levels keep their
+        # own rule below (`_is_bracketed`), and a filing with no chapters numbers as it always did.
+        refused = (head is not None and in_force[0] and not _is_bracketed(row)
+                   and not _follows_open_note(open_note, head[0], in_force[0]))
+        if refused and current is None and open_note:
+            # NOTHING OPEN ON THIS PAGE YET: the refused heading opens a table OF the open note, as
+            # a bracketed one does, rather than its rows going nowhere.
+            current = {"no": open_note, "title": head[1], "words": [], "chapter": in_force}
+            sections.append(current)
+            i += 1
+            continue
+        if refused:
+            head = None
         if head is not None:
             no, title = head
             # A HEADING THAT WRAPPED ONTO THE NEXT LINE IS ONE HEADING.
@@ -1385,6 +1471,8 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
                 sections.append(current)
             current["words"].extend(row)
         i += 1
+    if remembers:
+        chapter[3] = open_note
 
     tables: list[NotesTable] = []
     # The printed-column header the previous section was named by, and which note it belonged to.
