@@ -265,6 +265,41 @@ _REPORT_SECTION = re.compile(
     r"|notice\s+of\s+(?:the\s+)?annual\s+general\s+meeting"
     r"|value\s+(?:proposition|creation\s+model)", re.I)
 
+# A SECTION TAB STRIP IS NAVIGATION, NOT THE SECTION THE PAGE IS IN. An Indian integrated report
+# prints, across the top of every page, the names of ALL its sections side by side — "Corporate
+# Overview | Strategic Review | Conducting Business Responsibly | Statutory Reports | Financial
+# Statements" — and highlights the current one. `_REPORT_SECTION` read "Corporate Overview" and
+# "Statutory Reports" in that strip as the page's own running header, so every page of Laurus Labs'
+# 2025-26 report was narrative: its balance sheets, statements of profit and loss and cash flows
+# (PDF pages 105 and 138 among them) were never faces, and no request carried a statement row.
+#
+# What makes it a strip and not a header is that it is a ROW OF TABS: at least `_NAV_MIN_TABS`
+# separate short lines on one baseline, no figure in any of them, one of them a report section. A
+# running header that names its section is one line. The tabs are dropped from the lines the page is
+# read from, so they neither flag the page narrative nor take the title zone's places.
+_NAV_MIN_TABS = 3
+_NAV_TAB_CHARS = 40
+_NAV_ROW_TOL = 3.0      # points: the tabs of one strip share a baseline
+_NAV_TOP_LINES = 16     # the strip is in the page's top band
+
+
+def _navigation_strip(lines: list[dict]) -> set[int]:
+    """`id`s of the lines that are the tabs of a section navigation strip, or an empty set."""
+    top = lines[:_NAV_TOP_LINES]
+    out: set[int] = set()
+    for line in top:
+        if id(line) in out or not _REPORT_SECTION.search(line["text"]):
+            continue
+        y = float(line.get("y", 0.0))
+        tabs = [other for other in top
+                if abs(float(other.get("y", 0.0)) - y) <= _NAV_ROW_TOL
+                and len(other["text"].strip()) <= _NAV_TAB_CHARS
+                and not re.search(r"\d", other["text"])]
+        if len(tabs) >= _NAV_MIN_TABS:
+            out.update(id(tab) for tab in tabs)
+    return out
+
+
 # The notes section opens at note 1 even when a filing omits the banner.
 _NOTE_ONE = re.compile(r"(?m)^\s*(?:note\s*)?1[.)、]?\s+[A-Za-z一-鿿]{2,}")
 # A numbered note heading, e.g. "14. Cash and cash equivalents" / "14 现金及现金等价物".
@@ -473,6 +508,45 @@ def _on_a_figure_row(line: dict, lines: list[dict], tol: float = 1.5) -> bool:
                for other in lines)
 
 
+# A LINE OF PROSE THAT HAPPENS TO NAME A STATEMENT. A policy note set in narrow columns breaks its
+# sentences into short lines, and a fragment such as "in the Consolidated Statement of Profit and
+# Loss" or "Consolidated Statement of Profit and Loss and" is heading-shaped by every other test. Read
+# below the title zone, those made Asian Paints' accounting-policy pages (PDF pp237-240) profit and
+# loss faces, and their useful-life table ("Factory Buildings 30 60") was sent as statement rows. A
+# title does not begin in lower case, does not end on a function word, and does not cite a standard
+# ("Ind AS 7 - Statement of Cash Flows"). Asked only of mid-page and closing titles: the title zone is
+# where a page prints its own heading, and its tests are unchanged.
+_DANGLING_WORD = re.compile(r"\b(?:and|of|at|to|in|the|or|for|on|by|with|from)\s*$")
+_STANDARD_CITED = re.compile(r"\b(?:Ind\s*AS|IAS|IFRS|HKAS|HKFRS)\s*\d", re.I)
+
+
+_SENTENCE_BREAK = re.compile(r"[a-z]\.\s+[A-Z][a-z]")
+# "Note 18 : Income Taxes (Contd.)" — a note's own heading, in the explicit "Note <n>" form.
+_NOTE_N_HEADING = re.compile(r"^\s*note\s+\d{1,3}[A-Z]?\s*[:.\-–—]", re.I)
+
+
+def _prose_fragment(text: str) -> bool:
+    """Whether a heading-shaped line is a piece of a sentence rather than a title."""
+    s = (text or "").strip()
+    return bool(s) and (s[0].islower() or bool(_DANGLING_WORD.search(s))
+                        or bool(_STANDARD_CITED.search(s)) or bool(_SENTENCE_BREAK.search(s)))
+
+
+def _under_a_note_heading(zone: list[dict], title: str | None, printed_as: dict) -> bool:
+    """Whether the title zone prints a "Note <n> :" heading ABOVE the matched title — the title is
+    then a caption inside that note. A note whose own heading IS the title is not this case."""
+    if not title:
+        return False
+    located = printed_as.get(title, title)
+    for line in zone:
+        text = line["text"].strip()
+        if text == located or located.startswith(text) or text.startswith(located):
+            return False
+        if _NOTE_N_HEADING.match(text):
+            return True
+    return False
+
+
 def _mid_page_statement(lines: list[dict], title_zone: list[dict], *, dated_titles: bool = False
                         ) -> tuple[str | None, bool, str | None, bool]:
     """Find an exact statement title that starts below a completed table on the same page.
@@ -491,10 +565,12 @@ def _mid_page_statement(lines: list[dict], title_zone: list[dict], *, dated_titl
     """
     zone_ids = {id(line) for line in title_zone}
     candidates = [dict(line) for line in lines if id(line) not in zone_ids
-                  and _looks_like_heading(line["text"]) and not _on_a_figure_row(line, lines)]
+                  and _looks_like_heading(line["text"]) and not _on_a_figure_row(line, lines)
+                  and not _prose_fragment(line["text"])]
     if dated_titles:
         candidates += _dated_title_candidates([line for line in lines if id(line) not in zone_ids
-                                               and not _on_a_figure_row(line, lines)])
+                                               and not _on_a_figure_row(line, lines)
+                                               and not _prose_fragment(line["text"])])
     return _resolve_statement(candidates, coverage=_MID_PAGE_TITLE_COVERAGE)
 
 
@@ -526,7 +602,7 @@ def _closing_statement(lines: list[dict], title_zone: list[dict], title_y: float
     zone_ids = {id(line) for line in title_zone}
     below = [line for line in lines if id(line) not in zone_ids
              and float(line.get("y", 0.0)) > title_y and _looks_like_heading(line["text"])
-             and not _on_a_figure_row(line, lines)]
+             and not _on_a_figure_row(line, lines) and not _prose_fragment(line["text"])]
     for cand in sorted(below, key=lambda line: float(line.get("y", 0.0)), reverse=True):
         name, _combined, title, _ambig = _resolve_statement([dict(cand)],
                                                             coverage=_MID_PAGE_TITLE_COVERAGE)
@@ -1084,8 +1160,11 @@ def _page_lines(page) -> tuple[list[dict], float]:
                     continue
                 size = max((float(s.get("size", 0.0)) for s in spans), default=0.0)
                 bold = any("bold" in str(s.get("font", "")).lower() for s in spans)
-                y = float(line.get("bbox", (0, 0, 0, 0))[1])
-                lines.append({"text": text, "y": y, "size": size, "bold": bold})
+                box = line.get("bbox", (0, 0, 0, 0))
+                # x is kept so a 2-up spread can be read one printed page at a time
+                # (`_spread_units`); nothing else reads it.
+                lines.append({"text": text, "y": float(box[1]), "size": size, "bold": bold,
+                              "x0": float(box[0]), "x1": float(box[2])})
         lines.sort(key=lambda l: l["y"])
     if not lines:
         raw = page.get_text("text") or ""
@@ -1097,6 +1176,9 @@ def _page_lines(page) -> tuple[list[dict], float]:
 def _features(index: int, lines: list[dict], page_h: float, text: str, *,
               dated_titles: bool = False) -> PageFeat:
     f = PageFeat(index=index)
+    nav = _navigation_strip(lines)
+    if nav:
+        lines = [line for line in lines if id(line) not in nav]
     zone = _title_zone(lines)
     f.title_lines = [l["text"] for l in zone]
     cands = _title_candidates(zone)
@@ -1105,10 +1187,21 @@ def _features(index: int, lines: list[dict], page_h: float, text: str, *,
     # A dated candidate's text is the title alone; the line it was printed as is what locates it.
     printed_as = {c["text"]: c["printed_as"] for c in cands if c.get("printed_as")}
 
+    # Not a piece of a sentence (`_prose_fragment`), nor a line printed under a note's own heading:
+    # read one printed page at a time, a note set in narrow columns offers its prose and its table
+    # captions to the title zone — "Statement of Profit and Loss. The amortised", or "Balance Sheet"
+    # heading a deferred-tax table under "Note 18 : Income Taxes (Contd.)" on Asian Paints.
+    cands = [c for c in cands if not _prose_fragment(c["text"])]
     f.statement, f.oci_combined, title, f.title_ambig = _resolve_statement(cands)
+    if f.statement is not None and _under_a_note_heading(zone, title, printed_as):
+        f.statement, title = None, None
     if f.statement is None:
         f.statement, f.oci_combined, title, f.title_ambig = _mid_page_statement(
             lines, zone, dated_titles=dated_titles)
+        if f.statement is not None and any(_NOTE_N_HEADING.match(l["text"].strip())
+                                           for l in zone):
+            # below a "Note <n> :" heading, a statement's name is a caption inside the note
+            f.statement, title = None, None
         if dated_titles and title is not None and title not in printed_as:
             printed_as.update({c["text"]: c["printed_as"] for c in _dated_title_candidates(lines)})
     joined = " ".join(f.title_lines)
@@ -1161,6 +1254,104 @@ def _features(index: int, lines: list[dict], page_h: float, text: str, *,
 
     f.scope, f.scope_columns = _scope_of(title, lines, page_h)
     return f
+
+
+# ------------------------------------------------------------------ spreads ---
+# AN INDIAN INTEGRATED REPORT IS PUBLISHED AS 2-UP SPREADS: one landscape PDF page carries two
+# printed pages, each with its own title. Read as one page, the classifier gave it ONE statement.
+# Asian Paints' PDF page 184 prints the standalone Balance Sheet on the left and the standalone
+# Statement of Profit and Loss on the right; it was filed as a profit-and-loss page, so the
+# balance-sheet requests carried no standalone block and the standalone balance-sheet rows were sent
+# inside the profit-and-loss one. Its consolidated balance sheet continues on the right half of the
+# same page ("(Contd.)"), and an accounting-policy half beside a statement half took the statement.
+#
+# So a page `page_spread.page_fold` calls a spread is classified as its two halves, in reading order
+# (left, then right), through the same features and the same decode as any page — a half IS a
+# printed page. The page keeps one verdict for every reader that asks by page index (its first face
+# half's), and records both halves under `evidence["spread"]` for `pdf_extract`, which reads each
+# face half as its own batch with its own statement, entity and column headings, and a notes half
+# with the notes reader. `page_fold` is inert on a portrait page, so no single-page filing moves.
+def _spread_fold(page) -> float | None:
+    """The fold of a 2-up spread page as a fraction of its width, or None."""
+    from app.services import page_spread
+    from app.services.pdf_extract import _native_words, text_rotation
+
+    try:
+        rot = text_rotation(page)
+        if rot not in (0, 360):
+            return None
+        w, h = float(page.rect.width), float(page.rect.height)
+        return page_spread.page_fold(_native_words(page, w, h, rotation=rot), w, h, rot)
+    except Exception:  # noqa: BLE001 — a page that cannot be measured is read whole
+        return None
+
+
+def _spread_units(pdf, pages: list, cache: list, texts: list, *, log=None):
+    """`(pages, cache, texts, spreads)` with every spread page replaced by its two halves.
+
+    `spreads` maps a page's index to `(fold, number_of_halves)`. A half's lines are the lines whose
+    centre lies on its side of the fold; a half holding no line is dropped."""
+    out_pages, out_cache, out_texts, spreads = [], [], [], {}
+    for page_src, (lines, height), text in zip(pages, cache, texts):
+        fold = _spread_fold(pdf[page_src.index]) if lines and "x0" in lines[0] else None
+        width = float(pdf[page_src.index].rect.width or 0.0)
+        halves = []
+        if fold is not None and width:
+            cut = fold * width
+            left = [line for line in lines if (line["x0"] + line["x1"]) / 2 < cut]
+            right = [line for line in lines if (line["x0"] + line["x1"]) / 2 >= cut]
+            halves = [half for half in (left, right) if half]
+        if len(halves) < 2:
+            out_pages.append(page_src)
+            out_cache.append((lines, height))
+            out_texts.append(text)
+            continue
+        spreads[page_src.index] = (fold, len(halves))
+        for half in halves:
+            out_pages.append(page_src.model_copy(deep=True))
+            out_cache.append((half, height))
+            out_texts.append("\n".join(line["text"] for line in half))
+    if spreads and log:
+        log(f"classify:spread_pages={len(spreads)} (each half read as a printed page)")
+    return out_pages, out_cache, out_texts, spreads
+
+
+_SIDES = ("left", "right")
+
+
+def _merge_spread_units(whole_pages: list, whole_cache: list, units: list, spreads: dict, *,
+                        log=None) -> list:
+    """Fold each spread's halves back onto its page and return the pages, in order.
+
+    The page takes its first FACE half's verdict (else its first notes half's, else its first);
+    `evidence["spread"]` keeps every half, which is what `pdf_extract` reads a face spread by."""
+    by_index: dict[int, list] = {}
+    for unit in units:
+        by_index.setdefault(unit.index, []).append(unit)
+    for page, (lines, height) in zip(whole_pages, whole_cache):
+        if page.index not in spreads:
+            continue
+        halves = by_index.get(page.index) or []
+        fold = spreads[page.index][0]
+        lead = (next((u for u in halves if u.kind is PageKind.FACE), None)
+                or next((u for u in halves if u.kind is PageKind.NOTES), None) or halves[0])
+        page.kind, page.statement, page.scope = lead.kind, lead.statement, lead.scope
+        page.scope_columns = list(lead.scope_columns or [])
+        page.classification_confidence = lead.classification_confidence
+        page.classification_evidence = list(lead.classification_evidence or [])
+        page.printed_page = _printed_folio(lines, height)
+        page.evidence = dict(lead.evidence or {})
+        page.evidence["spread"] = {
+            "fold": round(float(fold), 4),
+            "halves": [{"side": side, "kind": u.kind.value, "statement": u.statement,
+                        "scope": u.scope, "scope_columns": list(u.scope_columns or []),
+                        "evidence": dict(u.evidence or {})}
+                       for side, u in zip(_SIDES, halves)]}
+        if log and any(u.kind is PageKind.FACE for u in halves):
+            log(f"classify:page={page.index}:spread("
+                + ",".join(f"{side}={u.kind.value}:{u.statement or '-'}:{u.scope or '-'}"
+                           for side, u in zip(_SIDES, halves)) + ")")
+    return whole_pages
 
 
 # ------------------------------------------------------------------ decode ---
@@ -1583,6 +1774,11 @@ class ClassifyStage:
         ctx.indian_filing = indian
         if indian:
             ctx.log("classify:regime=indian (dated titles and enumerated rows are read)")
+        # A 2-UP SPREAD IS READ AS THE TWO PRINTED PAGES IT HOLDS — see `_spread_units`. From here
+        # to the merge below, `pages` / `cache` / `feats` are per PRINTED page: one entry for an
+        # ordinary page, two (left, right) for a spread, each half a copy of the page it came from.
+        whole_pages, whole_cache = pages, cache
+        pages, cache, texts, spreads = _spread_units(pdf, pages, cache, texts, log=ctx.log)
         for page_src, (lines, height), text in zip(pages, cache, texts):
             feats.append(_features(page_src.index, lines, height, text, dated_titles=indian))
 
@@ -1777,6 +1973,7 @@ class ClassifyStage:
                 doc.unmapped_titles.extend(f.unmapped[:3])
 
         self._reclaim_statement_continuations(pages, feats, cache, ctx)
+        pages = _merge_spread_units(whole_pages, whole_cache, pages, spreads, log=ctx.log)
         # A PERSON'S CORRECTION OUTRANKS THE READING ABOVE, and is applied last so nothing above
         # can undo it. See `services.page_overrides`.
         if ctx.page_overrides:

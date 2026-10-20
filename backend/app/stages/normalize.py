@@ -141,6 +141,15 @@ _MAX_FACE_SCAN = 12
 _NO_FIGURE_BEFORE = re.compile(r"[\d.]\s*$")
 # The CJK amount-unit entries, by label — the only ones the guard applies to.
 _FIGURE_SENSITIVE = {"hundred million", "ten thousand"}
+# A SCALE WORD THAT COUNTS SOMETHING IS NOT A UNIT. "connections with millions of consumers" on
+# Asian Paints' cover declared the whole filing in millions, scanned ahead of the faces that print
+# "(₹ in Crores)", so every request said 'INR millions (x1,000,000)' over figures in crores — 10x
+# low for anyone who trusted it. "in thousands of US dollars" and "millions of rupees" ARE
+# declarations, so a word followed by "of" is refused only when what follows is not a currency.
+_COUNT_OF = re.compile(r"\s+of\s+(?!(?:the\s+)?(?:indian\s+|hong\s+kong\s+|us\s+|u\.s\.\s+|"
+                       r"new\s+taiwan\s+)?(?:rupees?|rs\b|inr|₹|dollars?|usd|us\$|hk\$|hkd|"
+                       r"renminbi|rmb|cny|yuan|euros?|eur|pounds?|gbp|yen|jpy)\b)[a-z]")
+_SPELLED_SCALES = {"thousand", "lakh", "lac", "million", "mn", "crore", "cr", "billion", "bn"}
 
 
 def _scan_scale(text: str) -> str | None:
@@ -158,6 +167,8 @@ def _scan_scale(text: str) -> str | None:
             # `finditer`, not `search`, because the FIRST occurrence may be a measurement while a
             # real declaration follows it — taking only the first would hide the true one.
             if word in _FIGURE_SENSITIVE and _NO_FIGURE_BEFORE.search(text[:m.start()]):
+                continue
+            if word in _SPELLED_SCALES and label is None and _COUNT_OF.match(text, m.end()):
                 continue
             if best is None or m.start() < best[0]:
                 best = (m.start(), word)

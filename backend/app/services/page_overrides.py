@@ -30,7 +30,9 @@ ENTITIES = ("consolidated", "company")
 # Classifier evidence that describes a cut or a region the override replaces. Left in place,
 # `pdf_extract` would apply the classifier's cut on top of the person's.
 _CUT_EVIDENCE = ("statement_before_title", "scope_before_title", "notes_above_title",
-                 "face_ends_at_y", "closing_title", "closing_title_y", "scope_after_closing_title")
+                 "face_ends_at_y", "closing_title", "closing_title_y", "scope_after_closing_title",
+                 # a 2-up spread's halves (`classify._merge_spread_units`) are a cut as well
+                 "spread")
 
 
 class OverrideError(ValueError):

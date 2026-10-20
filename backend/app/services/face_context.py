@@ -65,6 +65,22 @@ def _figures(row) -> dict[str, str]:
     return out
 
 
+def _statement_of(row, stmt_of_page: dict, page) -> str:
+    """The statement a face row was PRINTED on: the stamp `pdf_extract` puts on a row read from
+    one side of a page that holds two statements (`buckets.PRINTED_ON_FLAG`), else its page's.
+
+    A page holds two statements where one ends part way down and the next begins, and where a
+    2-up spread prints a balance sheet beside a statement of profit and loss — Asian Paints' PDF
+    page 184. Looked up by page alone, the balance sheet's rows were sent in the profit-and-loss
+    block and the balance-sheet requests had no standalone block at all."""
+    from app.services.buckets import PRINTED_ON_FLAG
+
+    for flag in (getattr(getattr(row, "confidence", None), "flags", None) or ()):
+        if str(flag).startswith(f"{PRINTED_ON_FLAG}:"):
+            return normalize_statement(str(flag).split(":", 1)[1])
+    return stmt_of_page.get(page if page is not None else -1, "")
+
+
 def _page_of(row) -> int | None:
     """The page this row was read from, off its first provenanced figure.
 
@@ -121,7 +137,7 @@ def face_rows(doc, statements) -> list[dict]:
     legends: dict[tuple[str, str], dict[str, str]] = {}
     for row in (getattr(doc, "line_items", None) or ()):
         page = _page_of(row)
-        statement = stmt_of_page.get(page if page is not None else -1, "")
+        statement = _statement_of(row, stmt_of_page, page)
         if statement not in want:
             continue
         if not _shown_on_face(row, page, notes_pages):
@@ -222,7 +238,27 @@ def _shown_on_face(row, page, notes_pages) -> bool:
         return False
     if _BOILERPLATE.search(getattr(row, "source_label", "") or ""):
         return False
-    return not is_column_heading_row(row)
+    return not is_column_heading_row(row) and not is_signature_date_row(row)
+
+
+# THE DATE OF SIGNING, read as a row. A statement's signature block ends "Mumbai | Mumbai | 29th May
+# | 2026": the place under each signatory and the date, whose year stands in a figure column. Asian
+# Paints' balance sheet sent it as a row "Mumbai Mumbai 29th May" with the figure 2026. A row is
+# one when its caption ENDS on a month (and its day) and its every figure is a year — the day may
+# have been read off as a figure of its own.
+_MONTH_WORD = (r"(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?"
+               r"|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)")
+_DAY_MONTH_END = re.compile(rf"(?i)\b(?:{_MONTH_WORD}|{_MONTH_WORD}[\s,]+\d{{1,2}}(?:st|nd|rd|th)?)\W*$")
+
+
+def is_signature_date_row(row) -> bool:
+    """Whether `row` is the signature block's place-and-date line read as though it were a row."""
+    if not _DAY_MONTH_END.search(getattr(row, "source_label", "") or ""):
+        return False
+    figures = [str(getattr(ev, "value", "")).strip()
+               for ev in (getattr(row, "values", None) or {}).values()
+               if getattr(ev, "value", None) is not None]
+    return bool(figures) and all(_YEAR.match(f) for f in figures)
 
 
 def _notes_pages(doc) -> set[int]:
@@ -294,7 +330,7 @@ def face_index(doc) -> list[tuple[str, str, object]]:
         page = _page_of(row)
         if not _shown_on_face(row, page, notes_pages):
             continue
-        out.append((stmt_of_page.get(page if page is not None else -1, ""), caption, row))
+        out.append((_statement_of(row, stmt_of_page, page), caption, row))
     return out
 
 

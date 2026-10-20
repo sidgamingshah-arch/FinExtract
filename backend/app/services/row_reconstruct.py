@@ -708,6 +708,22 @@ def _bare_subtotal_of(value_words: list[Word],
     return None
 
 
+def _face_section_total(value_words: list[Word], rows: list[list[tuple[float, Decimal]]],
+                        fmt=None) -> bool:
+    """Whether a bare figure line totals the face rows above it: two rows or more, and in each of
+    its columns — matched on the right edge — the sum of their figures is exactly its own."""
+    if len(rows) < 2:
+        return False
+    bare = [(w.bbox.x1, _num(w.text, fmt)) for w in value_words]
+    if not bare or any(v is None for _x, v in bare):
+        return False
+    for x1, target in bare:
+        hits = [v for vals in rows for vx1, v in vals if abs(vx1 - x1) <= _COLUMN_EDGE_SLACK]
+        if len(hits) < 2 or sum(hits, Decimal(0)) != target:
+            return False
+    return True
+
+
 def _open_brackets(words: list[Word]) -> int:
     """How many round brackets the words open and leave unclosed."""
     text = " ".join(w.text for w in words)
@@ -3162,7 +3178,7 @@ _CJK_DATE = r"(?:[〇零一二三四五六七八九十]{1,4}[年月日])+"
 # A single word that can belong to a date-column header phrase.
 _DATEISH_WORD = re.compile(
     rf"^(?:{_MONTHS}|{_CJK_DATE}|{_MIXED_DATE}|\d{{1,4}}(?:st|nd|rd|th)?|"
-    r"\d{1,2}[./-]\d{1,2}[./-]\d{2,4}|"
+    r"\d{1,2}[./-]\d{1,2}[./-]\d{2,4}|(?:19|20)\d{2}[-/]\d{2}(?:\d{2})?|"    # "2025-26": a financial year
     r"as|at|year|years?|period|ended|ending|for|the|fy|q[1-4]|h[12]|,)$", re.IGNORECASE)
 # A phrase only counts as a period header if it actually carries a year or month name. The CJK
 # year belongs here too: without it the comparative columns of a Chinese filing carried no
@@ -3175,6 +3191,12 @@ _DATE_PHRASE = re.compile(rf"(?:19|20)\d{{2}}|{_MONTHS}|[〇零一二三四五�
 # The Latin words a period heading opens with, and a bare year.
 _PHRASE_START = re.compile(r"^(?:as|year|for)$", re.IGNORECASE)
 _YEAR_ONLY = re.compile(r"(?:19|20)\d{2}")
+# A word a date ends on — a year, "31.03.2026", a financial year "2025-26" — and a word one opens
+# with: a month, a day, or a whole numeric date or year standing alone ("31.03.2026  31.03.2025",
+# "2025-26  2024-25" on Asian Paints' faces).
+_ENDS_A_DATE = re.compile(r"(?:19|20)\d{2}(?:[-/]\d{2,4})?$")
+_DATE_OPENER = re.compile(rf"^(?:{_MONTHS}|\d{{1,2}}(?:st|nd|rd|th)?|\d{{1,2}}[./-]\d{{1,2}}[./-]\d{{2,4}}"
+                          r"|(?:19|20)\d{2}(?:[-/]\d{2,4})?)$", re.IGNORECASE)
 
 
 def _period_bands(rows: list[list[Word]], fmt=None) -> list[tuple[str, float]]:
@@ -3196,7 +3218,7 @@ def _period_bands(rows: list[list[Word]], fmt=None) -> list[tuple[str, float]]:
         for w in row:
             # A token the PDF set with a space inside it ("ended 31") is date-ish when each of
             # its parts is: read whole it matched nothing and broke "Year ended 31 March" in two.
-            dateish = all(_DATEISH_WORD.match(part.strip(" ."))
+            dateish = all(_DATEISH_WORD.match(part.strip(" .,") or part)
                           for part in (w.text.split() or [w.text]))
             # A wide horizontal gap means a new column — flush the current phrase even between
             # two date-ish words (e.g. "…2025    31 March 2024" are two separate headers).
@@ -3206,6 +3228,13 @@ def _period_bands(rows: list[list[Word]], fmt=None) -> list[tuple[str, float]]:
             # the two headings were read as one, given to both columns.
             if (dateish and run and _PHRASE_START.match(w.text.strip(" ."))
                     and any(_DATE_PHRASE.search(r.text) for r in run)):
+                gap = True
+            # …and so does a DATE'S OPENING WORD — a month or a day — straight after a year: a date
+            # phrase ends on its year. Laurus Labs sets "March 31, 2026  March 31, 2025" 0.023 of
+            # the page apart under "As at | As at", the two were read as one heading, and the title
+            # line's date ("as at March 31, 2026") headed every column — current and prior alike.
+            if (dateish and run and _ENDS_A_DATE.search(run[-1].text.strip(" .,"))
+                    and _DATE_OPENER.match(w.text.strip(" .,"))):
                 gap = True
             if dateish and not gap:
                 run.append(w)
@@ -4864,12 +4893,24 @@ def _restated_columns(rows: list[list[Word]], value_bands: list[float],
     return out
 
 
+def _column_support(col_xs: list[list[tuple[float, str]]], value_bands: list[float]
+                    ) -> dict[int, int]:
+    """How many rows print a figure in each value column."""
+    out: dict[int, int] = {}
+    for row in col_xs:
+        for c in {_column_index(x, value_bands) for x, _t in row}:
+            if c is not None:
+                out[c] = out.get(c, 0) + 1
+    return out
+
+
 def _column_periods(basis_cols: dict[Basis, list[int]], value_bands: list[float],
                     period_bands: list[tuple[str, float]], *,
                     restated: tuple[str, ...] = (), restated_cols: set[int] | None = None,
                     grid: ColumnGrid | None = None,
                     log=None, page_index: int | None = None,
                     meta_out: dict[tuple[Basis, int], ColumnPeriod] | None = None,
+                    support: dict[int, int] | None = None,
                     ) -> dict[tuple[Basis, int], str]:
     """The period label for every (basis, value column).
 
@@ -4910,8 +4951,14 @@ def _column_periods(basis_cols: dict[Basis, list[int]], value_bands: list[float]
         suffix = {c: "" for c in cols}
         if by_date:
             slot_of = {c: groups.index(dates[c]) for c in cols}
-            # Within a slot the RESTATED column first, so it is the one that takes the slot's label.
-            order = sorted(cols, key=lambda c: (slot_of[c], not flags[c]))
+            # Within a slot the RESTATED column first, so it is the one that takes the slot's label;
+            # then the column holding MORE FIGURES. Two columns land in one slot when a sparse one
+            # sits nearest the same heading — a sub-note reference ("Other equity 11.6"), a second
+            # note number ("3, 4"), a signatory's DIN — and the leftmost took the bare label: on
+            # Laurus Labs' balance sheet that was the stray, and every real current-year figure was
+            # sent as `current_col2`, a key the model has to guess the period of.
+            counts = support or {}
+            order = sorted(cols, key=lambda c: (slot_of[c], not flags[c], -counts.get(c, 0)))
             by_heading = sorted(cols, key=lambda c: slot_of[c])
             if by_heading != sorted(cols) and log:
                 log(f"extract:page={page_index}:period_selection=by_heading_date"
@@ -6112,6 +6159,13 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
         if log:
             log(f"extract:page={page_index}:equity_matrix_columns={len(names)}")
         cut = _sub_table_cut(matrix, number_format)
+        # …ONLY WHEN THE READ AGAIN IS SHORTER. A cut at a row that starts no lower than every word
+        # handed in (a matrix whose header band the words begin under) re-reads the same words and
+        # finds the same cut, without end: a half of a 2-up spread page read by the notes reader
+        # did exactly that, and the run died of recursion.
+        if cut is not None and not any(
+                w.bbox.y0 < min(x.bbox.y0 for x in matrix.rows[cut]) - 1e-6 for w in words):
+            cut = None
         if cut is not None:
             # A SUB-TABLE PRINTED UNDER THE MATRIX IS ITS OWN TABLE. The matrix is read down to its
             # heading; the rows from the heading on are read again as the table they are.
@@ -6346,7 +6400,8 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
     col_periods = _column_periods(
         basis_cols, value_bands, period_bands, restated=restated,
         restated_cols=_restated_columns(raw_rows, value_bands, restated, number_format),
-        grid=grid, log=log, page_index=page_index, meta_out=col_meta)
+        grid=grid, log=log, page_index=page_index, meta_out=col_meta,
+        support=_column_support(col_xs, value_bands))
     # Where the value columns stand, for telling a nil cell from the caption beside it. None on a
     # page without columns, where there is nothing to stand over.
     value_area = _value_area(value_bands, col_xs) if value_bands else None
@@ -6404,6 +6459,8 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
     # (caption, left edge, the ordinal the next row takes), and the valued rows since the last total.
     heading_trail: list[tuple[str, float, int]] = []
     recent_rows: list[tuple[int, float, list[tuple[float, Decimal]]]] = []
+    # The face's valued rows printed under the section banner in force, for `_face_section_total`.
+    face_section: tuple[str | None, list[list[tuple[float, Decimal]]]] = (None, [])
     group_x0: float | None = None
     group_label_bbox: BBox | None = None
     # See `_title_entity_basis`: the entity named by the most recent statement TITLE on this page,
@@ -6631,6 +6688,20 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
             if found is not None:
                 label, bare_components = found
                 promoted = True
+        # AN UNCAPTIONED SECTION TOTAL ON A FACE. Asian Paints prints its balance sheet's current
+        # assets and current liabilities totals on bare lines — "20,184.64 | 16,991.68" under Other
+        # Current Assets, before TOTAL ASSETS — and the line was dropped: a total current assets was
+        # reachable only by adding eight rows, four of whose captions recur elsewhere. On a face a
+        # bare figure is far likelier a stray, so the arithmetic is the evidence: it is the
+        # section's total only when, in every column it prints, it is exactly the sum of the rows
+        # printed under the banner in force. Its caption is that banner, as printed.
+        if value_words and not label and on_face and not promoted and section:
+            if face_section[0] == section and _face_section_total(
+                    value_words, face_section[1], number_format):
+                label = section
+                promoted = True
+                if log:
+                    log(f"extract:page={page_index}:face_section_total({section!r})")
 
         if not label or not value_words:
             # EVERY CAPTION-ONLY NOTE LINE IS A HEADING TO `_bare_subtotal_of`, whether or not the
@@ -6951,6 +7022,13 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
         #
         # Emptying the member list is what stops a second bare figure promoting against a block that
         # has already been totalled.
+        if on_face:
+            vals = [(w.bbox.x1, v) for w in value_words
+                    if (v := _num(w.text, number_format)) is not None]
+            if promoted or face_section[0] != section:
+                face_section = (section, [])
+            if vals and not promoted:
+                face_section[1].append(vals)
         if promoted or li.role is not LineRole.LINE:
             recent_rows = []
         elif not on_face and label_words:

@@ -649,6 +649,23 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
                         seg, ps.index, source_kind, fold, notes_carry, notes_grid,
                         notes_group, notes_header)
                 continue
+        # A 2-UP SPREAD WITH A STATEMENT ON IT IS READ ONE PRINTED PAGE AT A TIME, as
+        # `classify._merge_spread_units` recorded its halves: a face half is its own batch — its
+        # own statement, entity, title and column headings, so "as at 31st March 2026" over each
+        # half keys that half's columns current/prior — a notes half goes to the notes reader, and
+        # any other half (the end of the auditor's report) is not read. A half is one printed page,
+        # so no reader below is handed the fold.
+        spread_batches = None
+        spread = (ps.evidence or {}).get("spread") if override_batches is None else None
+        if spread and ps.kind == PageKind.FACE:
+            spread_batches, late_notes = _spread_batches(
+                words, spread, ps.index, source_kind, off, notes_chapter, ctx.log)
+            for seg in late_notes.pop("early", []):
+                notes_carry, notes_grid, notes_group, notes_header = _read_notes(
+                    seg, ps.index, source_kind, None, notes_carry, notes_grid, notes_group,
+                    notes_header)
+            late_notes = late_notes["late"]
+            fold = None
         # Notes pages → note detail tables (the breakdowns behind the face figures); every
         # other page → face line items. Both keep page + bbox provenance.
         if ps.kind == PageKind.NOTES and override_batches is None:
@@ -668,7 +685,7 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
         # whose identities belong to real notes. They are left unread, as they were never notes
         # before — they were face rows, filed as cash flows.
         supp = ps.evidence or {}
-        if ps.kind == PageKind.FACE and override_batches is None:
+        if ps.kind == PageKind.FACE and override_batches is None and spread_batches is None:
             title_y = supp.get("matched_title_y")
             ends_y = supp.get("face_ends_at_y")
             above = ([word for word in words if (word.bbox.y0 + word.bbox.y1) / 2 < title_y]
@@ -692,7 +709,8 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
         # THE NOTES THAT OPEN BELOW A STATEMENT'S LAST FIGURE — see
         # `notes_extract.notes_below_the_face`. Read after the face, as a person's late notes parts
         # are, so the chapter and the note they open carry on to the next page.
-        if ps.kind == PageKind.FACE and override_batches is None and "notes" not in off:
+        if (ps.kind == PageKind.FACE and override_batches is None and spread_batches is None
+                and "notes" not in off):
             from app.services.notes_extract import notes_below_the_face
             opens = notes_below_the_face(words, source_kind, fold,
                                          notes_chapter[1] if notes_chapter[0] else 0)
@@ -744,6 +762,8 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
         # after` below is the real bound: a split that leaves nothing on one side is not a split.
         if override_batches is not None:
             batches = override_batches
+        elif spread_batches is not None:
+            batches = spread_batches
         elif (ps.kind == PageKind.FACE and prior_statement and isinstance(split_y, (int, float))
                 and 0.0 < split_y < 0.95):
             before = [word for word in words if (word.bbox.y0 + word.bbox.y1) / 2 < split_y]
@@ -841,6 +861,52 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
         ctx.log(f"extract:notes_on_face_basis="
                 f"{sum(1 for t in doc.notes if t.basis == Basis.STANDALONE)}(standalone)")
     return added
+
+
+def _spread_batches(words, spread: dict, page_index: int, source_kind: str, off,
+                    notes_chapter, log) -> tuple[list, dict]:
+    """The face batches of a 2-up spread page, one per face half (two where a statement ends part
+    way down a half and the next begins), and the notes segments its notes halves hold: `early`
+    ones (before any face half) are read before the face, `late` ones after it, as a person's
+    notes parts are."""
+    from app.services.notes_extract import notes_below_the_face
+
+    batches: list = []
+    notes: dict = {"early": [], "late": []}
+    for half_words, half in zip(page_spread.halves(words, float(spread["fold"])),
+                                spread.get("halves") or []):
+        if not half_words:
+            continue
+        side, kind = half.get("side"), half.get("kind")
+        ev = half.get("evidence") or {}
+        if kind == PageKind.NOTES.value:
+            if "notes" not in off:
+                notes["late" if batches else "early"].append(half_words)
+            continue
+        if kind != PageKind.FACE.value:
+            log(f"extract:page={page_index}:spread_half_unread({side}:{kind})")
+            continue
+        if "notes" not in off:
+            opens = notes_below_the_face(half_words, source_kind, None,
+                                         notes_chapter[1] if notes_chapter[0] else 0)
+            tail = ([w for w in half_words if (w.bbox.y0 + w.bbox.y1) / 2 >= opens]
+                    if opens is not None else [])
+            if tail and len(tail) < len(half_words):
+                inside = {id(w) for w in tail}
+                half_words = [w for w in half_words if id(w) not in inside]
+                notes["late"].append(tail)
+                log(f"extract:page={page_index}:spread_{side}:notes_below_face_from_y={opens:.3f}")
+        title = str(ev.get("matched_title") or "") or None
+        split_y, prior = ev.get("matched_title_y"), ev.get("statement_before_title")
+        before = ([w for w in half_words if (w.bbox.y0 + w.bbox.y1) / 2 < split_y]
+                  if prior and isinstance(split_y, (int, float)) and 0.0 < split_y < 0.95 else [])
+        after = [w for w in half_words if w not in before] if before else half_words
+        if before and after:
+            batches.append((before, prior, ev.get("scope_before_title"), None))
+        batches.append((after, half.get("statement"), half.get("scope"), title))
+        log(f"extract:page={page_index}:spread_{side}=({half.get('statement')},"
+            f"{half.get('scope') or '-'}{',split' if before and after else ''})")
+    return batches, notes
 
 
 def extract_image(data: bytes, doc, ctx: PipelineContext, *, scope=None,
