@@ -61,8 +61,22 @@ def _figures(row) -> dict[str, str]:
             continue
         if getattr(ev, "value", None) is None:
             continue
-        out[str(getattr(ev, "period_label", "") or "?")] = str(ev.value)
+        out[str(getattr(ev, "period_label", "") or "?")] = printed_figure(ev)
     return out
+
+
+def printed_figure(ev) -> str:
+    """The figure AS THE PAGE PRINTS IT: `value_raw`, not the sign-normalised `value`.
+
+    A statement block is the statement as printed, and the engine's sign convention is not what
+    was printed. 688008's consolidated income statement prints 财务费用 as -240,504,105.54 (net
+    interest income) and 其中：利息费用 as 1,512,598.38; the block sent them as 240504105.54 and
+    -1512598.38, the opposite of the page — so a model reading the block saw an expense line the
+    filing reports as income, and a figure it could not find on the page it was told to read.
+    `value` stays the fallback for a fact whose raw figure was never kept.
+    """
+    raw = getattr(ev, "value_raw", None)
+    return str(raw if raw is not None else ev.value)
 
 
 def _statement_of(row, stmt_of_page: dict, page) -> str:
@@ -125,6 +139,7 @@ def face_rows(doc, statements) -> list[dict]:
                     normalize_statement(str(getattr(p, "statement", "") or ""))
                     for p in (getattr(doc, "pages", None) or ())}
     notes_pages = _notes_pages(doc)
+    supplement = supplement_pages(doc)
     chrome = set(getattr(doc, "page_chrome", None) or ())
     doc_unit = getattr(doc, "unit_context", None)
 
@@ -133,8 +148,8 @@ def face_rows(doc, statements) -> list[dict]:
     # and 24.5bn — with nothing to say which was the group's. And an HKEX table printing Group and
     # Company side by side was ONE row whose two `current` figures shared a key, so the company's
     # overwrote the group's. Each figure now goes under its own entity.
-    by_block: dict[tuple[str, str], list[tuple[int, dict]]] = {}
-    legends: dict[tuple[str, str], dict[str, str]] = {}
+    by_block: dict[tuple[str, str, str], list[tuple[int, dict]]] = {}
+    legends: dict[tuple[str, str, str], dict[str, str]] = {}
     for row in (getattr(doc, "line_items", None) or ()):
         page = _page_of(row)
         statement = _statement_of(row, stmt_of_page, page)
@@ -157,19 +172,31 @@ def face_rows(doc, statements) -> list[dict]:
             key = str(getattr(row, "canonical_key", "") or "")
             if key and not key.startswith("engine_unclassified"):
                 entry["line"] = key
-            by_block.setdefault((statement, entity), []).append(
+            # THE CASH-FLOW SUPPLEMENT IS ITS OWN BLOCK. A mainland filing prints the indirect
+            # reconciliation (现金流量表补充资料) in the notes, and the reader reads it as the cash
+            # flow's — rightly, it is where the indirect lines' figures are. But sent inside the
+            # cash-flow block it read as the statement's own continuation: 净利润, 固定资产折旧,
+            # 财务费用 and 经营性应收项目的减少 appended to the face after 期末现金及现金等价物余额.
+            part = supplement.get(page, "") if statement == "cash_flow" else ""
+            block_key = (statement, entity, part)
+            by_block.setdefault(block_key, []).append(
                 (page if page is not None else 0, entry))
-            seen = legends.setdefault((statement, entity), {})
+            seen = legends.setdefault(block_key, {})
             for label, heading in legend.items():
                 seen.setdefault(label, heading)
 
     out: list[dict] = []
-    for statement, entity in sorted(by_block, key=lambda se: (se[0], _ENTITY_ORDER.get(se[1], 9))):
-        rows = [e for _p, e in sorted(by_block[(statement, entity)], key=lambda pe: pe[0])]
+    for key in sorted(by_block, key=lambda k: (k[0], _ENTITY_ORDER.get(k[1], 9), k[2])):
+        statement, entity, part = key
+        rows = [e for _p, e in sorted(by_block[key], key=lambda pe: pe[0])]
         block: dict = {"statement": statement, "entity": entity}
-        if legends.get((statement, entity)):
+        if part:
+            block["part"] = "supplement"
+            block["title"] = part
+            block["printed_in"] = "notes"
+        if legends.get(key):
             # The printed heading of each figure key — the period's date, as the page states it.
-            block["columns"] = legends[(statement, entity)]
+            block["columns"] = legends[key]
         # THE UNIT THE FIGURES ARE IN, as the run knows it — see `units.describe`.
         block["unit"] = units.block_units(rows, doc_unit)
         block["rows"] = rows
@@ -178,6 +205,39 @@ def face_rows(doc, statements) -> list[dict]:
 
 
 _ENTITY_ORDER = {"consolidated": 0, "standalone": 1}
+
+
+# The supplement's own title. The classifier marks the supplement only where it also finds the
+# reconciliation's closing row; 000685 titles it "79、现金流量表补充资料" and the mark was not set, so
+# its standalone cash-flow block ran on into 现金的期末余额 and the foreign-currency rows after it.
+_SUPPLEMENT_TITLE = re.compile(r"现金流量表补充资料|現金流量表補充資料")
+
+
+def supplement_pages(doc) -> dict[int, str]:
+    """``{page index: printed title}`` for every page of a cash-flow supplement printed in the notes.
+
+    The classifier marks the page that TITLES the supplement (`evidence["supplement"]`, see
+    `stages.classify._cf_supplement_extent`); the pages after it that it continues onto are the
+    face pages of the same statement up to the next titled page.
+    """
+    from app.core.models.enums import PageKind
+
+    out: dict[int, str] = {}
+    title = ""
+    last = None
+    for p in sorted(getattr(doc, "pages", None) or (), key=lambda p: int(getattr(p, "index", -1))):
+        ev = getattr(p, "evidence", None) or {}
+        index = int(getattr(p, "index", -1))
+        face = getattr(p, "kind", None) is PageKind.FACE
+        printed = str(ev.get("matched_title") or "")
+        if face and (ev.get("supplement") or _SUPPLEMENT_TITLE.search(printed)):
+            title = printed or "现金流量表补充资料"
+        elif not face or ev.get("matched_title") or last is None or index != last + 1:
+            title = ""
+        if title:
+            out[index] = title
+        last = index
+    return out
 
 # A COMPANY IDENTITY LINE — the CIN, the registered office, the name banner, "Annual Report
 # 2024-25". It is printed at the top of every statement page, so the nearest-banner rule made it
@@ -206,18 +266,30 @@ def is_identity_line(text: str, chrome=()) -> bool:
 # is a heading word of the note-reference or particulars column, and every figure is a year — the
 # two together, because neither alone says the row is a heading.
 _HEADING_CAPTION = re.compile(
-    r"(?i)^\W*(?:note\s*no|note|notes|no|sr\.?\s*no|s\.?\s*no|particulars|year|years)\W*$")
+    r"(?i)^\W*(?:note\s*no|note|notes|no|sr\.?\s*no|s\.?\s*no|particulars|year|years)\W*"
+    r"(?P<unit>(?:(?:hk|us|s|nt)?\$|rmb|hkd|usd|人民[币幣]|港[币幣元])\s*[’'`]?\s*(?:0{3})?\W*)?$")
 _YEAR = re.compile(r"^(?:19|20)\d\d$")
+# THE "'000" OF A UNITS HEADING, read as a figure. 0160 prints its column heading as "Notes HK$'000
+# HK$'000", the reader split "HK$'" from "000", and every balance-sheet and cash-flow block of the
+# filing opened with a row "Notes HK$'" whose current figure was 0.
+_UNIT_ZEROS = re.compile(r"^0+(?:\.0+)?$")
 
 
 def is_column_heading_row(row) -> bool:
-    """Whether `row` is a line of the statement's column heading read as though it were a row."""
-    if not _HEADING_CAPTION.match(getattr(row, "source_label", "") or ""):
+    """Whether `row` is a line of the statement's column heading read as though it were a row.
+
+    The caption is a heading word of the note-reference or particulars column, and every figure is
+    a year — or, where the caption carries the currency of a units heading, the "000" that heading
+    printed after it.
+    """
+    m = _HEADING_CAPTION.match(getattr(row, "source_label", "") or "")
+    if not m:
         return False
     figures = [str(getattr(ev, "value", "")).strip()
                for ev in (getattr(row, "values", None) or {}).values()
                if getattr(ev, "value", None) is not None]
-    return bool(figures) and all(_YEAR.match(f) for f in figures)
+    return bool(figures) and all(_YEAR.match(f) or (m.group("unit") and _UNIT_ZEROS.match(f))
+                                 for f in figures)
 
 
 def _shown_on_face(row, page, notes_pages) -> bool:
@@ -287,7 +359,7 @@ def _figures_by_entity(row) -> dict[str, tuple[dict[str, str], dict[str, str]]]:
         entity = str(getattr(basis, "value", basis) or "consolidated")
         figures, legend = out.setdefault(entity, ({}, {}))
         label = str(getattr(ev, "period_label", "") or "?")
-        figures[label] = str(ev.value)
+        figures[label] = printed_figure(ev)
         heading = getattr(ev, "column_heading", None) or getattr(ev, "period_display", None)
         if heading:
             legend[label] = str(heading)

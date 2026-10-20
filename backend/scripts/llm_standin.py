@@ -383,18 +383,31 @@ class RunIndex:
                 if pg and pg.get("kind", "").upper().endswith("FACE") and v.get("basis"):
                     self.face_bases.add(v["basis"])
 
-    def source_of(self, caption: str, figures: dict) -> tuple[dict, dict] | None:
+    def source_of(self, caption: str, figures: dict, statement: str = "") -> tuple[dict, dict] | None:
+        """The run's row a block row was sent from: same caption, one of its figures.
+
+        A caption and figure printed on two statements — "Loss before taxation" on the income
+        statement and at the head of the indirect cash flow, a dividend paid on the cash flow and
+        in the changes in equity — is two rows, and the one printed on `statement` is the source.
+        """
         want = {round(n, 2) for n in (_num(x) for x in (figures or {}).values()) if n is not None}
         best = None
+        found = []
         for r in self.rows:
             if (r.get("source_label") or "").strip() != (caption or "").strip():
                 continue
             for v in r.get("values") or []:
                 n = _num(v.get("value_raw", v.get("value")))
                 if n is not None and round(n, 2) in want:
-                    return r, v
+                    found.append((r, v))
+                    break
             best = best or (r, (r.get("values") or [{}])[0])
-        return best
+        for r, v in found:
+            pg = self.pages.get((v.get("provenance") or {}).get("page_index")) or {}
+            if statement and (pg.get("statement") == statement
+                              or f"printed_on:{statement}" in (r.get("flags") or [])):
+                return r, v
+        return found[0] if found else best
 
 
 def lint_request(req: dict, run: RunIndex, budget_tokens: int = DEFAULT_BUDGET_TOKENS) -> list[dict]:
@@ -443,7 +456,7 @@ def lint_request(req: dict, run: RunIndex, budget_tokens: int = DEFAULT_BUDGET_T
                                                r.get("group", ""), r.get("period", ""), cap) if t)
                 by_caption[place].add(json.dumps(figs, sort_keys=True))
             if kind == "statement_rows" and _has_figure(r):
-                src = run.source_of(cap, figs)
+                src = run.source_of(cap, figs, block.get("statement") or "")
                 if src:
                     row, val = src
                     pg = run.pages.get((val.get("provenance") or {}).get("page_index"))
@@ -451,7 +464,11 @@ def lint_request(req: dict, run: RunIndex, budget_tokens: int = DEFAULT_BUDGET_T
                     if row.get("printed_in") == "notes" or pkind.endswith("NOTES"):
                         hit("rows_not_from_statement", f"{label}: '{cap}' comes from page "
                             f"{(pg or {}).get('index')} ({pkind or 'notes'}, printed_in {row.get('printed_in')})")
-                    elif pg and pg.get("statement") and pg["statement"] != block.get("statement"):
+                    elif (pg and pg.get("statement") and pg["statement"] != block.get("statement")
+                          # A PAGE THAT HOLDS TWO STATEMENTS stamps each row with the one it was
+                          # printed under (`buckets.PRINTED_ON_FLAG`); the page's own verdict is the
+                          # statement that begins on it, and a row above that title is not its.
+                          and f"printed_on:{block.get('statement')}" not in (row.get("flags") or [])):
                         hit("rows_not_from_statement", f"{label}: '{cap}' comes from page {pg['index']} "
                             f"classified as {pg['statement']}")
         for cap, figs in by_caption.items():

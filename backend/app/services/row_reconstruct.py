@@ -786,6 +786,23 @@ def _scan_row(row: list[Word], fmt=None, *, extract_note_refs: bool = True) -> t
             note_ref = _note_ref_value(tok)
             i += 1
             continue
+        # …AND A CHAPTER-NUMBERED NOTE REFERENCE THAT OPENS THE LINE. A caption that wraps onto two
+        # lines is set so that its figures sit on the baseline BETWEEN them, and the note column
+        # with them: 688008 prints 公允价值变动收益（损失以“－”号填 / 列） with 七、70 and both
+        # figures between. The figures' line then opens on 七、70, which was read as its caption —
+        # the row came out "七、70", and the caption's tail 列） was welded onto the next row,
+        # "列） 信用减值损失…". Shaped 七、70, it cannot be an amount or a word of a caption; taken
+        # as the note, the line is a figures-only line, which is what the straddle rejoin reads.
+        #
+        # NOR IS IT A WORD OF THE CAPTION BEFORE IT, however tight it is set: 600990 prints the
+        # wrapped 信用减值损失（损失以“-”号填 so that it runs right up to the note column, and 七、71
+        # was read as the caption's next word — "信用减值损失（损失以“-”号填七、71 列）".
+        if (extract_note_refs and note_ref is None and not value_words
+                and _CHINESE_CHAPTER_NOTE_REF.match(tok)
+                and any(_is_money_like(w.text, fmt) for w in row[i + 1:])):
+            note_ref = _note_ref_value(tok)
+            i += 1
+            continue
         # AN AGEING BUCKET'S NUMBER IS PART OF ITS CAPTION. "1 年以内（含1 年）", "1 至2 年", "3 年以上"
         # open on a bare integer set tight against the unit that follows it, and read as a figure
         # that integer took the row's first value slot and — text after a figure being neither
@@ -1499,6 +1516,21 @@ def _continues_as_a_reference(prev: list[Word], row: list[Word], label_words: li
     return _wrap_adjacent(_row_box(prev), _row_box(row), label_words)
 
 
+def _caption_above_figures(above: list[Word], row: list[Word], fmt=None) -> bool:
+    """Whether `above` is a caption-only line whose figures are `row`, set half a line below it.
+
+    The wrapped-caption layout: the figures sit on the baseline between a caption's two lines, so
+    they are lower than its first line by LESS than a line's height. A caption one full line up is
+    an empty line item of its own and is left alone.
+    """
+    label_words, note_ref, value_words = _scan_row(above, fmt)
+    if not label_words or value_words or note_ref is not None:
+        return False
+    head, figures = _row_box(above), _row_box(row)
+    line_h = max(head.y1 - head.y0, 1e-4)
+    return 0 < figures.y0 - head.y0 < 0.9 * line_h
+
+
 def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
                           steps: tuple[tuple[str, object], ...] = (),
                           page_title: str | None = None,
@@ -1576,6 +1608,14 @@ def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
             # complete on the line above — see `_continues_as_a_reference`.
             if (not pending and out and label_words
                     and _continues_as_a_reference(out[-1], row, label_words, fmt, steps)):
+                pending = out.pop()
+            # FIGURES WITH NO CAPTION OF THEIR OWN, half a line below a caption that has none: the
+            # caption's first line, its figures set between it and its second line. A complete
+            # caption is let go into `out` above — `_is_known_caption` cannot tell 公允价值变动收益
+            # （损失以“－”号填 from the complete caption it opens — and without it the figures had
+            # no caption at all and the row was lost.
+            if (not pending and out and not label_words
+                    and _caption_above_figures(out[-1], row, fmt)):
                 pending = out.pop()
             straddle = ((list(pending), _row_box(row))
                         if pending and not label_words else None)
@@ -1836,6 +1876,16 @@ _CAS_FACE_CAPTIONS: frozenset[str] = frozenset(normalize_label(_c) for _c in {
     # layout that 300319 prints blank between 投资支付的现金 and 取得子公司…, and that otherwise
     # welds onto the caption below it. A complete caption, not a fragment.
     "质押贷款净增加额",
+    # …AND THE REST OF THE FINANCIAL-ENTERPRISE LINES OF THE OPERATING SECTION, which a general
+    # enterprise prints blank in the same template. Not in the list, four of them were welded onto
+    # 300319's 支付给职工以及为职工支付的现金 as one caption holding its figures:
+    # 拆出资金净增加额支付利息、手续费及佣金的现金支付保单红利的现金支付给职工以及为职工支付的现金.
+    "客户存款和同业存放款项净增加额", "向中央银行借款净增加额", "向其他金融机构拆入资金净增加额",
+    "收到原保险合同保费取得的现金", "收到再保业务现金净额", "保户储金及投资款净增加额",
+    "收取利息、手续费及佣金的现金", "拆入资金净增加额", "回购业务资金净增加额",
+    "代理买卖证券收到的现金净额", "客户贷款及垫款净增加额", "存放中央银行和同业款项净增加额",
+    "支付原保险合同赔付款项的现金", "拆出资金净增加额", "支付利息、手续费及佣金的现金",
+    "支付保单红利的现金",
     # THE STATEMENT OF CHANGES IN EQUITY, which the same scan also stopped short of. Its caption
     # column is the narrowest on the face — a dozen value columns share the page — so almost every
     # one of these wraps, and with none of them recognised the forward-fold ate them in runs:
@@ -5025,6 +5075,8 @@ def _column_periods(basis_cols: dict[Basis, list[int]], value_bands: list[float]
 # statement. Persist unit on every fact; never normalise scale silently." Reconstruction runs per
 # PAGE, so the header it reads is the statement's own — a cover-page banner cannot reach it — and
 # the resolved unit is written onto every fact rather than onto the document.
+from app.services.units import UNITS_WORD  # noqa: E402
+
 _SCALE_WORDS: tuple[tuple[re.Pattern[str], Decimal, str], ...] = (
     (re.compile(r"'0{3}|thousand", re.IGNORECASE), Decimal(1_000), "thousand"),
     (re.compile(r"千元|千"), Decimal(1_000), "thousand"),
@@ -5032,6 +5084,13 @@ _SCALE_WORDS: tuple[tuple[re.Pattern[str], Decimal, str], ...] = (
     (re.compile(r"百萬元|百万元|百萬|百万"), Decimal(1_000_000), "million"),
     (re.compile(r"billion", re.IGNORECASE), Decimal(1_000_000_000), "billion"),
     (re.compile(r"億元|亿元|億|亿"), Decimal(100_000_000), "hundred million"),
+    # THE MAINLAND UNITS LINE. Every CAS statement is headed 单位：元 (or 万元 / 千元) beside
+    # 币种：人民币, and none of it was vocabulary: the faces of all eleven mainland filings went out
+    # "CNY, scale not stated" while the page states its scale in two characters. 元 is a scale of
+    # one and is still a scale READ — `units.scale_declared` — which is what lets a note printed
+    # in 万元 be told from a face printed in 元.
+    (re.compile(r"万元|萬元"), Decimal(10_000), "ten thousand"),
+    (re.compile(r"^(?:单位|單位)\s*[:：]?\s*(?:人民币|人民幣)?元$"), Decimal(1), UNITS_WORD),
 )
 _CURRENCY_WORDS: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"rmb|cny|人民幣|人民币|元人民幣", re.IGNORECASE), "CNY"),
@@ -6527,6 +6586,13 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
         if on_face:
             note_ref, value_words = _resolve_note_column(
                 note_ref, value_words, note_x, number_format)
+        # A LINE OF FIGURES WHOSE ONLY TEXT IS ITS NOTE REFERENCE, where no wrapped caption above
+        # claimed it (`_merge_wrapped_labels`), keeps the reference as its caption: an uncaptioned
+        # row is dropped below, and the figures are better sent under "七、70" than not at all.
+        if on_face and value_words and not label_words and note_ref is not None:
+            label_words = [w for w in row if _CHINESE_CHAPTER_NOTE_REF.match(w.text.strip())][:1]
+            if label_words:
+                note_ref = None
         # A NIL CELL IS A CELL, NOT THE END OF THE CAPTION. `_scan_row` files text before the first
         # figure as label, and a dash printed for "nothing this period" is text — so 688008's
         # "应付账款 英特尔公司 - 1,403,741.56" was captioned "应付账款英特尔公司 -". Only a dash standing

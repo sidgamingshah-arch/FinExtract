@@ -353,6 +353,57 @@ _MAX_DISTINCT_TITLES = 3
 _STATEMENT_ALIAS = {"comprehensive_income": "profit_and_loss"}
 
 
+# A line that ENDS on a figure of three or more digits that is not a year: an unformatted amount, as
+# a statement in thousands prints one ("Revenue 500"). The committee minutes' meeting counts (7) and
+# dates (2024 年04 月) are neither.
+_FIGURE_AT_END = re.compile(r"(?<![\d,.])\(?-?\d{3,}\)?\s*$")
+_YEAR_AT_END = re.compile(r"(?<!\d)(?:19|20)\d\d\s*$")
+
+
+def _prints_a_figure(text: str) -> bool:
+    return bool(_AMOUNT_LINE.search(text)
+                or (_FIGURE_AT_END.search(text) and not _YEAR_AT_END.search(text)))
+
+
+def _drop_runs_without_figures(pages: list, cache: list, log=None) -> int:
+    """A run of FACE pages that prints no amount anywhere is not a statement. Returns pages dropped.
+
+    A statement's title is followed by its figures, on its own page or on the next. 000685's
+    corporate-governance pages print the audit committee's minutes in a narrow table, and one cell
+    wraps 资产负债表 / 日期后事项 — so a line reads "资产负债表" exactly, the page was titled a balance
+    sheet, and the two pages after it continued it. Not one of the three prints an amount; their
+    "rows" were the committee's names, meeting counts and dates ('审计委员会' with a figure of 7),
+    and every one was mapped to other current assets. The test is the whole RUN, never one page:
+    Changjiang titles its balance sheet at the foot of page 127 and prints its figures overleaf.
+    """
+    dropped = 0
+    i = 0
+    while i < len(pages):
+        if pages[i].kind is not PageKind.FACE:
+            i += 1
+            continue
+        j = i
+        while (j + 1 < len(pages) and pages[j + 1].kind is PageKind.FACE
+               and pages[j + 1].index == pages[j].index + 1
+               and (pages[j + 1].statement or None) == (pages[i].statement or None)
+               and not (pages[j + 1].evidence or {}).get("matched_title")):
+            j += 1
+        if pages[i].statement and not any(
+                _prints_a_figure(line["text"]) for k in range(i, j + 1) for line in cache[k][0]):
+            for k in range(i, j + 1):
+                page = pages[k]
+                page.kind = PageKind.OTHER
+                page.statement = None
+                page.scope = None
+                if isinstance(page.evidence, dict):
+                    page.evidence["dropped_face"] = "no_amounts_in_run"
+                dropped += 1
+            if log is not None:
+                log(f"classify:pages={pages[i].index}-{pages[j].index}:not_a_face(no_amounts)")
+        i = j + 1
+    return dropped
+
+
 @dataclass
 class PageFeat:
     """One page's local evidence, before the decode weighs it against its neighbours."""
@@ -1689,6 +1740,21 @@ class ClassifyStage:
             reclaimed += 1
             ctx.log(f"classify:page={page.index}:reclaimed_as_face"
                     f"(between {prev.index} and {nxt.index}, statement={page.statement})")
+            # THE STATEMENT THIS PAGE CONTINUES IS ALSO RUNNING AT THE TOP OF THE NEXT ONE. The
+            # page after it is titled part way down, and whether its rows above the title are split
+            # off was decided in the decode, while this page was still a note — so no statement
+            # was "running" above the title and none was recorded. 688411's company balance sheet
+            # ends at the top of page 136 (其他应付款 … 负债和所有者权益总计) above 合并利润表, and
+            # those rows were read as the consolidated income statement's: 其他应付款 and
+            # 实收资本（或股本） arrived in its block tagged is_pl__other_operating_expenses.
+            ev = nxt.evidence if isinstance(nxt.evidence, dict) else None
+            if (ev is not None and page.statement and ev.get("matched_title_y")
+                    and not ev.get("statement_before_title")
+                    and feats[pos + 1].amounts_above_title):
+                ev["statement_before_title"] = page.statement
+                ev["scope_before_title"] = page.scope
+                ctx.log(f"classify:page={nxt.index}:statement_before_title={page.statement}"
+                        f"(continued from reclaimed page {page.index})")
         if reclaimed:
             ctx.log(f"classify:reclaimed_statement_continuations={reclaimed}")
         return reclaimed
@@ -1973,6 +2039,7 @@ class ClassifyStage:
                 doc.unmapped_titles.extend(f.unmapped[:3])
 
         self._reclaim_statement_continuations(pages, feats, cache, ctx)
+        _drop_runs_without_figures(pages, cache, ctx.log)
         pages = _merge_spread_units(whole_pages, whole_cache, pages, spreads, log=ctx.log)
         # A PERSON'S CORRECTION OUTRANKS THE READING ABOVE, and is applied last so nothing above
         # can undo it. See `services.page_overrides`.

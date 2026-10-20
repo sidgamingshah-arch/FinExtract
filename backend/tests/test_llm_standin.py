@@ -310,3 +310,41 @@ def test_coverage_says_whether_each_printed_figure_reached_a_request_about_its_l
     missing = standin.Key(filing="x", template="t", lines={
         "bs_icon__finished_goods": standin.KeyLine(current="7777.00")})
     assert [r["status"] for r in standin.coverage_of(tmp_path, missing)] == ["not_carried"]
+
+
+def test_a_row_printed_above_the_next_statements_title_is_its_own_statements(run_dir: Path):
+    """A page that holds the end of one statement and the start of the next is classified as the
+    one that begins on it. 688008's company balance sheet closes at the top of page 153 above
+    合并利润表; its 负债和所有者权益总计 sits in the balance-sheet block, stamped so, and is not a row
+    "from" the income statement. The same row unstamped still is."""
+    run = run_dir / "run"
+    pages = json.loads((run / "pages.json").read_text())
+    pages.append({"index": 7, "kind": "FACE", "statement": "profit_and_loss", "scope": "company"})
+    (run / "pages.json").write_text(json.dumps(pages))
+    rows = json.loads((run / "rows.json").read_text())
+    rows.append({"source_label": "负债和所有者权益总计", "printed_in": "face",
+                 "flags": ["printed_on:balance_sheet"],
+                 "values": [{"basis": "standalone", "value_raw": "9712265458.47",
+                             "provenance": {"page_index": 7}}]})
+    (run / "rows.json").write_text(json.dumps(rows))
+    payload = _with_face_row({"caption": "负债和所有者权益总计", "figures": {"current": "9712265458.47"}})
+    assert "rows_not_from_statement" not in _checks(payload, run_dir)
+    rows[-1]["flags"] = []
+    (run / "rows.json").write_text(json.dumps(rows))
+    assert "rows_not_from_statement" in _checks(payload, run_dir)
+
+
+def test_a_caption_and_figure_printed_on_two_statements_is_sourced_from_the_blocks(run_dir: Path):
+    """嘉民 prints "Loss before taxation" on the income statement and atop its indirect cash flow."""
+    run = run_dir / "run"
+    pages = json.loads((run / "pages.json").read_text())
+    pages += [{"index": 7, "kind": "FACE", "statement": "profit_and_loss", "scope": "company"}]
+    (run / "pages.json").write_text(json.dumps(pages))
+    rows = json.loads((run / "rows.json").read_text())
+    for page in (7, 1):
+        rows.append({"source_label": "Loss before taxation", "printed_in": "face",
+                     "values": [{"basis": "standalone", "value_raw": "-150.00",
+                                 "provenance": {"page_index": page}}]})
+    (run / "rows.json").write_text(json.dumps(rows))
+    payload = _with_face_row({"caption": "Loss before taxation", "figures": {"current": "-150.00"}})
+    assert "rows_not_from_statement" not in _checks(payload, run_dir)

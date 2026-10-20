@@ -676,7 +676,11 @@
     "HK$'000",
     "港幣千元",
     "RMB million",
-    "人民幣百萬元"
+    "人民幣百萬元",
+    "单位：元",
+    "单位：人民币元",
+    "单位：千元",
+    "单位：万元"
    ],
    "conflict": "If header scale and a printed subtotal are inconsistent by a factor of 1,000, trust neither: route the statement to review."
   },

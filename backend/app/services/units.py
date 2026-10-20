@@ -78,7 +78,11 @@ def _scale(unit) -> Decimal:
 
 # THE SCALE NAMES A READER WRITES, by factor. A factor not listed is written as its multiplier
 # alone, which is still exact.
-_SCALE_NAMES = {Decimal(1000): "thousands", Decimal(100000): "lakhs", Decimal(1000000): "millions",
+#: The scale word of a units line that states figures in single units — 单位：元. A scale of one,
+#: READ rather than assumed, so it is said as such ("units (x1)") and not as an unread scale.
+UNITS_WORD = "units"
+
+_SCALE_NAMES = {Decimal(10000): "ten thousands", Decimal(1000): "thousands", Decimal(100000): "lakhs", Decimal(1000000): "millions",
                 Decimal(10000000): "crores", Decimal(1000000000): "billions"}
 
 NOT_STATED = "not stated"
@@ -123,7 +127,7 @@ def _scale_words(unit, fallback) -> str:
             return f"{name} ({multiplier})" if name else f"({multiplier})"
     for u in (unit, fallback):
         if label := str(getattr(u, "units_label", None) or "").strip():
-            return f"as printed '{label}'"
+            return "units (x1)" if label == UNITS_WORD else f"as printed '{label}'"
     return ""
 
 
@@ -146,9 +150,23 @@ def block_units(entries: list[dict], fallback=None) -> str:
     """
     units = [e.pop("_unit", None) for e in entries]
     distinct = {u for u in units if u}
+    # A STATEMENT STATES ITS UNIT ONCE, on the page that titles it. A CAS statement prints
+    # 单位：元 under its title and nothing over its continuation pages, so the rows read there carry
+    # no scale — and a block that is one statement said "varies by row" when nothing varied. A row
+    # whose scale was not read does not contradict the rows whose scale was: where the rest agree,
+    # theirs is the block's.
+    stated = {u for u in distinct if not _scale_unread(u)}
+    if len(stated) == 1:
+        distinct = stated
+        units = [u if u in stated else None for u in units]
     if len(distinct) <= 1:
         return next(iter(distinct)) if distinct else describe(None, fallback)
     for entry, unit in zip(entries, units):
         if unit:
             entry["unit"] = unit
     return "varies by row; see each row's unit"
+
+
+def _scale_unread(described: str) -> bool:
+    """Whether a `describe` string says no scale was read."""
+    return described == NOT_STATED or described.endswith(", scale not stated")
