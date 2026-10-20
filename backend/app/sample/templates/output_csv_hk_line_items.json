@@ -19262,7 +19262,7 @@
   {
    "key": "sub__cp_face_trading_fincl_assets",
    "label": "Trading financial assets on the face of the balance sheet",
-   "definition": "The CURRENT held-for-trading financial asset as the balance sheet prints it. A mainland face prints 交易性金融资产 under 流动资产; bs_ca__secur_and_other_fincl_assets_cp is `derived`, and `mapping._computed_parent` makes every derived key unmatchable by caption, so the printed row reached no column and the residual sweep filed it on bs_ca__other_current_assets — where it was counted a SECOND time beside the note cascade's own figure for the same money. Measured on 澜起科技 688008: 1,783,494,750.68 / 1,703,266,947.76, present in both the catch-all and the securities column.",
+   "definition": "The CURRENT held-for-trading financial assets as the balance sheet prints them, as their own row under current assets: 交易性金融资产 under 流动资产 on a mainland (CAS) face, 'Financial assets at fair value through profit or loss' among current assets on an HKFRS face. Read the printed face row, each period from its own column.",
    "parent": "bs_ca__secur_and_other_fincl_assets_cp",
    "namespace": "internal",
    "in_output": false,
@@ -19334,7 +19334,7 @@
   {
    "key": "sub__ltp_face_other_non_current_fincl_assets",
    "label": "Other non-current financial assets on the face of the balance sheet",
-   "definition": "The NON-CURRENT other financial asset as the balance sheet prints it. Same mechanism as the two current parts: bs_nca__secur_and_other_fincl_assets_ltp is `derived` and so unmatchable by caption, and the printed row was swept onto bs_nca__other_non_current_assets while the note cascade published the same money on the securities column. Measured on 688008: 575,243,925.97 / 582,867,750.91.\n\nEXCLUDES 其他权益工具投资, which this corpus's notes do not tie to a column and which stays in the non-current catch-all, counted once.",
+   "definition": "The NON-CURRENT other financial assets as the balance sheet prints them, as their own row under non-current assets: 其他非流动金融资产 on a mainland (CAS) face, and on an HKFRS face the non-current 'Financial assets at fair value through profit or loss' or 'through other comprehensive income' rows. A face that prints 债权投资 or 其他债权投资 as non-current rows of their own is read here too.\n\nEXCLUDES 其他权益工具投资 (other equity instrument investments), which is read on a line of its own. Where the face prints none of these rows, answer with an empty sources list.",
    "parent": "bs_nca__secur_and_other_fincl_assets_ltp",
    "namespace": "internal",
    "in_output": false,
@@ -19392,7 +19392,7 @@
   {
    "key": "sub__ltp_face_other_equity_instrument_investments",
    "label": "Other equity instrument investments on the face of the balance sheet (其他权益工具投资)",
-   "definition": "The NON-CURRENT equity investments designated at fair value through other comprehensive income as a mainland (CAS) balance sheet prints them, as their own row. Read off the FACE rather than the note because the CAS note prints the year's movement as COLUMNS (opening balance, additions, disposals, …, closing balance) and wraps figures inside narrow cells: measured, 688008's note 七、18 was read as 22,636,234.66 / 4,854,039.06 (the opening balance and an addition) against a face of 22,270,908.60 / 22,636,234.66, and 300319's 七、11 as 8,647,970 against 43,239,858.66. The face is right on all three mainland filings.",
+   "definition": "The NON-CURRENT equity investments designated at fair value through other comprehensive income as a mainland (CAS) balance sheet prints them, as their own row: 其他权益工具投资 under 非流动资产. Read both periods off the FACE, not the note: the CAS note prints the year's movement as COLUMNS (opening balance, additions, disposals, …, closing balance), so a figure in a note row is a movement or an opening balance rather than the line's closing figure.",
    "parent": "bs_nca__secur_and_other_fincl_assets_ltp",
    "namespace": "internal",
    "in_output": false,
