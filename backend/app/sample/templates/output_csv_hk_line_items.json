@@ -4010,8 +4010,7 @@
     "^预付款项、按金及其他应收款项$",
     "^预付款项及其他应收款项$"
    ],
-   "namespace": "template",
-   "route": "face"
+   "namespace": "template"
   },
   {
    "key": "bs_ca__allow_for_doubtful_accounts",
@@ -4039,8 +4038,7 @@
    "sign_rule": {},
    "inherits": "bs_ca",
    "face_only": false,
-   "namespace": "template",
-   "route": "face"
+   "namespace": "template"
   },
   {
    "key": "bs_ca__net_trade_receivables",
@@ -6748,8 +6746,7 @@
    "inherits": "bs_cl",
    "face_only": false,
    "match_priority": 80,
-   "namespace": "template",
-   "route": "face"
+   "namespace": "template"
   },
   {
    "key": "bs_cl__entrusted_loan_payables_third_parties_cp",
@@ -6956,8 +6953,7 @@
    "sign_rule": {},
    "inherits": "bs_cl",
    "face_only": false,
-   "namespace": "template",
-   "route": "face"
+   "namespace": "template"
   },
   {
    "key": "bs_cl__ipo_loans_st_bank_loans_pay",
@@ -8049,8 +8045,7 @@
    "sign_rule": {},
    "inherits": "bs_cl",
    "face_only": false,
-   "namespace": "template",
-   "route": "face"
+   "namespace": "template"
   },
   {
    "key": "bs_cl__decomm_and_envir_costs_cp",
@@ -9313,8 +9308,7 @@
    "inherits": "is_pl",
    "face_only": false,
    "match_priority": 72,
-   "namespace": "template",
-   "route": "face"
+   "namespace": "template"
   },
   {
    "key": "is_pl__officers_compensation",
@@ -10376,8 +10370,7 @@
    "inherits": "is_pl",
    "face_only": false,
    "match_priority": 56,
-   "namespace": "template",
-   "route": "face"
+   "namespace": "template"
   },
   {
    "key": "is_pl__interest_on_debt_market_instruments",
@@ -10541,8 +10534,7 @@
    "inherits": "is_pl",
    "face_only": false,
    "match_priority": 52,
-   "namespace": "template",
-   "route": "face"
+   "namespace": "template"
   },
   {
    "key": "is_pl__finance_cost_on_derivatives",
@@ -16502,7 +16494,11 @@
      "關聯債權債務往來",
      "關聯交易情況",
      "關聯方往來",
-     "關連交易"
+     "關連交易",
+     "关键管理人员报酬",
+     "关键管理人员薪酬",
+     "關鍵管理人員報酬",
+     "關鍵管理人員薪酬"
     ]
    }
   },

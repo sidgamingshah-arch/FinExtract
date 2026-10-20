@@ -175,14 +175,44 @@ def header_pool(notes) -> ContextPool:
     is needed: the weight reaches exactly zero for a token in every unit.
     """
     units = []
+    prints: list[bool] = []
     for table in notes or ():
         title = (getattr(table, "title", "") or "").strip()
         number = str(getattr(table, "note_number", "") or "").strip()
         if not title and not number:
             continue
-        # `captions=()` is the point: the unit's text is the heading and nothing else.
-        units.append(ContextUnit(kind="note", ref=number or title, title=title, captions=()))
-    return ContextPool(units)
+        # THE UNIT'S TEXT IS ITS HEADINGS AND NOTHING ELSE — its own, and the CHAPTER it is
+        # printed under. A CAS filing prints a disclosure as a chapter of sub-tables: 十四、关联方及
+        # 关联交易 → 5、关联交易情况 → (7) 关键管理人员报酬. The table arrives titled with the
+        # sub-heading only, so the one heading that says what the disclosure IS reached no score:
+        # measured, 关键管理人员报酬 scored 0.21-0.24 for `notes__related_party_transactions` on
+        # 300391, 002273 and 301577 — under the 0.25 floor or past the cap — and the request was
+        # sent 七、37 / 七、47 instead. The chapter is the filing's own statement of subject, so it
+        # belongs beside the heading; a chapter shared by most of the filing's notes
+        # (合并财务报表项目注释) carries an IDF near zero in this pool and moves nothing. HKFRS
+        # filings carry no chapter heading, so nothing changes there.
+        chapter = (getattr(table, "chapter_title", "") or "").strip()
+        units.append(ContextUnit(kind="note", ref=number or title, title=title,
+                                 captions=(chapter,) if chapter and chapter != title else ()))
+        prints.append(_prints_figures(table))
+    pool = ContextPool(units)
+    # WHICH UNITS PRINT A FIGURE IN A ROW, aligned with `pool.units`. See `notes_for_line_item`'s
+    # `rows_only`: an accounting-policy paragraph headed "Leases" is not where a lease figure is.
+    # NONE WHEN NOTHING DOES: a set of notes with no row figures at all (headings only — a caller
+    # that hands in reconstructed headers) gives the filter nothing to tell units apart by, and
+    # applying it would empty every set rather than prefer the notes that print.
+    pool.prints_figures = prints if any(prints) else None
+    return pool
+
+
+def _prints_figures(table) -> bool:
+    """Whether any row of this note table carries a figure — the question a row-reading line asks."""
+    for row in getattr(table, "items", None) or ():
+        values = getattr(row, "values", None) or {}
+        items = values.values() if hasattr(values, "values") else values
+        if any(getattr(ev, "value", None) is not None for ev in items):
+            return True
+    return False
 
 
 def note_probe(item, parent=None) -> str:
@@ -265,7 +295,7 @@ def _blended(item, parent=None) -> str:
 
 
 def notes_for_line_item(item, pool: ContextPool, *, min_score: float = MIN_SCORE,
-                        cap: int = 4, parent=None) -> list[NoteHit]:
+                        cap: int = 4, parent=None, rows_only: bool = False) -> list[NoteHit]:
     """The notes this line item is in, best first — ONE HIT PER NOTE NUMBER.
 
     `cap` bounds the request rather than the judgement: a line item genuinely spread over more
@@ -306,8 +336,18 @@ def notes_for_line_item(item, pool: ContextPool, *, min_score: float = MIN_SCORE
     if not probe:
         return []
 
+    # `rows_only` — THE LINE READS A ROW, so a unit that prints no figure in any row cannot hold its
+    # figure, however well its heading scores. That is an accounting-policy paragraph: a CAS policy
+    # note prints one sub-heading per subject (租赁, 固定资产, 借款费用 …) and so out-scores the
+    # disclosure for every line. Measured on PetroChina, whose CAS policy note shares the number 4
+    # with an IFRS note, it was in 93 of the 96 oversize requests, at ~25 policy blocks each, while
+    # IFRS note 22 — the receivables note the line was asking about — was not sent. A prose-reading
+    # or undeclared line keeps every unit: a sentence is a place its figure can be.
+    prints = getattr(pool, "prints_figures", None) if rows_only else None
     scored = []
     for index, unit in enumerate(pool.units):
+        if prints is not None and index < len(prints) and not prints[index]:
+            continue
         score = pool._score(unit, probe)
         if score >= min_score:
             scored.append((score, index, unit))
@@ -411,6 +451,89 @@ def widen_by_content(item, notes, *, cap: int = 4) -> list[NoteHit]:
 
     ranked = sorted(best.items(), key=lambda kv: (-kv[1][0], -kv[1][1], kv[0]))
     return [NoteHit(note=num, title=meta[2], score=0.0, via="content")
+            for num, meta in ranked[:cap]]
+
+
+# AT MOST THIS MANY NOTES ARE ADDED BECAUSE A ROW CARRIES THE LINE'S PRINTED NAME — see
+# `named_row_notes`. Two, not the cap: the reach exists for the line whose heading search found the
+# wrong notes or none, and the note that prints the row is usually one note (a finance-costs note)
+# and occasionally two (the same row in the leases note).
+NAMED_ROW_CAP = 2
+
+# THE HEADING SEARCH FOUND ITS NOTE AT OR ABOVE THIS, and the named-row reach does not run. The
+# value `WIDEN_BELOW` documents as the one to try: the worst TRUE heading match in
+# `tests/test_note_context_ranking.py` scores 0.598 and unrelated headings reach 0.308 at the 90th
+# percentile, so below 0.40 the heading search returned nothing it would itself call a match.
+NAMED_ROW_BELOW = 0.40
+
+
+def printed_names(item) -> list[str]:
+    """What a line's ROW is printed as: its aliases, in every locale, as authored."""
+    names = [str(a) for a in (getattr(item, "aliases", None) or ())]
+    by_locale = getattr(item, "aliases_i18n", None) or {}
+    if hasattr(by_locale, "items"):
+        for _locale, values in by_locale.items():
+            names.extend(str(a) for a in (values or ()))
+    return [n for n in dict.fromkeys(n.strip() for n in names) if n]
+
+
+def _folded(text: str) -> set[str]:
+    """`subject_tokens` with an English plural folded — "Trade payable" is the row "Trade payables".
+
+    Local to the caption match, not applied to the heading score: changing the shared tokeniser
+    would move every score in the filing, and a caption match is the one place a plural decides
+    whether a row is found at all (PetroChina note 27 prints "Trade payable").
+    """
+    return {t[:-1] if len(t) > 3 and t.isascii() and t.endswith("s") and not t.endswith("ss")
+            else t for t in subject_tokens(text)}
+
+
+def named_row_notes(item, notes, *, cap: int = NAMED_ROW_CAP) -> list[NoteHit]:
+    """The notes that print a figure in a row CAPTIONED WITH ONE OF THIS LINE'S PRINTED NAMES.
+
+    THE OTHER QUESTION FROM THE HEADING SEARCH, and the one the heading search cannot answer. A
+    heading names the CONTAINER and a line names its ROW, so a line whose row sits in a note headed
+    with none of its words is unreachable by heading however the threshold is tuned: "Interest on
+    lease liabilities" in a note headed FINANCE COSTS (hkex_0160 note 6, hkex_0191 note 8,
+    hkex_0285 note 8), "Staff costs" under PROFIT BEFORE TAX, "Issued ordinary shares" under SHARE
+    CAPITAL — every one of them scored 0.000 against the heading that holds it.
+
+    A NAME MATCHES WHEN EVERY ONE OF ITS WORDS IS IN THE CAPTION (`subject_tokens`, so Han text is
+    compared on bigrams, exactly as the heading search compares it). A one-word name is not used:
+    "Debtors", 折旧 and "Medical" appear in rows of most notes of a filing and would admit them all.
+    And the row must PRINT A FIGURE — a heading row with no amount is not where the figure is.
+
+    RANKED BY HOW MUCH OF THE CAPTION THE NAME IS, so a row that IS the name ("Interest on lease
+    liabilities") outranks one that merely contains it ("Interest on lease liabilities and other
+    borrowings"); then by the longer name; then in the order the filing prints its notes.
+    Marked `via="named_row"` and scored 0.0, for the reason `widen_by_content` gives: a caption
+    match is not a cosine and must not be compared as one.
+    """
+    names = [_folded(n) for n in printed_names(item)]
+    names = [n for n in names if len(n) >= 2]
+    if not names or not notes or cap <= 0:
+        return []
+    best: dict[str, tuple[float, int, int, str]] = {}
+    for order, table in enumerate(notes):
+        number = str(getattr(table, "note_number", "") or "")
+        if not number:
+            continue
+        for row in getattr(table, "items", None) or ():
+            values = getattr(row, "values", None) or {}
+            evs = values.values() if hasattr(values, "values") else values
+            if not any(getattr(ev, "value", None) is not None for ev in evs):
+                continue
+            caption = _folded(getattr(row, "raw_label", "") or "")
+            if not caption:
+                continue
+            for name in names:
+                if name <= caption:
+                    rank = (len(name) / len(caption), len(name), -order,
+                            str(getattr(table, "title", "") or ""))
+                    if number not in best or rank[:3] > best[number][:3]:
+                        best[number] = rank
+    ranked = sorted(best.items(), key=lambda kv: kv[1][:3], reverse=True)
+    return [NoteHit(note=num, title=meta[3], score=0.0, via="named_row")
             for num, meta in ranked[:cap]]
 
 
@@ -820,8 +943,9 @@ def note_sets(items, notes, *, min_score: float = MIN_SCORE,
         # declared notes among themselves, and — floored and capped exactly as before — as the
         # scored contribution. A declared note the probe scores nothing for keeps its place and
         # sorts last among the declared, which is the honest ranking for it.
+        rows_only = line_item_routes.declared_route(item) not in ("prose", "anywhere")
         ranked = notes_for_line_item(item, pool, min_score=0.0, cap=len(notes or ()) or cap,
-                                     parent=parent)
+                                     parent=parent, rows_only=rows_only)
         rank = {h.note: (i, h.score) for i, h in enumerate(ranked)}
         declared = sorted(
             (NoteHit(note=num, title=titles.get(num, ""), score=1.0, via="declared")
@@ -854,6 +978,24 @@ def note_sets(items, notes, *, min_score: float = MIN_SCORE,
                 if extra.note not in seen:
                     hits.append(extra)
                     seen.add(extra.note)
+        # THE NOTE THAT PRINTS THE LINE'S ROW, WHEN THE SET DOES NOT ALREADY HOLD ONE — see
+        # `named_row_notes`. Added past `cap` rather than competing for it, for the reason the
+        # declared notes are: the scored notes are the heading search's best guess and this is a
+        # row the filing prints under the line's own name, so neither may push the other out. It is
+        # bounded instead by `NAMED_ROW_CAP`, and it adds NOTHING when any note already in the set
+        # prints such a row — the figure is reachable and a second copy would only cost. A
+        # prose-route line reads a sentence, not a row, and is not widened.
+        #
+        # AND ONLY WHEN THE HEADING SEARCH CAME UP SHORT — no scored heading at `NAMED_ROW_BELOW`.
+        # Measured on 600990: run unconditionally it gave `bs_ca__trade_receivables_gross`, whose
+        # set already held 七、5 应收账款, two more notes that merely mention receivables (a
+        # foreign-currency table, the related-party balances at ~17k tokens) and took seven
+        # requests over budget. A line whose heading search found its note does not need this.
+        if line_item_routes.may_read_table_rows(item) and best < NAMED_ROW_BELOW:
+            named = named_row_notes(item, notes, cap=len(notes or ()))
+            seen = {h.note for h in hits}
+            if named and not any(h.note in seen for h in named):
+                hits.extend(named[:NAMED_ROW_CAP])
         if hits:
             out[item.key] = hits
     return out
