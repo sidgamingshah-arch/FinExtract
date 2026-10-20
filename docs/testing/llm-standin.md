@@ -55,6 +55,19 @@ Run from `backend/`.
 
        python scripts/llm_standin.py report DIR --key KEY.json
 
+8. **Coverage.** Whether the context lets each printed figure be caught at all, with no answer
+   and no run figure involved: for every line and period the key says the filing prints, did a
+   request asking about that line carry the figure, and under that period's own key? One line per
+   folder and a total; every line's status goes to `coverage.json`.
+
+       python scripts/llm_standin.py coverage ../_standin/*__output_csv_hk_v1
+
+   Statuses: `carried` (a row prints it under `current`/`prior`, or a row whose `period` is that
+   period), `carried_other_key` (a row prints it under another key, so the model must work out the
+   period), `carried_as_parts` (the key gives it as parts and rows add up to it), `prose_only`,
+   `not_carried`, `not_asked`. The first three count as covered. The key file is `coverage_key.json`
+   in the folder, else `sample_key.json` (`--key-name` to choose). Text-valued lines are not counted.
+
 ## What is in the output folder
 
 | path | what it is |

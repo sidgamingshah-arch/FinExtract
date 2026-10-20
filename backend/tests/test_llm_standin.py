@@ -283,3 +283,30 @@ def test_report_puts_a_computed_key_line_down_to_its_parts():
     c, _ = standin.classify(line, "current", None, [req], set(), {}, {})
     assert c == "derived"
     assert standin.classify(line, "current", 7777.0, [req], set(), {}, {})[0] == "correct"
+
+
+def test_coverage_says_whether_each_printed_figure_reached_a_request_about_its_line(tmp_path: Path):
+    """Coverage reads no answer and no run figure: only whether a request asking about the line
+    carried what the filing prints, and under that period's own key."""
+    notes = [{"note": "8", "title": "Inventories",
+              "rows": [{"caption": "Finished goods", "figures": {"current": "2805.45", "col2": "2544.10"}},
+                       {"caption": "Raw materials", "figures": {"current": "100.00", "prior": "90.00"}},
+                       {"caption": "Stores", "figures": {"current": "20.00", "prior": "10.00"}}]}]
+    req = _request(_payload(notes=notes))
+    (tmp_path / "requests").mkdir()
+    (tmp_path / "requests" / f"{req['id']}.json").write_text(json.dumps(req))
+    (tmp_path / "index.json").write_text(json.dumps({"requests": [{"id": req["id"]}]}))
+    key = standin.Key(filing="x", template="t", lines={
+        "bs_icon__finished_goods": standin.KeyLine(current="2805.45", prior="2544.10"),
+        "bs_icon__raw_materials": standin.KeyLine(current="9999.00")})
+    got = {(r["key"], r["period"]): r["status"] for r in standin.coverage_of(tmp_path, key)}
+    assert got == {("bs_icon__finished_goods", "current"): "carried",
+                   ("bs_icon__finished_goods", "prior"): "carried_other_key",
+                   ("bs_icon__raw_materials", "current"): "not_asked"}
+    parts = standin.Key(filing="x", template="t", lines={
+        "bs_icon__finished_goods": standin.KeyLine(current="120.00", where="note 8: raw + stores"),
+        })
+    assert [r["status"] for r in standin.coverage_of(tmp_path, parts)] == ["carried_as_parts"]
+    missing = standin.Key(filing="x", template="t", lines={
+        "bs_icon__finished_goods": standin.KeyLine(current="7777.00")})
+    assert [r["status"] for r in standin.coverage_of(tmp_path, missing)] == ["not_carried"]

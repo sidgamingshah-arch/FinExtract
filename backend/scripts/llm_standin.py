@@ -853,6 +853,95 @@ def cmd_report(a) -> int:
 
 
 # ------------------------------------------------------------------------------------------------
+# coverage
+# ------------------------------------------------------------------------------------------------
+
+COVERAGE = ("carried", "carried_other_key", "carried_as_parts", "prose_only", "not_carried",
+            "not_asked")
+COVERED = ("carried", "carried_other_key", "carried_as_parts")
+
+
+def _rows_printing(req: dict, figure: float) -> list[tuple[str, str, str, str]]:
+    """(block, caption, figure key, row period) of every row of the request that prints this
+    figure, by magnitude as `payload_has` compares it."""
+    p = payload_of(req["body"])
+    out: list[tuple[str, str, str, str]] = []
+    if isinstance(p, dict):
+        for _kind, label, b in _blocks(p):
+            for r in b.get("rows") or []:
+                for col, v in (r.get("figures") or {}).items():
+                    n = _num(v)
+                    if n is not None and _close(abs(n), round(abs(figure), 2)):
+                        out.append((label, str(r.get("caption") or ""), col, str(r.get("period") or "")))
+    return out
+
+
+def coverage_of(d: Path, key: Key) -> list[dict]:
+    """For every line and period the key says the filing prints: did a request asking about the
+    line carry that figure, and under that period's own key? No answer and no run figure is read:
+    this is whether the context lets the figure be caught at all, which `report` cannot say once a
+    later stage has replaced what the model cited.
+
+    `carried` — a row prints it under `current`/`prior` (or a row whose `period` is that period);
+    `carried_other_key` — a row prints it under another key (a column heading, `col2`), so the model
+    must work out which period it is; `carried_as_parts` — the key gives it as parts and rows add up
+    to it; `prose_only` — only a block's prose prints it; `not_carried` — no request asking about the
+    line has it; `not_asked` — no request asks about the line."""
+    reqs = load_requests(d)
+    ids = [i for i in current_ids(d) if i in reqs]
+    out: list[dict] = []
+    for k, kl in key.lines.items():
+        asking = [reqs[i] for i in ids if k in reqs[i]["line_keys"]]
+        for period in ("current", "prior"):
+            printed = _num(getattr(kl, period))
+            if printed is None:
+                continue
+            row = {"key": k, "period": period, "printed": printed, "request": "", "where": ""}
+            if not asking:
+                out.append({**row, "status": "not_asked"})
+                continue
+            hits = [(r["id"], h) for r in asking for h in _rows_printing(r, printed)]
+            if hits:
+                right = [x for x in hits if period in (x[1][2], x[1][3])]
+                rid, (label, cap, col, per) = (right or hits)[0]
+                out.append({**row, "status": "carried" if right else "carried_other_key", "request": rid,
+                            "where": f"{label}: '{cap}' [{col}{'/' + per if per else ''}]"})
+                continue
+            parts = [(r["id"], w) for r in asking for w in payload_has(r, printed, key_is_sum(kl))]
+            prose = [(r["id"], b) for r in asking for b in prose_has(r, printed)]
+            status, (rid, where) = (("carried_as_parts", parts[0]) if parts else
+                                    ("prose_only", prose[0]) if prose else
+                                    ("not_carried", (asking[0]["id"], "")))
+            out.append({**row, "status": status, "request": rid, "where": where})
+    return out
+
+
+def cmd_coverage(a) -> int:
+    """One line per capture folder: how many printed figures the requests carry. Writes
+    DIR/coverage.json with every line's status."""
+    print("folder | printed | " + " | ".join(COVERAGE) + " | covered")
+    total: Counter = Counter()
+    for d in a.dirs:
+        kp = next((d / n for n in a.key_names if (d / n).exists()), None)
+        if kp is None:
+            print(f"{d.name} | no key ({', '.join(a.key_names)})")
+            continue
+        rows = coverage_of(d, load_key(kp))
+        (d / "coverage.json").write_text(json.dumps(rows, ensure_ascii=False, indent=1), encoding="utf-8")
+        c = Counter(r["status"] for r in rows)
+        total.update(c)
+        n = sum(c.values())
+        cov = sum(c[s] for s in COVERED)
+        print(f"{d.name} | {n} | " + " | ".join(str(c[s]) for s in COVERAGE)
+              + f" | {cov}/{n} ({100 * cov / n:.0f}%)" if n else f"{d.name} | 0")
+    n = sum(total.values())
+    if len(a.dirs) > 1 and n:
+        cov = sum(total[s] for s in COVERED)
+        print(f"ALL | {n} | " + " | ".join(str(total[s]) for s in COVERAGE) + f" | {cov}/{n} ({100 * cov / n:.0f}%)")
+    return 0
+
+
+# ------------------------------------------------------------------------------------------------
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
@@ -870,9 +959,15 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--n", type=int, default=12); p.add_argument("--seed", type=int, default=0)
     p = sub.add_parser("validate"); p.add_argument("dir", type=Path); p.add_argument("--key", type=Path)
     p = sub.add_parser("report"); p.add_argument("dir", type=Path); p.add_argument("--key", type=Path)
+    p = sub.add_parser("coverage"); p.add_argument("dirs", type=Path, nargs="+")
+    p.add_argument("--key-name", dest="key_names", action="append",
+                   help="key file name inside each folder, first found wins (default coverage_key.json, "
+                        "then sample_key.json)")
     a = ap.parse_args(argv)
+    if a.cmd == "coverage" and not a.key_names:
+        a.key_names = ["coverage_key.json", "sample_key.json"]
     return {"capture": cmd_capture, "replay": cmd_replay, "lint": cmd_lint, "sample": cmd_sample,
-            "validate": cmd_validate, "report": cmd_report}[a.cmd](a)
+            "validate": cmd_validate, "report": cmd_report, "coverage": cmd_coverage}[a.cmd](a)
 
 
 if __name__ == "__main__":
