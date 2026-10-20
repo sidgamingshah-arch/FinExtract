@@ -357,10 +357,56 @@ def _is_noise_row(label: str, vals: list,
     # 2024 as a line, and the Ind AS residual swept the year 2025 into other operating expenses.
     if bool(vals) and _NOTE_NO_HEADER.match(label) and all(_is_date_ish(v) for v in vals):
         return True
+    if cut_sentence_figures(label, vals):
+        return True
     return bool(vals) and bool(_HDR_LABEL.search(label)) and all(_is_date_ish(v) for v in vals)
 
 
 _NOTE_NO_HEADER = re.compile(r"^\s*(?:notes?\s*)?no\.?\s*$", re.I)
+
+
+# A SENTENCE CUT AT A DATE OR A CROSS-REFERENCE IS NOT A ROW. Prose that wraps over a date — "…
+# have been fully redeemed on | 30 June 2024", "…the circular of the Company dated | 25 May 2023",
+# "At 31 December 2023 and | 1 January 2024" — leaves the sentence as a caption and the date's day
+# and year as its "figures"; "…are set out in note | 9" does the same with a note number. Measured:
+# BYD Electronic's cash flow footnote "2023 and the circular of the Company dated" current=25 was
+# mapped to other financing cash flows and moved the published financing total by 25.
+#
+# Only the LATIN tail of the caption is read: a bilingual HKEX caption prints its Chinese after it.
+_CUT_TAIL = re.compile(
+    r"(?:\b(?:and|or|on|dated|of|at|to|from|since|by|before|after|between|until|ended|ending|"
+    r"date|dates|jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|"
+    r"sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)|[,:])$", re.I)
+_CROSS_REF_TAIL = re.compile(r"\b(?:notes?|refer(?:\s+to)?(?:\s+notes?)?)$", re.I)
+_NON_LATIN_TAIL = re.compile(r"[^A-Za-z0-9,:)]+$")
+# "Level | 1 2 3", "Stage | 1 2 3": a column header's numbering read as a row's figures.
+_NUMBERED_HEADER = re.compile(r"^[A-Za-z]+s?$")
+
+
+def cut_sentence_figures(label: str, vals: list) -> bool:
+    """Whether a row is a cut sentence or a header carrying only a date's day and year, a note
+    number, or a header's 1, 2, 3 — see `_CUT_TAIL`. Every value must be such a fragment: a
+    sentence ending "on" that carries 1,234,567 is not decided here."""
+    if not vals or not label:
+        return False
+    ints = []
+    for v in vals:
+        try:
+            iv = int(v)
+        except (TypeError, ValueError):
+            return False
+        if iv != v or iv < 0:
+            return False
+        ints.append(iv)
+    tail = _NON_LATIN_TAIL.sub("", label.strip()).rstrip()
+    if len(ints) >= 2 and ints == list(range(1, len(ints) + 1)) and _NUMBERED_HEADER.match(tail) \
+            and tail == label.strip():
+        return True
+    if len(tail.split()) < 2:
+        return False
+    if all(_is_date_ish(v) for v in ints) and _CUT_TAIL.search(tail):
+        return True
+    return all(1 <= v <= 99 for v in ints) and bool(_CROSS_REF_TAIL.search(tail))
 
 
 @dataclass

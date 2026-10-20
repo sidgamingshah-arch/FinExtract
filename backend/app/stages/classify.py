@@ -1637,6 +1637,47 @@ def _confidence(margin: float) -> float:
     return round(min(0.97, max(0.30, 0.5 + margin / 20.0)), 4)
 
 
+# THE STANDARDS A STATEMENT SET IS PREPARED UNDER, as the pages before it name them. An A+H filer
+# (PetroChina) prints its statements twice — under the mainland standards (CAS, "Accounting
+# Standards for Business Enterprises") and under IFRS — and the two sets were read as one: every
+# PetroChina statement block held both, under one "consolidated", with the CAS set's Group and
+# Company columns beside the IFRS set's two years.
+_IFRS_NAMED = re.compile(r"International Financial Reporting Standards|\bH?K?IFRS|\bHKFRS|"
+                         r"Hong Kong Financial Reporting Standards|國際財務報告準則|国际财务报告准则|"
+                         r"香港財務報告準則|香港财务报告准则")
+_CAS_NAMED = re.compile(r"Accounting Standards for Business Enterprises|China Accounting Standards|"
+                        r"\bCAS\b|\bPRC GAAP\b|企业会计准则|企業會計準則")
+# How far before a statement set its auditor's report or basis note names the standards.
+_FRAMEWORK_REACH = 12
+
+
+def statement_frameworks(pages: list, texts: list[str]) -> dict[int, str]:
+    """``{position in pages: "IFRS" | "CAS"}`` for the face pages, when the filing prints its
+    statements under TWO sets of standards, else ``{}``. Each face page takes the standards named nearest before it (that page
+    included, at most `_FRAMEWORK_REACH` pages back) — the auditor's report or basis-of-preparation
+    note that opens its set; a page naming both takes the one it names more often. A filing whose
+    statements are all one set's is not tagged: there is nothing to keep apart."""
+    named: dict[int, str] = {}
+    for k, text in enumerate(texts):
+        ifrs, cas = len(_IFRS_NAMED.findall(text or "")), len(_CAS_NAMED.findall(text or ""))
+        if ifrs != cas:
+            named[k] = "IFRS" if ifrs > cas else "CAS"
+    out: dict[int, str] = {}
+    for k, page in enumerate(pages):
+        if getattr(page, "kind", None) != PageKind.FACE:
+            continue
+        near = next((named[j] for j in range(k, max(-1, k - _FRAMEWORK_REACH - 1), -1)
+                     if j in named), None)
+        if near:
+            out[k] = near
+    by_statement: dict[str, set[str]] = {}
+    for k, framework in out.items():
+        by_statement.setdefault(str(pages[k].statement or ""), set()).add(framework)
+    if not any(len(v) > 1 for v in by_statement.values()):
+        return {}
+    return out
+
+
 def dump_review(doc: DocumentModel) -> str:
     """A per-page decision table, plus the unmapped titles as a trailing block.
 
@@ -2048,6 +2089,11 @@ class ClassifyStage:
 
             apply_overrides(pages, ctx.page_overrides, log=ctx.log)
 
+        texts_whole = ["\n".join(ln["text"] for ln in lines) for lines, _h in whole_cache]
+        for k, framework in statement_frameworks(whole_pages, texts_whole).items():
+            page_src = whole_pages[k]
+            page_src.evidence["framework"] = framework
+            ctx.log(f"classify:page={page_src.index}:framework={framework}")
         pdf.close()
         doc.unmapped_titles = sorted(set(doc.unmapped_titles))[:60]
         stmts = {p.statement for p in doc.face_pages() if p.statement}

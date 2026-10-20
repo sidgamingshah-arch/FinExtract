@@ -911,6 +911,12 @@ def identified_notes(line_item_set, notes, *, cited=None, every_note: bool = Fal
                                 else {}),
                              **({"header": lay["header"]} if lay.get("header") else {}),
                              **({"figures": laid} if laid else {}),
+                             # THE PERIOD OF EACH FIGURE of a period × measure row ("本期发生额 ·
+                             # 收入 | 上期发生额 · 收入"), keyed as `figures` is: the row is no one
+                             # period's, and each figure still is.
+                             **({"periods": {lay["keys"].get(str(k), str(k)): per
+                                             for k, per in lay["key_periods"].items()}}
+                                if lay.get("key_periods") and laid else {}),
                              **({"nil": True} if note_columns.printed_nil(row) else {}),
                              "_unit": units.row_unit(row, doc_unit)}
                 printed = [h for h in (getattr(row, "printed_columns", None) or ()) if h]

@@ -140,6 +140,9 @@ def face_rows(doc, statements) -> list[dict]:
                     for p in (getattr(doc, "pages", None) or ())}
     notes_pages = _notes_pages(doc)
     supplement = supplement_pages(doc)
+    framework_of = {int(getattr(p, "index", -1)): str((getattr(p, "evidence", None) or {})
+                                                       .get("framework") or "")
+                    for p in (getattr(doc, "pages", None) or ())}
     chrome = set(getattr(doc, "page_chrome", None) or ())
     doc_unit = getattr(doc, "unit_context", None)
 
@@ -148,8 +151,8 @@ def face_rows(doc, statements) -> list[dict]:
     # and 24.5bn — with nothing to say which was the group's. And an HKEX table printing Group and
     # Company side by side was ONE row whose two `current` figures shared a key, so the company's
     # overwrote the group's. Each figure now goes under its own entity.
-    by_block: dict[tuple[str, str, str], list[tuple[int, dict]]] = {}
-    legends: dict[tuple[str, str, str], dict[str, str]] = {}
+    by_block: dict[tuple[str, str, str, str], list[tuple[int, dict]]] = {}
+    legends: dict[tuple[str, str, str, str], dict[str, str]] = {}
     for row in (getattr(doc, "line_items", None) or ()):
         page = _page_of(row)
         statement = _statement_of(row, stmt_of_page, page)
@@ -178,18 +181,42 @@ def face_rows(doc, statements) -> list[dict]:
             # cash-flow block it read as the statement's own continuation: 净利润, 固定资产折旧,
             # 财务费用 and 经营性应收项目的减少 appended to the face after 期末现金及现金等价物余额.
             part = supplement.get(page, "") if statement == "cash_flow" else ""
-            block_key = (statement, entity, part)
+            # ONE BLOCK PER STATEMENT SET, too: see `stages.classify.statement_frameworks`.
+            block_key = (statement, entity, part, framework_of.get(page, "") if page is not None
+                         else "")
             by_block.setdefault(block_key, []).append(
                 (page if page is not None else 0, entry))
             seen = legends.setdefault(block_key, {})
             for label, heading in legend.items():
                 seen.setdefault(label, heading)
 
+    # THE SET THIS TEMPLATE READS, when the filing prints two. The HK template is built on
+    # HKFRS / IFRS, and an H-share filer's IFRS set is the one its lines are answered from: its
+    # blocks come first and keep the reader's proposals. The other set (CAS) is KEPT APART — its
+    # own block after them, named by its standards, with no row proposed for a line, and saying
+    # it is there only for a figure the IFRS statements do not print on their face (PetroChina's
+    # CAS balance sheet prints short-term borrowings without the current portion of long-term
+    # borrowings, which its IFRS face includes and its IFRS note 29 splits out).
+    frameworks = {k[3] for k in by_block if k[3]}
+    read = (PREFERRED_FRAMEWORK if PREFERRED_FRAMEWORK in frameworks
+            else sorted(frameworks)[0]) if len(frameworks) > 1 else None
     out: list[dict] = []
-    for key in sorted(by_block, key=lambda k: (k[0], _ENTITY_ORDER.get(k[1], 9), k[2])):
-        statement, entity, part = key
+    for key in sorted(by_block, key=lambda k: (k[0], bool(read and k[3] and k[3] != read),
+                                               _ENTITY_ORDER.get(k[1], 9), k[2], k[3])):
+        statement, entity, part, framework = key
         rows = [e for _p, e in sorted(by_block[key], key=lambda pe: pe[0])]
+        apart = bool(read and framework and framework != read)
+        if apart:
+            rows = [{k: v for k, v in e.items() if k != "line"} for e in rows]
         block: dict = {"statement": statement, "entity": entity}
+        if framework and read:
+            block["set"] = framework
+        if apart:
+            pages = sorted({p for p, _e in by_block[key]})
+            block["kept_apart"] = (f"the {framework} statements (pages {pages[0] + 1}-"
+                                   f"{pages[-1] + 1}), not the {read} set this template reads: "
+                                   f"answer from the {read} block, and cite this block only for "
+                                   f"a figure the {read} statements do not print")
         if part:
             block["part"] = "supplement"
             block["title"] = part
@@ -205,6 +232,8 @@ def face_rows(doc, statements) -> list[dict]:
 
 
 _ENTITY_ORDER = {"consolidated": 0, "standalone": 1}
+# The standards the HK template is built on — see `face_rows`.
+PREFERRED_FRAMEWORK = "IFRS"
 
 
 # The supplement's own title. The classifier marks the supplement only where it also finds the

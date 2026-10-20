@@ -408,6 +408,32 @@ _BLOCK_HEADING = re.compile(
 # The first line of a column header the reader built into a row: "Particulars Not due Less than"
 # with the "6" of "6 months" as its figure.
 _HEADER_LEAD = re.compile(r"\b(?:particulars|description)\b|^项目|项目$", re.IGNORECASE)
+# THE PERIOD A MAINLAND SCHEDULE NAMES IN WORDS, not by date. A CAS movement schedule prints
+# "1.期初余额 / 2.本期增加金额 / 3.本期减少金额 / 4.期末余额" and its columns print "本期发生额 · 收入 /
+# 上期发生额 · 收入": no date anywhere, and every figure of it was sent `period: unstated` — 澜起's
+# right-of-use depreciation 14,777,647.32 under "(1)计提" among them. The words are the period:
+# the close of this year and this year's movement are `current`; the opening balance (the close
+# of last year) and last year's movement are `prior`.
+_RELATIVE_CURRENT = re.compile(r"本期|本年|期末|年末|本报告期|本報告期")
+_RELATIVE_PRIOR = re.compile(r"上期|上年|期初|年初|上报告期|上報告期")
+# A mainland schedule's block heading, printed in the text before the block's first row and on
+# no row: "一、账面原值" over its 1.–4. rows, "二、累计折旧" over the next four.
+_CN_SECTION = re.compile(r"([一二三四五六七八九十]{1,3}[、.．]\s*[^\s\d,.，、()（）]{2,16})")
+# An enumerator only: "1." of "1.期初余额" is a row number, not the heading the row sits under.
+_ENUMERATOR_ONLY = re.compile(r"^[(（]?\s*(?:\d{1,2}|[一二三四五六七八九十]{1,3}|[a-z]|[ivx]{1,4})"
+                              r"\s*[)）.、．]?$", re.IGNORECASE)
+
+
+def relative_slot(text: str | None) -> tuple[str, str]:
+    """``(period, word)`` for a caption or heading that names its period in words (`本期`, `期初`
+    …), else ``("", "")``. Both kinds in one text ("本期期初") name nothing certain."""
+    t = to_simplified(unicodedata.normalize("NFKC", str(text or "")))
+    cur, pri = _RELATIVE_CURRENT.search(t), _RELATIVE_PRIOR.search(t)
+    if cur and not pri:
+        return "current", cur.group(0)
+    if pri and not cur:
+        return "prior", pri.group(0)
+    return "", ""
 _HEADER_FIGURE = re.compile(r"^(?:\d{1,2}|(?:19|20)\d{2})$")
 _YEAR_FIGURE = re.compile(r"^(?:19|20)\d{2}$")
 _POSITIONAL = re.compile(r"^(current|prior)(?:_col\d+)?$")
@@ -425,6 +451,14 @@ PER_COLUMN = "per column"
 _DATED_TITLE = re.compile(
     r"\b(?:ageing|aging)\s+(?:schedule|analysis)\b[^.;:]{0,60}?\bas\s+(?:at|on)\s+"
     r"\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]{3,9}\.?,?\s+(?:19|20)\d{2}\b", re.IGNORECASE)
+
+
+# A TITLE, not a sentence: capitalised "As at <date>" with no sentence running on after it, or a
+# heading "At <date>:" ("At 31 March 2023 and 1 April 2023:" — the first date is the block's).
+_TITLE_DATE = r"\d{1,2}(?:st|nd|rd|th)?\s+[A-Z][a-z]{2,8}\.?,?\s+(?:19|20)\d{2}"
+_AS_AT_TITLE = re.compile(
+    rf"\b(?:As\s+(?:at|of)\s+{_TITLE_DATE}(?=\s*(?:$|[A-Z0-9(\u3400-\u9fff]))"
+    rf"|At\s+{_TITLE_DATE}(?:\s+and\s+{_TITLE_DATE})?\s*[:：])")
 
 
 def _date_of(text: str) -> tuple[int, int, int] | None:
@@ -510,13 +544,19 @@ def _per_column_periods(row, keys: dict[str, str], newest):
     more headings each printing a different year, and the unheaded-by-year measure columns after
     each ("% of total consumption") — else None. Each measure column takes the year of the dated
     column before it, and its heading is given that date, so the two "% of total consumption"
-    columns are two keys and not one (the second used to overwrite the first)."""
+    columns are two keys and not one (the second used to overwrite the first).
+
+    A heading that names its period IN WORDS — "本期发生额 · 收入 | 本期发生额 · 成本 | 上期发生额 · 收入"
+    (`relative_slot`) — is a dated column too: every heading names its own, so none is renamed."""
     figs = sorted(_figures(row), key=lambda kv: _x_of(kv[1]) or 0.0)
     headed = [(k, getattr(ev, "column_heading", None)) for k, ev in figs]
     if not all(h for _k, h in headed):
         return None
     dated = {k: _date_of(str(h)) for k, h in headed}
     if len({d for d in dated.values() if d}) < 2 or not dated.get(headed[0][0]):
+        worded = {k: relative_slot(str(h))[0] for k, h in headed}
+        if len(set(worded.values())) == 2 and all(worded.values()):
+            return worded, dict(keys)
         return None
     periods: dict[str, str] = {}
     out_keys = dict(keys)
@@ -533,6 +573,32 @@ def _per_column_periods(row, keys: dict[str, str], newest):
     return periods, out_keys
 
 
+_DUPLICATE_SUFFIX = re.compile(r" \(\d\)$")
+
+
+def _distinct_keys(row, keys: dict[str, str]) -> dict[str, str]:
+    """``keys`` with a heading printed over two columns told apart by its place: 0160's PP&E
+    matrix prints "Buildings" under right-of-use and under owned assets and "Total" three times,
+    and the five figures were sent under two keys — the later overwriting the earlier. The second
+    and third print as "Total (2)", "Total (3)", left to right."""
+    count: dict[str, int] = {}
+    for _k, h in keys.items():
+        count[h] = count.get(h, 0) + 1
+    if all(n == 1 for n in count.values()):
+        return keys
+    order = sorted(_figures(row), key=lambda kv: _x_of(kv[1]) or 0.0)
+    seen: dict[str, int] = {}
+    out = dict(keys)
+    for k, _ev in order:
+        h = keys.get(k)
+        if h is None or count.get(h, 0) < 2:
+            continue
+        seen[h] = seen.get(h, 0) + 1
+        if seen[h] > 1:
+            out[k] = f"{h} ({seen[h]})"
+    return out
+
+
 def _earlier(date, newest) -> bool:
     """Whether ``date`` falls before the comparative year's close."""
     return bool(date and newest and date < (newest[0] - 1, newest[1], newest[2]))
@@ -544,8 +610,6 @@ def _title_periods(rows, non_period, balance, text) -> dict[int, tuple[int, int,
     non-period row with no balance caption — the same table."""
     titles = [(m.start(), _date_of(m.group(0)), _date_text(m.group(0)))
               for m in _DATED_TITLE.finditer(text)]
-    if not titles:
-        return {}
     pos: dict[int, int] = {}
     cursor = 0
     for i, row in enumerate(rows):
@@ -554,6 +618,16 @@ def _title_periods(rows, non_period, balance, text) -> dict[int, tuple[int, int,
         if at >= 0:
             pos[i] = at
             cursor = at + len(cap)
+    # "As at 31 December 2024" printed alone over a table's header, once per year — FEH's fair
+    # value hierarchy prints the same captions under 2024 and then 2023. A row's own caption
+    # ("As at 31 December 2023" opening a movement block) is a balance row, not a title.
+    spans = [(pos[i], pos[i] + len(str(rows[i].raw_label))) for i in pos]
+    titles += [(m.start(), _date_of(m.group(0)), _date_text(m.group(0)))
+               for m in _AS_AT_TITLE.finditer(text)
+               if not any(a <= m.start() < b for a, b in spans)]
+    titles.sort(key=lambda t: t[0])
+    if not titles:
+        return {}
     out: dict[int, tuple] = {}
     for i in pos:
         if not non_period[i] or balance.get(i):
@@ -565,6 +639,27 @@ def _title_periods(rows, non_period, balance, text) -> dict[int, tuple[int, int,
         between = [j for j in pos if start < pos[j] < pos[i]]
         if date and all(non_period[j] and not balance.get(j) for j in between):
             out[i] = (date, printed)
+    return out
+
+
+def _cn_sections(rows, text: str) -> dict[int, str]:
+    """``{row index: heading}`` for the rows a mainland block heading (`_CN_SECTION`) is printed
+    immediately above, in the note's text: the heading found between the previous row's caption
+    and this one's. Before this the CAS movement schedule's cost and accumulated-depreciation
+    blocks were both grouped "1." — the enumerator of "1.期初余额" — and could not be told apart."""
+    out: dict[int, str] = {}
+    if not text:
+        return out
+    cursor = 0
+    for i, row in enumerate(rows):
+        cap = unicodedata.normalize("NFKC", str(row.raw_label))
+        at = text.find(cap, cursor)
+        if at < 0:
+            continue
+        found = _CN_SECTION.findall(text[cursor:at])
+        if found:
+            out[i] = _SPACES.sub("", found[-1])
+        cursor = at + len(cap)
     return out
 
 
@@ -719,6 +814,7 @@ def table_layout(table, newest: tuple[int, int, int] | None = None) -> dict[int,
         group = m.group(1).strip()
     np_rows = [i for i in range(len(rows)) if non_period[i]]
     groups: dict[int, str] = {}
+    sections = _cn_sections(rows, text)
     current_seg = 0
     for i, row in enumerate(rows):
         if seg[i] != current_seg:
@@ -732,15 +828,18 @@ def table_layout(table, newest: tuple[int, int, int] | None = None) -> dict[int,
             continue
         caption = str(row.raw_label).strip()
         b = _BALANCE.search(caption)
+        if i in sections:
+            group = sections[i]
         if b and b.start() > 0:
             prefix = caption[:b.start()].strip()
-            if 0 < len(prefix.split()) <= 6:
+            if 0 < len(prefix.split()) <= 6 and not _ENUMERATOR_ONLY.match(prefix):
                 group = prefix
         groups[i] = str(getattr(row, "group_hint", "") or "").strip() or group
     dates = {i: (_date_of(rows[i].raw_label) if _BALANCE.search(str(rows[i].raw_label)) else None)
              for i in np_rows}
     balance = {i: bool(_BALANCE.search(str(rows[i].raw_label))) for i in np_rows}
     titled = _title_periods(rows, non_period, balance, text)
+    worded: dict[str, tuple[str, str]] = {}   # group → the period its last movement row named
     for pos, i in enumerate(np_rows):
         row = rows[i]
         keys: dict[str, str] = {}
@@ -761,6 +860,9 @@ def table_layout(table, newest: tuple[int, int, int] | None = None) -> dict[int,
         per_column = _per_column_periods(row, keys, newest)
         if per_column:
             keys = per_column[1]
+        # After the period × measure renaming, which tells two "% of total consumption" columns
+        # apart by their year; what is still printed twice is told apart by its place.
+        keys = _distinct_keys(row, keys)
         period, period_text = "", UNSTATED
         earlier = False
         if per_column:
@@ -783,6 +885,23 @@ def table_layout(table, newest: tuple[int, int, int] | None = None) -> dict[int,
                 if close is not None and dates.get(close):
                     period = _slot(dates[close], newest)
                     period_text = "to " + _date_text(rows[close].raw_label)
+                else:
+                    # Undated: the movement's own words ("2.本期增加金额"), else its child's block
+                    # closes at "4.期末余额" — this year's movement either way.
+                    period, word = relative_slot(row.raw_label)
+                    if not period and close is not None:
+                        period, word = relative_slot(rows[close].raw_label)
+                    if not period and worded.get(groups.get(i)):
+                        # "(1)计提" under "2.本期增加金额" names no period; its parent movement does,
+                        # and the block's close may be printed on the next page.
+                        period, word = worded[groups.get(i)]
+                    if period and not balance.get(i):
+                        worded[groups.get(i)] = (period, word)
+                    period_text = word or UNSTATED
+            else:
+                # An undated balance named in words: "4.期末余额" / "1.期初余额".
+                period, word = relative_slot(row.raw_label)
+                period_text = word or UNSTATED
         out[id(row)] = {"keys": keys, "group": groups.get(i, ""), "period": period,
                         "period_text": period_text, "header": header_for.get(i, ""),
                         "dated": any(dates.values()) or bool(titled),
@@ -874,8 +993,11 @@ def pick_laid_out(row, lay: dict, want: str | None, *, reporting_period: str = "
     keys = lay.get("keys") or {}
     cells = [(keys.get(k, k), k, ev) for k, ev in _figures(row)]
     listing = "; ".join(dict.fromkeys(h for h, _k, _ev in cells))
+    # A heading printed over two columns is keyed "Total", "Total (2)" … (`_distinct_keys`); the
+    # bare "Total" still names all of them, and is refused below as naming several figures.
     matched = [(h, k, ev) for h, k, ev in cells
                if h.casefold() == want.casefold()
+               or _DUPLICATE_SUFFIX.sub("", h).casefold() == want.casefold()
                or str(getattr(ev, "period_label", "") or "").casefold() == want.casefold()]
     if matched:
         out["matched_by"] = "key"

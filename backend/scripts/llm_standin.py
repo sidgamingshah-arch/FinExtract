@@ -346,6 +346,10 @@ def is_fragment(caption: str) -> str | None:
     if len(words) > 18 and (_INNER_ENUMERATOR.search(c) or c.count("(") != c.count(")")):
         return f"{len(words)} words"
     last = words[-1].lower().rstrip(",:;-")
+    # "Other operating expenses, net" is the whole caption: "net" closes it after a comma or a
+    # bracket. Measured: 180+ such rows on hkex_0160 were flagged as fragments.
+    if last == "net" and len(words) > 1 and words[-2].endswith((",", ")")) and c.endswith("net"):
+        return None
     if last in _TRAILING or c.endswith(("₹", "-", ",", ":")):
         return f"ends with '{words[-1]}'"
     if c.count("(") > c.count(")"):
@@ -410,6 +414,51 @@ class RunIndex:
         return found[0] if found else best
 
 
+_KEY_YEAR = re.compile(r"(?:19|20)\d{2}")
+
+
+def _key_names_period(key: str) -> bool:
+    """A figure key that is a printed heading naming its period — "期末余额", "上期发生额 · 收入",
+    "31 December 2024", "2024" — or a period's variant ("current:net"): not an unlabelled one."""
+    if key.split(":", 1)[0] in ("current", "prior"):
+        return True
+    from app.services import note_columns
+    return bool(note_columns.relative_slot(key)[0] or note_columns._date_of(key)
+                or _KEY_YEAR.fullmatch(key.strip()))
+
+
+def _x1(v: dict) -> float | None:
+    box = (v.get("provenance") or {}).get("bbox") or {}
+    return box.get("x1")
+
+
+def _prior_column_x(rows: list[dict], run: "RunIndex", statement: str) -> float | None:
+    """Where the block's prior figures are printed: the median right edge of the prior value of
+    rows that print both years."""
+    xs = []
+    for r in rows:
+        figs = r.get("figures") or {}
+        if not ("current" in figs and "prior" in figs):
+            continue
+        src = run.source_of(r.get("caption", ""), figs, statement)
+        if src:
+            xs += [x for v in src[0].get("values") or [] if v.get("period_label") == "prior"
+                   for x in [_x1(v)] if x is not None]
+    xs.sort()
+    return xs[len(xs) // 2] if xs else None
+
+
+def _in_prior_column(cap: str, figs: dict, run: "RunIndex", statement: str,
+                     prior_x: float | None) -> bool:
+    """A statement row printing only its comparative — the current year printed nil ("–") — is
+    the filing's own shape, not a mislabel, when its figure stands in the prior column."""
+    if prior_x is None:
+        return False
+    src = run.source_of(cap, figs, statement)
+    x = _x1(src[1]) if src else None
+    return x is not None and abs(x - prior_x) <= 0.015
+
+
 def lint_request(req: dict, run: RunIndex, budget_tokens: int = DEFAULT_BUDGET_TOKENS) -> list[dict]:
     hits: list[dict] = []
     payload = payload_of(req["body"])
@@ -431,18 +480,22 @@ def lint_request(req: dict, run: RunIndex, budget_tokens: int = DEFAULT_BUDGET_T
         if cols.get("current") and cols.get("current") == cols.get("prior"):
             hit("period_label_unclear", f"{label}: columns current and prior both read '{cols['current']}'")
         with_current = sum(1 for r in rows if "current" in (r.get("figures") or {}))
+        prior_x = (_prior_column_x(rows, run, block.get("statement") or "")
+                   if kind == "statement_rows" else None)
         by_caption: dict[str, set] = defaultdict(set)
         for r in rows:
             cap, figs = r.get("caption", ""), r.get("figures") or {}
             # A row of a table whose columns are not periods states its own `period` and keys its
             # figures by the printed column (`note_columns.table_layout`); its keys are not periods.
-            odd = ([] if "period" in r else [k for k in figs if k not in ("current", "prior")])
+            odd = ([] if "period" in r else [k for k in figs if k not in ("current", "prior")
+                                               and not _key_names_period(k)])
             if "period" in r and r["period"] == "unstated" and _has_figure(r):
                 hit("period_label_unclear", f"{label}: '{cap}' period unstated: "
                     f"{json.dumps(figs, ensure_ascii=False)}")
             if odd:
                 hit("period_label_unclear", f"{label}: '{cap}' figures keyed {odd}: {json.dumps(figs, ensure_ascii=False)}")
-            elif "prior" in figs and "current" not in figs and with_current:
+            elif ("prior" in figs and "current" not in figs and with_current
+                  and not _in_prior_column(cap, figs, run, block.get("statement") or "", prior_x)):
                 hit("period_label_unclear", f"{label}: '{cap}' has prior {figs['prior']} but no current")
             why = (is_fragment(cap) or heads_its_own_caption(cap, r.get("group"))
                    if _has_figure(r) else None)
@@ -889,7 +942,9 @@ def _rows_printing(req: dict, figure: float) -> list[tuple[str, str, str, str]]:
                 for col, v in (r.get("figures") or {}).items():
                     n = _num(v)
                     if n is not None and _close(abs(n), round(abs(figure), 2)):
-                        out.append((label, str(r.get("caption") or ""), col, str(r.get("period") or "")))
+                        # A period × measure row states each figure's period in `periods`.
+                        per = (r.get("periods") or {}).get(col) or r.get("period") or ""
+                        out.append((label, str(r.get("caption") or ""), col, str(per)))
     return out
 
 
