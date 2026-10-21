@@ -15826,6 +15826,13 @@
    "inherits": "supplemental_data",
    "namespace": "template",
    "route": "anywhere",
+   "note_source": {
+    "note_terms": [
+     "share capital",
+     "issued capital",
+     "股本"
+    ]
+   },
    "aliases_i18n": {
     "en": [
      "Num Outstanding Common Shares",

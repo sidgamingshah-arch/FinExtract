@@ -434,6 +434,9 @@ def relative_slot(text: str | None) -> tuple[str, str]:
     if pri and not cur:
         return "prior", pri.group(0)
     return "", ""
+# A COLUMN HEADING THAT IS A BALANCE: 期初余额 / 期末余额 / 年初余额 / 年末余额 (and their 账面余额 forms).
+_LEADING_YEAR = re.compile(r"^\s*((?:19|20)\d{2})\b(?!\s*[-/年])")
+_BALANCE_HEADING = re.compile(r"(?:期初|期末|年初|年末)(?:账面)?余额")
 _HEADER_FIGURE = re.compile(r"^(?:\d{1,2}|(?:19|20)\d{2})$")
 _YEAR_FIGURE = re.compile(r"^(?:19|20)\d{2}$")
 _POSITIONAL = re.compile(r"^(current|prior)(?:_col\d+)?$")
@@ -557,6 +560,31 @@ def _per_column_periods(row, keys: dict[str, str], newest):
         worded = {k: relative_slot(str(h))[0] for k, h in headed}
         if len(set(worded.values())) == 2 and all(worded.values()):
             return worded, dict(keys)
+        # …AND A MOVEMENT TABLE'S TWO BALANCE COLUMNS, around the movements between them: 000883's
+        # 股本 note prints 期初余额 | 发行新股 | 送股 | 公积金转股 | 其他 | 小计 | 期末余额 over one
+        # row, 股份总数, and it went out "unstated" — nothing said 6,520,949,388 was the prior year's
+        # closing share count. Only the columns whose heading names its period are dated; a
+        # movement column names none and keeps the row's.
+        named = {k: v for k, v in worded.items() if v}
+        if set(named.values()) == {"current", "prior"} and all(
+                _BALANCE_HEADING.search(str(h)) for k, h in headed if k in named):
+            return named, dict(keys)
+        # …AND A HEADING THAT OPENS ON ITS YEAR, with the measures printed after it under that year:
+        # 0191's share capital prints "2025 Number of shares | Total amount | 2024 Number of shares
+        # | Total amount", and the row went out "unstated", so the 2024 share count could not be
+        # filed under the comparative. Two years exactly, the later the current.
+        yearly = {k: int(m.group(1)) for k, h in headed
+                  for m in [_LEADING_YEAR.match(str(h))] if m}
+        if len(set(yearly.values())) == 2 and headed[0][0] in yearly:
+            newest_year = max(yearly.values())
+            periods, out_keys, last = {}, dict(keys), None
+            for k, h in headed:
+                if k in yearly:
+                    last = yearly[k]
+                else:
+                    out_keys[k] = f"{keys.get(k, h)} ({last})"
+                periods[k] = "current" if last == newest_year else "prior"
+            return periods, out_keys
         return None
     periods: dict[str, str] = {}
     out_keys = dict(keys)

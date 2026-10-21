@@ -1038,9 +1038,22 @@ _HEADED_PERIOD_LABEL = re.compile(
 _MOVEMENT_HEAD = re.compile(
     r"^\s*(?:gross\s+carrying\s+(?:amount|value)|gross\s+block|net\s+carrying\s+(?:amount|value)"
     r"|net\s+block|accumulated\s+(?:depreciation|amortisation|amortization|impairment)"
-    r"(?:\s+and\s+(?:impairment|amortisation|amortization))?)\s*:?\s*$", re.I)
-# …over the block's first row, which opens on its balance.
-_OPENS_ON_A_BALANCE = re.compile(r"^\s*(?:balance\s+(?:as\s+)?at|as\s+at)\b", re.I)
+    r"(?:\s+and\s+(?:impairment|amortisation|amortization))?)\s*:?\s*$"
+    # …AND A CAS MOVEMENT TABLE'S, numbered 一、 to 四、 at the label column's edge: 一、账面原值 /
+    # 二、累计折旧 / 三、减值准备 / 四、账面价值. Not read as a heading before, the first block's
+    # colon-ended 一、账面原值： stayed the group of every row under it — 000883's 七、21 sent
+    # 累计折旧's and 减值准备's "（1）计提" both under 一、账面原值：, so the depreciation charge
+    # 2,927,435,003.23 and the impairment charge 48,994,007.22 could not be told apart. A wrapped
+    # 二、累计折旧和累计 / 摊销 is joined into one line before this is asked.
+    r"|^\s*[一二三四五六七八九十]{1,2}\s*[、.．]\s*(?:账面原值|原值|原价|账面余额"
+    r"|累计(?:折旧|摊销)[\u3400-\u9fff]*|减值准备|账面价值)\s*[:：]?\s*$", re.I)
+# …over the block's first row, which opens on its balance — "Balance as at", or a CAS "1.期初余额",
+# "1.期末账面价值".
+_OPENS_ON_A_BALANCE = re.compile(
+    r"^\s*(?:balance\s+(?:as\s+)?at|as\s+at)\b"
+    r"|^\s*(?:[0-9０-９]{1,2}\s*[.．、]\s*)?(?:期初|期末|年初|年末|上年年末|本年年初)"
+    # …or a block's first numbered row cut in its cell: 688411 prints "1.期" / "初余" / "额".
+    r"|^\s*[1１]\s*[.．、]\s*[\u3400-\u9fff]", re.I)
 
 
 # THE NUMBERING OF A SCHEDULE III STATEMENT FACE: "IV.", "X." for its lines, "A." for a part of one.
@@ -1092,7 +1105,13 @@ def _heads_a_movement_block(head: list[Word], nxt_label: list[Word]) -> bool:
         return False
     head_text = " ".join(w.text for w in head)
     tail_text = " ".join(w.text for w in sorted(nxt_label, key=lambda w: w.bbox.x0))
-    return bool(_MOVEMENT_HEAD.match(head_text)) and bool(_OPENS_ON_A_BALANCE.match(tail_text))
+    if _MOVEMENT_HEAD.match(head_text) and _OPENS_ON_A_BALANCE.match(tail_text):
+        return True
+    # A CAS CAPTION IS READ IN PRINTED ORDER, not by left edge: the block's first row wraps in its
+    # cell ("1.期末账面" over "价值"), and sorted by x the second line comes first.
+    return (bool(_HAN.search(head_text))
+            and bool(_MOVEMENT_HEAD.match(_join_words(head).replace(" ", "")))
+            and bool(_OPENS_ON_A_BALANCE.match(_join_words(nxt_label).replace(" ", ""))))
 
 
 # A QUALIFIER PRINTED AS A HEADING over a note's rows, and nothing else on its line: "Current",
@@ -1689,7 +1708,15 @@ def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
             # below the head. Prose is left-aligned and evenly spaced too, and without this bound
             # a policy paragraph on 1966 took the heading printed under it ("…the Group of
             # Investment properties").
-            if (abs(tail_box.x0 - head_box.x0) <= 0.01 and 0 < below and 0 < above < 0.9 * line_h
+            # …OR IT STARTS LEFT OF THE HEAD, INSIDE THE HEAD'S CELL. A CAS movement table sets a
+            # bracketed caption in a narrow first column, the bracket indented and the cell's second
+            # line at the column's edge: 000883 printed "（1）计" at x 0.156, its figures, then "提"
+            # at x 0.095 — and the model was sent "（1）计" twice (depreciation and impairment), with
+            # nothing to tell 计提 from anything else. A note only: a face's captions are what the
+            # mapper's aliases were written against.
+            aligned = abs(tail_box.x0 - head_box.x0) <= 0.01 or (
+                not on_face and tail_box.x0 < head_box.x0 and tail_box.x1 <= head_box.x1 + 0.01)
+            if (aligned and 0 < below and 0 < above < 0.9 * line_h
                     and abs(below - above) <= 0.5 * line_h):
                 consumed = {id(w) for w in head}
                 rest = [w for w in out[-1] if id(w) not in consumed]
@@ -1754,6 +1781,22 @@ def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
                 out[-1] = prev_labels + label_words + rest
                 continue
 
+        # A TAIL BETWEEN TWO TOP-ALIGNED ROWS OF A NOTE. A CAS note whose captions wrap in a narrow
+        # cell sets each row's figures beside its caption's FIRST line, so the second line stands
+        # alone between two valued rows — 600990's 坏账准备的情况 prints 按单项计提坏 / 账准备 /
+        # 按组合计提坏 / 账准备 / 其中：账龄组 / 合 / 合计, and folded forward each tail joined the
+        # NEXT caption: "账准备按组合计提坏", "账准备其中：账龄组", "合合计". It is the row above's
+        # when both rows print their own caption on their figures' line, the three captions start
+        # at one edge, and the line is a Han fragment that opens no line of its own.
+        if (not on_face and not pending and out and label_words and note_ref is None
+                and _tail_between_top_aligned_rows(out[-1], row, label_words,
+                                                   rows[idx + 1] if idx + 1 < len(rows) else None,
+                                                   fmt, steps, known)):
+            prev_labels = _scan_row(out[-1], fmt)[0]
+            consumed = {id(w) for w in prev_labels}
+            rest = [w for w in out[-1] if id(w) not in consumed]
+            out[-1] = prev_labels + label_words + rest
+            continue
         if pending and _opens_its_own_line(label_words):
             out.append(pending)
             pending = []
@@ -1812,6 +1855,42 @@ def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
     if pending:                                          # trailing label-only text, no value
         out.append(pending)
     return out
+
+
+def _tail_between_top_aligned_rows(prev: list[Word], row: list[Word], label_words: list[Word],
+                                   nxt: list[Word] | None, fmt=None,
+                                   steps: tuple[tuple[str, object], ...] = (),
+                                   known: frozenset[str] = frozenset()) -> bool:
+    """Whether a label-only line of a NOTE is the second line of the caption above it, in a table
+    that sets each row's figures beside the caption's first line — see the call site."""
+    if nxt is None:
+        return False
+    prev_label, _pn, prev_values = _scan_row(prev, fmt)
+    nxt_label, _nn, nxt_values = _scan_row(nxt, fmt)
+    if not (prev_label and prev_values and nxt_label and nxt_values):
+        return False
+    text = _join_words(label_words).strip()
+    if (not text or not re.fullmatch(r"[\u3400-\u9fff]+", text) or len(text) > 8
+            or _opens_its_own_line(label_words)
+            or _is_known_caption(label_words, steps, known)):
+        return False
+    if not (_HAN.search(_join_words(prev_label)) and _HAN.search(_join_words(nxt_label))):
+        return False
+    edge = min(w.bbox.x0 for w in prev_label)
+    # …the next caption at that edge too, or a total set off it ("合计" centred under the column):
+    # a fragment over INDENTED rows is their heading, not a tail.
+    nxt_x0 = min(w.bbox.x0 for w in nxt_label)
+    if (abs(min(w.bbox.x0 for w in label_words) - edge) > 0.01
+            or not (abs(nxt_x0 - edge) <= 0.01
+                    or (nxt_x0 > edge and _CAS_TOTAL_LINE.search(_join_words(nxt_label))))):
+        return False
+    # Each valued row prints its caption on its figures' own line: top-aligned, not straddled.
+    def top_aligned(label: list[Word], values: list[Word]) -> bool:
+        h = max(w.bbox.y1 - w.bbox.y0 for w in label)
+        return abs(min(w.bbox.y0 for w in label) - min(w.bbox.y0 for w in values)) <= 0.5 * h
+    if not (top_aligned(prev_label, prev_values) and top_aligned(nxt_label, nxt_values)):
+        return False
+    return _wrap_adjacent(_row_box(prev_label), _row_box(label_words), label_words)
 
 
 # ── The line items a CAS face statement PRINTS ────────────────────────────────────────────────
@@ -4258,6 +4337,18 @@ def _header_lines(rows: list[list[Word]], fmt=None, page_chrome: frozenset[str] 
     table's first figure row and the right edge of its caption column — ``([], …)`` when no header
     is printed above the first figure row."""
     first = _first_figure_row(rows, fmt)
+    if first is None:
+        # A HEADER WITH NO FIGURES UNDER IT YET: a table titled and headed at a page's foot, its
+        # rows on the next page — 000883's 固定资产情况 ends page 188 on "项目 房屋及建筑物 机器设备
+        # 运输工具 其他 合计". Only the line that NAMES the caption column (项目, Items) and prints
+        # two or more columns beside it is read, so a section of prose yields nothing.
+        for row in reversed(rows):
+            words = [w for w in row if w.text.strip()]
+            if (len(words) >= 3 and _HEADING_LABEL_WORD.match(words[0].text.strip())
+                    and not _carries_amounts(row, fmt)
+                    and not _header_reads_as_prose(words[1:])):
+                return [words[1:]], len(rows), None
+        return [], first, None
     if not first:
         return [], first, None
     margin, right = _caption_geometry(rows[first:], fmt)
@@ -4713,6 +4804,17 @@ def _figures_where_the_table_printed_them(model: HeaderModel, mapping: dict[int,
     for j, xs in by_column.items():
         if j in model.anchors:
             shifts.append(_median(xs) - model.anchors[j])
+    if not model.anchors and placed:
+        # A HEADER PRINTED OVER NO FIGURES — the foot of a page, the rows on the next (see
+        # `_header_lines`) — has no figure edges to hold the continuation to. It is held to the
+        # header itself instead, and more strictly: every column it prints receives figures, and
+        # every figure falls inside the cell of the column it was named into.
+        if len(by_column) == len(model.columns) and all(
+                model.cell_of(_xc(p.word)) == (mapping.get(p.col) if value_bands
+                                               else model.cell_of(_xc(p.word)))
+                for p in placed if _is_placed_amount(p.word, fmt)):
+            return True, "header_only"
+        return False, "header_only_does_not_fit"
     if not shifts:
         return False, "no_figure_column_in_common"
     if max(shifts) - min(shifts) > _CARRY_SHIFT_SPREAD or max(abs(x) for x in shifts) > _CARRY_SHIFT_MAX:
@@ -4768,7 +4870,13 @@ def _name_note_columns(items: list[LineItem], placed_at: dict[int, _Placed],
         # NOTHING TO HOLD A HEADER TO: a section of prose, or of dates. It names nothing, and a
         # header carried to it passes on untouched to the next section of the same note — still to
         # be validated there against figures.
-        return carried if own is None else None
+        #
+        # …AND SO DOES A HEADER THE SECTION PRINTS OVER NO FIGURES: a table titled and headed at the
+        # foot of a page whose rows start on the next. 000883's 固定资产情况 prints 项目 房屋及建筑物
+        # 机器设备 运输工具 其他 合计 as page 188's last line, and its 1.期初余额 … rows went out
+        # keyed current / prior / col2 / col3 / col4 with no heading. Passed on, it is still fitted
+        # to the figures where it is used.
+        return carried if own is None else own
     used: HeaderModel | None = None
     mapping: dict[int, int] = {}
     for model, source in ((own, "header"), (carried if own is None else None, "carried")):
@@ -5664,6 +5772,9 @@ def _matrix_column_names(m: _Matrix) -> list[str] | None:
     names: list[str] = []
     for k in range(len(m.bands)):
         words = [w for i in range(start, end + 1) for w in per_row[i].get(k, [])]
+        # THE UNITS LINE IS NOT A HEADING: 600990 prints "单位：元 币种：人民币" directly over its
+        # 固定资产情况 header, and its columns came out "单位：元 其他设备" and "币种：人民币 合计".
+        words = [w for w in words if not _HEADING_UNIT.match(w.text.strip())] or words
         latin = [w.text for w in words if re.search(r"[A-Za-z]", w.text)]
         # Prefer the English caption as the key; a Chinese-only filing keeps its own wording.
         name = _join_caption(latin) or _join_caption([w.text for w in words])
@@ -6383,6 +6494,15 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
     if matrix is not None and names is not None:
         if log:
             log(f"extract:page={page_index}:equity_matrix_columns={len(names)}")
+        if not on_face and header_out is not None and len(names) == len(matrix.bands):
+            # A NOTE READ AS A MATRIX STILL REPORTS THE HEADER IT WAS NAMED BY, so the page that
+            # continues it — which prints no header and reads as a two-column table — can name its
+            # columns. 300319's 固定资产情况 named page 151's figures 房屋及建筑物 … 合计 and sent page
+            # 152's 累计折旧 and 减值准备 rows as current / prior / col2 / col3 / col4.
+            header_out.append(HeaderModel(
+                columns=[PrintedColumn(heading=n, x0=lo, x1=hi)
+                         for n, (lo, hi) in zip(names, matrix.bands)],
+                groups=[], anchors={j: hi for j, (_lo, hi) in enumerate(matrix.bands)}))
         cut = _sub_table_cut(matrix, number_format)
         # …ONLY WHEN THE READ AGAIN IS SHORTER. A cut at a row that starts no lower than every word
         # handed in (a matrix whose header band the words begin under) re-reads the same words and
@@ -6391,6 +6511,18 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
         if cut is not None and not any(
                 w.bbox.y0 < min(x.bbox.y0 for x in matrix.rows[cut]) - 1e-6 for w in words):
             cut = None
+        if not on_face and group_out is not None and cut is None:
+            # …AND THE MOVEMENT BLOCK STILL OPEN at the page's foot, as the two-column path
+            # reports its open headings: 688411's 固定资产情况 ends page 239 on 二、累计折旧, and
+            # page 240's "（1）计提" had no group to tell the depreciation charge from the
+            # impairment one.
+            heads = [_join_words(r).replace(" ", "")
+                     for r in _group_rows(words, _line_tol(words), fold=page_fold)
+                     if r and not _scan_row(r, number_format)[2]
+                     and _MOVEMENT_HEAD.match(_join_words(r).replace(" ", ""))
+                     and _HAN.search(_join_words(r))]
+            if heads:
+                group_out.append(OpenHeadings(heads[-1], [(_BLOCK_HEAD_X0, heads[-1])]))
         if cut is not None:
             # A SUB-TABLE PRINTED UNDER THE MATRIX IS ITS OWN TABLE. The matrix is read down to its
             # heading; the rows from the heading on are read again as the table they are.

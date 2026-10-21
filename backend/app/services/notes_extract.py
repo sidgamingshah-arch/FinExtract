@@ -18,7 +18,8 @@ from app.services import page_spread
 from app.services.row_reconstruct import (
     _AGE_UNIT, _CAPTION_GAP, DATE_TOKEN, DETECT_FOLD, GRID_FLAG, NIL_ROW_FLAG, ColumnGrid, Word, _caption_text,
     _carries_amounts, _fuse_bucket_numbers,
-    _group_rows, _is_folio_row, _measure_slug, _prc_period_slot, _scan_row, _x_runs,
+    _group_rows, _is_folio_row, _measure_slug, _opens_its_own_line, _prc_period_slot, _scan_row,
+    _x_runs,
     build_line_items, row_tolerance)
 
 # "Note 15: Trade receivables", "Note 15 Trade receivables", "15. Trade receivables"
@@ -599,10 +600,16 @@ def _wrapped_row_caption(rows: list[list[Word]], i: int, section: dict | None) -
     line of the same wrapped cell ("（4）外" over "币财务报表折算 109,835,296.51 …"). A real heading
     is followed by its column header, which carries no figures.
     """
-    if section is None or i + 1 >= len(rows) or not rows[i]:
+    if section is None or not rows[i]:
         return False
+    if i + 1 >= len(rows) or _is_folio_row(rows[i + 1]):
+        return _caption_at_the_foot(rows, i, section)
     row, nxt = rows[i], rows[i + 1]
-    if not any(_carries_amounts(r) for r in _rows_since(rows, i, section)):
+    # A TABLE CARRIED OPEN FROM THE PREVIOUS PAGE is open before any row of this page: 000883's
+    # 固定资产情况 runs onto page 189 with "（1）处" / figures / "置或报废", which opened a note
+    # titled "处" and took the impairment block's closing balance and the carrying amounts with it.
+    if not section.get("open_table") and not any(
+            _carries_amounts(r) for r in _rows_since(rows, i, section)):
         return False
     height = max(w.bbox.y1 - w.bbox.y0 for w in row)
     if min(w.bbox.y0 for w in nxt) - max(w.bbox.y1 for w in row) > 1.5 * height:
@@ -611,16 +618,50 @@ def _wrapped_row_caption(rows: list[list[Word]], i: int, section: dict | None) -
         # A ROW WITH NO FIGURES THIS YEAR wraps the same way — "（3）企" over "业合并增加" — and its
         # second line is ONE word set left of the bracket. A column header under a real heading
         # is several words across the columns.
-        return (len(nxt) == 1 and _title_only_row(nxt) is not None
-                and nxt[0].bbox.x0 < row[0].bbox.x0 - 0.01)
+        if (len(nxt) == 1 and _title_only_row(nxt) is not None
+                and nxt[0].bbox.x0 < row[0].bbox.x0 - 0.01):
+            return True
+        # …AND A ROW WITH NO FIGURES THIS YEAR, WHOLE, is followed at the row pitch by the next
+        # enumerated row: 000883's investment-property table prints "（1）外购" over "（2）存货\…" and
+        # "（1）处置" over "（2）其他转" with nothing beside them. Read as headings they opened sections
+        # titled "外购" and "其他转", and every row after them — the depreciation charge among them
+        # — went to a note so titled. A real heading is followed by its unit line or its header.
+        return (re.match(r"^\s*[（(]\s*\d", row[0].text) is not None
+                and _title_only_row(nxt) is not None and _opens_its_own_line(nxt))
     first_amount = next((j for j, w in enumerate(nxt) if _carries_amounts([w])), 0)
     caption = nxt[:first_amount]
     if not caption:
         return True
     if _HEADING.match(" ".join(w.text for w in caption).strip()) and re.match(
             r"^\s*(?:[（(]\s*\d|\d)", caption[0].text):
-        return False
+        # …UNLESS THE LINE IS A ROW WITH NO FIGURES, set at the row pitch between two rows of the
+        # table: 600990's 固定资产情况 prints "（3）企业合并增加" blank between "（2）在建工程转入" and
+        # "3.本期减少金额 1,558,536.45 …", and read as a heading it opened a note titled
+        # "企业合并增加" that took the 累计折旧 and 减值准备 blocks. A real heading stands clear of
+        # the table above it.
+        return (re.match(r"^\s*[（(]\s*\d", row[0].text) is not None
+                and _caption_at_the_foot(rows, i, section))
     return caption[0].bbox.x0 < row[0].bbox.x0 - 0.01
+
+
+def _caption_at_the_foot(rows: list[list[Word]], i: int, section: dict) -> bool:
+    """Whether the bracketed line that ENDS a page is the first line of a row caption the next page
+    completes — 300319's 固定资产情况 ends page 151 on "（3）企" (业合并增加 opens page 152).
+
+    Read as a heading, it opened a section holding nothing, and the page's carries — the printed
+    header, the open block heading — were that empty section's: the next page's 累计折旧 rows went
+    out keyed col2 … col4. It is a row when a table is open above it and it is set at the row
+    pitch below that table's last line; a real heading stands clear of the table above it.
+    """
+    row = rows[i]
+    if i == 0 or not re.match(r"^\s*[（(]\s*\d", row[0].text):
+        return False
+    held = _rows_since(rows, i, section)
+    if not held or not any(_carries_amounts(r) for r in held[-4:]):
+        return False
+    prev = held[-1]
+    height = max(w.bbox.y1 - w.bbox.y0 for w in row)
+    return min(w.bbox.y0 for w in row) - max(w.bbox.y1 for w in prev) <= 1.5 * height
 
 
 def _rows_since(rows: list[list[Word]], i: int, section: dict) -> list[list[Word]]:
@@ -1273,7 +1314,8 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
                         carry_header=None,
                         header_out: list | None = None,
                         reporting_year: int | None = None,
-                        default_basis: Basis | None = None) -> list[NotesTable]:
+                        default_basis: Basis | None = None,
+                        open_out: list | None = None) -> list[NotesTable]:
     """Split a notes page into note sections and reconstruct each note's detail rows.
 
     ``scope``/``normalisation`` are the run's own rulebook blocks; a note's columns are read by
@@ -1328,6 +1370,12 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
     when those rows print no header of their own and their figures fit the carried one; see
     `row_reconstruct._name_note_columns`. ``reporting_year`` places a dated column heading.
 
+    ``open_out`` receives the (number, title, basis, basis_from) of the LAST section the page
+    opened, published or not, for the caller to carry as ``carry_note``. A table titled and headed
+    at the foot of a page holds no rows there and is dropped as an empty fragment of its note, and
+    the carry used to be the last table PUBLISHED: 000883's 固定资产情况 ran onto the next page
+    under the title of the note's summary table, "、固定资产".
+
     ``default_basis`` is the basis the document's face statements print, when they print only one
     (`services.face_bases`; the caller passes STANDALONE alone). A note that prints no basis of its
     own is then read on it: the row builder reads such a note as the GROUP's, and on a filing whose
@@ -1374,7 +1422,11 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
     carried: dict | None = None
     if carry_note is not None:
         carried = {"no": carry_note[0], "title": carry_note[1], "words": [],
-                   "chapter": page_start}
+                   "chapter": page_start,
+                   # A TABLE STILL OPEN at the foot of the previous page — its printed header or
+                   # its block heading carried — so the page's first lines may be its rows. See
+                   # `_wrapped_row_caption`.
+                   "open_table": carry_header is not None or bool(carry_group)}
         # A CONTINUED NOTE KEEPS THE BASIS OF THE CHAPTER IT BEGAN IN, as it already keeps that
         # chapter's number (`qualified_note_number`: "the chapter a note was printed under is the
         # chapter it belongs to"). The basis used to come from the page, so the tail of a GROUP
@@ -1638,6 +1690,8 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
                            # THE NARRATIVE, for the PROSE route alone — see `_narrative_only` for
                            # the figure a flattened table published as a depreciation charge.
                            prose_text=_narrative_only(sec["words"], items, source_kind))
+        if open_out is not None:
+            open_out.append((table.note_number, table.title, table.basis, table.basis_from))
         # THE PERIOD STATED ON A BLOCK rather than on a column — read from the RAW rows, because the
         # caption-only header that opens a block carries no figures and so is never built into an
         # item. Same shape as the category pass above: scan the page's own rows, then attribute each

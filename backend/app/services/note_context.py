@@ -657,6 +657,25 @@ def same_table_title(cited: str, key: str) -> bool:
     return bool(key) and _same_note_key(cited) == key
 
 
+# A ROW THAT COUNTS SHARES. Its figure is a number of shares, and a request that states the block's
+# unit — "CNY units (x1)", "HK$ thousands" — over it says the opposite: 000883's 股本 note sent
+# 股份总数 6,500,915,424 under "CNY units (x1)". A caption that prints the count itself ("Issued and
+# fully paid 2,253,204,500 ordinary shares") is the money row of a share-capital table and is left
+# alone, since its figure is the nominal amount.
+_SHARE_COUNT = re.compile(
+    r"股份总数|股份總數|股数|股數|股份数目|股份數目|已发行股份|已發行股份"
+    r"|number\s+of\s+(?:issued\s+)?(?:ordinary\s+|common\s+)?shares"
+    r"|shares\s+(?:in\s+issue|outstanding)", re.IGNORECASE)
+_GROUPED_NUMBER = re.compile(r"\d{1,3}(?:,\d{3})+")
+SHARE_COUNT_NOTE = "number of shares — a count, not an amount of money; no unit applies"
+
+
+def share_count_caption(caption: str) -> bool:
+    """Whether a note row's caption says its figures count SHARES (see `_SHARE_COUNT`)."""
+    text = str(caption or "")
+    return bool(_SHARE_COUNT.search(text)) and not _GROUPED_NUMBER.search(text)
+
+
 def note_blocks(notes) -> list[tuple[tuple[str, str], str]]:
     """Which request BLOCK each extracted table belongs to, in document order.
 
@@ -918,6 +937,8 @@ def identified_notes(line_item_set, notes, *, cited=None, every_note: bool = Fal
                                              for k, per in lay["key_periods"].items()}}
                                 if lay.get("key_periods") and laid else {}),
                              **({"nil": True} if note_columns.printed_nil(row) else {}),
+                             **({"measure": SHARE_COUNT_NOTE}
+                                if laid and share_count_caption(caption) else {}),
                              "_unit": units.row_unit(row, doc_unit)}
                 printed = [h for h in (getattr(row, "printed_columns", None) or ()) if h]
                 if printed and note_columns.blank_columns(row) and printed != printed_prev:
@@ -952,6 +973,8 @@ def identified_notes(line_item_set, notes, *, cited=None, every_note: bool = Fal
             entry_row = {"caption": caption, **({"group": group} if group else {}),
                          **({"figures": figures} if figures else {}),
                          **({"nil": True} if note_columns.printed_nil(row) else {}),
+                         **({"measure": SHARE_COUNT_NOTE}
+                            if figures and share_count_caption(caption) else {}),
                          "_unit": units.row_unit(row, doc_unit)}
             if legend and legend != legend_prev:
                 entry_row["columns"] = legend

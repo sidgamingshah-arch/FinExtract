@@ -575,6 +575,7 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
         grids: list = []
         groups: list = []
         headers: list = []
+        opened: list = []
         tables = extract_note_tables(region, page_index=page_index,
                                      document_id=doc.content_hash, source_kind=source_kind,
                                      scope=scope, normalisation=normalisation,
@@ -585,14 +586,16 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
                                      known_captions=captions, page_fold=fold,
                                      carry_header=carry_header, header_out=headers,
                                      default_basis=notes_basis,
-                                     reporting_year=_reporting_year())
+                                     reporting_year=_reporting_year(), open_out=opened)
         doc.notes.extend(tables)
         # The BASIS travels with the note, so a note continued onto the page where the
         # company-only chapter opens stays the group's — see `extract_note_tables`.
         # The note still open when this page ended is the LAST section, so its grid — None
         # included — is what the next page's continuation inherits. Its printed-column header too.
-        return (((tables[-1].note_number, tables[-1].title, tables[-1].basis,
-                  tables[-1].basis_from) if tables
+        # The LAST SECTION OPENED, which an empty one at the page's foot is too — see `open_out`.
+        return ((opened[-1] if opened
+                 else (tables[-1].note_number, tables[-1].title, tables[-1].basis,
+                       tables[-1].basis_from) if tables
                  else carry_note),
                 grids[-1] if grids else None,
                 groups[-1] if groups else None,
