@@ -641,7 +641,12 @@ def build() -> tuple[dict, dict, dict]:
             if op == "sum":
                 terms_text = "the sum of " + ", ".join(names[:-1]) + (" and " if len(names) > 1 else "") + names[-1]
             else:
-                terms_text = names[0] + " less " + " less ".join(names[1:])
+                # A deducted line's workbook label often says so itself ("Less Excise Duty",
+                # "Less : Accumulated amortization"), and "Total less Less Excise Duty" is what
+                # joining them read as. The "less" is said once, here.
+                subtracted = [re.sub(r"(?i)^\s*less\b\s*:?\s*", "", n).strip() or n
+                              for n in names[1:]]
+                terms_text = names[0] + " less " + " less ".join(subtracted)
         residual_note = ("Rows of this section that no other line claims are swept here, "
                          "itemised.") if k in CATCH_ALLS else None
         item = {

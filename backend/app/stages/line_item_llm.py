@@ -417,19 +417,35 @@ class LineItemLlmStage(Stage):
                     # back on if the split is judged too strict, and removing it would make restoring
                     # it a schema change instead of a default change.
                     component = str(answer.role or "").lower() == "component"
-                    figures, unverified = line_item_llm.combine_terms(
-                        resolved, unresolved, list(answer.signs or ()), component,
-                        fallback_period=_current_period(doc) or "current")
+                    # ONE FIGURE PER ENTITY THE ANSWER NAMES — see
+                    # `line_item_llm.split_by_entity`. A note row of the company's chapter is
+                    # given its basis first, so it joins the standalone figure.
+                    if indian:
+                        for e in resolved:
+                            if _indian_note_is_the_companys(doc, e):
+                                e["basis"] = "standalone"
+                    groups = []
+                    for g_resolved, g_unresolved in line_item_llm.split_by_entity(
+                            resolved, unresolved):
+                        g_figures, g_unverified = line_item_llm.combine_terms(
+                            g_resolved, g_unresolved, list(answer.signs or ()), component,
+                            fallback_period=_current_period(doc) or "current")
+                        # ONLY FILED PERIODS ARE WRITTEN — see `_FILED`. Said in the log, because
+                        # a cited row whose only figures stand in other columns is answered with
+                        # nothing.
+                        unfiled = sorted(p for p in g_figures if p not in _FILED)
+                        if unfiled:
+                            ctx.log(f"line_item_llm:{key}: not written, not a filed period: "
+                                    f"{', '.join(unfiled[:8])}")
+                            g_figures = {p: v for p, v in g_figures.items() if p in _FILED}
+                        groups.append((g_resolved, g_unresolved, g_figures, g_unverified))
+                    if len(groups) > 1:
+                        ctx.log(f"line_item_llm:{key}: the answer cites "
+                                f"{len(groups)} entities — one figure per entity")
                     # AN AMOUNT THE MODEL STATED THAT THE NOTE DOES NOT CONTAIN IS NOT COUNTED, and
                     # the row says so whichever way the answer goes from here.
                     stated = line_item_llm.stated_not_located(unresolved)
-                    # ONLY FILED PERIODS ARE WRITTEN — see `_FILED`. Said in the log, because a
-                    # cited row whose only figures stand in other columns is answered with nothing.
-                    unfiled = sorted(p for p in figures if p not in _FILED)
-                    if unfiled:
-                        ctx.log(f"line_item_llm:{key}: not written, not a filed period: "
-                                f"{', '.join(unfiled[:8])}")
-                        figures = {p: v for p, v in figures.items() if p in _FILED}
+                    figures = {p: v for g in groups for p, v in g[2].items()}
                     if not figures:
                         # NOTHING WAS LOCATED AND NOTHING WAS EVEN CLAIMED. No figure can be published,
                         # so the answer is recorded on the row instead of vanishing — `_write_unanswered`
@@ -440,10 +456,14 @@ class LineItemLlmStage(Stage):
                     answered += 1
                     # The SAME unresolved citations and fallback `combine_terms` was given, so the
                     # trail can show every term the figure counted — and every one it could not.
-                    filled += self._write(doc, by_concept, item, answer, resolved, figures, ctx,
-                                          unverified, unresolved=unresolved,
-                                          fallback_period=_current_period(doc) or "current",
-                                          stated=stated)
+                    for g_resolved, g_unresolved, g_figures, g_unverified in groups:
+                        if not g_figures:
+                            continue
+                        filled += self._write(
+                            doc, by_concept, item, answer, g_resolved, g_figures, ctx,
+                            g_unverified, unresolved=g_unresolved,
+                            fallback_period=_current_period(doc) or "current",
+                            stated=line_item_llm.stated_not_located(g_unresolved))
                     if indian:
                         _record_explained(explained, item, resolved, list(answer.signs or ()),
                                           component)
@@ -485,7 +505,8 @@ class LineItemLlmStage(Stage):
 
         if indian and explained:
             _explain_swept_rows(doc, line_item_set, explained, ctx)
-        blanked = self._reconcile_claimed_printed_rows(kept_printed, claimed_face_rows, ctx)
+        blanked = self._reconcile_claimed_printed_rows(kept_printed, claimed_face_rows, ctx,
+                                                       line_item_set)
         blanked += self._settle_shared_printed_rows(doc, face_claims, cited_by_key, by_concept,
                                                     ctx, line_item_set)
         blanked += self._settle_shared_note_rows(doc, note_cells, by_concept, line_item_set, ctx)
@@ -792,7 +813,8 @@ class LineItemLlmStage(Stage):
 
     @staticmethod
     def _reconcile_claimed_printed_rows(kept_printed: list[tuple[str, LineItem]],
-                                        claimed: dict[str, str], ctx) -> int:
+                                        claimed: dict[str, str], ctx,
+                                        line_item_set=None) -> int:
         """A line kept its printed figure — unless the model gave that printed row to another line.
 
         THE CASE THIS EXISTS FOR. Two lines can plausibly take the same printed caption; the model
@@ -821,10 +843,19 @@ class LineItemLlmStage(Stage):
         """
         if not kept_printed or not claimed:
             return 0
+        ancestors = _ancestry(line_item_set)
         blanked = 0
         for key, row in kept_printed:
             owner = claimed.get(str(getattr(row, "id", "") or ""))
             if not owner or owner == key:
+                continue
+            if owner in ancestors(key) or key in ancestors(owner):
+                # A LINE COMPUTED FROM THIS ONE (or one this line is computed from) cited its row as
+                # a part of its own figure: the row is counted once in any total, and it is still
+                # this line's. Net intangibles citing the 商誉 row does not take it from goodwill.
+                ctx.log(f"line_item_llm:{key}: its printed row is cited by {owner}, "
+                        f"{'computed from it' if owner in ancestors(key) else 'a part of it'} "
+                        f"— the row stays this line's")
                 continue
             printed = [str(ev.value) for ev in (row.values or {}).values()
                        if getattr(ev, "value", None) is not None]
@@ -868,19 +899,12 @@ class LineItemLlmStage(Stage):
         counted once in any total, and emptying either loses a figure the filing prints for it
         (cf_oper_direct__income_taxes_paid_direct and its part sub__cf_direct_income_taxes_paid
         cite the same "Income taxes paid"). A claimant that is the parent or a part of another
-        claimant is never emptied.
+        claimant is never emptied. "Part" includes a line a calculated line is COMPUTED from (its
+        `terms`, `_ancestry`): net intangibles may cite the 商誉 row goodwill stands on.
         """
         from app.services.mapping import section_of_banner, section_of_key
         rows = {str(getattr(li, "id", "") or ""): li for li in (doc.line_items or ())}
-        parent_of = {i.key: str(getattr(i, "parent", "") or "")
-                     for i in (getattr(line_item_set, "items", None) or ())}
-
-        def ancestors(key: str) -> set[str]:
-            out, up = set(), parent_of.get(key, "")
-            while up and up not in out:
-                out.add(up)
-                up = parent_of.get(up, "")
-            return out
+        ancestors = _ancestry(line_item_set)
 
         blanked = 0
         for rid, keys in face_claims.items():
@@ -1398,6 +1422,38 @@ def _explain_swept_rows(doc, line_item_set, explained: dict, ctx) -> None:
 
 def _basis_of(ev) -> str:
     return str(getattr(getattr(ev, "basis", None), "value", getattr(ev, "basis", "")) or "")
+
+
+def _ancestry(line_item_set):
+    """``ancestors(key)``: every line ``key`` is a part of — through its `parent`, and through the
+    `terms` of a calculated line that is computed from it, transitively.
+
+    A calculated line's figure IS its terms' sum, so a printed row standing for one of its terms is
+    inside it the way a part's row is inside its parent: both may cite it and it is counted once.
+    """
+    ups: dict[str, set[str]] = {}
+    for item in (getattr(line_item_set, "items", None) or ()):
+        parent = str(getattr(item, "parent", "") or "")
+        if parent:
+            ups.setdefault(item.key, set()).add(parent)
+        for term in (getattr(item, "terms", None) or ()):
+            ref = str(getattr(term, "ref", None) or (term.get("ref") if isinstance(term, dict)
+                                                       else "") or "")
+            if ref and ref != item.key:
+                ups.setdefault(ref, set()).add(item.key)
+
+    def ancestors(key: str) -> set[str]:
+        out: set[str] = set()
+        todo = list(ups.get(key, ()))
+        while todo:
+            up = todo.pop()
+            if up in out:
+                continue
+            out.add(up)
+            todo.extend(ups.get(up, ()))
+        return out
+
+    return ancestors
 
 
 def _row_holding_basis(doc, key: str, basis: str, fallback):

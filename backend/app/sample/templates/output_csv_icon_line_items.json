@@ -865,7 +865,7 @@
     "pl_income"
    ],
    "order": 5,
-   "definition": "Net Sales (1 - 2): Total less Less Excise Duty, as the template computes it. Use complete inputs on the same entity basis, reporting date/period, currency and scale. Do not sum both a component and its descendants or treat missing inputs as reported zeros.",
+   "definition": "Net Sales (1 - 2): gross sales (line 1, Total, the sum of domestic and export sales) less excise duty (line 2), as the template computes it. Where the face prints no excise duty, net sales is the gross sales figure. Use complete inputs on the same entity basis, reporting date/period, currency and scale. Do not sum both a component and its descendants or treat missing inputs as reported zeros.",
    "temporality": "duration",
    "unit_of_account": "subtotal",
    "sign_convention": "either",
@@ -10105,7 +10105,7 @@
     "bs_nca"
    ],
    "order": 165,
-   "definition": "Net Intangible Assets: Intangible Assets (incl. Deferred tax assets) less Less : Accumulated amortization, as the template computes it. Deferred tax assets); deduct Less : Accumulated amortization. Use complete inputs on the same entity basis, reporting date/period, currency and scale. Do not sum both a component and its descendants or treat missing inputs as reported zeros.",
+   "definition": "Net Intangible Assets: Intangible Assets (incl. Deferred tax assets) less Accumulated amortization, as the template computes it. Deferred tax assets); deduct Less : Accumulated amortization. Use complete inputs on the same entity basis, reporting date/period, currency and scale. Do not sum both a component and its descendants or treat missing inputs as reported zeros.",
    "temporality": "instant",
    "unit_of_account": "subtotal",
    "sign_convention": "either",

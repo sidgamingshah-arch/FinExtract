@@ -1669,6 +1669,7 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
                     continue
                 resolved.append({"at": at, "note": "", "statement": st, "title": "",
                                  "caption": caption, "quote": quote, "on_face": True,
+                                 "entity": want_entity or None,
                                  "row_id": str(getattr(row, "id", "") or ""), **picked})
                 continue
             if not figures:
@@ -1687,6 +1688,10 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
             resolved.append({"at": at, "note": "", "statement": st, "title": "",
                              "caption": caption, "figures": figures, "provenance": prov,
                              "quote": quote, "on_face": True,
+                             # The entity the citation NAMED, as given — `None` when it named
+                             # none. `services.line_item_llm.split_by_entity` makes one figure per
+                             # named entity from it.
+                             "entity": want_entity or None,
                              "basis": filed.get("basis"),
                              "figures_by_basis": filed.get("by"),
                              "row_id": str(getattr(row, "id", "") or "")})

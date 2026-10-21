@@ -1233,18 +1233,27 @@ def _row_figure(r: dict, src, period: str) -> float | None:
     return _num(figs.get(period))
 
 
-def grade_answer(payload: dict, answer, kl: KeyLine, period: str, key_unit: str | None) -> tuple[str, str]:
+def grade_answer(payload: dict, answer, kl: KeyLine, period: str, key_unit: str | None,
+                 key_basis: str | None = None) -> tuple[str, str]:
     """Whether an answer picks the figure the filing prints for this line and period, judged in
     the request it answers: each citation is matched back to its row (an unmatched one is
     `unresolved`, one matching rows with different figures `ambiguous`), its figure for the period
     taken, components added with their signs, and the total compared with the key at the block's
-    unit."""
+    unit.
+
+    An answer whose citations name two or more entities is one figure PER ENTITY, as the stage
+    publishes it (`services.line_item_llm.split_by_entity`): only the citations of the key's basis
+    — and those naming no entity — are graded."""
     printed = _num(getattr(kl, period))
     if not answer.sources:
         return ("rightly_blank", "") if printed is None else ("missed", "no sources")
     km = unit_multiple(key_unit) if key_unit else 1.0
     vals, notes_, bm = [], [], None
+    named = {str(s.entity or "").lower() for s in answer.sources if getattr(s, "entity", None)}
+    want = str(key_basis or "consolidated").lower()
     for i, src in enumerate(answer.sources):
+        if len(named) > 1 and getattr(src, "entity", None) and str(src.entity).lower() != want:
+            continue
         if src.amount not in (None, "") and src.quote:
             n = _num(src.amount)
             if n is not None and (src.period or "current") == period:
@@ -1308,7 +1317,7 @@ def grade_folder(d: Path, key: Key) -> list[dict]:
             if kl is None:
                 continue
             for period in ("current", "prior"):
-                g, detail = grade_answer(payload, ans, kl, period, key.unit)
+                g, detail = grade_answer(payload, ans, kl, period, key.unit, key.basis)
                 out.append({"request": ap.stem, "key": ans.key, "period": period, "grade": g,
                             "detail": detail})
     return out

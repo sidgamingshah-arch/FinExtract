@@ -124,7 +124,8 @@
   ],
   "route": "face",
   "confidence": "medium",
-  "note": "'Revenue from operations (net)' is not net sales because it includes other operating revenue. It goes to total_operating_income and is vetoed here. This is calculated: a lone excise figure with no domestic/export would make the rollup compute -excise over a printed 'Net sales' (rollups.py:446-449)."
+  "note": "'Revenue from operations (net)' is not net sales because it includes other operating revenue. It goes to total_operating_income and is vetoed here. This is calculated: a lone excise figure with no domestic/export would make the rollup compute -excise over a printed 'Net sales' (rollups.py:446-449).",
+  "definition": "Net Sales (1 - 2): gross sales (line 1, Total, the sum of domestic and export sales) less excise duty (line 2), as the template computes it. Where the face prints no excise duty, net sales is the gross sales figure. Use complete inputs on the same entity basis, reporting date/period, currency and scale. Do not sum both a component and its descendants or treat missing inputs as reported zeros."
  },
  "pl_icon__other_recurring_operating_income": {
   "aliases": [

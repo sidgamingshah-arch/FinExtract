@@ -80,7 +80,10 @@ REPLY_CONTRACT = (
     "The rows under `statement_rows` are that statement as the filing prints it, in order. Each "
     "block names its `entity`: `consolidated` is the group, `standalone` the parent company "
     "alone — a filing prints both, so the same caption appears in each. Give the block's "
-    "`entity` in `entity`, exactly as given, so the citation says which of the two it is.\n"
+    "`entity` in `entity`, exactly as given, so the citation says which of the two it is. Where "
+    "both entities print the line, cite each entity's rows, each with its own `entity`: the "
+    "figure is made per entity — rows added, or a whole chosen, within one entity's rows only — "
+    "and each entity's figure is filed under its own basis, never the two added together.\n"
     "- A ROW ON ANY OTHER PAGE, where `other_pages` is supplied. Give that block's `page` number "
     "in `page` and the row caption in `caption`, and leave the note and the statement empty. "
     "These are the pages of the filing that are neither a statement nor a note, and only a line "
@@ -125,7 +128,9 @@ REPLY_CONTRACT = (
     "have given that same printed row to a DIFFERENT line, in which case the row belongs to that "
     "line and this one is left empty. A printed row states one line's figure, so citing it for "
     "one line is also saying it is not another's. Where two lines could take the same row, cite "
-    "it for the one you mean and leave the other empty deliberately.\n"
+    "it for the one you mean and leave the other empty deliberately. A line whose definition "
+    "computes it from other lines may cite the rows of those lines, and of the line computed from "
+    "it where that row is all it prints, without taking them from those lines.\n"
     "\n"
     "- Answer with the line item's `key`, exactly as given. Never a key that was not given to "
     "you, and never more than one answer for the same key.\n"
@@ -604,6 +609,47 @@ def combine_terms(resolved: list[dict], unresolved: list[dict], signs: list[int]
                 out[period] = value
                 first_whole.add(period)
     return out, unverified
+
+
+def split_by_entity(resolved: list[dict], unresolved: list[dict]
+                    ) -> list[tuple[list[dict], list[dict]]]:
+    """The answer's citations as one group per ENTITY they name — ``[(resolved, unresolved)]``.
+
+    THE CASE. A line that names no basis is asked with both the consolidated and the standalone
+    statement blocks, and both print it. A component answer citing the rows of both blocks was
+    summed as one figure — the group's current tax plus the parent company's (2,992.59 where the
+    filing prints 1,550.07) — and a whole answer took the first entity's figure and called the
+    other entity's corroboration. Two entities are two figures, each filed under its own basis.
+
+    So where the resolved citations NAME two or more entities, each entity's citations are
+    combined on their own: components added and a whole chosen within that entity only. A
+    citation that names no entity joins the group of the basis its row was filed under (a note row
+    of the company's chapter joins `standalone`), and the first group when that basis is none of
+    them; an unresolved citation joins the entity it named, or the first group. Positions (`at`)
+    are kept, so `signs` still apply term by term. An answer naming fewer than two entities is one
+    group, exactly as before.
+    """
+    named: list[str] = []
+    for e in sorted(resolved, key=lambda e: int(e.get("at", 0))):
+        ent = str(e.get("entity") or "").lower()
+        if ent and ent not in named:
+            named.append(ent)
+    if len(named) < 2:
+        return [(list(resolved), list(unresolved))]
+    groups: dict[str, tuple[list[dict], list[dict]]] = {n: ([], []) for n in named}
+
+    def home(e: dict, *, by_basis: bool) -> str:
+        for k in (e.get("entity"), e.get("basis") if by_basis else None):
+            k = str(k or "").lower()
+            if k in groups:
+                return k
+        return named[0]
+
+    for e in resolved:
+        groups[home(e, by_basis=True)][0].append(e)
+    for e in unresolved:
+        groups[home(e, by_basis=False)][1].append(e)
+    return [groups[n] for n in named if groups[n][0] or groups[n][1]]
 
 
 def stated_not_located(unresolved: list[dict]) -> list[dict]:

@@ -511,3 +511,30 @@ def test_grade_reads_a_prose_comparative_a_yearless_row_once_and_the_printed_uni
     once = standin.KeyLine(current="48.00", prior=None)
     assert standin.grade_answer(payload, row, once, "current", None)[0] == "right"
     assert standin.grade_answer(payload, row, once, "prior", None)[0] == "rightly_blank"
+
+
+def test_grade_takes_a_two_entity_answer_on_the_keys_basis():
+    """An answer citing each entity's rows is one figure per entity, as the stage files it
+    (`services.line_item_llm.split_by_entity`), so it is graded on the key's basis alone. Added
+    together, the group's and the company's current tax read 2,992.59 where the group prints
+    1,550.07."""
+    from app.services.line_item_llm import LineItemAnswer
+    from app.services.mapping import SourceRef
+
+    def block(entity, tax, earlier):
+        return {"statement": "profit_and_loss", "entity": entity,
+                "columns": {"current": "2025-26", "prior": "2024-25"},
+                "rows": [{"caption": "Current Tax", "figures": {"current": tax}},
+                         {"caption": "Earlier years", "figures": {"current": earlier}}]}
+    payload = _payload(statement_rows=[block("consolidated", "1523.02", "27.05"),
+                                       block("standalone", "1419.31", "23.21")])
+    cite = [SourceRef(statement="profit_and_loss", entity=e, caption=c)
+            for e in ("consolidated", "standalone") for c in ("Current Tax", "Earlier years")]
+    ans = LineItemAnswer(key="k", role="component", signs=[1, 1, 1, 1], sources=cite)
+    group = standin.KeyLine(current="1550.07")
+    assert standin.grade_answer(payload, ans, group, "current", None, "consolidated")[0] == "right"
+    company = standin.KeyLine(current="1442.52")
+    assert standin.grade_answer(payload, ans, company, "current", None, "standalone")[0] == "right"
+    one = LineItemAnswer(key="k", role="component", signs=[1, 1], sources=cite[:2])
+    assert standin.grade_answer(payload, one, group, "current", None, "standalone")[0] == "right", \
+        "an answer naming one entity is graded as it stands"
