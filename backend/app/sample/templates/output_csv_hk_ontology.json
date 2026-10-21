@@ -954,7 +954,7 @@
   {
    "canonical_key": "bs_nca__net_fixed_assets",
    "label": "Net Fixed Assets",
-   "definition": "Calculate Net Fixed Assets as Gross Fixed Assets plus the reported Accum Deprec & Impairment(-), which is stored as a negative contra-asset and therefore equals gross fixed assets minus depreciation and impairment.",
+   "definition": "Fixed assets net of accumulated depreciation and impairment, reported in the non-current assets section of the balance sheet. It covers every class this template counts in Gross Fixed Assets: property, plant and equipment, other fixed assets (which include right-of-use assets, oil and gas assets and productive biological assets) and construction in progress. A CAS balance sheet prints these as separate net rows with no total over them: 固定资产, 在建工程 and 使用权资产, and 油气资产 or 生产性生物资产 where printed. Cite each of those rows as a component; the line is their sum. An HKFRS balance sheet prints 'Property, plant and equipment' and 'Right-of-use assets' (with construction in progress inside the first, or as its own row): cite each. Where the filing prints a single net total over them, cite that total. Investment properties and intangible assets are not fixed assets here. The line equals Gross Fixed Assets plus Accum Deprec & Impairment(-), the reported contra-asset.",
    "aliases": [
     "Net Fixed Assets"
    ],

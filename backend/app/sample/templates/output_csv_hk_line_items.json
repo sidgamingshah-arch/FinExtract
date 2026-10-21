@@ -1078,7 +1078,7 @@
   {
    "key": "bs_nca__net_fixed_assets",
    "label": "Net Fixed Assets",
-   "definition": "Calculate Net Fixed Assets as Gross Fixed Assets plus the reported Accum Deprec & Impairment(-), which is stored as a negative contra-asset and therefore equals gross fixed assets minus depreciation and impairment.",
+   "definition": "Fixed assets net of accumulated depreciation and impairment, reported in the non-current assets section of the balance sheet. It covers every class this template counts in Gross Fixed Assets: property, plant and equipment, other fixed assets (which include right-of-use assets, oil and gas assets and productive biological assets) and construction in progress. A CAS balance sheet prints these as separate net rows with no total over them: 固定资产, 在建工程 and 使用权资产, and 油气资产 or 生产性生物资产 where printed. Cite each of those rows as a component; the line is their sum. An HKFRS balance sheet prints 'Property, plant and equipment' and 'Right-of-use assets' (with construction in progress inside the first, or as its own row): cite each. Where the filing prints a single net total over them, cite that total. Investment properties and intangible assets are not fixed assets here. The line equals Gross Fixed Assets plus Accum Deprec & Impairment(-), the reported contra-asset.",
    "extraction_mode": "extract_or_derive",
    "aliases": [
     "Net Fixed Assets"
@@ -8895,7 +8895,7 @@
   {
    "key": "is_pl__total_cost_of_sales",
    "label": "Total Cost of Sales",
-   "definition": "The subtotal the filing PRINTS as 'Total Cost of Sales', reported in the statement of profit and loss. It is the sum of Derivatives(COS), Cost of Sales, Net Claims and Benefits, Goods & Services, Material Expenses, Amort & Impairment(Intgbl)(COS) and Deprec & Impairment(COS). Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
+   "definition": "The total cost of the goods sold and services rendered, reported in the statement of profit and loss: cost of sales together with any other cost-of-sales rows the filing prints (claims and benefits, goods and services, materials, and depreciation, amortisation or impairment charged to cost of sales). Where the filing prints a subtotal over those rows, cite it. Where it prints a single cost-of-sales row and no subtotal, such as 'Cost of sales', 'Direct costs' 直接成本 or 营业成本, that row is the total: cite it as this line's figure. It is not total operating costs (营业总成本 in a CAS income statement), which also takes in taxes and surcharges and the selling, administrative, research and finance expenses. Do not add it up yourself; the arithmetic is declared in this template's rollup. Where the filing prints no cost of sales, answer with an empty sources list.",
    "extraction_mode": "extract_or_derive",
    "aliases": [
     "Total Cost of Sales"
@@ -11809,7 +11809,7 @@
   {
    "key": "is_pl__profit_loss_bef_extraord_items",
    "label": "Profit(Loss) Bef Extraord Items",
-   "definition": "The subtotal the filing PRINTS as 'Profit(Loss) Bef Extraord Items', reported in the statement of profit and loss. It is the sum of Profit(Loss) Before Tax and Total Income Tax. Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
+   "definition": "The profit or loss for the year after income tax for the whole group, including the share that belongs to non-controlling interests, before any extraordinary items. CAS and HKFRS recognise no extraordinary items, so this is the net profit the statement of profit and loss prints for the whole group: the row 净利润 (五、净利润) in a CAS income statement, and the row 'Profit for the year' or 'Loss for the year' printed above the split between owners of the parent and non-controlling interests in an HKFRS one. It equals Profit(Loss) Before Tax plus Total Income Tax. Cite that printed row, even where it is already named for another line: it is this line's figure. Do not add it up from its components yourself; the arithmetic is declared in this template's rollup. Answer with an empty sources list only where the statement prints no profit or loss for the year.",
    "extraction_mode": "extract_or_derive",
    "aliases": [
     "Profit(Loss) Bef Extraord Items"
@@ -11951,7 +11951,7 @@
   {
    "key": "is_pl__profit_for_the_year",
    "label": "Profit for the year",
-   "definition": "The subtotal the filing PRINTS as 'Profit for the year', reported in the statement of profit and loss. It is the sum of Profit(Loss) Bef Extraord Items, Extraordinary Income(Exp), Extraordinary Income(Exp)(NC) and Minority Interests(PL). Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
+   "definition": "The profit or loss for the year attributable to owners of the parent: the whole group's profit for the year after income tax, less the share that belongs to non-controlling interests (CAS and HKFRS recognise no extraordinary items). It is the owners' share printed under the profit for the year in the statement of profit and loss: 归属于母公司股东的净利润 (or 归属于母公司所有者的净利润) in a CAS income statement, and 'Attributable to: Owners of the Company' or 'Owners of the parent' in an HKFRS one. It is not the group total printed as 净利润 or 'Profit for the year' above that split, which is the line Profit(Loss) Bef Extraord Items. Where the filing prints no split because it has no non-controlling interests, the group total is the owners' share and is this line's figure. Do not compute it here; the arithmetic is declared in this template's rollup. Where the filing prints neither, answer with an empty sources list.",
    "extraction_mode": "extract_or_derive",
    "aliases": [
     "Profit for the year",
