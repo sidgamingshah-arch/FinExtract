@@ -393,3 +393,66 @@ def test_coverage_reads_a_whole_number_printed_in_prose():
               "prose": "were RMB20,878 (2023: RMB6,050). These capital commitments"}]
     req = _request(_payload(notes=notes))
     assert standin.prose_has(req, 20878.0) and standin.prose_has(req, 6050.0)
+
+
+def _folder_with(tmp_path: Path, payload: dict) -> dict:
+    req = _request(payload)
+    (tmp_path / "requests").mkdir()
+    (tmp_path / "requests" / f"{req['id']}.json").write_text(json.dumps(req))
+    (tmp_path / "index.json").write_text(json.dumps({"requests": [{"id": req["id"]}]}))
+    return req
+
+
+def test_a_prose_amount_is_covered_for_a_line_that_may_state_one(tmp_path: Path):
+    """PetroChina's capital commitments are printed only in a sentence. The reply contract lets
+    the model state that amount (with its quote) for any line a note may supply, so the figure is
+    `carried_in_prose` and covered; for a declared `face` line it stays `prose_only`."""
+    notes = [{"note": "36", "title": "COMMITMENTS", "rows": [],
+              "prose": "were RMB20,878 (2023: RMB6,050). These capital commitments"}]
+    _folder_with(tmp_path, _payload(notes=notes))
+    key = standin.Key(filing="x", template="t", lines={
+        "bs_icon__finished_goods": standin.KeyLine(current="20878", prior="6050")})
+    may = {r["period"]: r["status"] for r in standin.coverage_of(tmp_path, key, None,
+                                                                 {"bs_icon__finished_goods"})}
+    assert may == {"current": "carried_in_prose", "prior": "carried_in_prose"}
+    assert "carried_in_prose" in standin.COVERED
+    may_not = {r["status"] for r in standin.coverage_of(tmp_path, key, None, set())}
+    assert may_not == {"prose_only"}
+
+
+def test_the_lines_that_may_state_a_prose_amount_are_the_lines_a_note_may_supply():
+    lines = standin.prose_stating_lines("output_csv_hk_line_items.json")
+    assert "capital_and_lease_commitments__capital_commitments" in lines
+    assert "supplemental_data__num_outstanding_common_shares" in lines          # route anywhere
+    assert "is_pl__net_premium_earned" not in lines                             # route face
+
+
+def test_every_addend_the_key_names_covers_its_line(tmp_path: Path):
+    """000685's related-party guarantee balance is five guarantees, one more than the sum search
+    tries. The key names each; every one printed in a row of the request is the figure carried."""
+    parts = ["66532098.75", "38974805.76", "42036260.33", "38750000.00", "41437500.00"]
+    notes = [{"note": "十七、84", "title": "关联担保情况",
+              "rows": [{"caption": f"party {i}", "figures": {"担保金额": v}} for i, v in enumerate(parts)]}]
+    _folder_with(tmp_path, _payload(notes=notes))
+    where = "关联担保情况 66,532,098.75 + 38,974,805.76 + 42,036,260.33 + 38,750,000.00 + 41,437,500.00"
+    key = standin.Key(filing="x", template="t", lines={
+        "bs_icon__finished_goods": standin.KeyLine(current="227730664.84", where=where)})
+    assert [r["status"] for r in standin.coverage_of(tmp_path, key)] == ["carried_as_parts"]
+    # Both periods written as "current / prior" pairs, current first.
+    pairs = standin.KeyLine(current="-323878", prior="-468536",
+                            where="'A' 4,209 / 6,915 + 'B' 293,097 / 434,273 + 'C' 26,572 / 27,348")
+    assert standin.key_parts(pairs, "current") == [4209.0, 293097.0, 26572.0]
+    assert standin.key_parts(pairs, "prior") == [6915.0, 434273.0, 27348.0]
+    # Named parts that do not add up to the figure are not its parts.
+    assert standin.key_parts(standin.KeyLine(current="1.00", where="1,000 + 2,000"), "current") == []
+
+
+def test_a_table_in_another_unit_is_compared_at_its_unit(tmp_path: Path):
+    """HyperStrong's 关键管理人员报酬 prints 1,901.50 in 万元; the key states 19,015,000.00 yuan."""
+    notes = [{"note": "十四、5", "title": "关键管理人员报酬", "unit": "CNY ten thousands (x10,000)",
+              "rows": [{"caption": "关键管理人员报酬", "figures": {"current": "1901.50", "prior": "1395.31"}}]}]
+    _folder_with(tmp_path, _payload(notes=notes))
+    key = standin.Key(filing="x", template="t", unit="CNY yuan (单位：元)", lines={
+        "bs_icon__finished_goods": standin.KeyLine(current="19015000.00", prior="13953100.00")})
+    assert {r["status"] for r in standin.coverage_of(tmp_path, key)} == {"carried"}
+    assert standin.unit_multiple("HK$'000") == standin.unit_multiple("HKD thousands (x1,000)") == 1000

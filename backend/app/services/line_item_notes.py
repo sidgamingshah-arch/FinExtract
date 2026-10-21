@@ -526,9 +526,16 @@ def named_row_notes(item, notes, *, cap: int = NAMED_ROW_CAP) -> list[NoteHit]:
             caption = _folded(getattr(row, "raw_label", "") or "")
             if not caption:
                 continue
+            # …OR UNDER A SUB-HEADING THAT IS THE NAME. A share-capital note prints its count on a
+            # row captioned with the DATE — "At 31 December 2024 (Note (i)) 4,320,075,666" — under
+            # "Issued and fully paid ordinary shares:", which the row reader keeps as the row's
+            # `group_hint`. Far East Horizon's note 35 was reached by neither search, and the EPS
+            # note was sent instead. The heading's words count with the caption's.
+            group = _folded(getattr(row, "group_hint", "") or "")
             for name in names:
-                if name <= caption:
-                    rank = (len(name) / len(caption), len(name), -order,
+                if name <= caption or (group and name <= caption | group):
+                    whole = caption if name <= caption else caption | group
+                    rank = (len(name) / len(whole), len(name), -order,
                             str(getattr(table, "title", "") or ""))
                     if number not in best or rank[:3] > best[number][:3]:
                         best[number] = rank

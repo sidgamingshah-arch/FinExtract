@@ -777,7 +777,12 @@ def test_a_note_sourced_line_declares_which_part_of_a_note_it_is_read_from(shipp
     figure (on China SCE) already came from prose through the fallback — so the change moved no
     published figure. The parents keep their other rungs either way.
     """
-    declared = [i for i in shipped.items if getattr(i, "note_source", None) is not None]
+    # Pattern-bearing only: a `note_source` with nothing but `note_terms` is the note probe's
+    # heading vocabulary on a template line (see test_form_field_lists) and reads no note.
+    declared = [i for i in shipped.items if getattr(i, "note_source", None) is not None
+                and (i.note_source.note_title_any or i.note_source.row_caption_any
+                     or i.note_source.prose_any or i.note_source.prose_subject
+                     or i.note_source.row_terms)]
     # 62: the other-receivables net's two readings each declare their own `note_source`, and the
     # parent they feed declares none.
     assert len(declared) == 46, len(declared)   # 46: sub__expense_notes_depreciation added;   # 45: Other Receivables (CP) lost eight note parts; 53: contingent liabilities folded nine parts into one; 61: the four Securities (LTP) Find 2 and non-current-split parts left the set   # 65: the three Securities (CP) Find 2 and non-current parts left the set   # 68 with the related-party TRADE RECEIVABLE's two note readings — the 账面余额 gross and the 坏账准备 allowance it is net of, one part per `measure` of the same 应收账款 group   # 66 for the same reason the part count moved: the two related-party payable groups

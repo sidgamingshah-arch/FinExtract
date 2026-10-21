@@ -958,9 +958,23 @@ def cmd_report(a) -> int:
 # coverage
 # ------------------------------------------------------------------------------------------------
 
-COVERAGE = ("carried", "carried_other_key", "carried_as_parts", "prose_only", "not_carried",
-            "not_asked", "derived")
-COVERED = ("carried", "carried_other_key", "carried_as_parts")
+COVERAGE = ("carried", "carried_other_key", "carried_as_parts", "carried_in_prose", "prose_only",
+            "not_carried", "not_asked", "derived")
+# `carried_in_prose` is covered: the reply contract lets the model state an amount printed only in
+# a note's sentence (`amount` + `quote`, verified against the note's text by
+# `services.note_sourced.resolve_sources`) for every line whose route lets a note supply it.
+COVERED = ("carried", "carried_other_key", "carried_as_parts", "carried_in_prose")
+
+
+def prose_stating_lines(set_name: str) -> set[str]:
+    """The lines whose answer may state an amount printed only in prose: every line a NOTE may
+    supply (`services.line_item_routes.may_read_notes` — all but a declared `face` line). A face
+    line's prose figure reaches no answer, so for it a sentence is still `prose_only`."""
+    from app.schemas.line_items import load_line_item_set
+    from app.services.line_item_routes import may_read_notes
+    path = Path(set_name) if Path(set_name).is_absolute() else TEMPLATES / set_name
+    items = load_line_item_set(json.loads(path.read_text(encoding="utf-8")), resolve=True).items
+    return {i.key for i in items if may_read_notes(i)}
 
 
 def cascade_parts(set_name: str) -> dict[str, set[str]]:
@@ -988,24 +1002,77 @@ def set_for_folder(d: Path) -> str:
     return d.name.split("__")[-1].removesuffix("_v1") + "_line_items.json"
 
 
-def _rows_printing(req: dict, figure: float) -> list[tuple[str, str, str, str]]:
+def unit_multiple(unit: str | None) -> float:
+    """How many units of currency one printed unit is: "(x10,000)" as a block states it, or the
+    key's own words — '000 / thousand, 万 / ten thousand, million, crore. 1 when nothing says."""
+    text = str(unit or "")
+    m = re.search(r"\(x\s*([\d,]+)\)", text)
+    if m:
+        return float(m.group(1).replace(",", ""))
+    low = text.lower()
+    if "ten thousand" in low or "万" in text or "萬" in text:
+        return 1e4
+    if "'000" in text or "\u2019000" in text or "thousand" in low or "千" in text:
+        return 1e3
+    if "million" in low or "百万" in text or "百萬" in text:
+        return 1e6
+    if "crore" in low:
+        return 1e7
+    return 1.0
+
+
+def _rows_printing(req: dict, figure: float, key_unit: str | None = None
+                   ) -> list[tuple[str, str, str, str]]:
     """(block, caption, figure key, row period) of every row of the request that prints this
-    figure, by magnitude as `payload_has` compares it."""
+    figure, by magnitude as `payload_has` compares it. With `key_unit`, a block that states a
+    DIFFERENT unit is compared at it: HyperStrong's 关键管理人员报酬 note prints 1,901.50 in 万元,
+    which is the key's 19,015,000.00 yuan, and the block says "(x10,000)"."""
     p = payload_of(req["body"])
     out: list[tuple[str, str, str, str]] = []
+    km = unit_multiple(key_unit) if key_unit else None
     if isinstance(p, dict):
         for _kind, label, b in _blocks(p):
+            bm = unit_multiple(b.get("unit")) if km is not None and b.get("unit") else None
+            rescale = bm is not None and bm != km
             for r in b.get("rows") or []:
                 for col, v in (r.get("figures") or {}).items():
                     n = _num(v)
-                    if n is not None and _close(abs(n), round(abs(figure), 2)):
+                    if n is not None and (_close(abs(n), round(abs(figure), 2)) or (
+                            rescale and _close(round(abs(n) * bm, 2), round(abs(figure) * km, 2)))):
                         # A period × measure row states each figure's period in `periods`.
                         per = (r.get("periods") or {}).get(col) or r.get("period") or ""
                         out.append((label, str(r.get("caption") or ""), col, str(per)))
     return out
 
 
-def coverage_of(d: Path, key: Key, part_keys: dict[str, set[str]] | None = None) -> list[dict]:
+_KEY_PART = re.compile(r"\(?-?\d{1,3}(?:,\d{3})+(?:\.\d+)?\)?")
+_KEY_PAIR = re.compile(r"(\(?-?\d{1,3}(?:,\d{3})+(?:\.\d+)?\)?)\s*/\s*(\(?-?\d{1,3}(?:,\d{3})+(?:\.\d+)?\)?)")
+
+
+def key_parts(key_line: KeyLine, period: str) -> list[float]:
+    """The addends the key's `where` names for this period, when they add up to its figure.
+
+    A key that gives a line as parts writes each addend: "66,532,098.75 + 38,974,805.76 + …" for
+    one period, or "'A' 4,209 / 6,915 + 'B' 293,097 / 434,273" for both, current first. Grouped
+    numbers only (a thousands separator), so note numbers and years are not read as parts. [] when
+    the key names none, or when what it names does not add up to the printed figure."""
+    where = key_line.where or ""
+    printed = _num(getattr(key_line, period))
+    if printed is None or "+" not in where:
+        return []
+    pairs = _KEY_PAIR.findall(where)
+    if pairs:
+        nums = [_num(a if period == "current" else b) for a, b in pairs]
+    else:
+        nums = [_num(t) for t in _KEY_PART.findall(where)]
+    nums = [abs(n) for n in nums if n is not None]
+    if len(nums) < 2 or not _close(round(sum(nums), 2), round(abs(printed), 2)):
+        return []
+    return nums
+
+
+def coverage_of(d: Path, key: Key, part_keys: dict[str, set[str]] | None = None,
+                prose_lines: set[str] | None = None) -> list[dict]:
     """For every line and period the key says the filing prints: did a request asking about the
     line carry that figure, and under that period's own key? No answer and no run figure is read:
     this is whether the context lets the figure be caught at all, which `report` cannot say once a
@@ -1014,7 +1081,10 @@ def coverage_of(d: Path, key: Key, part_keys: dict[str, set[str]] | None = None)
     `carried` — a row prints it under `current`/`prior` (or a row whose `period` is that period);
     `carried_other_key` — a row prints it under another key (a column heading, `col2`), so the model
     must work out which period it is; `carried_as_parts` — the key gives it as parts and rows add up
-    to it; `prose_only` — only a block's prose prints it; `not_carried` — no request asking about the
+    to it; `carried_in_prose` — only a block's prose prints it, and the line is one whose answer may
+    state a prose amount (`prose_lines`, from `prose_stating_lines`); `prose_only` — only a block's
+    prose prints it and the line may not state it (or `prose_lines` was not given); `not_carried` —
+    no request asking about the
     line has it; `not_asked` — no request asks about the line; `derived` — the key computes the line
     (`where` starts "computed"), so no page prints it and it is not counted. A line the model is
     never asked about is looked for in the requests for its cascade parts (`part_keys`), where given."""
@@ -1036,7 +1106,7 @@ def coverage_of(d: Path, key: Key, part_keys: dict[str, set[str]] | None = None)
             if not asking:
                 out.append({**row, "status": "not_asked"})
                 continue
-            hits = [(r["id"], h) for r in asking for h in _rows_printing(r, printed)]
+            hits = [(r["id"], h) for r in asking for h in _rows_printing(r, printed, key.unit)]
             if hits:
                 right = [x for x in hits if period in (x[1][2], x[1][3])]
                 rid, (label, cap, col, per) = (right or hits)[0]
@@ -1044,9 +1114,19 @@ def coverage_of(d: Path, key: Key, part_keys: dict[str, set[str]] | None = None)
                             "where": f"{label}: '{cap}' [{col}{'/' + per if per else ''}]"})
                 continue
             parts = [(r["id"], w) for r in asking for w in payload_has(r, printed, key_is_sum(kl), key_nets(kl))]
+            if not parts:
+                # EVERY ADDEND THE KEY NAMES, each printed in a row of a request about the line —
+                # the same claim as a sum found by search, without the search's limit of
+                # `SUM_MAX_ROWS` rows (000685's guarantee balance is five guarantees).
+                named = key_parts(kl, period)
+                found = [next(((r["id"], h) for r in asking for h in _rows_printing(r, v)), None)
+                         for v in named]
+                if named and all(found):
+                    parts = [(found[0][0], " + ".join(f"{h[0]}: '{h[1]}'" for _rid, h in found))]
             prose = [(r["id"], b) for r in asking for b in prose_has(r, printed)]
             status, (rid, where) = (("carried_as_parts", parts[0]) if parts else
-                                    ("prose_only", prose[0]) if prose else
+                                    ("carried_in_prose" if prose_lines is not None and k in prose_lines
+                                     else "prose_only", prose[0]) if prose else
                                     ("not_carried", (asking[0]["id"], "")))
             out.append({**row, "status": status, "request": rid, "where": where})
     return out
@@ -1058,6 +1138,7 @@ def cmd_coverage(a) -> int:
     print("folder | printed | " + " | ".join(COVERAGE) + " | covered")
     total: Counter = Counter()
     part_maps: dict[str, dict[str, set[str]]] = {}
+    prose_maps: dict[str, set[str] | None] = {}
     for d in a.dirs:
         kp = next((d / n for n in a.key_names if (d / n).exists()), None)
         if kp is None:
@@ -1065,8 +1146,10 @@ def cmd_coverage(a) -> int:
             continue
         sname = a.set or set_for_folder(d)
         if sname not in part_maps:
-            part_maps[sname] = cascade_parts(sname) if (TEMPLATES / sname).exists() or Path(sname).exists() else {}
-        rows = coverage_of(d, load_key(kp), part_maps[sname])
+            known = (TEMPLATES / sname).exists() or Path(sname).exists()
+            part_maps[sname] = cascade_parts(sname) if known else {}
+            prose_maps[sname] = prose_stating_lines(sname) if known else None
+        rows = coverage_of(d, load_key(kp), part_maps[sname], prose_maps[sname])
         (d / "coverage.json").write_text(json.dumps(rows, ensure_ascii=False, indent=1), encoding="utf-8")
         c = Counter(r["status"] for r in rows)
         total.update(c)

@@ -249,6 +249,14 @@ _HAS_HAN = re.compile(r"[\u3400-\u9fff]")
 # 、 is a different mark and DOES appear in real titles ("收益、其他收入及收益", "現金及現金等價物、
 # 受限制現金"), so it is deliberately absent from this class.
 _CJK_SENTENCE = re.compile(r"[，。；]")
+# A DAY OF THE MONTH IS NOT A NOTE NUMBER. "30 June 2022 as a result of the declaration of the
+# final dividend" and "31 December 2024, the balance of subordinated tranches" open lines of
+# Far East Horizon's notes and read as notes 30 and 31 — under the numbers of its real 30 TRADE AND
+# BILLS PAYABLES and 31 OTHER PAYABLES AND ACCRUALS, whose heading scores the fragments then
+# shared. No note is titled with a month.
+_MONTH_TITLE = re.compile(r"^(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|"
+                          r"july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|"
+                          r"dec(?:ember)?)\b", re.IGNORECASE)
 
 
 # ── The notes' TOP-LEVEL CHAPTER, and why a note number alone is not an identity ───────────────
@@ -574,6 +582,47 @@ def running_text_words(rows: list[list[Word]]) -> set[int]:
     return out
 
 
+def _wrapped_row_caption(rows: list[list[Word]], i: int, section: dict | None) -> bool:
+    """Whether row ``i`` — numbered like a heading — is the FIRST LINE OF A WRAPPED ROW CAPTION
+    inside a table, so it belongs to the rows rather than opening a section.
+
+    A CAS movement table sets its captions in a narrow first column, so "（1）计提" prints as
+    "（1）计" on one line, the row's figures on the next, and "提" below them. Read as a heading,
+    "（1）计" opened a section titled "计", and the figures that followed went with it: 000883's
+    固定资产 note lost every one of its bracketed rows — the depreciation charge 2,927,435,003.23
+    among them — and 688008 and 002273 lost theirs the same way.
+
+    Three things are true of such a line and not of a real sub-table heading: a table is already
+    open (the section holds rows with figures), the very next line carries figures, and that line
+    sits within a line's height of it with no caption of its own to the right of the fragment's
+    indent — either no caption at all, or one that starts LEFT of the bracket, which is the second
+    line of the same wrapped cell ("（4）外" over "币财务报表折算 109,835,296.51 …"). A real heading
+    is followed by its column header, which carries no figures.
+    """
+    if section is None or i + 1 >= len(rows) or not rows[i]:
+        return False
+    row, nxt = rows[i], rows[i + 1]
+    if not any(_carries_amounts(r) for r in _rows_since(rows, i, section)):
+        return False
+    height = max(w.bbox.y1 - w.bbox.y0 for w in row)
+    if min(w.bbox.y0 for w in nxt) - max(w.bbox.y1 for w in row) > 1.5 * height:
+        return False
+    if not _carries_amounts(nxt):
+        # A ROW WITH NO FIGURES THIS YEAR wraps the same way — "（3）企" over "业合并增加" — and its
+        # second line is ONE word set left of the bracket. A column header under a real heading
+        # is several words across the columns.
+        return (len(nxt) == 1 and _title_only_row(nxt) is not None
+                and nxt[0].bbox.x0 < row[0].bbox.x0 - 0.01)
+    first_amount = next((j for j, w in enumerate(nxt) if _carries_amounts([w])), 0)
+    caption = nxt[:first_amount]
+    if not caption:
+        return True
+    if _HEADING.match(" ".join(w.text for w in caption).strip()) and re.match(
+            r"^\s*(?:[（(]\s*\d|\d)", caption[0].text):
+        return False
+    return caption[0].bbox.x0 < row[0].bbox.x0 - 0.01
+
+
 def _rows_since(rows: list[list[Word]], i: int, section: dict) -> list[list[Word]]:
     """The rows before ``i`` whose words are in ``section`` — the rows the open section holds."""
     held = {id(w) for w in section.get("words", ())}
@@ -651,6 +700,8 @@ def _is_heading(row: list[Word]) -> tuple[str, str] | None:
         if not (title[0].isalpha() or ord(title[0]) > 0x2E7F):
             return None                     # punctuation or a digit — names nothing
         if _CJK_SENTENCE.search(title):
+            return None
+        if not starts_note and _MONTH_TITLE.match(title) and int(no) <= 31:
             return None
         # "1 年以内" is an ageing bucket, not note 1 — a count and its unit, now kept together as a
         # caption by `_scan_row`, so on a row with no figures it must not open a note instead.
@@ -1401,6 +1452,8 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
             i += 1
             continue
         if refused:
+            head = None
+        if head is not None and _wrapped_row_caption(rows, i, current):
             head = None
         if head is not None:
             no, title = head

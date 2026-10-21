@@ -4038,7 +4038,16 @@
    "sign_rule": {},
    "inherits": "bs_ca",
    "face_only": false,
-   "namespace": "template"
+   "namespace": "template",
+   "note_source": {
+    "note_terms": [
+     "trade receivables",
+          "accounts receivable",
+     "应收账款",
+     "應收賬款",
+     "應收貿易賬款"
+    ]
+   }
   },
   {
    "key": "bs_ca__net_trade_receivables",
@@ -9308,7 +9317,27 @@
    "inherits": "is_pl",
    "face_only": false,
    "match_priority": 72,
-   "namespace": "template"
+   "namespace": "template",
+   "note_source": {
+    "note_terms": [
+     "employee benefit expense",
+     "employee benefits expense",
+     "staff costs",
+     "before tax",
+     "before taxation",
+     "from operating activities",
+     "員工福利開支",
+     "僱員福利開支",
+     "员工福利开支",
+     "雇员福利开支",
+     "員工成本",
+     "员工成本",
+     "職工薪酬",
+     "职工薪酬",
+     "除稅前",
+     "除税前"
+    ]
+   }
   },
   {
    "key": "is_pl__officers_compensation",
@@ -10534,7 +10563,19 @@
    "inherits": "is_pl",
    "face_only": false,
    "match_priority": 52,
-   "namespace": "template"
+   "namespace": "template",
+   "note_source": {
+    "note_terms": [
+     "finance costs",
+     "borrowing costs",
+     "interest capitalised",
+     "財務費用",
+     "融資成本",
+     "财务费用",
+     "借款费用",
+     "借款費用"
+    ]
+   }
   },
   {
    "key": "is_pl__finance_cost_on_derivatives",

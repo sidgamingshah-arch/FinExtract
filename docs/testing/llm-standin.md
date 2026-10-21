@@ -64,9 +64,14 @@ Run from `backend/`.
 
    Statuses: `carried` (a row prints it under `current`/`prior`, or a row whose `period` is that
    period), `carried_other_key` (a row prints it under another key, so the model must work out the
-   period), `carried_as_parts` (the key gives it as parts and rows add up to it), `prose_only`,
-   `not_carried`, `not_asked`. The first three count as covered. The key file is `coverage_key.json`
-   in the folder, else `sample_key.json` (`--key-name` to choose). Text-valued lines are not counted.
+   period), `carried_as_parts` (the key gives it as parts and rows add up to it — found by search over
+   up to four rows of a block, or every addend the key's `where` names printed in a row),
+   `carried_in_prose` (only a sentence of a block prints it, and the line is one a note may supply,
+   so the reply contract lets the model state that amount with its quote), `prose_only` (only a
+   sentence prints it and the line is a `face` line, which may not state it), `not_carried`,
+   `not_asked`. The first four count as covered. The key file is `coverage_key.json`
+   in the folder, else `sample_key.json`; a block that states another unit than the key (`(x10,000)`
+   for a 万元 table) is compared at its unit (`--key-name` to choose). Text-valued lines are not counted.
 
 ## What is in the output folder
 

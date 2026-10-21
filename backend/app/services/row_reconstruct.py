@@ -18,6 +18,7 @@ that do not exist and the movement date is read as a value — so it gets its ow
 from __future__ import annotations
 
 import json
+import bisect
 import re
 import statistics
 import unicodedata
@@ -1986,6 +1987,23 @@ def _tight_below(cur: BBox, nxt: BBox) -> bool:
     gap = nxt.y0 - cur.y1
     line_h = max(cur.y1 - cur.y0, 1e-4)
     return -0.5 * line_h <= gap <= 0.6 * line_h
+
+
+def _figures_beside(caption: BBox, figures: BBox) -> bool:
+    """Whether a line of FIGURES with no caption of its own is set beside the caption line above
+    it — dropped half a line, so that it straddles the caption's first and second lines.
+
+    A CAS movement table prints its captions in a column so narrow that "1.期初余额" takes two
+    lines, and the row's figures are centred on the pair: on 688008's 固定资产 note (page index
+    199) "2.本期增" ends at y 0.5063 and its figures start at 0.4990, an overlap of exactly half
+    the caption's height — which `_tight_below`'s "-0.5 line" bound refuses by a rounding error.
+    The caption was dropped, and with it every captioned movement of the matrix but four: the
+    depreciation charge 68,916,729.12 among them. A figure line overlapping the caption line is
+    MORE tightly bound to it than one below it, so up to a full line of overlap is allowed.
+    """
+    gap = figures.y0 - caption.y1
+    line_h = max(caption.y1 - caption.y0, 1e-4)
+    return -line_h < gap <= 0.6 * line_h
 
 
 def _wrap_adjacent(cur: BBox, nxt: BBox, nxt_label: list[Word]) -> bool:
@@ -5738,6 +5756,11 @@ def _matrix_items(m: _Matrix, names: list[str], *, page_index: int, document_id:
         if above and not _matrix_cells(m.rows[m.first_data - 1], fmt) \
                 and _heads_a_movement_block(above, first):
             block = _join_words(above)
+        elif (above and not first and not _matrix_cells(m.rows[m.first_data - 1], fmt)
+              and _opens_its_own_line(above)):
+            # THE FIRST MOVEMENT'S CAPTION, printed above its figures: "1.期初余" over a figure
+            # line that carries no caption of its own (see `_figures_beside`).
+            pending, tail = list(above), _row_box(above)
     for i in range(m.first_data, len(m.rows)):
         if i in spliced:
             continue
@@ -5793,7 +5816,8 @@ def _matrix_items(m: _Matrix, names: list[str], *, page_index: int, document_id:
                 pending, tail = [], None
             continue
 
-        if tail is not None and not _tight_below(tail, _row_box(label_words or row)):
+        if tail is not None and not (_tight_below(tail, _row_box(label_words or row))
+                                     or (not label_words and _figures_beside(tail, _row_box(row)))):
             pending = []
         # A ROW THAT OPENS ITS OWN LINE DOES NOT INHERIT THE FRAGMENT ABOVE IT — the veto the
         # label-only branch above already applies, which this branch was missing entirely. So a row
@@ -6176,6 +6200,95 @@ def _fuse_bucket_numbers(words: list[Word], fmt=None) -> list[Word]:
     return [fused.get(id(w), w) for w in words if id(w) not in dropped]
 
 
+# A FIGURE WRAPPED IN ITS CELL. A CAS movement table with six or seven asset-class columns gives
+# each figure less width than "479,980,535.24" takes, and the PDF sets the overflow on the next
+# line, right-aligned in the same cell:
+#
+#     19,966,240.8   479,980,535.2          <- line 1
+#     2.本期增加金额 112,401,721.00 …          <- the row's caption line
+#                6              4          <- line 2
+#
+# Read line by line, "479,980,535.2" was a figure of the row above and "4" a figure of nothing:
+# 002273's depreciation charge 479,980,535.24 was printed nowhere in the note's rows, and 000685's
+# whole 累计折旧 block ("273,504,7" over "05.14") arrived as 273,504,7 and 0.40-style fragments.
+_WRAP_HEAD = re.compile(r"^\(?-?\d[\d,]*(?:\.\d?)?$")
+_WRAP_TAIL = re.compile(r"^[,.]?\d[\d,]{0,7}(?:\.\d{1,2})?\)?$")
+_WHOLE_AMOUNT = re.compile(r"^\(?-?\d{1,3}(?:,\d{3})*\.\d{2}\)?$")
+
+
+# A MATURITY COLUMN PRINTS YEARS, NOT AMOUNTS. A borrowings note sets "Effective interest rate (%)
+# | Maturity | RMB'000" for each year, and the maturity cell of a current loan is a bare "2025".
+# A year is a figure to the row reader, so Far East Horizon's note 32 published "2025" as every
+# current borrowing's 2024 amount and lost the amount beside it: 5,754,196 and 58,403,121, the
+# current portion of its long-term bank loans, were in no row. A year (or a span of them) set under
+# a printed "Maturity" heading is that column's, and is taken out before the rows are read.
+_MATURITY_HEADING = re.compile(r"^(?:maturity|maturities|到期日?|到期日期|到期時間|到期时间)$",
+                               re.IGNORECASE)
+_MATURITY_CELL = re.compile(r"^(?:19|20)\d{2}(?:\s*[~\-–—至]\s*(?:19|20)\d{2})?$")
+
+
+def _without_maturity_years(words: list[Word]) -> list[Word]:
+    """Words with every year printed under a "Maturity" column heading removed — see
+    `_MATURITY_HEADING`. A word is that column's when its centre is inside the heading's span
+    (with a little slack for a right-aligned cell) and it sits below the heading."""
+    heads = [w for w in words if _MATURITY_HEADING.match(w.text.strip())]
+    if not heads:
+        return words
+    drop: set[int] = set()
+    for w in words:
+        if not _MATURITY_CELL.match(w.text.strip()):
+            continue
+        xc = (w.bbox.x0 + w.bbox.x1) / 2
+        if any(h.bbox.x0 - 0.03 <= xc <= h.bbox.x1 + 0.03 and w.bbox.y0 > h.bbox.y1 - 1e-6
+               for h in heads):
+            drop.add(id(w))
+    return [w for w in words if id(w) not in drop] if drop else words
+
+
+def _fuse_wrapped_numbers(words: list[Word]) -> list[Word]:
+    """Words with each figure that wrapped inside its cell put back together — see
+    `_WRAP_HEAD`. A pair is joined only when the upper word is NOT a whole amount on its own, the
+    lower one sits on the next line under its right part, and the two read together as one
+    grouped amount with two decimals ("479,980,535.2" + "4", "273,504,7" + "05.14",
+    "17,524,355" + ".40"). The joined word spans both lines, so it is read on the caption line
+    between them, which is where the cell is centred."""
+    heads = [w for w in words if _WRAP_HEAD.match(w.text.strip())
+             and not _WHOLE_AMOUNT.match(w.text.strip())]
+    if not heads:
+        return words
+    # Sorted by top edge, so each head scans only the tails a line or two below it: a page of
+    # integer amounts (an HKEX note in thousands) makes every figure a head and a tail.
+    tails = sorted((w for w in words if _WRAP_TAIL.match(w.text.strip())), key=lambda w: w.bbox.y0)
+    tops = [w.bbox.y0 for w in tails]
+    fused: dict[int, Word] = {}
+    used: set[int] = set()
+    for h in heads:
+        line = max(h.bbox.y1 - h.bbox.y0, 1e-4)
+        best = None
+        lo = bisect.bisect_left(tops, h.bbox.y1 - 0.3 * line)
+        hi = bisect.bisect_right(tops, h.bbox.y1 + 2.2 * line)
+        for t in tails[lo:hi]:
+            if id(t) in used or t is h:
+                continue
+            if t.bbox.y0 <= h.bbox.y0 + 0.5 * line:
+                continue
+            if not (h.bbox.x0 - 0.005 <= t.bbox.x0 and t.bbox.x1 <= h.bbox.x1 + 0.015):
+                continue
+            if not _WHOLE_AMOUNT.match(h.text.strip() + t.text.strip()):
+                continue
+            if best is None or t.bbox.y0 < best.bbox.y0:
+                best = t
+        if best is None:
+            continue
+        used.add(id(best))
+        fused[id(h)] = Word(text=h.text.strip() + best.text.strip(), bbox=h.bbox.union(best.bbox),
+                            page_bbox=(h.source_bbox.union(best.source_bbox)
+                                       if h.page_bbox or best.page_bbox else None))
+    if not fused:
+        return words
+    return [fused.get(id(w), w) for w in words if id(w) not in used]
+
+
 def build_line_items(words: list[Word], *, page_index: int, document_id: str | None,
                      source_kind: str, ordinal_start: int = 0,
                      number_format=None, statement: str | None = None,
@@ -6254,7 +6367,9 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
     defect the grid exists to close, reappearing three rows later. ``grid_out``, when given, is
     appended the grid these rows were actually read with, so the caller can carry it forward."""
     _call_args = dict(locals())
-    words = _fuse_bucket_numbers(words, number_format)
+    words = _fuse_wrapped_numbers(_fuse_bucket_numbers(words, number_format))
+    if not on_face:
+        words = _without_maturity_years(words)
     if scope is None or normalisation is None:
         in_force_scope, in_force_norm = in_force_rules()
         scope = scope if scope is not None else in_force_scope

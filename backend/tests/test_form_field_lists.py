@@ -103,7 +103,16 @@ def test_nothing_is_retired_unless_it_guards_a_control() -> None:
 
 def test_parent_is_authorable_because_every_part_declares_it() -> None:
     """THE STALE-MEASUREMENT REGRESSION. If `parent` is ever retired again, this says why not."""
-    parts = [i for i in SEED["items"] if i.get("note_source")]
+    # A `note_source` that declares ONLY `note_terms` reads nothing: it is the heading vocabulary
+    # `line_item_notes.note_probe` scores a line's notes with, and three template lines carry one
+    # (staff costs, capitalised interest, the receivables allowance) so they are sent the note
+    # their figure is printed in. No note reader acts on it, so they are not note-read parts.
+    readers = ("note_title_any", "row_caption_any", "prose_any", "prose_subject", "row_terms")
+    parts = [i for i in SEED["items"] if i.get("note_source")
+             and any(i["note_source"].get(f) for f in readers)]
+    probes_only = [i for i in SEED["items"] if i.get("note_source") and i not in parts]
+    assert all(i.get("namespace") == "template" and set(i["note_source"]) == {"note_terms"}
+               for i in probes_only), [i["key"] for i in probes_only]
     # 60 items carry a `note_source` — see the census in `test_retired_derivations`.
     #
     # SIXTY-ONE UNTIL FIND 1 STOPPED READING A NOTE. `sub__rp_find_1` is labelled

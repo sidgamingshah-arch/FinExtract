@@ -731,6 +731,27 @@ def _scope_reason(resolved: str | None, title: str | None,
 #     `cf_financing__other_financing_cash_flows`, and 300319's foreign-currency table after it.
 _CF_SUPPLEMENT_TITLE = re.compile(r"补充资料|補充資料")
 _CF_SUPPLEMENT_CLOSE = re.compile(r"^\s*(?:经营活动产生的现金流量净额|經營活動產生的現金流量淨額)")
+# …AND THE SAME CAPTION WRAPPED IN ITS CELL: 000685 prints "经营活动产生的现金流量" over "净额", so
+# the closing row matched nothing, the extent was left unknown, and the supplement kept the
+# past-the-notes entity — the Company's — with the page of 七、78 before it read as its face.
+_CF_SUPPLEMENT_CLOSE_HEAD = re.compile(r"^\s*(?:经营活动产生的现金流量|經營活動產生的現金流量)\s*$")
+_CF_SUPPLEMENT_CLOSE_TAIL = re.compile(r"^\s*(?:净额|淨額)")
+
+
+def _supplement_close(lines: list[dict], floor: float) -> dict | None:
+    """The line that closes a cash-flow supplement's reconciliation below ``floor``: its
+    经营活动产生的现金流量净额 caption, or the second line of that caption wrapped in two."""
+    for n, line in enumerate(lines):
+        if float(line.get("y", 0.0)) <= floor:
+            continue
+        if _CF_SUPPLEMENT_CLOSE.match(line["text"]):
+            return line
+        if _CF_SUPPLEMENT_CLOSE_HEAD.match(line["text"]):
+            tail = next((x for x in lines[n + 1:n + 4] if _CF_SUPPLEMENT_CLOSE_TAIL.match(x["text"])),
+                        None)
+            if tail is not None:
+                return tail
+    return None
 # A notes chapter about the statements' line items — 七、合并财务报表项目注释 for the Group's,
 # 十九、母公司财务报表主要项目注释 for the company's. Matched on a ROW (688008 prints the numeral
 # and the title as two lines at one height).
@@ -812,8 +833,7 @@ def _cf_supplement_extent(path: list[str], feats: list, cache: list, *, log=None
                     break                        # another statement's title: the run is not ours
                 lines, height = cache[k]
                 floor = (feats[k].matched_title_y or 0.0) * (height or 1.0) if k == head else -1.0
-                hit = next((line for line in lines if float(line.get("y", 0.0)) > floor
-                            and _CF_SUPPLEMENT_CLOSE.match(line["text"])), None)
+                hit = _supplement_close(lines, floor)
                 if hit is None:
                     continue
                 hy = float(hit.get("y", 0.0))
@@ -822,6 +842,15 @@ def _cf_supplement_extent(path: list[str], feats: list, cache: list, *, log=None
                            if float(line.get("y", 0.0)) > hy + tol), default=None)
                 close_at = (k, (nxt / height) if (nxt is not None and height) else None)
                 break
+            # THE RUN BEGINS AT ITS TITLE whether or not its close is found: an untitled page
+            # before the title is a note of the chapter (000685 page index 243, note 七、78's
+            # 支付的其他与经营活动有关的现金), and the close only bounds the pages after it.
+            if close_at is None and head > i:
+                for k in range(i, head):
+                    out[k] = _NOTES
+                if log:
+                    log(f"classify:cf_supplement=page{feats[head].index}(close_unread,"
+                        f"to_notes={[feats[k].index for k in range(i, head)]})")
             if close_at is not None:
                 extent[head] = {"supplement": True,
                                 "notes_above_title": bool(feats[head].amounts_above_title)}

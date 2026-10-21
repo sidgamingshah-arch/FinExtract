@@ -189,8 +189,19 @@ def test_a_face_section_line_is_not_offered_the_note_route():
     st = load_shipped_set()
     declared = [i for i in st.items if i.note_source is not None]
     selected = _declared_items(st)
-    assert len(selected) == len(declared), (
-        "the shipped set has a face-section line declaring a note_source — read this test")
+    # A FACE LINE MAY NAME ITS NOTE'S HEADING, AND NOTHING ELSE. `note_terms` alone is what
+    # `line_item_notes.note_probe` scores headings with, so the line is SENT the note its figure is
+    # printed in (BYD's staff costs in PROFIT BEFORE TAX, not FINANCE COSTS); no note reader acts
+    # on it. Every other face-section `note_source` is still the declaration this guards against.
+    probes_only = [i for i in declared if i not in selected]
+    for item in probes_only:
+        src = item.note_source
+        assert not (src.note_title_any or src.row_caption_any or src.prose_any
+                    or src.prose_subject or src.row_terms), (
+            f"{item.key}: a face-section line declaring a note pattern — read this test")
+    assert {i.key for i in probes_only} == {
+        "is_pl__personnel_and_benefit_expenses", "is_pl__interest_expense_capitalised",
+        "bs_ca__allow_for_doubtful_accounts"}
 
     sections = st.section_defaults
     for item in selected:

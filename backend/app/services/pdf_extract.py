@@ -16,6 +16,39 @@ from app.services import page_spread
 from app.services.row_reconstruct import Word, build_line_items, face_reporting_year
 
 
+def _pages_printing_a_name(pdf, pages: list, line_item_set, log=None) -> list:
+    """The `pages` whose text layer prints a name of a line declared `anywhere` — every word of
+    the name, compared as `line_item_notes.named_row_notes` compares a caption. See the caller."""
+    from app.services import line_item_routes
+    from app.services.line_item_notes import _folded, printed_names
+    names: list[set[str]] = []
+    for item in getattr(line_item_set, "items", None) or ():
+        if not line_item_routes.reads_every_page(item):
+            continue
+        own = [n for n in (_folded(x) for x in printed_names(item)) if len(n) >= 2]
+        if not own:
+            return pages
+        names.extend(own)
+    if not names:
+        return pages
+    kept = []
+    for page in pages:
+        try:
+            text = pdf[int(getattr(page, "index", -1))].get_text()
+        except Exception:                      # noqa: BLE001 - an unreadable page is kept
+            kept.append(page)
+            continue
+        if not text.strip():
+            kept.append(page)
+            continue
+        words = _folded(text)
+        if any(n <= words for n in names):
+            kept.append(page)
+    if log and len(kept) != len(pages):
+        log(f"extract:anywhere_route_pages_printing_a_name={len(kept)} of {len(pages)}")
+    return kept
+
+
 def _clamp(v: float) -> float:
     return max(0.0, min(1.0, v))
 
@@ -411,6 +444,14 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
         # would report a page already targeted as newly widened.
         already = {int(getattr(t, "index", -1)) for t in targets}
         widened = [p for p in doc.pages if int(getattr(p, "index", -1)) not in already]
+        # ONLY THE PAGES THAT PRINT ONE OF THOSE LINES' NAMES. Reconstructing every other page
+        # cost 56 to 106 pages a filing — 688008's capture went from 26 s to 49 s — for rows the
+        # request then drops: `face_context.other_page_rows` sends a line only the rows captioned
+        # with one of its names. The same test is asked of the page's text first, so a page that
+        # cannot hold such a row is not read. A page with no text layer is kept (its words come
+        # from OCR, which is not run here), and so is every page when a line names no row of two
+        # words, which is when `other_page_rows` sends every page too.
+        widened = _pages_printing_a_name(pdf, widened, getattr(ctx, "line_items", None), ctx.log)
         widened_pages = {int(getattr(p, "index", -1)) for p in widened}
         if widened:
             # READ LAST, AND READ AS NOTHING BUT ROWS. Interleaved in page order a widened page
