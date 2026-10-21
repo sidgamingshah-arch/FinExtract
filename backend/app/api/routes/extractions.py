@@ -249,11 +249,16 @@ def _supplemental_template_nodes(template_def: dict | None) -> list[dict]:
 # a blank flagged `not_determined` leaves it open, which is what nothing having been read means.
 #
 # REAL EVIDENCE still answers: a row mapped to the line is served as itself (it never reaches this
-# builder, see `existing`), a note line mapped to it answers "Yes" from that note, and related-party
-# transactions answer "Yes" from the related-party disclosure the scan found.
+# builder, see `existing`), and a note line mapped to it answers "Yes" from that note.
+#
+# RELATED-PARTY TRANSACTIONS IS NO LONGER ONE OF THESE. It is a FIGURE — the total of the
+# transactions the related-party note prints, added up from one part per category by its cascade
+# (`notes__related_party_transactions` in the line-item set) — and a figure the run computed is a
+# served row, never this builder's. Reaching here means no part resolved, and then the cell is left
+# empty and flagged `not_determined` like any unread line: a "Yes" from the presence scan said only
+# that the words were on some page, and it published at confidence 1.0 in a numeric column.
 _NOT_DETERMINED_UNLESS_EVIDENCE = frozenset({
-    "related_party_transactions", "pledged_assets", "secure_borrowings", "derivatives",
-    "confirmed_with_rm",
+    "pledged_assets", "secure_borrowings", "derivatives", "confirmed_with_rm",
 })
 NOT_DETERMINED = "not_determined"
 # The mapping confidence of an answer nothing supports: nothing was read that bears on it.
@@ -433,8 +438,6 @@ def _build_supplemental_rows(*, template_def: dict | None, base_rows: list[dict]
                 and key.removeprefix("notes__") in _NOT_DETERMINED_UNLESS_EVIDENCE:
             nkey = key.removeprefix("notes__")
             noted = _note_evidence(doc_model, key) if nkey != "confirmed_with_rm" else None
-            disclosure = hit_disclosures.get("related_party") \
-                if nkey == "related_party_transactions" else None
             if noted is not None:
                 table, item = noted
                 first = next(iter((getattr(item, "values", None) or {}).values()), None)
@@ -446,14 +449,15 @@ def _build_supplemental_rows(*, template_def: dict | None, base_rows: list[dict]
                                    if prov is not None else None),
                     "confidence": float(mapped) if mapped is not None else 1.0,
                     "flags": [f"supplemental:note_line:{getattr(table, 'note_number', '')}"]}
-            elif disclosure is not None:
-                value = "Yes"
-                evidence = {"flags": ["supplemental:disclosure:related_party"]}
             else:
                 not_determined = True
         elif key.startswith("notes__"):
             nkey = key.removeprefix("notes__")
-            if nkey == "contingent_liabilities":
+            if nkey == "related_party_transactions":
+                # A FIGURE OR NOTHING — see `_NOT_DETERMINED_UNLESS_EVIDENCE`. No part resolved, so
+                # nothing the run read supports a number here.
+                not_determined = True
+            elif nkey == "contingent_liabilities":
                 # LEFT EMPTY DELIBERATELY, never "No". This concept is NUMERIC and its figure has
                 # to come from configuration — a note source the rulebook describes, bound like any
                 # other line. Reaching this branch means nothing bound it, and the rulebook is
@@ -844,6 +848,22 @@ def _folio_lookup(doc_model):
     return folios.get
 
 
+def _disclosure_with_folios(disclosure: dict | None, folio_of) -> dict | None:
+    """A line's disclosure as served: each item's page carries the folio printed on it. A COPY."""
+    if not disclosure or folio_of is None:
+        return disclosure
+    items = []
+    for item in disclosure.get("items") or ():
+        prov = item.get("provenance")
+        if (isinstance(prov, dict) and isinstance(prov.get("page_index"), int)
+                and not prov.get("printed_page")):
+            folio = folio_of(prov["page_index"])
+            if folio:
+                item = {**item, "provenance": {**prov, "printed_page": folio}}
+        items.append(item)
+    return {**disclosure, "items": items}
+
+
 def _derivation_with_folios(store: dict | None, folio_of) -> dict | None:
     """A row's trail as it is served: each input's page carries the folio printed on it.
 
@@ -1042,6 +1062,11 @@ def _serialize_rows(doc_model, working_view=None) -> list[dict]:
             # carries its folio, as every other citation's does (`_prov_dict`).
             **({"derivation": _derivation_with_folios(li.derivation, folio_of)}
                if li.derivation else {}),
+            # The amounts a sum of note transactions was added up from, and the note text it was
+            # read from, quoted as printed (services.line_disclosure). Each item's page carries its
+            # folio, as a trail input's does.
+            **({"disclosure": _disclosure_with_folios(li.disclosure, folio_of)}
+               if getattr(li, "disclosure", None) else {}),
             "values": values,
         })
     return rows

@@ -66,7 +66,7 @@ RULEBOOK = TEMPLATES / "output_csv_hk_ontology.json"
 PROJECTED = sorted(set(SAME) | set(RENAMED))
 
 CONCEPTS = 462                 # the rulebook's concepts, and the set's `namespace == "template"`
-ITEMS = 529                    # 529: sub__equity_reserves added (the face "Reserves 儲備" aggregate, kept apart from the equity-statement components it totals)  # 528 before
+ITEMS = 535                    # 535: the six Related Party Transactions parts (sub__rpt_*) added  # 529: sub__equity_reserves added (the face "Reserves 儲備" aggregate, kept apart from the equity-statement components it totals)  # 528 before
                                # …plus the 69 `sub__*` note-level parts, which ARE concepts too:
                                # the view projects every definition, and `namespace` decides only
                                # where a figure is PUBLISHED. See

@@ -174,6 +174,8 @@ def test_the_lines_the_filings_print_in_a_note_may_read_notes_and_the_face():
         assert line_item_routes.may_read_face(items[key]), key
 
 
-def test_the_related_party_line_names_the_key_management_table():
-    zh = _shipped()["notes__related_party_transactions"].aliases_i18n["zh"]
-    assert {"关键管理人员报酬", "关键管理人员薪酬"} <= set(zh)
+def test_the_key_management_part_names_the_key_management_table():
+    # The table belongs to the related-party line's key-management PART since the line became the
+    # sum of its transaction categories; bound to the line itself, the row was the whole figure.
+    part = _shipped()["sub__rpt_key_management"]
+    assert {"关键管理人员报酬", "关键管理人员薪酬"} <= set(part.note_source.note_terms)

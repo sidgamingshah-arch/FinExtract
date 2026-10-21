@@ -466,8 +466,15 @@ def build_line_items_sheet(wb, line_item_set, rows: list[dict], *, period_cols, 
             ws.cell(r, src_col,
                     _where(values_list[0].get("provenance") if values_list else None)
                     ).font = Font(size=9, color="8A94A6")
+        # A SUM OF NOTE TRANSACTIONS says what it was added up from and quotes its note — the
+        # related-party note's text, its guarantees and balances included (services.line_disclosure).
+        from app.services.export import disclosure_text
+        quoted = disclosure_text(row)
+        if quoted:
+            unwritten.append(quoted)
         if unwritten:
-            label.comment = Comment("\n\n".join(unwritten), "FinExtract")
+            label.comment = Comment("\n\n".join(unwritten), "FinExtract",
+                                    **({"width": 520, "height": 360} if quoted else {}))
         r += 1
 
         # The individual printed rows, each addressable and each with its own page.

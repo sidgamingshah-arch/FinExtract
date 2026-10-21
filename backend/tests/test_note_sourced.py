@@ -785,7 +785,9 @@ def test_a_note_sourced_line_declares_which_part_of_a_note_it_is_read_from(shipp
                      or i.note_source.row_terms)]
     # 62: the other-receivables net's two readings each declare their own `note_source`, and the
     # parent they feed declares none.
-    assert len(declared) == 46, len(declared)   # 46: sub__expense_notes_depreciation added;   # 45: Other Receivables (CP) lost eight note parts; 53: contingent liabilities folded nine parts into one; 61: the four Securities (LTP) Find 2 and non-current-split parts left the set   # 65: the three Securities (CP) Find 2 and non-current parts left the set   # 68 with the related-party TRADE RECEIVABLE's two note readings — the 账面余额 gross and the 坏账准备 allowance it is net of, one part per `measure` of the same 应收账款 group   # 66 for the same reason the part count moved: the two related-party payable groups
+    # 47: the key-management part of Related Party Transactions reads its 关键管理人员报酬 row deterministically; the other five parts carry note terms only and are read by the model.
+    # 52: the six Related Party Transactions parts (one reads its row deterministically, five carry row terms for the model route).
+    assert len(declared) == 52, len(declared)   # 46: sub__expense_notes_depreciation added;   # 45: Other Receivables (CP) lost eight note parts; 53: contingent liabilities folded nine parts into one; 61: the four Securities (LTP) Find 2 and non-current-split parts left the set   # 65: the three Securities (CP) Find 2 and non-current parts left the set   # 68 with the related-party TRADE RECEIVABLE's two note readings — the 账面余额 gross and the 坏账准备 allowance it is net of, one part per `measure` of the same 应收账款 group   # 66 for the same reason the part count moved: the two related-party payable groups
 
     with_prose = [i for i in declared
                   if (i.note_source.prose_subject or i.note_source.prose_any)]

@@ -19067,7 +19067,7 @@
   {
    "canonical_key": "notes__related_party_transactions",
    "label": "Related Party Transactions",
-   "definition": "Narrative and quantitative disclosure of transactions and balances with related parties, including relationship, transaction type, amount, outstanding balance and terms.",
+   "definition": "The total of the related-party TRANSACTIONS the related-party note prints for the year: sales of goods and services to related parties, purchases of goods and services from them, leases, interest, key management personnel compensation and the note's other transactions, added up from its parts. Year-end balances owed to or by related parties, the amounts of guarantees given or received, loan principals and commitments are not transactions of the year and are not added; they are quoted with the disclosure the line carries.",
    "aliases": [
     "Related Party Transactions",
     "Transactions with related parties",
@@ -19082,12 +19082,10 @@
     "subsidiary"
    ],
    "include": [
-    "Capture the complete relevant disclosure with note number, reporting period, currency, unit, scope and exact source location.",
-    "Preserve separate amounts and categories as structured child facts where available."
+    "Add up every transaction category the related-party note prints for the year, each once."
    ],
    "exclude": [
-    "Do not replace the disclosure with an unsupported summary.",
-    "Do not duplicate information already captured under a more specific note key.",
+    "Do not add year-end balances, guarantee amounts, loan principals or commitments.",
     "Do not infer a numeric zero from silence."
    ],
    "inherits": "notes"

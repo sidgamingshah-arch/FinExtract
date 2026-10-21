@@ -165,6 +165,42 @@ def _prov_str(prov: dict | None) -> str:
     return f"p.{(prov.get('page_index', 0) or 0) + 1}"
 
 
+# AN EXCEL COMMENT HOLDS 32,767 CHARACTERS. A related-party chapter quoted whole can pass that, so
+# the comment is cut here and says so; the JSON export carries the disclosure uncut.
+_COMMENT_MAX = 30000
+
+
+def disclosure_text(row: dict | None) -> str | None:
+    """A line's disclosure as a reader of the export sees it (see `services.line_disclosure`):
+    every amount its figure was added up from — period, category, caption, note and page — then
+    the note text itself, quoted as the filing prints it. None for a row that carries none."""
+    disclosure = (row or {}).get("disclosure") or {}
+    items = disclosure.get("items") or []
+    notes = disclosure.get("notes") or []
+    if not items and not notes:
+        return None
+    out: list[str] = []
+    if items:
+        out.append(f"Added up from {len(items)} amount{'s' if len(items) != 1 else ''}:")
+        for it in items:
+            where = ", ".join(x for x in (
+                f"note {it['note']}" if it.get("note") else "", _prov_str(it.get("provenance"))) if x)
+            caption = " — " + " · ".join(x for x in (it.get("group"), it.get("caption")) if x) \
+                if (it.get("group") or it.get("caption")) else ""
+            out.append(f"{str(it.get('period') or '').title()} · {it.get('category')}{caption}"
+                       f"{f' ({where})' if where else ''}: {it.get('amount')}")
+    if notes:
+        out.append("")
+        out.append("As the filing prints it:")
+        for n in notes:
+            pages = ", ".join(f"p.{p + 1}" for p in (n.get("pages") or []))
+            head = " ".join(x for x in (n.get("note") or "", n.get("title") or "") if x)
+            out.append(f"[{head}{f' · {pages}' if pages else ''}] {n.get('text') or ''}"
+                       f"{' …' if n.get('truncated') else ''}")
+    text = "\n".join(out)
+    return text if len(text) <= _COMMENT_MAX else text[:_COMMENT_MAX] + " … (cut; the JSON export carries it whole)"
+
+
 def _netting_block(rows: list[dict], netting_rules: list | None) -> list[dict]:
     if not netting_rules:
         return []
@@ -207,6 +243,8 @@ def build_rows_json(rows: list[dict], *, filename: str, disclosures: list[dict] 
                 "flags": r.get("flags") or [],
                 "formula": r.get("formula"),
                 "edited": bool(r.get("edited")),
+                # What a sum of note transactions was added up from, and the note text quoted.
+                **({"disclosure": r["disclosure"]} if r.get("disclosure") else {}),
                 "values": [
                     {"period": v.get("period_label"), "basis": v.get("basis"),
                      "value": v.get("value"), "source": _prov_str(v.get("provenance"))}
@@ -1244,6 +1282,9 @@ def _emit_nodes(ws, nodes, by_key, period_cols, first_val, conf_col, src_col, lo
             trace = _contribution_note(group, *period_cols[0]) if period_cols else None
             if trace:
                 notes.append(trace)
+            quoted = disclosure_text(row)
+            if quoted:
+                notes.append(quoted)
             notes += calc_notes
             if notes:
                 from openpyxl.comments import Comment

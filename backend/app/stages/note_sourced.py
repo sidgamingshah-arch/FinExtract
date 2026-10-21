@@ -427,6 +427,13 @@ class NoteSourcedStage(Stage):
                     f"(face bases: {bases.describe()})")
         ctx.log(f"note_sourced: {touched} item(s) filled from notes, {filled} figure(s), "
                 f"{parents} parent(s) resolved, {standalone} standalone line(s) computed")
+        # THE DISCLOSURE A SUM OF NOTE TRANSACTIONS CARRIES — its items and its note text, quoted.
+        # Here, once every cascade has resolved, and before `PruneNotesStage` drops the notes no face
+        # row cites (a related-party note is cited by none). See `services.line_disclosure`.
+        from app.services import line_disclosure
+        carried = line_disclosure.attach(doc, line_item_set)
+        if carried:
+            ctx.log(f"note_sourced: {carried} line(s) carry the disclosure they were added up from")
         return doc
 
 

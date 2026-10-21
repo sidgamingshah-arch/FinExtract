@@ -307,6 +307,11 @@ class LineItem(BaseModel):
     # OPTIONAL, and empty on most rows: it is set by whatever assembled the figure, not by a stage
     # that fills it on every run.
     derivation: dict | None = None
+    # WHAT A SUM OF NOTE TRANSACTIONS WAS ADDED UP FROM, AND THE NOTE IT IS IN — see
+    # services.line_disclosure. ``{"items": [...], "notes": [...]}``: every amount that entered the
+    # figure with its category, caption, note and page, and the note text quoted as printed. Set
+    # only on a derived line built from note-read parts (Related Party Transactions); None elsewhere.
+    disclosure: dict | None = None
     is_computed: bool = False
     source: ValueSource = ValueSource.MACHINE
     confidence: ConfidenceVector = Field(default_factory=ConfidenceVector)

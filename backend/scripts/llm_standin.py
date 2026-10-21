@@ -660,6 +660,11 @@ class KeyLine(BaseModel):
     page: int | None = None
     where: str | None = None
     comment: str | None = None
+    # THE ADDENDS, SIGNED, PER PERIOD, for a line the key gives as parts too many or too small for
+    # `where` to carry: {"current": ["2,046,232.67", "-44,598.86", ...], "prior": [...]}. `where`
+    # reads grouped numbers only (so a note number is not an addend), which leaves out 966.91 and
+    # an HKFRS note's 465; this states them. Preferred by `key_parts` when given.
+    parts: dict[str, list[str]] | None = None
 
 
 class Key(BaseModel):
@@ -1058,6 +1063,14 @@ def key_parts(key_line: KeyLine, period: str) -> list[float]:
     the key names none, or when what it names does not add up to the printed figure."""
     where = key_line.where or ""
     printed = _num(getattr(key_line, period))
+    stated = (key_line.parts or {}).get(period) if key_line.parts else None
+    if printed is not None and stated:
+        # Signed as the key states them, so a sales return nets; each addend is then looked for
+        # by magnitude like every other figure. A zero addend is no figure to look for.
+        nums = [_num(x) for x in stated]
+        if any(n is None for n in nums) or not _close(round(sum(nums), 2), round(printed, 2)):
+            return []
+        return [abs(n) for n in nums if n]
     if printed is None or "+" not in where:
         return []
     pairs = _KEY_PAIR.findall(where)

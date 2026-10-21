@@ -78,14 +78,14 @@ def test_a_miss_or_an_unrelated_disclosure_answers_nothing(template, found):
         assert row["mapping_confidence"] < 0.7, key
 
 
-def test_the_related_party_disclosure_still_answers_related_party_transactions():
+def test_the_related_party_disclosure_is_no_evidence_for_any_of_these_lines():
+    # Related Party Transactions is a FIGURE now — the sum of the transactions the note prints,
+    # computed by its cascade (tests/test_related_party_transactions.py) — so the presence scan
+    # finding the words answers it no more than it answers the other three.
     rows = _supplemental("output_csv_hk_v1_template.json",
                          disclosures=[{"key": "related_party", "present": True, "page": 41}])
-    row = rows["notes__related_party_transactions"]
-    assert _answer(row) == ["Yes"]
-    assert NOT_DETERMINED not in row["flags"]
-    # …and it is no evidence for the other three, which it used to turn into "No".
-    for key in ("notes__pledged_assets", "notes__secure_borrowings", "notes__derivatives"):
+    for key in ("notes__related_party_transactions", "notes__pledged_assets",
+                "notes__secure_borrowings", "notes__derivatives"):
         assert _answer(rows[key]) == [] and NOT_DETERMINED in rows[key]["flags"], key
 
 

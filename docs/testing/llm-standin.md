@@ -142,7 +142,10 @@ What the filing prints, written by someone reading the filing:
                         "where": "note 26 row 'Other income'", "comment": "..." } } }
 ```
 
-`null` (the whole entry, or a period) means the filing does not print it. The older scratch shape (numbers instead of strings,
+`null` (the whole entry, or a period) means the filing does not print it. A line printed as many
+addends can list them, signed, under `"parts": {"current": ["2,046,232.67", "-44,598.86"], "prior": [...]}`;
+coverage then looks for each addend in a row (the `where` text reads grouped numbers only, so it
+cannot name 966.91 or an HKFRS note's 465). The older scratch shape (numbers instead of strings,
 `units`, `source` for `where`, `confidence`) is accepted and converted.
 
 ## The report

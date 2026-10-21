@@ -460,6 +460,18 @@ def qualified_note_number(chapter: str | None, number: str | None) -> str | None
 # THE COLUMN HEADER AN IND AS NOTE TABLE OPENS WITH: "Particulars | As at 31 March 2025 | …",
 # "Particulars | Not due | Less than 6 months | …".
 _SUB_TABLE_HEADER = re.compile(r"^\s*particulars\b", re.IGNORECASE)
+# THE COUNTERPARTY COLUMN THAT HEADS A MAINLAND RELATED-PARTY TABLE. A CAS 关联交易情况 note prints
+# its tables one after another under ONE bracketed heading — "（1）购销商品、提供和接受劳务的关联
+# 交易" holds 采购商品/接受劳务情况表 (关联方 | 关联交易内容 | 本期发生额 | 获批的交易额度 | 是否超过
+# 交易额度 | 上期发生额) and then 出售商品/提供劳务情况表 (关联方 | 关联交易内容 | 本期发生额 |
+# 上期发生额) — and each opens on a header whose first cell names the counterparty. Read as one
+# section, the second table took the first one's six-column grid: on 002273 every related-party
+# SALE was filed under 获批的交易额度, the approved limit, and on 000685 under 是否超过交易额度.
+_COUNTERPARTY_TABLE_HEADER = re.compile(
+    r"^(?:关联方|關聯方|承租方|出租方|被担保方|担保方|被擔保方|擔保方)(?:名称|名稱)?$")
+# The line that names such a table — "出售商品/提供劳务情况表", "本公司作为出租方：" — so the new
+# section is titled by the table it holds rather than by the heading the two tables share.
+_TABLE_NAME = re.compile(r"(?:情况表|情況表|作为(?:出租方|承租方|担保方|被担保方)|作為(?:出租方|承租方|擔保方|被擔保方))[:：]?$")
 
 
 def _opens_a_sub_table(row: list[Word]) -> bool:
@@ -473,7 +485,14 @@ def _opens_a_sub_table(row: list[Word]) -> bool:
     same note, so each table is read with its own bands and its own printed columns.
     """
     words = sorted(row, key=lambda w: w.bbox.x0)
-    if not words or not _SUB_TABLE_HEADER.match(words[0].text):
+    if not words:
+        return False
+    # A COUNTERPARTY HEADER CAPTIONS OTHER COLUMNS TOO (关联方 | 关联交易内容 | 本期发生额 …). A line
+    # that is the word alone is a wrapped caption — 600990's "合并范围内 / 关联方" row, whose second
+    # line opened a section in the middle of its 坏账准备 movement table.
+    counterparty = (_COUNTERPARTY_TABLE_HEADER.match(words[0].text.strip()) is not None
+                    and len(words) >= 3)
+    if not (_SUB_TABLE_HEADER.match(words[0].text) or counterparty):
         return False
     # Its own bucket digits ("Less than 6 months") and dates ("As at 31 March 2025") are not figures.
     return not _carries_amounts(_fuse_bucket_numbers(row))
@@ -1568,10 +1587,24 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
                 # `_opens_a_sub_table`. The caption line just above the header goes with it.
                 prev = rows[i - 1]
                 lead = list(prev) if _title_only_row(prev) is not None else []
+                # …and the line that NAMES the table, a line or two above its header ("出售商品/
+                # 提供劳务情况表" over "单位：元"), goes with it and titles the new section.
+                named = None
+                for back in (1, 2):
+                    if i - back < 0 or back > 1 and not lead:
+                        break
+                    text = " ".join(w.text for w in rows[i - back]).strip()
+                    if _TABLE_NAME.search(text) and _title_only_row(rows[i - back]) is not None:
+                        named = (back, text)
+                        break
+                if named is not None and named[0] == 2:
+                    lead = list(rows[i - 2]) + lead
                 if lead:
                     ids = {id(w) for w in lead}
                     current["words"] = [w for w in current["words"] if id(w) not in ids]
                 current = {k: v for k, v in current.items() if k != "words"}
+                if named is not None:
+                    current["title"] = named[1].rstrip("：:")
                 current["words"] = lead
                 sections.append(current)
             current["words"].extend(row)
@@ -1748,8 +1781,119 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
             if NIL_ROW_FLAG in li.confidence.flags:
                 ni.confidence.flags.append(NIL_ROW_FLAG)       # printed nil in every column
             table.items.append(ni)
+        _inner_rows_take_the_outer_cell(table.items, sec["words"])
         tables.append(table)
     return without_empty_duplicates(tables)
+
+
+# A ROW PRINTED ONLY IN THE INNER LABEL COLUMN BELONGS TO THE OUTER CELL ABOVE IT. An HKFRS
+# related-party note captions its rows in two columns, nature | related party, and prints the
+# nature once per group:
+#
+#     Sales of inventories     (ii)  Ultimate holding company      86,714     7,633
+#                                    Fellow subsidiaries       17,989,310 11,536,290
+#     Lease and ancillary …   (iii)  Ultimate holding company     183,411   188,151
+#                                    Fellow subsidiaries        1,040,666   773,690
+#
+# Read row by row, ten rows of 0285's note 35 were captioned "Fellow subsidiaries" and nothing
+# else, under one group: no citation could name which one, so the model could cite none of them
+# and 17,989,310 of sales could not be reached. The outer cell is the row's meaning; it is written
+# onto ``group_hint`` of the row that prints it and the inner rows below it — only where the inner
+# caption repeats under one group with different figures, so a table that already tells its rows
+# apart is left exactly as it was.
+_INNER_COLUMN_GAP = 0.15        # page widths between the caption column and the inner label column
+
+
+def _name_the_repeated_rows(boxes: list, words: list, left: float) -> None:
+    """A CAPTION PRINTED IN THE SECOND COLUMN, THE COUNTERPARTY'S NAME WRAPPED IN THE FIRST.
+
+    300391 p245 prints its 出售商品/提供劳务情况表 as 关联方 | 关联交易内容 | 本期 | 上期, and each
+    counterparty's name over three lines — "湖北茉莉大药房连锁有限公" above the figures' baseline and
+    "司" below it, the figure line carrying only "销售商品". Read row by row, four rows were captioned
+    销售商品 with four different figures, and the names were nowhere a citation could reach. A row
+    whose caption and group repeat with different figures is given, as its group, the words printed
+    LEFT of the captions within its own band — halfway to the rows above and below. A table whose
+    rows can already be told apart is left exactly as it was.
+    """
+    def figures(ni):
+        return tuple(sorted((k, str(ev.value)) for k, ev in (ni.values or {}).items()))
+
+    seen: dict[tuple[str, str], set] = {}
+    for ni, _b in boxes:
+        seen.setdefault((ni.raw_label.strip(), ni.group_hint or ""), set()).add(figures(ni))
+    repeated = {k for k, v in seen.items() if len(v) > 1}
+    if not repeated:
+        return
+    outside = [w for w in words if w.bbox.x1 <= left - 0.005]
+    if not outside:
+        return
+    rows = sorted(boxes, key=lambda nb: (nb[1].y0 + nb[1].y1) / 2)
+    mids = [(b.y0 + b.y1) / 2 for _ni, b in rows]
+    names: list[tuple[object, str]] = []
+    for i, (ni, b) in enumerate(rows):
+        if (ni.raw_label.strip(), ni.group_hint or "") not in repeated:
+            continue
+        up = (mids[i] - mids[i - 1]) / 2 if i else (mids[1] - mids[0]) / 2 if len(mids) > 1 else 0
+        down = (mids[i + 1] - mids[i]) / 2 if i + 1 < len(mids) else up
+        band = [w for w in outside if mids[i] - up < (w.bbox.y0 + w.bbox.y1) / 2 <= mids[i] + down]
+        text = "".join(w.text for w in sorted(band, key=lambda w: (round(w.bbox.y0, 3), w.bbox.x0)))
+        names.append((ni, text.strip()))
+    # Only when every repeated row found a name, and the names tell them apart.
+    if names and all(t for _ni, t in names) and len({t for _ni, t in names}) == len(names):
+        for ni, text in names:
+            ni.group_hint = text
+
+
+def _inner_rows_take_the_outer_cell(items: list, words: list) -> None:
+    def label_box(ni):
+        prov = getattr(ni, "provenance", None)
+        return getattr(prov, "label_bbox", None) if prov is not None else None
+
+    def figures(ni):
+        return tuple(sorted((k, str(ev.value)) for k, ev in (ni.values or {}).items()))
+
+    boxes = [(ni, label_box(ni)) for ni in items if ni.values]
+    boxes = [(ni, b) for ni, b in boxes if b is not None]
+    if len(boxes) < 2:
+        return
+    left = min(b.x0 for _ni, b in boxes)
+    inner = [(ni, b) for ni, b in boxes if b.x0 > left + _INNER_COLUMN_GAP]
+    if not inner:
+        _name_the_repeated_rows(boxes, words, left)
+        return
+    if len(boxes) < 3:
+        return
+    seen: dict[tuple[str, str], set] = {}
+    for ni, _b in inner:
+        seen.setdefault((ni.raw_label.strip(), ni.group_hint or ""), set()).add(figures(ni))
+    if not any(len(v) > 1 for v in seen.values()):
+        return
+    # THE OUTER CELLS, read off the words: each line printed left of the inner column, a line
+    # directly under another joining it (the cell's other script, "出售廠房及機器" under "Sales of
+    # plant and machinery"). Read from the words and not from the rows, because a cell printed over a
+    # row of dashes — "Purchases of batteries (viii) … –  –" — is a row with no figure and no
+    # provenance, and it still ends the cell above it.
+    edge = min(b.x0 for _n, b in inner) - 0.01
+    lines: dict[float, list] = {}
+    for w in words:
+        if w.bbox.x0 >= left - 0.005 and w.bbox.x1 <= edge:
+            lines.setdefault(round(w.bbox.y0, 3), []).append(w)
+    cells: list[list] = []            # [top, bottom, text]
+    for y in sorted(lines):
+        ws = sorted(lines[y], key=lambda w: w.bbox.x0)
+        top, bottom = y, max(w.bbox.y1 for w in ws)
+        text = " ".join(w.text for w in ws).strip()
+        if cells and top - cells[-1][1] <= 0.8 * (bottom - top):
+            cells[-1][1], cells[-1][2] = bottom, f"{cells[-1][2]} {text}"
+        else:
+            cells.append([top, bottom, text])
+    if not cells:
+        return
+    for ni, b in boxes:
+        if b.x0 > left + _INNER_COLUMN_GAP or b.x1 > edge:
+            cell = next((c for c in reversed(cells) if c[0] <= b.y1), None)
+            if cell is not None and cell[2]:
+                ni.group_hint = cell[2]
 
 
 def without_empty_duplicates(tables: list[NotesTable]) -> list[NotesTable]:

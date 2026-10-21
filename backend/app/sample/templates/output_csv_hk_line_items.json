@@ -680,7 +680,9 @@
     "单位：元",
     "单位：人民币元",
     "单位：千元",
-    "单位：万元"
+    "单位：万元",
+    "单位：人民币万元",
+    "单位：人民币千元"
    ],
    "conflict": "If header scale and a printed subtotal are inconsistent by a factor of 1,000, trust neither: route the statement to review."
   },
@@ -4042,7 +4044,7 @@
    "note_source": {
     "note_terms": [
      "trade receivables",
-          "accounts receivable",
+     "accounts receivable",
      "应收账款",
      "應收賬款",
      "應收貿易賬款"
@@ -16540,45 +16542,336 @@
   {
    "key": "notes__related_party_transactions",
    "label": "Related Party Transactions",
-   "definition": "Narrative and quantitative disclosure of transactions and balances with related parties, including relationship, transaction type, amount, outstanding balance and terms. Capture the complete relevant disclosure with note number, reporting period, currency, unit, scope and exact source location. Preserve separate amounts and categories as structured child facts where available.",
-   "aliases": [
-    "Related Party Transactions",
-    "Transactions with related parties",
-    "Connected party transactions"
-   ],
-   "keyword_hints": [
-    "related party",
-    "key management",
-    "associate",
-    "joint venture",
-    "parent",
-    "subsidiary"
-   ],
+   "definition": "The total of the related-party TRANSACTIONS the related-party note prints for the year: sales of goods and services to related parties, purchases of goods and services from them, leases, interest, key management personnel compensation and the note's other transactions, added up from its parts. Year-end balances owed to or by related parties, the amounts of guarantees given or received, loan principals and commitments are not transactions of the year and are not added; they are quoted with the disclosure the line carries.",
+   "aliases": [],
+   "keyword_hints": [],
    "sign_rule": {},
    "inherits": "notes",
    "namespace": "template",
-   "aliases_i18n": {
-    "zh": [
-     "关联方交易",
+   "aliases_i18n": {},
+   "type": "derived",
+   "rollup": "sum",
+   "cascade": [
+    {
+     "id": "RPT_SUM",
+     "terms_op": "sum",
+     "refuse_negative": false,
+     "terms": [
+      {
+       "ref": "sub__rpt_sales",
+       "role": "any_of",
+       "sign": 1
+      },
+      {
+       "ref": "sub__rpt_purchases",
+       "role": "any_of",
+       "sign": 1
+      },
+      {
+       "ref": "sub__rpt_leases",
+       "role": "any_of",
+       "sign": 1
+      },
+      {
+       "ref": "sub__rpt_interest",
+       "role": "any_of",
+       "sign": 1
+      },
+      {
+       "ref": "sub__rpt_key_management",
+       "role": "any_of",
+       "sign": 1
+      },
+      {
+       "ref": "sub__rpt_other",
+       "role": "any_of",
+       "sign": 1
+      }
+     ],
+     "note": "EVERY TRANSACTION CATEGORY THE RELATED-PARTY NOTE PRINTS, added up. Each part is one category the note tabulates separately (购销商品、提供和接受劳务 / 关联租赁 / 资金拆借 / 关键管理人员报酬 / 其他关联交易, or the HKFRS note's rows by nature of transaction), so no amount is in two parts. Every term is `any_of`: a filing that prints only key management pay (301577) resolves on that one, and one that prints none of them leaves the line empty rather than publishing zero. NOT `refuse_negative`: a category can be printed net of returns (300391's 销售商品 rows include -44,598.86), and the total is what the note adds up to. Balances, guarantees and loan principals are not parts — they are stocks, not flows of the year — and travel with the line as the quoted disclosure instead."
+    }
+   ]
+  },
+  {
+   "key": "sub__rpt_sales",
+   "label": "Sales of goods and services to related parties",
+   "parent": "notes__related_party_transactions",
+   "namespace": "internal",
+   "in_output": false,
+   "inherits": "notes",
+   "statement": "notes",
+   "section_scope": [],
+   "route": "note_tables",
+   "order": 1,
+   "note_use": "decomposition_allowed",
+   "note_selection": "any",
+   "sign_rule": {},
+   "definition": "Sum of every amount the related-party note prints for goods sold and services rendered TO related parties in the period — sales of inventories, plant and equipment, processing, construction, management, utility and other services provided (出售商品/提供劳务) — row by row, signed as printed. Excludes lease or rental income, interest income, purchases and totals. Read only an amount printed for a reporting period (本期发生额 / 上期发生额, or the year's column); an amount printed with start and end dates and no period column, a balance at the year end, a guarantee amount, a loan principal and an approved transaction limit (获批的交易额度) are not transactions of the year.",
+   "note_source": {
+    "note_title_any": [],
+    "row_caption_any": [],
+    "row_caption_none": [],
+    "prose_any": [],
+    "prose_subject": "",
+    "prose_landed_in": [],
+    "note_terms": [
+     "购销商品、提供和接受劳务的关联交易",
+     "出售商品/提供劳务情况表",
+     "購銷商品、提供和接受勞務的關聯交易",
      "关联方及关联交易",
-     "关联方关系及其交易",
-     "关联方应收应付款项",
-     "关联债权债务往来",
      "关联交易情况",
-     "关联方往来",
-     "關聯方交易",
      "關聯方及關聯交易",
-     "關聯方關係及其交易",
-     "關聯方應收應付款項",
-     "關聯債權債務往來",
      "關聯交易情況",
-     "關聯方往來",
-     "關連交易",
+     "related party transactions",
+     "related party disclosures",
+     "connected transactions"
+    ],
+    "row_terms": [
+     "销售商品",
+     "提供劳务",
+     "出售商品",
+     "工程施工",
+     "物业管理费",
+     "sales of goods",
+     "sales of inventories",
+     "services provided",
+     "income received"
+    ],
+    "row_terms_none": []
+   }
+  },
+  {
+   "key": "sub__rpt_purchases",
+   "label": "Purchases of goods and services from related parties",
+   "parent": "notes__related_party_transactions",
+   "namespace": "internal",
+   "in_output": false,
+   "inherits": "notes",
+   "statement": "notes",
+   "section_scope": [],
+   "route": "note_tables",
+   "order": 2,
+   "note_use": "decomposition_allowed",
+   "note_selection": "any",
+   "sign_rule": {},
+   "definition": "Sum of every amount the related-party note prints for goods bought and services received FROM related parties in the period — purchases of inventories, materials, plant and equipment, processing, agency, construction, management, advisory and other services received (采购商品/接受劳务) — row by row. Excludes lease or rental payments, interest expense, key management compensation, sales and totals. Read only an amount printed for a reporting period (本期发生额 / 上期发生额, or the year's column); an amount printed with start and end dates and no period column, a balance at the year end, a guarantee amount, a loan principal and an approved transaction limit (获批的交易额度) are not transactions of the year.",
+   "note_source": {
+    "note_title_any": [],
+    "row_caption_any": [],
+    "row_caption_none": [],
+    "prose_any": [],
+    "prose_subject": "",
+    "prose_landed_in": [],
+    "note_terms": [
+     "购销商品、提供和接受劳务的关联交易",
+     "采购商品/接受劳务情况表",
+     "購銷商品、提供和接受勞務的關聯交易",
+     "关联方及关联交易",
+     "关联交易情况",
+     "關聯方及關聯交易",
+     "關聯交易情況",
+     "related party transactions",
+     "related party disclosures",
+     "connected transactions"
+    ],
+    "row_terms": [
+     "采购商品",
+     "接受劳务",
+     "采购设备",
+     "加工费",
+     "服务费",
+     "purchases of inventories",
+     "purchases of goods",
+     "services received",
+     "fees paid"
+    ],
+    "row_terms_none": []
+   }
+  },
+  {
+   "key": "sub__rpt_leases",
+   "label": "Leases with related parties",
+   "parent": "notes__related_party_transactions",
+   "namespace": "internal",
+   "in_output": false,
+   "inherits": "notes",
+   "statement": "notes",
+   "section_scope": [],
+   "route": "note_tables",
+   "order": 3,
+   "note_use": "decomposition_allowed",
+   "note_selection": "any",
+   "sign_rule": {},
+   "definition": "Sum of the lease amounts the related-party note prints for the period: rental income where the entity is the lessor (确认的租赁收入), and where it is the lessee the short-term and low-value lease expense, the variable lease payments and the rent paid (支付的租金), or the lease payments the note states. Excludes the interest on lease liabilities (承担的租赁负债利息支出, already in the rent paid), right-of-use assets added (增加的使用权资产), lease liability balances and totals. Read only an amount printed for a reporting period (本期发生额 / 上期发生额, or the year's column); an amount printed with start and end dates and no period column, a balance at the year end, a guarantee amount, a loan principal and an approved transaction limit (获批的交易额度) are not transactions of the year.",
+   "note_source": {
+    "note_title_any": [],
+    "row_caption_any": [],
+    "row_caption_none": [],
+    "prose_any": [],
+    "prose_subject": "",
+    "prose_landed_in": [],
+    "note_terms": [
+     "关联租赁情况",
+     "關聯租賃情況",
+     "关联方及关联交易",
+     "关联交易情况",
+     "關聯方及關聯交易",
+     "關聯交易情況",
+     "related party transactions",
+     "related party disclosures",
+     "connected transactions"
+    ],
+    "row_terms": [
+     "租赁收入",
+     "房屋租赁",
+     "租金",
+     "设备租赁",
+     "rental income",
+     "leasing expense",
+     "lease payments",
+     "rent"
+    ],
+    "row_terms_none": []
+   }
+  },
+  {
+   "key": "sub__rpt_interest",
+   "label": "Interest with related parties",
+   "parent": "notes__related_party_transactions",
+   "namespace": "internal",
+   "in_output": false,
+   "inherits": "notes",
+   "statement": "notes",
+   "section_scope": [],
+   "route": "note_tables",
+   "order": 4,
+   "note_use": "decomposition_allowed",
+   "note_selection": "any",
+   "sign_rule": {},
+   "definition": "Sum of the interest income received from and interest expense paid to related parties that the related-party note prints for the period, on loans, deposits and amounts due. Excludes interest on lease liabilities, loan principals and balances, and totals. Read only an amount printed for a reporting period (本期发生额 / 上期发生额, or the year's column); an amount printed with start and end dates and no period column, a balance at the year end, a guarantee amount, a loan principal and an approved transaction limit (获批的交易额度) are not transactions of the year.",
+   "note_source": {
+    "note_title_any": [],
+    "row_caption_any": [],
+    "row_caption_none": [],
+    "prose_any": [],
+    "prose_subject": "",
+    "prose_landed_in": [],
+    "note_terms": [
+     "关联方资金拆借",
+     "關聯方資金拆借",
+     "关联方及关联交易",
+     "关联交易情况",
+     "關聯方及關聯交易",
+     "關聯交易情況",
+     "related party transactions",
+     "related party disclosures",
+     "connected transactions"
+    ],
+    "row_terms": [
+     "利息收入",
+     "利息支出",
+     "资金拆借利息",
+     "interest income",
+     "interest expense"
+    ],
+    "row_terms_none": []
+   }
+  },
+  {
+   "key": "sub__rpt_key_management",
+   "label": "Key management personnel compensation",
+   "parent": "notes__related_party_transactions",
+   "namespace": "internal",
+   "in_output": false,
+   "inherits": "notes",
+   "statement": "notes",
+   "section_scope": [],
+   "route": "note_tables",
+   "order": 5,
+   "note_use": "decomposition_allowed",
+   "note_selection": "any",
+   "sign_rule": {},
+   "definition": "The compensation of key management personnel that the related-party note prints for the period (关键管理人员报酬): the total it prints, or where it prints no total, the sum of its components (salaries, short-term benefits, post-employment and share-based benefits). Excludes directors' remuneration printed only in another note.",
+   "note_source": {
+    "note_title_any": [],
+    "row_caption_any": [
+     "关键管理人员(?:报酬|薪酬)|關鍵管理人員(?:報酬|薪酬)",
+     "(?:total\\s+)?(?:compensation|remuneration|emoluments)\\s+(?:paid\\s+)?(?:to|of)\\s+key\\s+management",
+     "key\\s+management\\s+(?:personnel\\s+)?(?:compensation|remuneration|emoluments)"
+    ],
+    "row_caption_none": [
+     "further\\s+details|set\\s+out\\s+in|载于|載於|详见|詳見",
+     "^\\s*\\(?[a-z]{1,3}\\)\\s.*[:：]",
+     "employee\\s+benefits|pension|post.?employment|salar|wages|bonus|share.?based|social\\s+(?:security|insurance)|福利|退休|薪金|工资|工資|社保|社会保险|社會保險|股份支付|以股份為基礎"
+    ],
+    "prose_any": [],
+    "prose_subject": "",
+    "prose_landed_in": [],
+    "note_terms": [
      "关键管理人员报酬",
      "关键管理人员薪酬",
      "關鍵管理人員報酬",
-     "關鍵管理人員薪酬"
-    ]
+     "關鍵管理人員薪酬",
+     "compensation of key management personnel",
+     "key management personnel",
+     "关联方及关联交易",
+     "关联交易情况",
+     "關聯方及關聯交易",
+     "關聯交易情況",
+     "related party transactions",
+     "related party disclosures",
+     "connected transactions"
+    ],
+    "row_terms": [],
+    "row_terms_none": []
+   }
+  },
+  {
+   "key": "sub__rpt_other",
+   "label": "Other related-party transactions",
+   "parent": "notes__related_party_transactions",
+   "namespace": "internal",
+   "in_output": false,
+   "inherits": "notes",
+   "statement": "notes",
+   "section_scope": [],
+   "route": "note_tables",
+   "order": 6,
+   "note_use": "decomposition_allowed",
+   "note_selection": "any",
+   "sign_rule": {},
+   "definition": "Sum of the related-party transactions of the period the note prints that are none of sales, purchases, leases, interest or key management compensation — asset transfers and disposals, proceeds from selling subsidiaries or businesses, debt restructurings, entrusted management fees (关联方资产转让、债务重组 / 关联受托管理 / 其他关联交易) — row by row. Excludes guarantees, balances, loan principals, commitments, capital contributions between other parties, and totals. Read only an amount printed for a reporting period (本期发生额 / 上期发生额, or the year's column); an amount printed with start and end dates and no period column, a balance at the year end, a guarantee amount, a loan principal and an approved transaction limit (获批的交易额度) are not transactions of the year.",
+   "note_source": {
+    "note_title_any": [],
+    "row_caption_any": [],
+    "row_caption_none": [],
+    "prose_any": [],
+    "prose_subject": "",
+    "prose_landed_in": [],
+    "note_terms": [
+     "关联方资产转让、债务重组情况",
+     "其他关联交易",
+     "关联受托管理/承包及委托管理/出包情况",
+     "關聯方資產轉讓、債務重組情況",
+     "其他關聯交易",
+     "关联方及关联交易",
+     "关联交易情况",
+     "關聯方及關聯交易",
+     "關聯交易情況",
+     "related party transactions",
+     "related party disclosures",
+     "connected transactions"
+    ],
+    "row_terms": [
+     "资产转让",
+     "债务重组",
+     "托管",
+     "出售子公司",
+     "proceeds from sales of subsidiaries",
+     "disposal",
+     "transfer of assets"
+    ],
+    "row_terms_none": []
    }
   },
   {
