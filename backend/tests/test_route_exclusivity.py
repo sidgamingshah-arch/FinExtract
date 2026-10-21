@@ -139,8 +139,8 @@ def test_the_shipped_set_asks_for_this_on_sixty_lines_and_no_more(shipped):
     # Every one of them declares the note source the route sends it to, so the ban takes a figure
     # away from no line without giving it another way to be read.
     assert all(getattr(i, "note_source", None) is not None for i in refused)
-    assert not any(line_item_routes.reads_every_page(i) for i in shipped.items), \
-        "no shipped line declares `anywhere`, so the page widening costs a shipped run nothing"
+    assert sorted(i.key for i in shipped.items if line_item_routes.reads_every_page(i)) == \
+        ["supplemental_data__num_employees", "supplemental_data__num_outstanding_common_shares"], "only the two supplemental lines printed outside the statements read every page"
 
 
 # ── THE DETERMINISTIC PROPOSAL ───────────────────────────────────────────────────────────────

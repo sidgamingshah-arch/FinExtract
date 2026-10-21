@@ -479,7 +479,11 @@ def _is_printed(row) -> bool:
         "llm")
 
 
-def other_page_rows(doc) -> list[dict]:
+#: At most this many pages go out in a request's `other_pages` when the line names its rows.
+OTHER_PAGES_CAP = 4
+
+
+def other_page_rows(doc, names=None, *, cap: int = OTHER_PAGES_CAP) -> list[dict]:
     """The printed rows of every page that is neither a statement nor a note. One entry per page.
 
     WHAT `route: anywhere` IS FOR, and what it could not reach until the extractor was widened to
@@ -502,10 +506,25 @@ def other_page_rows(doc) -> list[dict]:
     map_ontology` gates a caption match on the page's statement, so a page with no statement
     reaches no alias index — these rows are unclaimed by construction, which is why the block
     carries no `line` key where `face_rows` does.
+
+    THE PAGES THAT PRINT THE LINE, when `names` is given — the line's printed names in every
+    locale (`line_item_notes.printed_names`). Every such page of a 300-page annual report is the
+    directors' report, the ESG tables, the five-year summary: sent whole, the block was the request.
+    A page goes out only when a row on it is captioned with one of the names, every word of it
+    present, compared as `line_item_notes.named_row_notes` compares a note row ("报告期末在职员工的
+    数量合计（人）" for 在职员工的数量合计); the pages with most such rows first, at most `cap`. A
+    name of one word is not used, for the reason given there. `names=None`, or names none of which
+    has two words, is every page, as before.
     """
     others = _pages_that_are_neither(doc)
+    wanted = None
+    if names is not None:
+        from app.services.line_item_notes import _folded
+        # A line that names no row of two words or more is sent every page, as before.
+        wanted = [n for n in (_folded(str(x)) for x in names) if len(n) >= 2] or None
     by_page: dict[int, list[dict]] = {}
-    for row in (getattr(doc, "line_items", None) or ()):
+    hits: dict[int, int] = {}
+    for row in _rows_off_the_statements(doc):
         page = _page_of(row)
         if page is None or page not in others:
             continue
@@ -518,6 +537,13 @@ def other_page_rows(doc) -> list[dict]:
         if not figures:
             continue
         by_page.setdefault(page, []).append({"caption": caption, "figures": figures})
+        if wanted:
+            folded = _folded(caption)
+            if any(n <= folded for n in wanted):
+                hits[page] = hits.get(page, 0) + 1
+    if wanted is not None:
+        chosen = sorted(hits, key=lambda pg: (-hits[pg], pg))[:max(cap, 0)]
+        by_page = {pg: by_page[pg] for pg in chosen}
     out: list[dict] = []
     for page in sorted(by_page):
         entry: dict = {"page": page + 1, "rows": by_page[page]}
@@ -525,6 +551,13 @@ def other_page_rows(doc) -> list[dict]:
             entry["printed_page"] = folio
         out.append(entry)
     return out
+
+
+def _rows_off_the_statements(doc) -> list:
+    """`line_items` and the rows held apart for an `anywhere` line (`DocumentModel.
+    other_page_items`) — every row the two functions here may show or resolve."""
+    return [*(getattr(doc, "line_items", None) or ()),
+            *(getattr(doc, "other_page_items", None) or ())]
 
 
 def other_page_index(doc) -> list[tuple[int, str, object]]:
@@ -538,7 +571,7 @@ def other_page_index(doc) -> list[tuple[int, str, object]]:
     """
     others = _pages_that_are_neither(doc)
     out: list[tuple[int, str, object]] = []
-    for row in (getattr(doc, "line_items", None) or ()):
+    for row in _rows_off_the_statements(doc):
         if not _is_printed(row):
             continue
         caption = (getattr(row, "source_label", "") or "").strip()

@@ -243,10 +243,14 @@ class LineItemLlmStage(Stage):
             # (`services.pdf_extract`), so for every other request this is empty and the block is
             # omitted. Built per plan rather than once per run for the same reason the statement
             # block is: a request that may not cite these pages should not be paying to read them.
-            other_pages = (face_context.other_page_rows(doc)
-                           if any(k in by_key and line_item_routes.reads_every_page(by_key[k])
-                                  for k in plan.keys)
-                           else [])
+            #
+            # ONLY THE PAGES THAT PRINT THE LINE: a page goes when a row on it is captioned with
+            # one of the line's printed names (`face_context.other_page_rows`).
+            anywhere = [by_key[k] for k in plan.keys
+                        if k in by_key and line_item_routes.reads_every_page(by_key[k])]
+            other_pages = (face_context.other_page_rows(
+                doc, [n for it in anywhere for n in line_item_notes.printed_names(it)])
+                if anywhere else [])
             if document is not None:
                 # THE QUESTION ALONE: the notes and statements are in the document message.
                 request = {"line_items": line_item_llm.build_request(
@@ -1012,7 +1016,8 @@ class LineItemLlmStage(Stage):
            one.
         """
         scale = _prose_scale(doc)
-        value = amount / scale if scale and scale != 1 else amount
+        prose_entries = [e for e in resolved if e.get("prose")]
+        value = _prose_in_statement_units(amount, scale, prose_entries)
         target_period = _current_period(doc) or "current"
         basis = _prose_basis(doc, [e.get("note") for e in resolved if e.get("prose")])
         slots = list((row.values or {}).values())
@@ -1045,6 +1050,24 @@ class LineItemLlmStage(Stage):
                 target.value_raw = figure
             target.value = value
 
+        # THE COMPARATIVE THE SENTENCE PRINTS, "(2023: RMB6,050)" (`note_sourced.prose_context`),
+        # into the prior year's slot — only for a single whole sentence, since a comparative of
+        # one of several summed parts is not the line's — and never over a printed figure.
+        priors = [e.get("prose_prior") for e in prose_entries]
+        if (not component and len(prose_entries) == 1 and priors[0]
+                and target_period == "current"):
+            prior_value = _prose_in_statement_units(Decimal(str(priors[0])), scale,
+                                                    prose_entries)
+            held = next((ev for ev in slots
+                         if str(getattr(ev, "period_label", "") or "") == "prior"), None)
+            if held is None or held.derived or (held.value is None and held.value_raw is None):
+                if not refuse_unprinted(doc, row, item.key, basis, "prior", prior_value,
+                                        by="line_item_llm", log=ctx.log):
+                    _write(row, basis, "prior", prior_value)
+            elif (held.value if held.value is not None else held.value_raw) != prior_value:
+                row.confidence.flags.append(
+                    f"prose_prior_not_written:{prior_value}")
+
         prose = [(i, e) for i, e in enumerate(resolved) if e.get("prose")]
         best = prose[0][1] if prose else {}
         if explained is None:
@@ -1073,13 +1096,33 @@ class LineItemLlmStage(Stage):
                 result=value, flags=["prose_sourced", f"note:{best.get('note')}"],
                 display={"op": "sum" if component else "first",
                          "combine": "component" if component else "whole",
-                         "scale": str(scale) if scale and scale != 1 else None}))
+                         "scale": (str(scale) if scale and scale != 1 and value != amount
+                                   else None)}))
         row.confidence.flags.append(f"prose_sourced_value:{best.get('note')}")
         row.is_computed = True
         ctx.log(f"line_item_llm:{item.key}[{basis}:{target_period}] = {value} from prose in "
                 f"note {best.get('note')}"
-                + (f" (scaled by {scale})" if scale and scale != 1 else ""))
+                + (f" (scaled by {scale})" if scale and scale != 1 and value != amount else ""))
         return 1
+
+
+def _prose_in_statement_units(amount: Decimal, scale, entries: list[dict]) -> Decimal:
+    """A prose amount in the statements' units.
+
+    A sentence states its figure IN FULL where a table is stated in the statement's units —
+    "HK$529,841,000" against a face in HK$'000 — so it is divided by the document's scale. Two
+    exceptions, both read off the sentence: a scale word printed beside the amount ("RMB20,878
+    million", `prose_scale`) is applied first; and an amount SMALLER than one unit of the
+    statements is already stated in them — PetroChina's "RMB20,878 (2023: RMB6,050)" in a filing
+    presented in RMB million was published as 0.020878.
+    """
+    doc_scale = scale if scale else Decimal(1)
+    words = {e.get("prose_scale") for e in entries}
+    if len(words) == 1 and None not in words:
+        return amount * Decimal(str(next(iter(words)))) / doc_scale
+    if doc_scale != 1 and abs(amount) < doc_scale:
+        return amount
+    return amount / doc_scale if doc_scale != 1 else amount
 
 
 def _review(row) -> None:

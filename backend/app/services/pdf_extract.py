@@ -404,14 +404,21 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
     # verified page scale — `stages.line_item_llm` flags a figure taken off one for that reason.
     from app.services import line_item_routes
 
+    widened_pages: set[int] = set()
     if line_item_routes.any_reads_every_page(getattr(ctx, "line_items", None)):
         # BY INDEX, NOT BY OBJECT. `PageSource` is a pydantic model and compares by field value,
         # so two blank pages of the same size are `==` and an identity test written as `not in`
         # would report a page already targeted as newly widened.
         already = {int(getattr(t, "index", -1)) for t in targets}
         widened = [p for p in doc.pages if int(getattr(p, "index", -1)) not in already]
+        widened_pages = {int(getattr(p, "index", -1)) for p in widened}
         if widened:
-            targets = list(doc.pages)
+            # READ LAST, AND READ AS NOTHING BUT ROWS. Interleaved in page order a widened page
+            # broke the note continuation across it and had its own text read as notes: on 000883
+            # the notes went from 506 tables to 559 and were renumbered, and a debt-investments
+            # part summed 651 rows of the wrong note into 355bn. After every other page, and with
+            # no notes reader (below), nothing an ordinary run reads can change.
+            targets = list(targets) + widened
             ctx.log(f"extract:anywhere_route_widened_pages={len(widened)} "
                     f"(a line declares route=anywhere, so every page is reconstructed and not "
                     f"only the statements and the notes)")
@@ -432,7 +439,10 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
     doc.unread_pages = [unread_pages.entry(p, reason) for p, reason in dropped]
 
     number_format = _resolve_number_format(ctx, doc)
-    chrome, chrome_feet = _page_chrome(pdf, targets)
+    # The page template is learnt from the pages an ordinary run reads, so a widened page cannot
+    # change what is chrome on them.
+    chrome, chrome_feet = _page_chrome(
+        pdf, [t for t in targets if int(getattr(t, "index", -1)) not in widened_pages])
     doc.page_chrome = sorted(chrome)
     if chrome:
         ctx.log(f"extract:page_chrome={sorted(chrome)[:6]}")
@@ -609,7 +619,8 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
         # face part are read after the face, so the note they open carries on to the next page.
         override_batches = None
         late_notes: list = []
-        parts = (ps.evidence or {}).get("override_parts")
+        widened_now = int(ps.index) in widened_pages
+        parts = (ps.evidence or {}).get("override_parts") if not widened_now else None
         if parts:
             title_y = (ps.evidence or {}).get("matched_title_y")
             title = str((ps.evidence or {}).get("matched_title") or "") or None
@@ -657,7 +668,7 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
         # so no reader below is handed the fold.
         spread_batches = None
         spread = (ps.evidence or {}).get("spread") if override_batches is None else None
-        if spread and ps.kind == PageKind.FACE:
+        if spread and ps.kind == PageKind.FACE and not widened_now:
             spread_batches, late_notes = _spread_batches(
                 words, spread, ps.index, source_kind, off, notes_chapter, ctx.log)
             for seg in late_notes.pop("early", []):
@@ -668,7 +679,7 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
             fold = None
         # Notes pages → note detail tables (the breakdowns behind the face figures); every
         # other page → face line items. Both keep page + bbox provenance.
-        if ps.kind == PageKind.NOTES and override_batches is None:
+        if ps.kind == PageKind.NOTES and override_batches is None and not widened_now:
             notes_carry, notes_grid, notes_group, notes_header = _read_notes(
                 words, ps.index, source_kind, fold, notes_carry, notes_grid, notes_group,
                 notes_header)
@@ -685,7 +696,8 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
         # whose identities belong to real notes. They are left unread, as they were never notes
         # before — they were face rows, filed as cash flows.
         supp = ps.evidence or {}
-        if ps.kind == PageKind.FACE and override_batches is None and spread_batches is None:
+        if (ps.kind == PageKind.FACE and override_batches is None and spread_batches is None
+                and not widened_now):
             title_y = supp.get("matched_title_y")
             ends_y = supp.get("face_ends_at_y")
             above = ([word for word in words if (word.bbox.y0 + word.bbox.y1) / 2 < title_y]
@@ -710,7 +722,7 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
         # `notes_extract.notes_below_the_face`. Read after the face, as a person's late notes parts
         # are, so the chapter and the note they open carry on to the next page.
         if (ps.kind == PageKind.FACE and override_batches is None and spread_batches is None
-                and "notes" not in off):
+                and "notes" not in off and not widened_now):
             from app.services.notes_extract import notes_below_the_face
             opens = notes_below_the_face(words, source_kind, fold,
                                          notes_chapter[1] if notes_chapter[0] else 0)
@@ -853,6 +865,17 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
     # is threaded ACROSS pages here, so an empty fragment can be raised on one page while the
     # fragment carrying the rows was raised on the one before it.
     doc.notes[:] = without_empty_duplicates(doc.notes)
+    # THE WIDENED PAGES' ROWS GO APART (`DocumentModel.other_page_items`): no deterministic stage
+    # may file them, and only the `anywhere` line's request reads them.
+    if widened_pages:
+        def _on_widened(li) -> bool:
+            pages = {getattr(getattr(ev, "provenance", None), "page_index", None)
+                     for ev in (getattr(li, "values", None) or {}).values()}
+            return bool(pages) and pages <= widened_pages
+        kept = [li for li in doc.line_items if not _on_widened(li)]
+        doc.other_page_items = [li for li in doc.line_items if _on_widened(li)]
+        doc.line_items[:] = kept
+        ctx.log(f"extract:anywhere_rows_held_apart={len(doc.other_page_items)}")
     ctx.log(f"extract:pdf_line_items={added} note_tables={len(doc.notes)}")
     if doc.unread_pages:
         ctx.log(f"extract:unread_pages={len(doc.unread_pages)} "

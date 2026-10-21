@@ -96,6 +96,13 @@ class DocumentModel(BaseModel):
     # switched-off section, or scanned with no OCR engine — as ``services.unread_pages`` entries.
     # Kept so a statement nobody read is never reported as one the filing does not contain.
     unread_pages: list[dict] = Field(default_factory=list)
+    # THE ROWS OF THE PAGES READ ONLY FOR A `route: anywhere` LINE — neither a statement nor a
+    # note (`services.pdf_extract`). Kept apart from `line_items` on purpose: in `line_items` the
+    # deterministic stages filed them — 786 rows of 000685's directors' report and governance
+    # tables went to other current assets and other operating expenses, and total assets moved
+    # from 32.4bn to 128.1bn. Only `services.face_context.other_page_rows` / `other_page_index`
+    # read them, for the request and for resolving its citation.
+    other_page_items: list[LineItem] = Field(default_factory=list)
     # THE PAGE TEMPLATE: the keys (``pdf_extract._chrome_key``) of the lines the reader found
     # printed at the head or foot of page after page — the running header, the entity banner, the
     # CIN line. Kept so what is SENT to a model can drop the same furniture the row reader drops:

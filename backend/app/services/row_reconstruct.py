@@ -5901,8 +5901,13 @@ def _matrix_items(m: _Matrix, names: list[str], *, page_index: int, document_id:
 
 # A SUB-TABLE'S OWN HEADING: "(B) Capital work-in-progress", "(ii) Movement in …", "4A. …" — an
 # enumerator and a short capitalised title on a line with no figures.
-_SUB_TABLE_HEADING = re.compile(r"^\s*(?:[(（](?:[A-Za-z]|[ivx]{1,4}|\d{1,2})[)）]|\d{1,2}[A-Za-z]?[.)])"
-                                r"\s+[A-Z]")
+# …AND A MAINLAND ONE: "（4） 以净额列报现金流量的说明", "79、现金流量表补充资料". 000685 prints its
+# financing-liability movement (six columns wide) and, beneath it on the same page, note 七、79's
+# indirect reconciliation; with only Latin headings recognised the matrix ran to the foot of the
+# page and the reconciliation's rows — 固定资产折旧 among them — were lost.
+_SUB_TABLE_HEADING = re.compile(r"^\s*(?:(?:[(（](?:[A-Za-z]|[ivx]{1,4}|\d{1,2})[)）]|\d{1,2}[A-Za-z]?[.)])"
+                                r"\s+[A-Z]"
+                                r"|(?:[(（]\d{1,2}[)）]|\d{1,3}[、.．])\s*[\u4e00-\u9fff])")
 
 
 def _sub_table_cut(m: _Matrix, fmt=None) -> int | None:
@@ -6566,6 +6571,11 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
     recent_rows: list[tuple[int, float, list[tuple[float, Decimal]]]] = []
     # The face's valued rows printed under the section banner in force, for `_face_section_total`.
     face_section: tuple[str | None, list[list[tuple[float, Decimal]]]] = (None, [])
+    # …the captions of those rows, in step with them, and the bare total last promoted in the
+    # section with the captions of the rows it totals — see "A SUBTOTAL STANDS FOR ITS ROWS" below.
+    face_captions: list[LineItem] = []
+    face_partial: tuple[LineItem, list[LineItem]] | None = None
+    face_total_now: list[LineItem] | None = None
     group_x0: float | None = None
     group_label_bbox: BBox | None = None
     # See `_title_entity_basis`: the entity named by the most recent statement TITLE on this page,
@@ -6812,6 +6822,24 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                     value_words, face_section[1], number_format):
                 label = section
                 promoted = True
+                # A SUBTOTAL STANDS FOR ITS ROWS. Kaming prints "Fixed assets" over investment
+                # properties and PPE, their bare subtotal 7,550,503, three more rows and then the
+                # bare total of non-current assets 7,670,734; Lai Sun prints share capital and
+                # reserves, their bare subtotal, non-controlling interests and the bare total equity.
+                # The first bare line added up and took the banner; the members were then emptied,
+                # so the real total added up to nothing and was dropped. The members now restart
+                # with the subtotal itself, and when a later bare line closes over it, THAT line is
+                # the section's total: it takes the banner, and the earlier one is captioned with
+                # the rows it totals ("Share capital + Reserves"), in the filing's own words, so
+                # two rows never carry the one banner.
+                if face_partial is not None and face_section[1] and face_partial[0].values:
+                    partial, parts = face_partial
+                    partial.source_label = " + ".join(
+                        c for c in (str(r.source_label or "").strip() for r in parts) if c)
+                    if log:
+                        log(f"extract:page={page_index}:face_subtotal_recaptioned("
+                            f"{partial.source_label[:60]!r})")
+                face_total_now = list(face_captions)
                 if log:
                     log(f"extract:page={page_index}:face_section_total({section!r})")
 
@@ -7119,6 +7147,9 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
             li.parent_id = None
             open_breakdowns.clear()
         items.append(li)
+        if face_total_now is not None:
+            face_partial = (li, face_total_now) if face_total_now else None
+            face_total_now = None
         above_emitted = True
         ordinal += 1
         # A BLOCK'S MEMBERS END AT ITS SUBTOTAL, but `group` IS LEFT ALONE.
@@ -7133,14 +7164,20 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
         # the block is a question about INDENT, and it is answered below for membership only.
         #
         # Emptying the member list is what stops a second bare figure promoting against a block that
-        # has already been totalled.
+        # has already been totalled. On a face the list restarts with the promoted subtotal itself,
+        # so a later bare total of the section can close over it (`face_partial`).
         if on_face:
             vals = [(w.bbox.x1, v) for w in value_words
                     if (v := _num(w.text, number_format)) is not None]
             if promoted or face_section[0] != section:
                 face_section = (section, [])
-            if vals and not promoted:
+                face_captions = []
+                if not promoted:
+                    face_partial = None
+            if vals:
+                # The promoted subtotal is its section's first member from here on.
                 face_section[1].append(vals)
+                face_captions.append(li)
         if promoted or li.role is not LineRole.LINE:
             recent_rows = []
         elif not on_face and label_words:

@@ -747,11 +747,21 @@ def key_is_sum(key_line: KeyLine) -> bool:
     return "+" in w or w.startswith("computed")
 
 
-def payload_has(req: dict, figure: float, parts: bool = False) -> list[str]:
+def key_nets(key_line: KeyLine) -> bool:
+    """The key's parts include one printed negative — a bracketed figure, '(13.39)' — so the parts
+    net rather than add."""
+    return key_is_sum(key_line) and bool(_BRACKETED.search(key_line.where or ""))
+
+
+_BRACKETED = re.compile(r"\(\d[\d,]*(?:\.\d+)?\)")
+
+
+def payload_has(req: dict, figure: float, parts: bool = False, nets: bool = False) -> list[str]:
     """Where the request carries this figure: a row printing it, compared by magnitude so a
     bracketed '(519.65)' carries 519.65. With `parts` (the key says the line is 'A + B'), also rows
     in one period column that add up to it to the cent: two rows anywhere in the request, or up to
-    SUM_MAX_ROWS rows of one block."""
+    SUM_MAX_ROWS rows of one block. With `nets` (the key prints a part in brackets), rows of one
+    block whose SIGNED figures net to it."""
     p = payload_of(req["body"])
     out: list[str] = []
     if not isinstance(p, dict):
@@ -761,6 +771,10 @@ def payload_has(req: dict, figure: float, parts: bool = False) -> list[str]:
     sums: list[str] = []
     for kind, label, b in _blocks(p):
         cols: dict[str, list[tuple[str, float]]] = {}
+        # A PART PRINTED NEGATIVE NETS. "Current Tax 1,388.98" and "Short/(Excess) provision
+        # (13.39)" are 1,375.59, which no sum of magnitudes reaches — and the larger part is above
+        # the total, so it has to be a candidate too. Tried only after the magnitudes fail.
+        signed: dict[str, list[tuple[str, float]]] = {}
         for r in b.get("rows") or []:
             for col, v in (r.get("figures") or {}).items():
                 n = _num(v)
@@ -768,13 +782,24 @@ def payload_has(req: dict, figure: float, parts: bool = False) -> list[str]:
                     continue
                 if _close(abs(n), target):
                     out.append(f"{label}: '{r.get('caption')}'")
-                elif n and abs(n) < target:
-                    cols.setdefault(col, []).append((f"{label}: '{r.get('caption')}'", round(abs(n), 2)))
+                    continue
+                where = f"{label}: '{r.get('caption')}'"
+                if n and abs(n) < target:
+                    cols.setdefault(col, []).append((where, round(abs(n), 2)))
+                if n and abs(n) < 2 * target:
+                    signed.setdefault(col, []).append((where, round(n, 2)))
         for col, vals in cols.items():
             allcols.setdefault(col, []).extend(vals)
             hit = parts and _sum_of(vals, target, SUM_MAX_ROWS)
             if hit:
                 sums.append(" + ".join(hit) + f" ({col})")
+        if nets and not sums:
+            for col, vals in signed.items():
+                if not any(v < 0 for _, v in vals):
+                    continue
+                hit = _sum_of(vals, target, SUM_MAX_ROWS, signed=True)
+                if hit:
+                    sums.append(" + ".join(hit) + f" ({col}, net)")
     if parts and not sums:
         for col, vals in allcols.items():
             hit = _sum_of(vals, target, 2)
@@ -783,11 +808,17 @@ def payload_has(req: dict, figure: float, parts: bool = False) -> list[str]:
     return list(dict.fromkeys(out + [f"sum of {x}" for x in sums[:1]]))
 
 
-def _sum_of(vals: list[tuple[str, float]], target: float, most: int) -> list[str] | None:
+def _sum_of(vals: list[tuple[str, float]], target: float, most: int,
+            signed: bool = False) -> list[str] | None:
+    """Rows of `vals` adding up to `target`. With `signed`, the figures keep their signs, at least
+    one is negative, and the net is compared by magnitude."""
     from itertools import combinations
     for n in range(2, most + 1):
         for combo in combinations(vals[:60], n):
-            if abs(round(sum(v for _, v in combo), 2) - target) < 0.005:
+            if signed and not any(v < 0 for _, v in combo):
+                continue
+            total = round(sum(v for _, v in combo), 2)
+            if abs((abs(total) if signed else total) - target) < 0.005:
                 return [c for c, _ in combo]
     return None
 
@@ -800,7 +831,8 @@ def prose_has(req: dict, figure: float) -> list[str]:
         for kind, label, b in _blocks(p):
             prose = str(b.get("prose") or "")
             if any(_close(abs(n), abs(figure)) for n in
-                   (_num(t) for t in re.findall(r"\(?[\d,]+\.\d+\)?", prose)) if n is not None):
+                   (_num(t) for t in re.findall(r"\(?\d[\d,]*\.\d+\)?|\d{1,3}(?:,\d{3})+", prose))
+                   if n is not None):
                 out.append(label)
     return out
 
@@ -1011,7 +1043,7 @@ def coverage_of(d: Path, key: Key, part_keys: dict[str, set[str]] | None = None)
                 out.append({**row, "status": "carried" if right else "carried_other_key", "request": rid,
                             "where": f"{label}: '{cap}' [{col}{'/' + per if per else ''}]"})
                 continue
-            parts = [(r["id"], w) for r in asking for w in payload_has(r, printed, key_is_sum(kl))]
+            parts = [(r["id"], w) for r in asking for w in payload_has(r, printed, key_is_sum(kl), key_nets(kl))]
             prose = [(r["id"], b) for r in asking for b in prose_has(r, printed)]
             status, (rid, where) = (("carried_as_parts", parts[0]) if parts else
                                     ("prose_only", prose[0]) if prose else

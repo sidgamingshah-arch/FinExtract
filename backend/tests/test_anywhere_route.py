@@ -94,4 +94,8 @@ def test_the_shipped_set_declares_no_anywhere_line():
     """
     s = load_line_item_set(json.loads(SEED.read_text(encoding="utf-8")), resolve=True)
     declaring = [i.key for i in s.items if str(getattr(i, "route", "") or "") == "anywhere"]
-    assert declaring == [], f"the set now declares `anywhere`: {declaring}"
+    # TWO, deliberately: the share count and the headcount are printed in the directors' report or
+    # a share-capital note, outside every statement and every section a note is filed under, and
+    # their requests carried nothing at all until they could read there.
+    assert sorted(declaring) == ["supplemental_data__num_employees", "supplemental_data__num_outstanding_common_shares"], \
+        f"the set now declares `anywhere`: {declaring}"

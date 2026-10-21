@@ -365,3 +365,31 @@ def test_coverage_reaches_a_derived_line_through_its_parts_and_does_not_count_a_
            standin.coverage_of(tmp_path, key, {"parent": {"bs_icon__finished_goods"}})}
     assert got == {"parent": "carried", "computed_line": "derived"}
     assert standin.set_for_folder(Path("x__output_csv_hk_v1")) == "output_csv_hk_line_items.json"
+
+
+def test_coverage_nets_a_part_the_filing_prints_in_brackets():
+    """'Current Tax' 1,388.98 and 'Short/(Excess) provision' (13.39) are the 1,375.59 the key
+    prints: the larger part is above the total and the smaller is negative, so no sum of magnitudes
+    reaches it. Netting is tried only when the key itself prints a bracketed part."""
+    notes = [{"note": "TAX", "title": "Tax Expense",
+              "rows": [{"caption": "Current Tax", "figures": {"current": "1523.02", "prior": "1388.98"}},
+                       {"caption": "Short/(Excess) provision", "figures": {"current": "27.05",
+                                                                           "prior": "-13.39"}}]}]
+    req = _request(_payload(notes=notes))
+    nets = standin.KeyLine(prior="1375.59",
+                           where="'Current Tax' 1,523.02 / 1,388.98 + 'Short/(Excess)' 27.05 / (13.39)")
+    assert standin.key_nets(nets)
+    hit = standin.payload_has(req, 1375.59, True, True)
+    assert hit and "net" in hit[-1]
+    # Without a bracketed part in the key, the magnitudes alone are compared, as before.
+    assert not standin.key_nets(standin.KeyLine(prior="1375.59", where="'Current Tax' + 'Short'"))
+    assert standin.payload_has(req, 1375.59, True, False) == []
+
+
+def test_coverage_reads_a_whole_number_printed_in_prose():
+    """'were RMB20,878 (2023: RMB6,050)' prints both figures with no decimals; they are carried as
+    prose, which coverage reports as prose_only rather than not carried."""
+    notes = [{"note": "36", "title": "COMMITMENTS", "rows": [],
+              "prose": "were RMB20,878 (2023: RMB6,050). These capital commitments"}]
+    req = _request(_payload(notes=notes))
+    assert standin.prose_has(req, 20878.0) and standin.prose_has(req, 6050.0)

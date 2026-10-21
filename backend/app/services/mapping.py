@@ -110,6 +110,15 @@ class SourceRef(BaseModel):
                                                        "when the figure is printed on a page that "
                                                        "is neither a statement nor a note; leave "
                                                        "the note and the statement empty then")
+    # WHICH OF THE TWO BLOCKS OF ONE STATEMENT — the group's or the parent company's alone. A filing
+    # prints both, so a caption of the face ("Revenue from operations") is printed twice under one
+    # statement token, and a citation naming only the statement and the caption resolved to the
+    # first in document order: on Asian Paints the standalone block, filed in the standalone slot,
+    # and the consolidated line got nothing. Copied from the block's `entity`, as given; a citation
+    # without it resolves as before.
+    entity: str = Field(default="", description="the `entity` of the statement block the row is "
+                                                "in, as given (\"consolidated\" or "
+                                                "\"standalone\"), for a row on the face")
     # WHICH TABLE OF THE NOTE, AND WHICH GROUP OF THE TABLE — because a note number and a caption
     # do not name one row on a mainland filing. A CAS note number carries a dozen differently
     # headed tables (河钢股份 000709's 十二、1 carries nineteen), and "合计" is printed in most of

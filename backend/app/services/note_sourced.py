@@ -1286,7 +1286,16 @@ def _tied_captions(want: str, candidates, key=lambda c: c) -> list:
     return [c for d, c in near if d == closest]
 
 
-def _figures_by_basis(row, *, filed_only: bool = False) -> tuple[dict, dict, dict | None]:
+def _row_entities(row) -> set[str]:
+    """The bases (`consolidated`, `standalone` …) a row prints a figure under — the `entity` the
+    statement block it is sent in names (`services.face_context`)."""
+    return {(_basis_of(ev) or "consolidated").lower()
+            for ev in (getattr(row, "values", None) or {}).values()
+            if getattr(ev, "value", None) is not None}
+
+
+def _figures_by_basis(row, *, filed_only: bool = False,
+                      prefer: str = "") -> tuple[dict, dict, dict | None]:
     """A row's figures, KEYED BY BASIS as well as period — and the one basis the row is filed under.
 
     `(figures, by_basis, provenance)`. The flat `figures` was built from every value of the row
@@ -1298,6 +1307,8 @@ def _figures_by_basis(row, *, filed_only: bool = False) -> tuple[dict, dict, dic
     The chosen basis is the row's only one when it has one; where it has several, consolidated when
     present (the slot the face populates), otherwise the first in document order. `figures` is that
     basis's periods, so every existing consumer keyed on period reads one basis, not a blend.
+
+    `prefer`, the entity a citation named, is chosen over that default when the row prints it.
 
     `filed_only` keeps only the keys a figure is FILED under — `current` and `prior` — which is
     what a citation of the WHOLE row may take (`note_columns.whole_row`): `col2`, a measure
@@ -1324,7 +1335,9 @@ def _figures_by_basis(row, *, filed_only: bool = False) -> tuple[dict, dict, dic
             prov = derivation._json_safe_provenance(getattr(ev, "provenance", None))
     if not by_basis:
         return {}, {}, None
-    chosen = "consolidated" if "consolidated" in by_basis else order[0]
+    # `prefer` is the entity a citation named; it wins when the row prints it.
+    chosen = (prefer if prefer and prefer in by_basis
+              else "consolidated" if "consolidated" in by_basis else order[0])
     return dict(by_basis[chosen]), {"basis": chosen, **{"by": by_basis}}, prov
 
 
@@ -1604,6 +1617,23 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
             continue
         if want_stmt and not want_note:
             on_stmt = [f for f in face_rows if f[0] == want_stmt]
+            # THE BLOCK'S ENTITY, when the citation names one: the consolidated and the standalone
+            # block print the same captions under one statement token, and document order alone
+            # took the standalone row for a consolidated line (`mapping.SourceRef.entity`). A
+            # citation naming an entity no row of that caption is printed under is refused, as a
+            # table the note does not have is, rather than widened back to both blocks.
+            want_entity = str(getattr(ref, "entity", "") or "").strip().lower()
+            if want_entity:
+                in_entity = [f for f in on_stmt if want_entity in _row_entities(f[2])]
+                if (best_caption(want_cap, in_entity, key=lambda f: norm(f[1])) is None
+                        and best_caption(want_cap, on_stmt, key=lambda f: norm(f[1])) is not None):
+                    unresolved.append({
+                        "at": at, "note": "", "statement": want_stmt, "entity": want_entity,
+                        "caption": getattr(ref, "caption", ""), "quote": quote,
+                        "why": (f"that caption is printed on {want_stmt}, but not in its "
+                                f"{want_entity} block")})
+                    continue
+                on_stmt = in_entity
             on_face = best_caption(want_cap, on_stmt, key=lambda f: norm(f[1]))
             if on_face is not None and sections:
                 from app.services.mapping import section_of_banner
@@ -1625,7 +1655,8 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
                             + (f" — it is on {', '.join(elsewhere)}" if elsewhere else ""))})
                 continue
             st, caption, row = on_face
-            figures, filed, prov = _figures_by_basis(row, filed_only=True)
+            figures, filed, prov = _figures_by_basis(row, filed_only=True,
+                                                     prefer=want_entity)
             if want_col:
                 # ON THE FACE A POSITIONAL `current`/`prior` IS A PERIOD — a statement's columns
                 # are its years — so a key the header did not otherwise date is filed as itself.
@@ -1788,6 +1819,11 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
                               if _amount_in_text(stated, getattr(t, "source_text", "") or "")
                               is not None), fragments[0])
                 if found is not None:
+                    # THE SCALE AND THE COMPARATIVE THE SENTENCE PRINTS BESIDE IT, read off the
+                    # note's own text (`prose_context`) — the caller divides by the one and files
+                    # the other in the prior year's slot.
+                    scale_word, prior = prose_context(
+                        found, getattr(table, "source_text", "") or "")
                     resolved.append({
                         "at": at,
                         "note": want_note, "title": getattr(table, "title", "") or "",
@@ -1798,7 +1834,9 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
                         # decides the column from the row it is filling.
                         "figures": {"prose": str(found)},
                         "provenance": _prose_provenance(table),
-                        "quote": quote, "prose": True})
+                        "quote": quote, "prose": True,
+                        "prose_scale": str(scale_word) if scale_word else None,
+                        "prose_prior": str(prior) if prior is not None else None})
                     continue
                 unresolved.append({
                     "at": at,
@@ -1963,6 +2001,58 @@ def _prose_provenance(table) -> dict | None:
     if not pages:
         return None
     return {"page_index": pages[0], "source": "note_prose"}
+
+
+_PROSE_SCALE_WORDS = (
+    (r"billion|bn\b", Decimal(1_000_000_000)), (r"million|mn\b", Decimal(1_000_000)),
+    (r"thousand|'000|’000", Decimal(1_000)),
+    (r"亿元|億元|亿|億", Decimal(100_000_000)), (r"百万元|百萬元|百万|百萬", Decimal(1_000_000)),
+    (r"万元|萬元|万|萬", Decimal(10_000)), (r"千元|千", Decimal(1_000)),
+)
+_PROSE_NUMBER = (r"\d{1,3}(?:,[ \u00a0\u202f]?\d{3})+(?:\.\d+)?(?![\d])"
+                 r"|(?<![\d.,])\d+(?:\.\d+)?(?![\d,])")
+
+
+def _scale_word_at(text: str) -> Decimal | None:
+    """The factor of a scale word opening `text` ("million", "百万元"), or None."""
+    import re as _re
+
+    for pattern, factor in _PROSE_SCALE_WORDS:
+        if _re.match(rf"\s*(?:{pattern})", text or "", _re.I):
+            return factor
+    return None
+
+
+def prose_context(found: Decimal, text: str) -> tuple[Decimal | None, Decimal | None]:
+    """`(scale, prior)` the sentence prints beside a located prose amount.
+
+    `scale` is the factor of a scale word printed straight after the amount — "RMB20,878 million",
+    "人民币3.5亿元" — or None where it prints none. `prior` is the comparative printed straight after
+    it in the shape every filing uses, "(2023: RMB6,050)" / "（2023年：人民币6,050）", in the
+    same scale. PetroChina's note 36 says "were RMB20,878 (2023: RMB6,050)": the comparative is the
+    line's prior-year figure and was dropped, because the amount was the only number kept.
+    """
+    import re as _re
+
+    for m in _re.finditer(r"(?<![\d.])(?:" + _PROSE_NUMBER + r")", text or ""):
+        try:
+            if Decimal(_re.sub(r"[^0-9.]", "", m.group(0))) != found:
+                continue
+        except (InvalidOperation, ValueError):
+            continue
+        after = text[m.end():m.end() + 80]
+        scale = _scale_word_at(after)
+        prior = None
+        cmp_ = _re.match(r"\s*(?:[A-Za-z]+|[\u4e00-\u9fff]+)?\s*[(（]\s*(?:19|20)\d{2}\s*年?\s*[:：]"
+                         r"\s*(?:[A-Z]{1,3}\$|RMB|US\$|HK\$|\$|人民币|人民幣|港元)?\s*("
+                         + _PROSE_NUMBER + r")", after)
+        if cmp_:
+            try:
+                prior = Decimal(_re.sub(r"[^0-9.]", "", cmp_.group(1)))
+            except (InvalidOperation, ValueError):
+                prior = None
+        return scale, prior
+    return None, None
 
 
 def _amount_in_text(stated: str, text: str) -> Decimal | None:

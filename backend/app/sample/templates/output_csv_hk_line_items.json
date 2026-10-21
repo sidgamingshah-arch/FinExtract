@@ -15783,7 +15783,22 @@
    ],
    "sign_rule": {},
    "inherits": "supplemental_data",
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere",
+   "aliases_i18n": {
+    "en": [
+     "Num Outstanding Common Shares",
+     "Common Shares Outstanding",
+     "Ordinary Shares Outstanding",
+     "Issued ordinary shares"
+    ],
+    "zh": [
+     "股份总数",
+     "股份總數",
+     "已发行普通股",
+     "已發行普通股"
+    ]
+   }
   },
   {
    "key": "supplemental_data__num_outstanding_preferred_shares",
@@ -15823,7 +15838,23 @@
    ],
    "sign_rule": {},
    "inherits": "supplemental_data",
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere",
+   "aliases_i18n": {
+    "en": [
+     "Num Employees",
+     "Number of Employees",
+     "Employees",
+     "Headcount",
+     "Workforce"
+    ],
+    "zh": [
+     "在职员工的数量合计",
+     "在職員工的數量合計",
+     "员工总人数",
+     "僱員總人數"
+    ]
+   }
   },
   {
    "key": "supplemental_data__net_technical_reserve_equity_side_insur_co_only",

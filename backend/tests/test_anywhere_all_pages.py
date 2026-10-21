@@ -247,9 +247,10 @@ def test_a_face_line_is_not_sent_those_pages_and_cannot_cite_one():
 
 # ── EXTRACTION ───────────────────────────────────────────────────────────────────────────────
 
-def test_the_widening_is_asked_once_per_run_and_the_shipped_set_does_not_ask_for_it():
+def test_the_widening_is_asked_once_per_run_and_the_shipped_set_asks_for_it():
+    # The shipped set asks: the share count and the headcount are read from every page.
     shipped = load_line_item_set(_json.loads(_SEED.read_text(encoding="utf-8")), resolve=True)
-    assert not line_item_routes.any_reads_every_page(shipped)
+    assert line_item_routes.any_reads_every_page(shipped)
     assert line_item_routes.any_reads_every_page(_set("anywhere"))
     assert not line_item_routes.any_reads_every_page(_set("note_tables"))
     assert not line_item_routes.any_reads_every_page(None), \
@@ -294,10 +295,12 @@ def _extract(route):
     ctx.line_items = _set(route) if route else None
     extract_pdf(_two_page_pdf(), doc, ctx)
     pages = set()
-    for row in doc.line_items:
+    for row in [*doc.line_items, *doc.other_page_items]:
         for ev in row.values.values():
             if ev.provenance is not None:
                 pages.add(int(ev.provenance.page_index))
+    ctx.held_apart = {int(ev.provenance.page_index) for row in doc.other_page_items
+                      for ev in row.values.values() if ev.provenance is not None}
     return pages, ctx
 
 
@@ -315,6 +318,9 @@ def test_extraction_reads_every_page_when_a_line_declares_anywhere():
     pages, ctx = _extract("anywhere")
     assert pages == {0, 1}, f"the widening did not reach the unclassified page: {pages}"
     assert any("anywhere_route_widened_pages=1" in line for line in ctx.logs), ctx.logs[:6]
+    # …AND ITS ROWS ARE HELD APART from `line_items`, where the deterministic stages would file
+    # them: on 000685 they moved total assets from 32.4bn to 128.1bn.
+    assert ctx.held_apart == {1}
 
 
 def test_a_row_the_stage_itself_created_is_not_offered_back_as_printed():
@@ -330,3 +336,15 @@ def test_a_row_the_stage_itself_created_is_not_offered_back_as_printed():
     assert captions == {"Five-year turnover"}, captions
     assert not [c for _p, c, _r in face_context.other_page_index(doc)
                 if c == "Turnover five years"]
+
+
+def test_a_line_that_names_its_row_is_sent_only_the_pages_that_print_it():
+    """A directors' report table among a hundred pages that are neither a statement nor a note:
+    the line is sent the page whose row carries its printed name, not all of them."""
+    doc = _doc()
+    doc.pages.append(PageSource(index=2, kind=PageKind.UNKNOWN, statement=None))
+    doc.line_items.append(_row("报告期末在职员工的数量合计（人）", value="4629", page=2))
+    blocks = face_context.other_page_rows(doc, ["Number of Employees", "在职员工的数量合计"])
+    assert [b["page"] for b in blocks] == [3]
+    assert face_context.other_page_rows(doc, ["Headcount"]) == face_context.other_page_rows(doc)
+    assert face_context.other_page_rows(doc, ["Number of shares"]) == []
