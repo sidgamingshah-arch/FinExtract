@@ -1257,6 +1257,8 @@ def grade_answer(payload: dict, answer, kl: KeyLine, period: str, key_unit: str 
             continue
         hits = _source_rows(payload, src)
         if not hits:
+            if printed is None:   # nothing to pick for this year; the bad citation counts once
+                return "rightly_blank", ""
             return "unresolved", f"no row '{src.caption}' in {src.note or src.statement or src.page}"
         figs = {f for f in (_row_figure(r, src, period) for _b, r in hits) if f is not None}
         if len(figs) > 1:
