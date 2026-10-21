@@ -1221,6 +1221,8 @@ def _row_figure(r: dict, src, period: str) -> float | None:
             return None
         if per not in ("current", "prior") and col in ("current", "prior") and col != period:
             return None
+        if per not in ("current", "prior") and col not in ("current", "prior") and period != "current":
+            return None   # a row that states no year is read as the reporting year's, once
         return _num(figs.get(col))
     per = r.get("period") or ""
     if per in ("current", "prior"):
@@ -1245,9 +1247,13 @@ def grade_answer(payload: dict, answer, kl: KeyLine, period: str, key_unit: str 
     for i, src in enumerate(answer.sources):
         if src.amount not in (None, "") and src.quote:
             n = _num(src.amount)
-            if n is not None and (not src.period or src.period == period):
+            if n is not None and (src.period or "current") == period:
                 vals.append(n)
                 notes_.append(f"prose {src.amount}")
+            elif period == "prior" and not src.period and printed is not None and any(
+                    _close(abs(_num(t) or 0), abs(printed)) for t in _KEY_PART.findall(src.quote)):
+                vals.append(printed)           # the comparative the quote prints, read from it
+                notes_.append("prose comparative in the quote")
             continue
         hits = _source_rows(payload, src)
         if not hits:
@@ -1266,13 +1272,17 @@ def grade_answer(payload: dict, answer, kl: KeyLine, period: str, key_unit: str 
             break
     if not vals:
         return ("rightly_blank", "") if printed is None else ("unresolved", "no figure for the period")
-    total = sum(vals) * (bm or 1.0)
+    total = sum(vals)
+
+    def same(x: float | None) -> bool:
+        return x is not None and (_close(abs(total), abs(x)) or (
+            bm is not None and bool(key_unit) and _close(abs(total) * bm, abs(x) * km)))
     if printed is None:
         return "cited_unprinted", f"cited {' + '.join(notes_)} = {total:,.2f}; the filing prints nothing"
-    if _close(abs(total), abs(printed) * km):
+    if same(printed):
         return "right", ""
     other = _num(getattr(kl, "prior" if period == "current" else "current"))
-    if other is not None and _close(abs(total), abs(other) * km):
+    if same(other):
         return "wrong_period", f"{total:,.2f} is the other year's figure"
     return "wrong_figure", f"{' + '.join(notes_)} = {total:,.2f}, the filing prints {printed:,.2f}"
 

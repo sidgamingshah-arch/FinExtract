@@ -491,3 +491,23 @@ def test_grade_judges_an_answer_in_the_request_it_answers():
     parts = LineItemAnswer(key="k", role="component", signs=[1, -1], sources=[
         SourceRef(note="8", caption="Total"), SourceRef(note="8", caption="Finished goods")])
     assert standin.grade_answer(payload, parts, standin.KeyLine(current="9590.65"), "current", None)[0] == "right"
+
+
+def test_grade_reads_a_prose_comparative_a_yearless_row_once_and_the_printed_unit():
+    """Three ways a right answer was graded wrong: a sentence amount applied to both years (its
+    comparative is in the quote), a movement row that states no year counted for both years, and a
+    figure the key holds in the printed unit rescaled by the block's unit."""
+    from app.services.line_item_llm import LineItemAnswer
+    from app.services.mapping import SourceRef
+    payload = _payload(notes=[{"note": "36", "title": "COMMITMENTS", "unit": "CNY millions (x1,000,000)",
+        "prose": "Capital commitments RMB20,878 (2023: RMB6,050).",
+        "rows": [{"caption": "Charge for the year", "figures": {"Total": "48.00"}, "period": "unstated"}]}])
+    prose = LineItemAnswer(key="k", sources=[SourceRef(note="36", caption="Capital commitments",
+                           amount="20,878", quote="Capital commitments RMB20,878 (2023: RMB6,050).")])
+    kl = standin.KeyLine(current="20,878", prior="6,050")
+    assert standin.grade_answer(payload, prose, kl, "current", None)[0] == "right"
+    assert standin.grade_answer(payload, prose, kl, "prior", None)[0] == "right"
+    row = LineItemAnswer(key="k", sources=[SourceRef(note="36", caption="Charge for the year", column="Total")])
+    once = standin.KeyLine(current="48.00", prior=None)
+    assert standin.grade_answer(payload, row, once, "current", None)[0] == "right"
+    assert standin.grade_answer(payload, row, once, "prior", None)[0] == "rightly_blank"
