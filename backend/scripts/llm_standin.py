@@ -1165,6 +1165,163 @@ def cmd_coverage(a) -> int:
 
 
 # ------------------------------------------------------------------------------------------------
+# grade
+# ------------------------------------------------------------------------------------------------
+
+GRADES = ("right", "wrong_period", "wrong_figure", "ambiguous", "unresolved", "missed",
+          "cited_unprinted", "rightly_blank")
+
+
+def _norm_caption(text) -> str:
+    import unicodedata
+    return re.sub(r"\s+", "", unicodedata.normalize("NFKC", str(text or ""))).casefold()
+
+
+def _source_rows(payload: dict, src) -> list[tuple[dict, dict]]:
+    """(block, row) pairs a citation names, matched back the way the contract says it is: the
+    block by note / table / statement / entity / page, the row by its caption and group."""
+    out = []
+    cap = _norm_caption(src.caption)
+    for kind, _label, b in _blocks(payload):
+        if src.note:
+            if kind != "notes" or _norm_caption(b.get("note")) != _norm_caption(src.note):
+                continue
+            if src.table and _norm_caption(b.get("title")) != _norm_caption(src.table):
+                continue
+        elif src.page is not None:
+            if kind != "other_pages" or str(b.get("page")) != str(src.page):
+                continue
+        else:
+            if kind != "statement_rows":
+                continue
+            if src.statement and b.get("statement") != src.statement:
+                continue
+            if src.entity and b.get("entity") != src.entity:
+                continue
+        for r in b.get("rows") or []:
+            if _norm_caption(r.get("caption")) != cap:
+                continue
+            if src.group and _norm_caption(r.get("group")) != _norm_caption(src.group):
+                continue
+            out.append((b, r))
+    return out
+
+
+def _row_figure(r: dict, src, period: str) -> float | None:
+    """The row's figure for this period, as the citation reads it: a named column (its key or its
+    printed heading) filed under the row's own period, else the period's own key."""
+    figs = r.get("figures") or {}
+    if src.column:
+        heads = {**{str(v): k for k, v in (r.get("columns") or {}).items()}}
+        col = src.column if src.column in figs else heads.get(src.column)
+        if col is None:
+            return None
+        per = (r.get("periods") or {}).get(col) or r.get("period") or ""
+        if per in ("current", "prior") and per != period:
+            return None
+        if per not in ("current", "prior") and col in ("current", "prior") and col != period:
+            return None
+        return _num(figs.get(col))
+    per = r.get("period") or ""
+    if per in ("current", "prior"):
+        if per != period:
+            return None
+        vals = [_num(v) for v in figs.values() if _num(v) is not None]
+        return vals[0] if len(vals) == 1 else _num(figs.get(src.column or ""))
+    return _num(figs.get(period))
+
+
+def grade_answer(payload: dict, answer, kl: KeyLine, period: str, key_unit: str | None) -> tuple[str, str]:
+    """Whether an answer picks the figure the filing prints for this line and period, judged in
+    the request it answers: each citation is matched back to its row (an unmatched one is
+    `unresolved`, one matching rows with different figures `ambiguous`), its figure for the period
+    taken, components added with their signs, and the total compared with the key at the block's
+    unit."""
+    printed = _num(getattr(kl, period))
+    if not answer.sources:
+        return ("rightly_blank", "") if printed is None else ("missed", "no sources")
+    km = unit_multiple(key_unit) if key_unit else 1.0
+    vals, notes_, bm = [], [], None
+    for i, src in enumerate(answer.sources):
+        if src.amount not in (None, "") and src.quote:
+            n = _num(src.amount)
+            if n is not None and (not src.period or src.period == period):
+                vals.append(n)
+                notes_.append(f"prose {src.amount}")
+            continue
+        hits = _source_rows(payload, src)
+        if not hits:
+            return "unresolved", f"no row '{src.caption}' in {src.note or src.statement or src.page}"
+        figs = {f for f in (_row_figure(r, src, period) for _b, r in hits) if f is not None}
+        if len(figs) > 1:
+            return "ambiguous", f"'{src.caption}' matches rows with {sorted(figs)[:4]}"
+        if not figs:
+            continue
+        if bm is None and hits[0][0].get("unit"):
+            bm = unit_multiple(hits[0][0].get("unit"))
+        sign = answer.signs[i] if (str(answer.role) == "component" and i < len(answer.signs)) else 1
+        vals.append(sign * figs.pop())
+        notes_.append(f"'{src.caption}'")
+        if str(answer.role) != "component":
+            break
+    if not vals:
+        return ("rightly_blank", "") if printed is None else ("unresolved", "no figure for the period")
+    total = sum(vals) * (bm or 1.0)
+    if printed is None:
+        return "cited_unprinted", f"cited {' + '.join(notes_)} = {total:,.2f}; the filing prints nothing"
+    if _close(abs(total), abs(printed) * km):
+        return "right", ""
+    other = _num(getattr(kl, "prior" if period == "current" else "current"))
+    if other is not None and _close(abs(total), abs(other) * km):
+        return "wrong_period", f"{total:,.2f} is the other year's figure"
+    return "wrong_figure", f"{' + '.join(notes_)} = {total:,.2f}, the filing prints {printed:,.2f}"
+
+
+def grade_folder(d: Path, key: Key) -> list[dict]:
+    reqs = load_requests(d)
+    out = []
+    for ap in sorted((d / "answers").glob("*.txt")):
+        req = reqs.get(ap.stem)
+        if req is None:
+            continue
+        try:
+            reply = parse_answer(ap.read_text(encoding="utf-8"), schema_class(req))
+        except Exception as exc:  # an answer the gateway would reject is graded as such
+            out.append({"request": ap.stem, "key": "", "period": "", "grade": "unresolved",
+                        "detail": f"reply does not parse: {exc}"[:200]})
+            continue
+        payload = payload_of(req["body"])
+        for ans in getattr(reply, "answers", []) or []:
+            kl = key.lines.get(ans.key)
+            if kl is None:
+                continue
+            for period in ("current", "prior"):
+                g, detail = grade_answer(payload, ans, kl, period, key.unit)
+                out.append({"request": ap.stem, "key": ans.key, "period": period, "grade": g,
+                            "detail": detail})
+    return out
+
+
+def cmd_grade(a) -> int:
+    """One line per folder: how the recorded answers fare against the key, judged in the request
+    each answers. Writes DIR/grade.json."""
+    print("folder | graded | " + " | ".join(GRADES))
+    total: Counter = Counter()
+    for d in a.dirs:
+        kp = next((d / n for n in a.key_names if (d / n).exists()), None)
+        if kp is None or not (d / "answers").exists():
+            continue
+        rows = grade_folder(d, load_key(kp))
+        (d / "grade.json").write_text(json.dumps(rows, ensure_ascii=False, indent=1), encoding="utf-8")
+        c = Counter(r["grade"] for r in rows)
+        total.update(c)
+        print(f"{d.name} | {sum(c.values())} | " + " | ".join(str(c[g]) for g in GRADES))
+    if len(a.dirs) > 1:
+        print(f"ALL | {sum(total.values())} | " + " | ".join(str(total[g]) for g in GRADES))
+    return 0
+
+
+# ------------------------------------------------------------------------------------------------
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
@@ -1187,11 +1344,14 @@ def main(argv: list[str] | None = None) -> int:
                    help="key file name inside each folder, first found wins (default coverage_key.json, "
                         "then sample_key.json)")
     p.add_argument("--set", help="line-item set for cascade parts (default: from the folder name)")
+    p = sub.add_parser("grade"); p.add_argument("dirs", type=Path, nargs="+")
+    p.add_argument("--key-name", dest="key_names", action="append")
     a = ap.parse_args(argv)
-    if a.cmd == "coverage" and not a.key_names:
+    if a.cmd in ("coverage", "grade") and not a.key_names:
         a.key_names = ["coverage_key.json", "sample_key.json"]
     return {"capture": cmd_capture, "replay": cmd_replay, "lint": cmd_lint, "sample": cmd_sample,
-            "validate": cmd_validate, "report": cmd_report, "coverage": cmd_coverage}[a.cmd](a)
+            "validate": cmd_validate, "report": cmd_report, "coverage": cmd_coverage,
+            "grade": cmd_grade}[a.cmd](a)
 
 
 if __name__ == "__main__":

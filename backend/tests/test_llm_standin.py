@@ -456,3 +456,38 @@ def test_a_table_in_another_unit_is_compared_at_its_unit(tmp_path: Path):
         "bs_icon__finished_goods": standin.KeyLine(current="19015000.00", prior="13953100.00")})
     assert {r["status"] for r in standin.coverage_of(tmp_path, key)} == {"carried"}
     assert standin.unit_multiple("HK$'000") == standin.unit_multiple("HKD thousands (x1,000)") == 1000
+
+
+def test_grade_judges_an_answer_in_the_request_it_answers():
+    """A blind answer is graded by matching its citation back to the row it names, in the request
+    it answers, and comparing that row's figure for each period with the key."""
+    from app.services.line_item_llm import LineItemAnswer
+    from app.services.mapping import SourceRef
+    notes = [{"note": "8", "title": "Inventories",
+              "rows": [{"caption": "Finished goods", "figures": {"current": "2805.45", "prior": "2544.10"}},
+                       {"caption": "Total", "figures": {"current": "12396.10", "prior": "11395.42"}}]},
+             {"note": "9", "title": "Other",
+              "rows": [{"caption": "Total", "figures": {"current": "1.00", "prior": "2.00"}}]}]
+    payload = _payload(notes=notes)
+    kl = standin.KeyLine(current="2805.45", prior="2544.10")
+
+    def grade(sources, period="current", role="whole", signs=()):
+        ans = LineItemAnswer(key="k", sources=sources, role=role, signs=list(signs))
+        return standin.grade_answer(payload, ans, kl, period, None)[0]
+
+    fg = SourceRef(note="8", caption="Finished goods")
+    assert grade([fg]) == "right" and grade([fg], "prior") == "right"
+    assert grade([SourceRef(note="8", caption="Total")]) == "wrong_figure"
+    assert grade([SourceRef(caption="Total", note="")]) == "unresolved"   # no statement row 'Total'
+    assert grade([SourceRef(note="8", caption="Raw materials")]) == "unresolved"
+    assert grade([]) == "missed"
+    swapped = standin.KeyLine(current="9.00", prior="2805.45")   # the row's current is the key's prior
+    ans = LineItemAnswer(key="k", sources=[SourceRef(note="8", caption="Finished goods")])
+    assert standin.grade_answer(payload, ans, swapped, "current", None)[0] == "wrong_period"
+    dup = _payload(notes=[{"note": "8", "title": "A", "rows": [
+        {"caption": "Total", "figures": {"current": "5.00"}}, {"caption": "Total", "figures": {"current": "6.00"}}]}])
+    ans = LineItemAnswer(key="k", sources=[SourceRef(note="8", caption="Total")])
+    assert standin.grade_answer(dup, ans, standin.KeyLine(current="5.00"), "current", None)[0] == "ambiguous"
+    parts = LineItemAnswer(key="k", role="component", signs=[1, -1], sources=[
+        SourceRef(note="8", caption="Total"), SourceRef(note="8", caption="Finished goods")])
+    assert standin.grade_answer(payload, parts, standin.KeyLine(current="9590.65"), "current", None)[0] == "right"
