@@ -1182,7 +1182,7 @@ def cmd_coverage(a) -> int:
 # ------------------------------------------------------------------------------------------------
 
 GRADES = ("right", "wrong_period", "wrong_figure", "ambiguous", "unresolved", "missed",
-          "cited_unprinted", "rightly_blank")
+          "cited_unprinted", "rightly_blank", "derived")
 
 
 def _norm_caption(text) -> str:
@@ -1258,6 +1258,8 @@ def grade_answer(payload: dict, answer, kl: KeyLine, period: str, key_unit: str 
     publishes it (`services.line_item_llm.split_by_entity`): only the citations of the key's basis
     — and those naming no entity — are graded."""
     printed = _num(getattr(kl, period))
+    if (kl.where or "").lower().startswith("computed"):
+        return "derived", "the key computes the line; no page prints it"
     if not answer.sources:
         return ("rightly_blank", "") if printed is None else ("missed", "no sources")
     km = unit_multiple(key_unit) if key_unit else 1.0

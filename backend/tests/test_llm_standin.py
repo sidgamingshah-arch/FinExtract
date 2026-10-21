@@ -538,3 +538,12 @@ def test_grade_takes_a_two_entity_answer_on_the_keys_basis():
     one = LineItemAnswer(key="k", role="component", signs=[1, 1], sources=cite[:2])
     assert standin.grade_answer(payload, one, group, "current", None, "standalone")[0] == "right", \
         "an answer naming one entity is graded as it stands"
+
+
+def test_grade_leaves_out_a_line_the_key_computes():
+    """Like coverage: a key line whose `where` starts "computed" is printed nowhere, so no citation
+    can be right or wrong about it."""
+    from app.services.line_item_llm import LineItemAnswer
+    ans = LineItemAnswer(key="k", sources=[])
+    kl = standin.KeyLine(current="5.00", where="computed: revenue less cost of sales")
+    assert standin.grade_answer(_payload(), ans, kl, "current", None)[0] == "derived"
