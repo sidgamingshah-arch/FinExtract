@@ -234,7 +234,13 @@ def test_the_three_finds_can_each_admit_the_captions_the_spec_names(raw):
     import re
 
     by_key = {i["key"]: i for i in raw["items"]}
-    spec_captions = ("其他应收款", "一年内到期的长期应收款", "长期应收款", "发放贷款及垫款")
+    # THE NON-CURRENT CAPTIONS ONLY. The spec listed four, two of them current — 其他应收款 and
+    # 一年内到期的长期应收款 — and the Finds feed the NON-CURRENT column, so reading them put current
+    # balances in non-current assets (000685: 179,535,189.14). A related-party balance lands on the
+    # related-party line of its own section: those two are read for Due from Related Parties (CP)
+    # through `sub__cp_other_receivables_rp`, and are DENIED here.
+    spec_captions = ("长期应收款", "发放贷款及垫款")
+    current_captions = ("其他应收款", "一年内到期的长期应收款")
     spec_exclusions = ("委托贷款", "应付账款", "关联方组合", "账面余额", "交易金额", "合计")
 
     # THE TWO FINDS MEET THE FOUR CAPTIONS AT DIFFERENT LEVELS, which is the design and not an
@@ -256,6 +262,8 @@ def test_the_three_finds_can_each_admit_the_captions_the_spec_names(raw):
     for caption in spec_captions:
         assert heading_covered(_NS(note_source=_NS(note_terms=find2["note_terms"])), caption), (
             f"sub__rp_find_2's note terms no longer cover {caption!r}")
+    assert not heading_covered(_NS(note_source=_NS(note_terms=find2["note_terms"])), "其他应收款"), (
+        "sub__rp_find_2 reads the other-receivables note, whose related-party rows are current")
     assert find2.get("row_caption_none"), "sub__rp_find_2 declares no row veto at all"
     where = {"sub__rp_find_3_gross": "row_caption_any"}
     for key, field in where.items():
@@ -271,6 +279,11 @@ def test_the_three_finds_can_each_admit_the_captions_the_spec_names(raw):
         for caption in spec_exclusions:
             assert any(p.search(caption) for p in vetoes), (
                 f"{key} no longer excludes {caption!r}, which the spec names as an exclusion")
+
+        for caption in current_captions:
+            assert (not any(p.search(caption) for p in admits)
+                    or any(p.search(caption) for p in vetoes)), (
+                f"{key} admits the current caption {caption!r} into the non-current column")
 
     # AND THE CONTRADICTION ITSELF, on the line it was found on: Find 3 required all four captions
     # in `row_caption_any` AND denied all four in `row_caption_none`, so no row could ever pass.

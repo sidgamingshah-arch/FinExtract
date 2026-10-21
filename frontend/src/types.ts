@@ -1960,6 +1960,9 @@ export interface LineItemTerm {
   sign: 1 | -1;
   abs: boolean;
   role: TermRole;
+  /** The figure left another line (its configured parent deducts it) and arrives on this one;
+   *  the receiving line is evaluated wherever the term has a figure. */
+  received?: boolean;
 }
 export interface CascadeRung {
   id: string;

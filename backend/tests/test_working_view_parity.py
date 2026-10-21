@@ -66,7 +66,7 @@ RULEBOOK = TEMPLATES / "output_csv_hk_ontology.json"
 PROJECTED = sorted(set(SAME) | set(RENAMED))
 
 CONCEPTS = 462                 # the rulebook's concepts, and the set's `namespace == "template"`
-ITEMS = 535                    # 535: the six Related Party Transactions parts (sub__rpt_*) added  # 529: sub__equity_reserves added (the face "Reserves 儲備" aggregate, kept apart from the equity-statement components it totals)  # 528 before
+ITEMS = 536                    # 536: sub__rp_face_due_from_cp, the printed Due from related parties (CP) row, added  # 535: the six Related Party Transactions parts (sub__rpt_*) added  # 529: sub__equity_reserves added (the face "Reserves 儲備" aggregate, kept apart from the equity-statement components it totals)  # 528 before
                                # …plus the 69 `sub__*` note-level parts, which ARE concepts too:
                                # the view projects every definition, and `namespace` decides only
                                # where a figure is PUBLISHED. See
@@ -509,7 +509,7 @@ def test_shipped_set_projects_every_definition_including_the_parts():
         # row — measured, China SCE 1966's "Due to related parties" 2,588,416 went to
         # `bs_cl__other_current_liabilities` and 嘉民's two shareholder loans to
         # `bs_ncl__other_non_current_liabilities`.
-        "sub__rp_face_due_to_cp", "sub__rp_face_loan_from_holding_co",
+        "sub__rp_face_due_to_cp", "sub__rp_face_loan_from_holding_co", "sub__rp_face_due_from_cp",
         "sub__rp_face_loan_from_shareholder",
         # AND THE TRADE RECEIVABLE'S FACE PART, on the same grounds.
         "sub__rp_face_trade_receivable",

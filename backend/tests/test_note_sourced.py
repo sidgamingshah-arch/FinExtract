@@ -1064,8 +1064,8 @@ def test_a_part_can_ask_for_the_allowance_column_by_name(shipped):
 
     by_key = {d.key: d for d in shipped.items}
     note = _measure_note("十二、6", "关联方应收应付款项", [
-        ("应收账款：甲公司", "1000", "400"),
-        ("应收账款：乙公司", "500", "100"),
+        ("长期应收款：甲公司", "1000", "400"),
+        ("长期应收款：乙公司", "500", "100"),
     ])
 
     gross = svc.select_rows(by_key["sub__rp_find_3_gross"], [note], {"current", "prior"}, None)
@@ -1091,8 +1091,8 @@ def test_find_3_is_the_net_of_the_two_columns(shipped):
     """
     doc = DocumentModel(filename="f.pdf")
     doc.notes = [_measure_note("十二、6", "关联方应收应付款项", [
-        ("应收账款：甲公司", "1000", "400"),
-        ("其他应收款：乙公司", "500", "100"),
+        ("长期应收款：甲公司", "1000", "400"),
+        ("长期应收款：乙公司", "500", "100"),
     ])]
     ctx = PipelineContext(settings=get_settings())
     ctx.line_items = shipped
@@ -1110,7 +1110,7 @@ def test_a_note_with_no_allowance_column_deducts_nothing(shipped):
     wrong way round."""
     doc = DocumentModel(filename="f.pdf")
     doc.notes = [_measure_note("十二、6", "关联方应收应付款项", [
-        ("应收账款：甲公司", "1000", None),
+        ("长期应收款：甲公司", "1000", None),
     ])]
     ctx = PipelineContext(settings=get_settings())
     ctx.line_items = shipped
@@ -1136,12 +1136,12 @@ def test_the_llm_is_told_the_same_rule_the_cascade_applies(shipped):
     definition = {d.key: d for d in shipped.items}[
         "bs_nca__due_from_related_parties_ltp"].definition
 
-    assert "INCLUDING trade receivables" in definition
+    # NON-CURRENT ONLY now: a current related-party balance — trade and other receivables, and
+    # the portion of a long-term receivable due within one year — is current assets' line's.
+    assert "NON-CURRENT" in definition and "every current balance" in definition
     assert "EXCLUDES ENTRUSTED LOANS" in definition
     assert "including entrusted loans" not in definition, (
         "the model is told to include entrusted loans, which every Find excludes")
-    assert "Excludes trade receivables" not in definition, (
-        "the model is told to exclude trade receivables, which every Find now includes")
     for word in ("淨金額", "NET of any loss allowance", "关联方组合"):
         assert word in definition, f"the model is not told about {word!r}"
 

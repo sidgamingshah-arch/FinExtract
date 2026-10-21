@@ -145,14 +145,19 @@ def test_the_trade_group_refuses_the_groups_that_belong_to_other_columns(seed):
         assert "应收账款" in any_
 
 
-def test_the_overlap_with_find_3_is_deliberate_and_recorded(seed):
-    """Find 3 sums the whole related-party note, 应收账款 included, and feeds the LTP column. The
-    instruction was to take the double count, so BOTH readings stay — and the reason is written
-    down where a reader will meet it."""
-    find3 = " ".join(seed["sub__rp_find_3_gross"]["note_source"]["row_caption_any"])
-    assert "其他应收款" in find3, "Find 3 still reads the note's other-receivable group"
-    # The prompt is a plain sentence now; the double count is the cascade's to record, and the LTP
-    # column's own definition says it reads the whole related-party note, 应收账款 included.
+def test_find_3_reads_only_the_non_current_groups(seed):
+    """Find 3 feeds the NON-CURRENT column, so it reads only the note's 长期应收款 (and loans and
+    advances) groups, less any portion due within one year. 应收账款 is this line's and 其他应收款 is
+    Due from Related Parties(CP)'s: with them, 000685 published its whole 应收项目 table,
+    179,535,189.14, as a non-current balance."""
+    for key in ("sub__rp_find_3_gross", "sub__rp_find_3_allowance"):
+        ns = seed[key]["note_source"]
+        any_ = " ".join(ns["row_caption_any"])
+        assert "长期应收款" in any_, key
+        for current in ("应收账款", "其他应收款", "trade", "other"):
+            assert current not in any_, (key, current)
+        none = " ".join(ns["row_caption_none"])
+        assert "一年内到期" in none, key
 
 
 # ── the column header is not a caption ────────────────────────────────────────────────────────

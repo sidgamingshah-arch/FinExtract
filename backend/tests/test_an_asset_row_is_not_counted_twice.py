@@ -112,7 +112,11 @@ def test_each_part_is_wired_into_its_parents_last_rung(key, by_key):
     # line as several rows (Securities (LTP): 其他非流动金融资产 and 其他权益工具投资).
     terms = {t.ref: (t.role, t.sign) for t in face[0].terms}
     assert terms.get(key) in (("required", 1), ("any_of", 1)), terms
-    assert len(terms) == 1 or all(role == "any_of" for role, _ in terms.values()), terms
+    # Besides the face reading, a rung may only DEDUCT: Other Receivables (CP)'s face rung takes
+    # out the related-party balances the note files under 其他应收款, which arrive on Due from
+    # Related Parties (CP) — the same deduction its note rung makes.
+    base = {k: v for k, v in terms.items() if v != ("adjustment", -1)}
+    assert len(base) == 1 or all(role == "any_of" for role, _ in base.values()), terms
 
 
 def test_an_overshoot_floors_at_zero_before_the_face_is_tried(by_key):

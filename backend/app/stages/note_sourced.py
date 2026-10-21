@@ -994,17 +994,21 @@ def _fill_parents(children_of: dict[str, list], by_key: dict, doc: DocumentModel
         value into `known` — so what this restores is which columns the outer cascade may attempt.
         """
         definition = defs.get(key)
-        owner = str(getattr(definition, "parent", "") or "")
-        if definition is None or not owner:
+        # ITS PARENT, AND EVERY LINE THAT RECEIVES IT (`Term.received`): the related-party part of
+        # other receivables is computed in this pass and is Due from Related Parties (CP)'s input too.
+        owners = [str(getattr(definition, "parent", "") or "")] + [
+            receiver for receiver, ref in _received_terms(defs.values()) if ref == key]
+        if definition is None:
             return
         row = next((r for r in doc.line_items if r.canonical_key == key), None)
         if row is None or not any(ev.value is not None for ev in (row.values or {}).values()):
             return
-        if any(r is row for _i, r in children_of.get(owner, [])):
-            return
-        children_of.setdefault(owner, []).append((definition, row))
-        ctx.log(f"note_sourced:{owner}: child {key} is itself a parent, computed in this pass "
-                f"and joins the cascade")
+        for owner in owners:
+            if not owner or any(r is row for _i, r in children_of.get(owner, [])):
+                continue
+            children_of.setdefault(owner, []).append((definition, row))
+            ctx.log(f"note_sourced:{owner}: child {key} is itself a parent, computed in this pass "
+                    f"and joins the cascade")
 
     # REPEATED UNTIL NO NEW PARENT APPEARS, because `_enrol_with_its_own_parent` can make a key a
     # parent that was not one when the order was computed. `_in_dependency_order` builds its list
@@ -1767,12 +1771,30 @@ def _children_by_parent(all_items) -> dict[str, list[str]]:
 
     Needed because a cascade term names a child by key, and a child filled by the model arrives as
     a row with that key and no other connection to its parent.
+
+    PLUS THE LINES A CASCADE RECEIVES (`Term.received`): a figure that leaves another line and
+    arrives on this one is this line's child for which columns its cascade is evaluated in, although
+    its configured parent is the line it left.
     """
     out: dict[str, list[str]] = {}
     for item in all_items or ():
         parent = str(getattr(item, "parent", "") or "")
         if parent:
             out.setdefault(parent, []).append(item.key)
+    for receiver, ref in _received_terms(all_items):
+        if ref not in out.setdefault(receiver, []):
+            out[receiver].append(ref)
+    return out
+
+
+def _received_terms(all_items) -> list[tuple[str, str]]:
+    """(receiving line, received key) for every `received` term of a cascade in the set."""
+    out = []
+    for item in all_items or ():
+        for rung in getattr(item, "cascade", None) or ():
+            for term in getattr(rung, "terms", None) or ():
+                if getattr(term, "received", False) and term.ref:
+                    out.append((item.key, term.ref))
     return out
 
 

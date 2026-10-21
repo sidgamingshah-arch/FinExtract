@@ -3189,26 +3189,10 @@
   {
    "canonical_key": "bs_ca__due_from_related_parties_cp",
    "label": "Due from Related Parties(CP)",
-   "definition": "Extract the reported value for 'Due from Related Parties(CP)' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
-   "aliases": [
-    "Due from Related Parties(CP)",
-    "Due from related parties",
-    "Due from related companies",
-    "Amounts due from related parties",
-    "Amount owning by related companies",
-    "Related companies current account",
-    "Related companies C/A",
-    "應收關聯方款項",
-    "應收關聯公司款項",
-    "應收關連人士款項",
-    "關聯方往來款"
-   ],
-   "keyword_hints": [
-    "Due from Related Parties(CP)"
-   ],
-   "regex_hints": [
-    "^Due\\s+from\\s+Related\\s+Parties\\(CP\\)$"
-   ],
+   "definition": "Amounts receivable from related parties within CURRENT assets, net of their loss allowance: the balance the balance sheet prints as a line of its own, plus the related-party balances the notes state are inside other receivables (current), which leave that line and arrive here. Excludes entrusted loans, trade receivables from related parties (their own line) and every non-current balance.",
+   "aliases": [],
+   "keyword_hints": [],
+   "regex_hints": [],
    "include": [
     "Amounts or disclosures explicitly reported for Due from Related Parties(CP) in Balance Sheet / bs_ca."
    ],
@@ -3223,23 +3207,7 @@
    "face_only": false,
    "decomposition_rule": "Decompose only from explicit face or note evidence; never fabricate a split.",
    "section_disambiguation": "Bind only to Balance Sheet / bs_ca.",
-   "aliases_i18n": {
-    "en": [
-     "Due from Related Parties(CP)",
-     "Due from related parties",
-     "Due from related companies",
-     "Amounts due from related parties",
-     "Amount owning by related companies",
-     "Related companies current account",
-     "Related companies C/A"
-    ],
-    "zh": [
-     "應收關聯方款項",
-     "應收關聯公司款項",
-     "應收關連人士款項",
-     "關聯方往來款"
-    ]
-   }
+   "aliases_i18n": {}
   },
   {
    "canonical_key": "bs_ca__entrusted_loan_receivables_shareholders_cp",

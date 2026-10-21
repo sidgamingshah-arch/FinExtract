@@ -122,8 +122,11 @@ def test_interest_and_dividends_receivable_are_a_component_of_the_line():
         legs = [(t.ref, t.role, t.sign) for t in rung.terms]
         assert ("sub__cp_interest_and_dividends_receivable", "any_of", 1) in legs, rung.id
     face = next(r for r in line.cascade if r.id == "FROM_THE_FACE")
+    # The face rung deducts the related-party balances the note files under 其他应收款 too, so
+    # whichever rung answers, what leaves this line is what Due from Related Parties(CP) receives.
     assert [(t.ref, t.role) for t in face.terms] == [
-        ("sub__cp_face_other_receivables", "required")]
+        ("sub__cp_face_other_receivables", "required"),
+        ("sub__cp_other_receivables_rp", "adjustment")]
     # `any_of`, so a note that folds them into its other-receivables row — which identifies no
     # such component — still resolves the rung on whatever it did identify.
     got = evaluate(line, {"sub__cp_other_receivables_net": Decimal("683092791.26")})

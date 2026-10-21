@@ -1633,7 +1633,7 @@
   {
    "key": "bs_nca__due_from_related_parties_ltp",
    "label": "Due from Related Parties(LTP)",
-   "definition": "Amounts receivable from related parties — fellow subsidiaries, holding companies, shareholders, directors, associates, joint ventures and other related parties — INCLUDING trade receivables from them, NET of any loss allowance (淨金額). EXCLUDES ENTRUSTED LOANS (委托贷款), amounts payable to related parties, transaction amounts for the year, guarantees, and the 关联方组合 row of a credit-loss table. Report the largest of three readings of the one balance: the related-party rows of the balance sheet, the related-party rows inside the receivable notes, and the related-party note's receivables net of their allowance.",
+   "definition": "NON-CURRENT amounts receivable from related parties — fellow subsidiaries, holding companies, shareholders, directors, associates, joint ventures and other related parties — NET of any loss allowance (淨金額). EXCLUDES ENTRUSTED LOANS (委托贷款), every current balance (trade and other receivables and the portion of long-term receivables due within one year: those are current assets' related-party lines), amounts payable to related parties, transaction amounts for the year, guarantees, and the 关联方组合 row of a credit-loss table. Report the largest of three readings of the one balance: the non-current related-party rows of the balance sheet, the related-party rows inside the long-term receivable notes, and the related-party note's long-term receivables net of their allowance.",
    "sign_rule": {},
    "inherits": "bs_nca",
    "face_only": false,
@@ -1663,7 +1663,7 @@
        "sign": 1
       }
      ],
-     "note": "MAX_VALID(Find 1, Find 2, Find 3) — the spec's own selection rule, now expressible. The three Finds are three readings of ONE quantity and the fullest disclosure wins, which is why this is a maximum and not a sum: summing them would count the same related-party receivable up to three times. Every term is `any_of`, so a filing that discloses only one of the three still answers with that one, and a filing that discloses none leaves the line empty rather than publishing zero (spec 3.6). `outranks_printed` because no balance sheet prints this quantity: it is related-party amounts extracted from within four receivable captions, net of entrusted loans, and a caption binding this line found something else. This replaces six first-available rungs whose own note recorded that they could not express the rule.",
+     "note": "MAX_VALID(Find 1, Find 2, Find 3) — the spec's own selection rule, now expressible. The three Finds are three readings of ONE quantity and the fullest disclosure wins, which is why this is a maximum and not a sum: summing them would count the same related-party receivable up to three times. Every term is `any_of`, so a filing that discloses only one of the three still answers with that one, and a filing that discloses none leaves the line empty rather than publishing zero (spec 3.6). `outranks_printed` because no balance sheet prints this quantity: it is related-party amounts extracted from within four receivable captions, net of entrusted loans, and a caption binding this line found something else. This replaces six first-available rungs whose own note recorded that they could not express the rule.\n\nSAME SECTION ONLY. Find 2 and Find 3 used to read the other-receivables and trade-receivables rows as well, so the CURRENT related-party balances landed on this NON-CURRENT line: 000685 published 179,535,189.14 / 131,422,923.71 (its whole 应收项目 table, almost all 应收账款 and 其他应收款) and 000883 moved its current balances out of current assets. A related-party balance lands on the related-party line of the section of the face line it came out of: other receivables to bs_ca__due_from_related_parties_cp, trade receivables to bs_ca__trade_receivables_related_parties, long-term receivables (less any portion due within one year) here.",
      "carved_from_face": true
     }
    ],
@@ -2936,7 +2936,51 @@
   {
    "key": "bs_ca__due_from_related_parties_cp",
    "label": "Due from Related Parties(CP)",
-   "definition": "Extract the reported value for 'Due from Related Parties(CP)' from the stated section. Do not calculate it.",
+   "definition": "Amounts receivable from related parties within CURRENT assets, net of their loss allowance: the balance the balance sheet prints as a line of its own, plus the related-party balances the notes state are inside other receivables (current), which leave that line and arrive here. Excludes entrusted loans, trade receivables from related parties (their own line) and every non-current balance.",
+   "sign_rule": {},
+   "inherits": "bs_ca",
+   "face_only": false,
+   "namespace": "template",
+   "type": "derived",
+   "rollup": "alternatives",
+   "cascade": [
+    {
+     "id": "PRINTED_AND_MOVED",
+     "terms_op": "sum",
+     "refuse_negative": true,
+     "outranks_printed": false,
+     "terms": [
+      {
+       "ref": "sub__rp_face_due_from_cp",
+       "role": "any_of",
+       "sign": 1
+      },
+      {
+       "ref": "sub__cp_other_receivables_rp",
+       "role": "any_of",
+       "sign": 1,
+       "received": true
+      }
+     ],
+     "note": "WHAT LEAVES A FACE LINE ARRIVES ON THE RELATED-PARTY LINE OF THE SAME SECTION. bs_ca__other_receivables_cp deducts sub__cp_other_receivables_rp (the related-party balances the note files under 其他应收款) on every rung, so the same figure is added here and total current assets is unchanged. Before, nothing received it: 000685 lost 38,748,507.73 / 92,901,866.49 from total current assets and total assets. Plus the printed \"Due from related parties\" row, through its face part (a derived line is unmatchable by caption). NOT carved_from_face: both terms are amounts the section total counts only through this line. Both `any_of`, so a filing with neither leaves the line empty. `received`: the term's configured parent is Other Receivables (CP), so it is declared as arriving here, which is what makes this cascade run on a filing that prints no related-party row of its own."
+    }
+   ]
+  },
+  {
+   "key": "sub__rp_face_due_from_cp",
+   "parent": "bs_ca__due_from_related_parties_cp",
+   "namespace": "internal",
+   "in_output": false,
+   "route": "face",
+   "inherits": "bs_ca",
+   "section_scope": [
+    "bs_ca"
+   ],
+   "statement": "balance_sheet",
+   "order": 10,
+   "face_only": false,
+   "label": "Due from related parties (printed, CP)",
+   "definition": "The current-assets row the balance sheet prints for amounts due from related parties.",
    "aliases": [
     "Due from Related Parties(CP)",
     "Due from related parties",
@@ -2970,12 +3014,8 @@
    "keyword_hints": [
     "Due from Related Parties(CP)"
    ],
-   "sign_rule": {},
-   "inherits": "bs_ca",
-   "face_only": false,
    "match_priority": 90,
-   "namespace": "template",
-   "route": "face"
+   "sign_rule": {}
   },
   {
    "key": "bs_ca__entrusted_loan_receivables_shareholders_cp",
@@ -4235,9 +4275,14 @@
        "ref": "sub__cp_face_other_receivables",
        "role": "required",
        "sign": 1
+      },
+      {
+       "ref": "sub__cp_other_receivables_rp",
+       "role": "adjustment",
+       "sign": -1
       }
      ],
-     "note": "LAST: the balance sheet's own 其他应收款 row, which already holds the interest and dividends it prints beneath it as 其中. Unchanged: on the corpus the note rung answers every slot, so this rung decides no figure."
+     "note": "LAST: the balance sheet's own 其他应收款 row, which already holds the interest and dividends it prints beneath it as 其中, LESS the related-party balances the note states are inside it — the same deduction CP_P1 makes, so whichever rung answers, what leaves this line is what bs_ca__due_from_related_parties_cp receives."
     }
    ],
    "namespace": "template"
@@ -19241,13 +19286,10 @@
     "prose_subject": "",
     "prose_landed_in": [],
     "note_terms": [
-     "其他应收款",
      "长期应收款",
      "发放贷款及垫款",
-     "其他應收款",
      "長期應收款",
      "發放貸款及墊款",
-     "other receivables",
      "long term receivables",
      "loans and advances to customers"
     ],
@@ -19255,7 +19297,7 @@
     "row_terms_none": []
    },
    "route": "note_tables",
-   "definition": "Sum of all amounts owed by related parties that the other receivables, long-term receivables and loans-and-advances notes print as their own rows (for example 关联方往来, 关联借款), excluding payables, loss allowances and credit-loss portfolios, entrusted loans, balances with the entity's own subsidiaries (合并范围内), and totals."
+   "definition": "Sum of all amounts owed by related parties that the long-term receivables and loans-and-advances notes print as their own rows (for example 关联方往来, 关联借款), excluding payables, loss allowances and credit-loss portfolios, entrusted loans, balances with the entity's own subsidiaries (合并范围内), and totals. The other-receivables note's related-party rows are current and go to sub__cp_other_receivables_rp_rows."
   },
   {
    "key": "sub__rp_find_3",
@@ -19289,7 +19331,7 @@
    ],
    "note_use": "decomposition_allowed",
    "route": "note_tables",
-   "definition": "The related-party note's receivables net of the loss allowance: their carrying amount before the allowance less the allowance held against them."
+   "definition": "The related-party note's NON-CURRENT receivables net of the loss allowance: their carrying amount before the allowance less the allowance held against them."
   },
   {
    "key": "sub__non_operating_income",
@@ -19456,7 +19498,7 @@
   {
    "key": "sub__rp_find_3_gross",
    "label": "Related-party receivables in the related-party note, before loss allowance",
-   "definition": "Sum of all receivables owed by related parties that the related-party balances note lists under trade, other and long-term receivables, at their carrying amount before the loss allowance (账面余额), excluding prepayments, entrusted loans, payables and totals. Both the current and the non-current portion. Do NOT read 坏账准备, the loss allowance column.",
+   "definition": "Sum of all NON-CURRENT receivables owed by related parties that the related-party balances note lists under long-term receivables and loans and advances, at their carrying amount before the loss allowance (账面余额), excluding the portion due within one year, trade and other receivables (current: their own lines), prepayments, entrusted loans, payables and totals. Do NOT read 坏账准备, the loss allowance column.",
    "parent": "sub__rp_find_3",
    "namespace": "internal",
    "in_output": false,
@@ -19468,16 +19510,17 @@
    "note_source": {
     "note_title_any": [],
     "row_caption_any": [
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:(?:应收票据及)?(?:应收账款|应收帐款)|其他应收款|(?:一年内到期的)?长期应收款|(?:发放)?贷款及垫款)",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:(?:應收票據及)?(?:應收賬款|應收帳款)|其他應收款|(?:一年內到期的)?長期應收款|(?:發放)?貸款及墊款)",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:current\\s+portion\\s+of\\s+)?(?:trade|accounts?|other|long.?term|loans?)\\s+receivables?",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:长期应收款|(?:发放)?贷款及垫款)",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:長期應收款|(?:發放)?貸款及墊款)",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:long.?term|loans?)\\s+receivables?",
      "^\\s*(?:\\d+[\\.、)]?\\s*)?loans?\\s+and\\s+advances"
     ],
     "row_caption_none": [
      "^\\s*(?:合计|合計|小计|小計|总计|總計|合共|(?:sub)?total)",
      "坏账准备|壞賬準備|减值准备|減值準備|信用损失|信用損失|loss\\s+allowance|impairment|^\\s*(?:账面余额|帳面餘額)\\s*$|组合|組合|portfolio",
      "应付|應付|payable|due\\s+to\\b|owed\\s+to|owing\\s+to|交易金额|交易金額|发生额|發生額|期初|年初|opening",
-     "委托贷款|委託貸款|委托借款|委託借款|entrusted"
+     "委托贷款|委託貸款|委托借款|委託借款|entrusted",
+     "一年内到期|一年內到期|current\\s+portion|within\\s+one\\s+year"
     ],
     "prose_any": [],
     "prose_subject": "",
@@ -19513,16 +19556,17 @@
    "note_source": {
     "note_title_any": [],
     "row_caption_any": [
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:(?:应收票据及)?(?:应收账款|应收帐款)|其他应收款|(?:一年内到期的)?长期应收款|(?:发放)?贷款及垫款)",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:(?:應收票據及)?(?:應收賬款|應收帳款)|其他應收款|(?:一年內到期的)?長期應收款|(?:發放)?貸款及墊款)",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:current\\s+portion\\s+of\\s+)?(?:trade|accounts?|other|long.?term|loans?)\\s+receivables?",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:长期应收款|(?:发放)?贷款及垫款)",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:長期應收款|(?:發放)?貸款及墊款)",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:long.?term|loans?)\\s+receivables?",
      "^\\s*(?:\\d+[\\.、)]?\\s*)?loans?\\s+and\\s+advances"
     ],
     "row_caption_none": [
      "^\\s*(?:合计|合計|小计|小計|总计|總計|合共|(?:sub)?total)",
      "坏账准备|壞賬準備|减值准备|減值準備|信用损失|信用損失|loss\\s+allowance|impairment|^\\s*(?:账面余额|帳面餘額)\\s*$|组合|組合|portfolio",
      "应付|應付|payable|due\\s+to\\b|owed\\s+to|owing\\s+to|交易金额|交易金額|发生额|發生額|期初|年初|opening",
-     "委托贷款|委託貸款|委托借款|委託借款|entrusted"
+     "委托贷款|委託貸款|委托借款|委託借款|entrusted",
+     "一年内到期|一年內到期|current\\s+portion|within\\s+one\\s+year"
     ],
     "prose_any": [],
     "prose_subject": "",

@@ -11152,7 +11152,6 @@
     "prose_subject": "",
     "prose_landed_in": [],
     "note_terms": [
-     "other receivables",
      "long term receivables",
      "loans and advances to customers"
     ],
@@ -11199,7 +11198,7 @@
   {
    "key": "sub__rp_find_3_gross",
    "label": "Related-party receivables in the related-party note, before loss allowance",
-   "definition": "Sum of all receivables owed by related parties that the related-party balances note lists under trade, other and long-term receivables, at their carrying amount before the loss allowance, excluding prepayments, entrusted loans, payables and totals. Both the current and the non-current portion. Do NOT read, the loss allowance column.",
+   "definition": "Sum of all NON-CURRENT receivables owed by related parties that the related-party balances note lists under long-term receivables and loans and advances, at their carrying amount before the loss allowance, excluding the portion due within one year, trade and other receivables (current: their own lines), prepayments, entrusted loans, payables and totals. Do NOT read the loss allowance column.",
    "parent": "sub__rp_find_3",
    "namespace": "internal",
    "in_output": false,
@@ -11211,14 +11210,15 @@
    "note_source": {
     "note_title_any": [],
     "row_caption_any": [
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:current\\s+portion\\s+of\\s+)?(?:trade|accounts?|other|long.?term|loans?)\\s+receivables?",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:long.?term|loans?)\\s+receivables?",
      "^\\s*(?:\\d+[\\.、)]?\\s*)?loans?\\s+and\\s+advances"
     ],
     "row_caption_none": [
      "^\\s*(?:合计|合計|小计|小計|总计|總計|合共|(?:sub)?total)",
      "坏账准备|壞賬準備|减值准备|減值準備|信用损失|信用損失|loss\\s+allowance|impairment|^\\s*(?:账面余额|帳面餘額)\\s*$|组合|組合|portfolio",
      "应付|應付|payable|due\\s+to\\b|owed\\s+to|owing\\s+to|交易金额|交易金額|发生额|發生額|期初|年初|opening",
-     "委托贷款|委託貸款|委托借款|委託借款|entrusted"
+     "委托贷款|委託貸款|委托借款|委託借款|entrusted",
+     "一年内到期|一年內到期|current\\s+portion|within\\s+one\\s+year"
     ],
     "prose_any": [],
     "prose_subject": "",
@@ -11248,14 +11248,15 @@
    "note_source": {
     "note_title_any": [],
     "row_caption_any": [
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:current\\s+portion\\s+of\\s+)?(?:trade|accounts?|other|long.?term|loans?)\\s+receivables?",
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:long.?term|loans?)\\s+receivables?",
      "^\\s*(?:\\d+[\\.、)]?\\s*)?loans?\\s+and\\s+advances"
     ],
     "row_caption_none": [
      "^\\s*(?:合计|合計|小计|小計|总计|總計|合共|(?:sub)?total)",
      "坏账准备|壞賬準備|减值准备|減值準備|信用损失|信用損失|loss\\s+allowance|impairment|^\\s*(?:账面余额|帳面餘額)\\s*$|组合|組合|portfolio",
      "应付|應付|payable|due\\s+to\\b|owed\\s+to|owing\\s+to|交易金额|交易金額|发生额|發生額|期初|年初|opening",
-     "委托贷款|委託貸款|委托借款|委託借款|entrusted"
+     "委托贷款|委託貸款|委托借款|委託借款|entrusted",
+     "一年内到期|一年內到期|current\\s+portion|within\\s+one\\s+year"
     ],
     "prose_any": [],
     "prose_subject": "",

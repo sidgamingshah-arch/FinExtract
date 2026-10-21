@@ -57,7 +57,7 @@ import itertools
 import re
 from typing import Callable, Iterable, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_serializer, model_validator
 
 from app.core.models.enums import StatementType
 from app.schemas.ontology import (
@@ -220,6 +220,16 @@ class Term(BaseModel):
     # deduction with nothing to deduct it from. Caught by a test rather than by a filing, which
     # is the only reason it never reached an output.
     role: Literal["required", "any_of", "adjustment"] = "required"
+    # THIS TERM'S FIGURE LEFT ANOTHER LINE AND ARRIVES ON THIS ONE. A related-party balance the note
+    # files under 其他应收款 is deducted by Other Receivables (CP), whose part it is, and lands on Due
+    # from Related Parties (CP): what leaves a face line has to arrive on the related-party line of
+    # the same section, or the section total falls short of print by exactly that amount (000685:
+    # 38,748,507.73). The part has ONE configured parent, and `stages.note_sourced` evaluates a
+    # cascade only in the columns its own children fill, so without this the receiving line was never
+    # evaluated on a filing that prints no related-party row of its own. Declared, not inferred from
+    # every cross-reference: other cascades name other lines' parts as inputs to a judgement (the
+    # cost-of-sales depreciation share) and must not start evaluating in new columns.
+    received: bool = False
 
     @model_validator(mode="after")
     def _one_source(self):
@@ -227,7 +237,18 @@ class Term(BaseModel):
             raise ValueError("a term needs exactly one of `ref` or `const`")
         if self.const is not None and self.abs:
             raise ValueError("`abs` applies to a referenced line item, not to a fixed number")
+        if self.received and (self.const is not None or self.sign != 1):
+            raise ValueError("a `received` term is a line item's figure arriving with sign +1")
         return self
+
+    @model_serializer(mode="wrap")
+    def _received_only_when_set(self, handler):
+        # Written only where it is declared, so every stored term that predates the field reads
+        # back exactly as it was authored.
+        out = handler(self)
+        if isinstance(out, dict) and not self.received:
+            out.pop("received", None)
+        return out
 
 
 class CascadeRung(BaseModel):

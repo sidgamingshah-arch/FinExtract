@@ -75,10 +75,14 @@ def test_a_related_party_loan_row_is_selected(shipped, caption):
     "24. OTHER RECEIVABLES",
 ])
 def test_the_other_receivables_note_qualifies_however_it_is_titled(shipped, title):
-    """By meaning now: the heading carries every word of one of Find 2's note terms."""
+    """By meaning: the heading carries every word of one of the CURRENT reader's note terms. The
+    related-party rows of an other-receivables note are current balances, so they are read by
+    `sub__cp_other_receivables_rp_rows` (which moves them to Due from Related Parties(CP)) and no
+    longer by Find 2, which feeds the NON-CURRENT column."""
     from app.services.line_item_notes import heading_covered
 
-    assert heading_covered(shipped["sub__rp_find_2"], title), title
+    assert heading_covered(shipped["sub__cp_other_receivables_rp_rows"], title), title
+    assert not heading_covered(shipped["sub__rp_find_2"], title), title
 
 
 @pytest.mark.parametrize("title", ["应收账款", "预付款项", "RELATED PARTY TRANSACTIONS", "TRADE RECEIVABLES"])
@@ -111,7 +115,8 @@ def test_a_current_related_party_receivable_reaches_the_current_column(matcher, 
     res = matcher.match(caption, statement="balance_sheet",
                         section="CURRENT ASSETS 流動資產")
 
-    assert res.canonical_key == "bs_ca__due_from_related_parties_cp", caption
+    # The column is `derived` now, so its printed row binds through its face part.
+    assert res.canonical_key == "sub__rp_face_due_from_cp", caption
 
 
 def test_the_derived_parent_still_carries_no_recognition(shipped):
@@ -131,4 +136,4 @@ def test_the_caption_has_exactly_one_home_among_the_matchable_lines(cfg):
         for alias in (item.aliases or []):
             claimed[" ".join(alias.split()).casefold()].add(item.key)
     for caption in ("due from related parties", "應收關聯方款項"):
-        assert claimed[caption] == {"bs_ca__due_from_related_parties_cp"}, claimed[caption]
+        assert claimed[caption] == {"sub__rp_face_due_from_cp"}, claimed[caption]
