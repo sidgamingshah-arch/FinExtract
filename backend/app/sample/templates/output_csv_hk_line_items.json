@@ -6846,7 +6846,9 @@
     "Debentures",
     "Other borrowings",
     "Other interest bearing borrowings",
-    "Sukuk"
+    "Sukuk",
+    "Guaranteed notes",
+    "Current portion of guaranteed notes"
    ],
    "aliases_i18n": {
     "en": [
@@ -6858,7 +6860,9 @@
      "Debentures",
      "Other borrowings",
      "Other interest bearing borrowings",
-     "Sukuk"
+     "Sukuk",
+     "Guaranteed notes",
+     "Current portion of guaranteed notes"
     ],
     "zh": [
      "一年内到期的非流动负债",
@@ -6936,7 +6940,6 @@
    "definition": "Extract the reported value for 'Trade financing' from the stated section. Do not calculate it.",
    "aliases": [
     "Trade financing",
-    "Bills payables",
     "Trust receipts",
     "Trade loans",
     "Import loans",
@@ -6953,7 +6956,6 @@
    "aliases_i18n": {
     "en": [
      "Trade financing",
-     "Bills payables",
      "Trust receipts",
      "Trade loans",
      "Import loans",
@@ -7090,14 +7092,12 @@
    "aliases": [
     "ST Other Loans Payable",
     "Short term loan from third parties",
-    "Commercial paper",
     "Short term other loan"
    ],
    "aliases_i18n": {
     "en": [
      "ST Other Loans Payable",
      "Short term loan from third parties",
-     "Commercial paper",
      "Short term other loan"
     ],
     "zh": [
@@ -7965,13 +7965,19 @@
    "aliases": [
     "Notes Payable(CP)",
     "Notes acceptance",
-    "Commercial acceptance"
+    "Commercial acceptance",
+    "Bills payable",
+    "Bills payables",
+    "Commercial paper"
    ],
    "aliases_i18n": {
     "en": [
      "Notes Payable(CP)",
      "Notes acceptance",
-     "Commercial acceptance"
+     "Commercial acceptance",
+     "Bills payable",
+     "Bills payables",
+     "Commercial paper"
     ],
     "zh": [
      "应付票据",
@@ -8951,9 +8957,7 @@
     "en": [
      "Total Cost of Sales"
     ],
-    "zh": [
-     "营业总成本"
-    ]
+    "zh": []
    },
    "keyword_hints": [
     "Total Cost of Sales"
@@ -11859,11 +11863,33 @@
    "definition": "The profit or loss for the year after income tax for the whole group, including the share that belongs to non-controlling interests, before any extraordinary items. CAS and HKFRS recognise no extraordinary items, so this is the net profit the statement of profit and loss prints for the whole group: the row 净利润 (五、净利润) in a CAS income statement, and the row 'Profit for the year' or 'Loss for the year' printed above the split between owners of the parent and non-controlling interests in an HKFRS one. It equals Profit(Loss) Before Tax plus Total Income Tax. Cite that printed row, even where it is already named for another line: it is this line's figure. Do not add it up from its components yourself; the arithmetic is declared in this template's rollup. Answer with an empty sources list only where the statement prints no profit or loss for the year.",
    "extraction_mode": "extract_or_derive",
    "aliases": [
-    "Profit(Loss) Bef Extraord Items"
+    "Profit(Loss) Bef Extraord Items",
+    "Profit for the year",
+    "Loss for the year",
+    "Profit/(loss) for the year",
+    "(Loss)/profit for the year"
    ],
    "aliases_i18n": {
     "en": [
-     "Profit(Loss) Bef Extraord Items"
+     "Profit(Loss) Bef Extraord Items",
+     "Profit for the year",
+     "Loss for the year",
+     "Profit/(loss) for the year",
+     "(Loss)/profit for the year"
+    ],
+    "zh": [
+     "净利润",
+     "年内亏损",
+     "年内利润",
+     "年内溢利",
+     "年内溢利/（亏损）",
+     "年度亏损",
+     "年度利润",
+     "年度溢利",
+     "期内亏损",
+     "期间利润",
+     "本年净利润",
+     "本年度亏损"
     ]
    },
    "keyword_hints": [
@@ -12001,36 +12027,40 @@
    "definition": "The profit or loss for the year attributable to owners of the parent: the whole group's profit for the year after income tax, less the share that belongs to non-controlling interests (CAS and HKFRS recognise no extraordinary items). It is the owners' share printed under the profit for the year in the statement of profit and loss: 归属于母公司股东的净利润 (or 归属于母公司所有者的净利润) in a CAS income statement, and 'Attributable to: Owners of the Company' or 'Owners of the parent' in an HKFRS one. It is not the group total printed as 净利润 or 'Profit for the year' above that split, which is the line Profit(Loss) Bef Extraord Items. Where the filing prints no split because it has no non-controlling interests, the group total is the owners' share and is this line's figure. Do not compute it here; the arithmetic is declared in this template's rollup. Where the filing prints neither, answer with an empty sources list.",
    "extraction_mode": "extract_or_derive",
    "aliases": [
-    "Profit for the year",
-    "Loss for the year",
-    "Profit/(loss) for the year",
-    "(Loss)/profit for the year"
+    "Owners of the Company",
+    "Owners of the parent",
+    "Attributable to owners of the parent",
+    "Attributable to owners of the Company",
+    "Ordinary shareholders of the parent",
+    "Shareholders of the Company",
+    "Profit attributable to owners of the Company",
+    "Profit attributable to owners of the parent",
+    "Loss attributable to owners of the Company",
+    "Loss attributable to owners of the parent"
    ],
    "aliases_i18n": {
     "en": [
-     "Profit for the year",
-     "Loss for the year",
-     "Profit/(loss) for the year",
-     "(Loss)/profit for the year"
+     "Owners of the Company",
+     "Owners of the parent",
+     "Attributable to owners of the parent",
+     "Attributable to owners of the Company",
+     "Ordinary shareholders of the parent",
+     "Shareholders of the Company",
+     "Profit attributable to owners of the Company",
+     "Profit attributable to owners of the parent",
+     "Loss attributable to owners of the Company",
+     "Loss attributable to owners of the parent"
     ],
     "zh": [
-     "净利润",
-     "年内亏损",
-     "年内利润",
-     "年内溢利",
-     "年内溢利/（亏损）",
-     "年度亏损",
-     "年度利润",
-     "年度溢利",
-     "期内亏损",
-     "期间利润",
-     "本年净利润",
-     "本年度亏损"
+     "归属于母公司股东的净利润",
+     "归属于母公司所有者的净利润",
+     "母公司拥有人",
+     "本公司拥有人",
+     "母公司拥有人应占",
+     "本公司拥有人应占"
     ]
    },
-   "keyword_hints": [
-    "Profit for the year"
-   ],
+   "keyword_hints": [],
    "sign_rule": {},
    "inherits": "is_pl",
    "face_only": false,
@@ -12059,7 +12089,11 @@
      "sign": 1
     }
    ],
-   "namespace": "template"
+   "namespace": "template",
+   "section_scope": [
+    "is_pl",
+    "profit_attributable_to"
+   ]
   },
   {
    "key": "is_oci__unreal_gain_loss_fixed_assets",
@@ -12661,6 +12695,7 @@
     "Deemed disposal or dilution of an interest in a subsidiary"
    ],
    "never_sweep": [
+    "is_pl__profit_loss_bef_extraord_items",
     "is_pl__profit_for_the_year",
     "bs_equity__retained_profits",
     "bs_equity__total_equity_and_reserves",

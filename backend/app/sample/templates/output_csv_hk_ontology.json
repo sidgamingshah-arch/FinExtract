@@ -7478,7 +7478,9 @@
     "Debentures",
     "Other borrowings",
     "Other interest bearing borrowings",
-    "Sukuk"
+    "Sukuk",
+    "Guaranteed notes",
+    "Current portion of guaranteed notes"
    ],
    "keyword_hints": [
     "CPLTD Other"
@@ -7510,7 +7512,9 @@
      "Debentures",
      "Other borrowings",
      "Other interest bearing borrowings",
-     "Sukuk"
+     "Sukuk",
+     "Guaranteed notes",
+     "Current portion of guaranteed notes"
     ],
     "zh": [
      "一年内到期的非流动负债",
@@ -7604,7 +7608,6 @@
    "definition": "Extract the reported value for 'Trade financing' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
    "aliases": [
     "Trade financing",
-    "Bills payables",
     "Trust receipts",
     "Trade loans",
     "Import loans",
@@ -7641,7 +7644,6 @@
    "aliases_i18n": {
     "en": [
      "Trade financing",
-     "Bills payables",
      "Trust receipts",
      "Trade loans",
      "Import loans",
@@ -7819,7 +7821,6 @@
    "aliases": [
     "ST Other Loans Payable",
     "Short term loan from third parties",
-    "Commercial paper",
     "Short term other loan"
    ],
    "keyword_hints": [
@@ -7846,7 +7847,6 @@
     "en": [
      "ST Other Loans Payable",
      "Short term loan from third parties",
-     "Commercial paper",
      "Short term other loan"
     ],
     "zh": [
@@ -8977,7 +8977,10 @@
    "aliases": [
     "Notes Payable(CP)",
     "Notes acceptance",
-    "Commercial acceptance"
+    "Commercial acceptance",
+    "Bills payable",
+    "Bills payables",
+    "Commercial paper"
    ],
    "keyword_hints": [
     "Notes Payable(CP)"
@@ -9003,7 +9006,10 @@
     "en": [
      "Notes Payable(CP)",
      "Notes acceptance",
-     "Commercial acceptance"
+     "Commercial acceptance",
+     "Bills payable",
+     "Bills payables",
+     "Commercial paper"
     ],
     "zh": [
      "应付票据",
@@ -10064,9 +10070,7 @@
     "en": [
      "Total Cost of Sales"
     ],
-    "zh": [
-     "营业总成本"
-    ]
+    "zh": []
    }
   },
   {
@@ -13311,7 +13315,11 @@
    "label": "Profit(Loss) Bef Extraord Items",
    "definition": "Calculated target using the exact formula retained in the supplied template: ={is_pl__profit_loss_before_tax}-{is_pl__total_income_tax}",
    "aliases": [
-    "Profit(Loss) Bef Extraord Items"
+    "Profit(Loss) Bef Extraord Items",
+    "Profit for the year",
+    "Loss for the year",
+    "Profit/(loss) for the year",
+    "(Loss)/profit for the year"
    ],
    "keyword_hints": [
     "Profit(Loss) Bef Extraord Items"
@@ -13341,7 +13349,25 @@
    "unit_of_account": "subtotal",
    "aliases_i18n": {
     "en": [
-     "Profit(Loss) Bef Extraord Items"
+     "Profit(Loss) Bef Extraord Items",
+     "Profit for the year",
+     "Loss for the year",
+     "Profit/(loss) for the year",
+     "(Loss)/profit for the year"
+    ],
+    "zh": [
+     "净利润",
+     "年内亏损",
+     "年内利润",
+     "年内溢利",
+     "年内溢利/（亏损）",
+     "年度亏损",
+     "年度利润",
+     "年度溢利",
+     "期内亏损",
+     "期间利润",
+     "本年净利润",
+     "本年度亏损"
     ]
    }
   },
@@ -13487,17 +13513,18 @@
    "label": "Profit for the year",
    "definition": "Calculated target using the exact formula retained in the supplied template: ={is_pl__profit_loss_bef_extraord_items}+SUM({is_pl__extraordinary_income_exp}:{is_pl__minority_interests_pl})",
    "aliases": [
-    "Profit for the year",
-    "Loss for the year",
-    "Profit/(loss) for the year",
-    "(Loss)/profit for the year"
+    "Owners of the Company",
+    "Owners of the parent",
+    "Attributable to owners of the parent",
+    "Attributable to owners of the Company",
+    "Ordinary shareholders of the parent",
+    "Shareholders of the Company",
+    "Profit attributable to owners of the Company",
+    "Profit attributable to owners of the parent",
+    "Loss attributable to owners of the Company",
+    "Loss attributable to owners of the parent"
    ],
-   "keyword_hints": [
-    "Profit for the year"
-   ],
-   "regex_hints": [
-    "^Profit\\s+for\\s+the\\s+year$"
-   ],
+   "keyword_hints": [],
    "include": [
     "Amounts or disclosures explicitly reported for Profit for the year in Income Statement / is_pl."
    ],
@@ -13521,26 +13548,30 @@
    "unit_of_account": "subtotal",
    "aliases_i18n": {
     "en": [
-     "Profit for the year",
-     "Loss for the year",
-     "Profit/(loss) for the year",
-     "(Loss)/profit for the year"
+     "Owners of the Company",
+     "Owners of the parent",
+     "Attributable to owners of the parent",
+     "Attributable to owners of the Company",
+     "Ordinary shareholders of the parent",
+     "Shareholders of the Company",
+     "Profit attributable to owners of the Company",
+     "Profit attributable to owners of the parent",
+     "Loss attributable to owners of the Company",
+     "Loss attributable to owners of the parent"
     ],
     "zh": [
-     "净利润",
-     "年内亏损",
-     "年内利润",
-     "年内溢利",
-     "年内溢利/（亏损）",
-     "年度亏损",
-     "年度利润",
-     "年度溢利",
-     "期内亏损",
-     "期间利润",
-     "本年净利润",
-     "本年度亏损"
+     "归属于母公司股东的净利润",
+     "归属于母公司所有者的净利润",
+     "母公司拥有人",
+     "本公司拥有人",
+     "母公司拥有人应占",
+     "本公司拥有人应占"
     ]
-   }
+   },
+   "section_scope": [
+    "is_pl",
+    "profit_attributable_to"
+   ]
   },
   {
    "canonical_key": "is_oci__unreal_gain_loss_fixed_assets",
@@ -14314,6 +14345,7 @@
     "zh": []
    },
    "never_sweep": [
+    "is_pl__profit_loss_bef_extraord_items",
     "is_pl__profit_for_the_year",
     "bs_equity__retained_profits",
     "bs_equity__total_equity_and_reserves",

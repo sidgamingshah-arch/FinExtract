@@ -292,14 +292,16 @@ _SECTION_NAME_IS_NOT_A_MOVEMENT = (
 # wrong number rather than a near miss. They go in this table and not in `_FOREIGN_CAPTION_DENIALS`
 # because that one's membership is pinned to the two amortisation concepts by its own test.
 #
-# PROFIT ATTRIBUTABLE TO OWNERS IS NOT PROFIT FOR THE YEAR. They differ by minority interests, and
-# `is_pl__profit_for_the_year` is `exclusive_leaf`, so a filing printing both rows published
-# whichever the reader reached last — and where two rows DO reach one key the engine SUMS them
-# (measured: `periods.concept_value` returned 1400.0 for 1000 + 400), which is worse again. There
-# is no attributable line to redirect to and the template's columns are fixed, so THE FIGURE IS
-# LOST rather than relocated: an unmatched attribution row keeps its review flag, which a silently
-# wrong bottom line did not. `stages.residual._ATTRIBUTION` already recognises all four spellings
-# and excludes them from the sweep, so nothing downstream absorbs them either.
+# PROFIT ATTRIBUTABLE TO OWNERS — NO LONGER DENIED, AND WHY. This table used to deny these captions
+# on `is_pl__profit_for_the_year`, read then as the group total. The template's rollup says
+# otherwise: Profit for the year = Profit(Loss) Bef Extraord Items + extraordinary items + Minority
+# Interests(PL), i.e. the OWNERS' share, and its definition names 归属于母公司股东的净利润 / "Owners of
+# the Company" as its row. The group total ("Profit for the year" / 净利润 printed above the split)
+# is `is_pl__profit_loss_bef_extraord_items`, which now carries that vocabulary. The owners' line is
+# scoped to the profit-attribution section, and `stages.map_ontology` reads an attribution row's
+# section off the total it splits (`face_context.attribution_headings`), so the second "Owners of
+# the Company" — the share of total comprehensive income — cannot reach it and be summed with the
+# first. The tuple is kept for its other readers.
 _ATTRIBUTION_IS_NOT_THE_TOTAL = (
     r"^归属于母公司", r"^歸屬於母公司", r"^本公司(拥有人|擁有人)",
     r"^Profit attributable to owners", r"^Loss attributable to owners",
@@ -599,7 +601,6 @@ _BORROWED_CAPTION_DENIALS: dict[str, tuple[str, ...]] = {
     "is_oci__derivatives_fmv_adjustment": _A_DISCLOSURE_NOTE_IS_NOT_A_CAPTION,
     "is_pl__other_non_operating_inc_exp": _A_NET_COLUMN_IS_NOT_ITS_HALVES,
     # See the four rules above this table for what each denial measured.
-    "is_pl__profit_for_the_year": _ATTRIBUTION_IS_NOT_THE_TOTAL,
     "is_pl__interest_expense": _CAS_FINANCE_COSTS_IS_NOT_INTEREST_EXPENSE,
     "is_pl__interest_income": _A_FINANCE_COST_IS_NOT_INTEREST_INCOME,
     "bs_ncl__total_non_current_liabilities": _AN_INSTRUMENT_IS_NOT_THE_TOTAL,

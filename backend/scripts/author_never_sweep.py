@@ -104,8 +104,10 @@ PLAN: dict[str, tuple[list[str], list[str]]] = {
         # This section has NO subtotal of its own — its members are all movements — so what it
         # must refuse is the figures it sits between: the year's result above it and the equity
         # balances below.
-        ["is_pl__profit_for_the_year", "bs_equity__retained_profits",
-         "bs_equity__total_equity_and_reserves"],
+        # Both bottom lines: the group total ("Loss for the year" is Bef Extraord Items' caption)
+        # and the owners' share.
+        ["is_pl__profit_loss_bef_extraord_items", "is_pl__profit_for_the_year",
+         "bs_equity__retained_profits", "bs_equity__total_equity_and_reserves"],
         ["any row printed on the face of the income statement",
          "any row printed in the equity section other than retained profits"],
     ),

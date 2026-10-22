@@ -94,6 +94,9 @@ from app.services.mapping import (
 from app.services.row_reconstruct import opens_a_bracket_it_never_closes
 from app.services.rollups import reconcile_section, section_members
 
+# The two splits of an income statement's bottom lines (owners / non-controlling interests).
+_SPLIT_TOKENS = frozenset({"profit_attributable_to", "total_comprehensive_income_attributable_to"})
+
 # How a residual assignment is recorded on the line, so the review queue and the statement
 # inspector can both say the figure was combined rather than identified.
 FALLBACK_ALLOC = "fallback_combined"
@@ -1006,6 +1009,21 @@ class ResidualStage:
         members = section_members(ontology)
         section_by_key = {m.canonical_key: m.section_scope[0] for m in ontology.mappings
                           if m.section_scope}
+        # A LINE ALSO SCOPED TO AN ATTRIBUTION SPLIT IS PLACED THERE, NOT BY ITS FIRST SECTION.
+        # Profit for the year is the owners' share: a P&L line (`is_pl` first, so the template's
+        # sections are unchanged) whose row is printed in the attribution tail, after the other
+        # comprehensive income. As an `is_pl` subtotal it closed the income statement at that row
+        # and pulled the rows above it — the total comprehensive income, a banner row — into the
+        # P&L's Others; as the previous mapped row it pulled the rows below it there too. For
+        # placement it stands where it is printed: in the split, whose rows no bucket absorbs.
+        split_scoped = {m.canonical_key: s for m in ontology.mappings
+                        for s in list(m.section_scope or ())[1:]
+                        if section_token_of_scope(s) in _SPLIT_TOKENS}
+        if split_scoped:
+            for mem in members.values():
+                mem.subtotals = [k for k in mem.subtotals if k not in split_scoped]
+                mem.dedicated = [k for k in mem.dedicated if k not in split_scoped]
+            section_by_key.update(split_scoped)
         subtotal_of = {k: sec for sec, mem in members.items() for k in mem.subtotals}
         threshold = ctx.settings.extraction.evidence_floor
         captions = _dedicated_captions(ontology, members)

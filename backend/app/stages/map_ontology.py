@@ -54,6 +54,12 @@ from app.services.rollups import section_members
 
 
 _MATRIX_COLUMN = re.compile(r"^(?:current|prior|col\d+)$", re.IGNORECASE)
+# The two splits an income statement prints, and the words by which a banner names which total it
+# splits ("Profit/(loss) attributable to:", "Total comprehensive loss attributable to:") rather than
+# a bare "Attributable to:" — see the attribution-row arm of `MapOntologyStage.run`.
+_SPLIT_SECTIONS = frozenset({"profit_attributable_to", "total_comprehensive_income_attributable_to"})
+_NAMES_A_SPLIT_TOTAL = re.compile(
+    r"(?i)profit|loss|comprehensive|溢利|利潤|利润|虧損|亏损|全面|綜合|综合")
 _CLOSING_BALANCE = re.compile(r"^(?:at\b|closing\s+(?:balance|net)|net\s+(?:book|carrying))",
                               re.IGNORECASE)
 
@@ -842,9 +848,39 @@ class MapOntologyStage:
         row_terms_refused = 0
         route_refused = 0
         matrix_refused = 0
+        # THE TOTAL AN ATTRIBUTION ROW SPLITS IS ITS SECTION. An HKFRS income statement prints
+        # "Owners of the Company" / "Non-controlling interests" under the profit for the year and
+        # again under the total comprehensive income, often both under a bare "Attributable to:"
+        # (Lai Sun, Hon Kwok) or with the second pair under a stale OCI sub-heading (BYD). By the
+        # banner alone both pairs are the profit split, and the owners' share of comprehensive
+        # income reached `is_pl__profit_for_the_year` beside the owners' share of profit — two rows
+        # on one key, which the engine sums. `attribution_headings` is the one definition the model
+        # route already reads ("LOSS FOR THE YEAR — Attributable to:", "TOTAL COMPREHENSIVE INCOME
+        # FOR THE YEAR — attributable to:"), and its words resolve through `section_of_banner` to
+        # `profit_attributable_to` or `total_comprehensive_income_attributable_to`. Only rows it
+        # recognises as attribution rows are affected; a CAS caption naming its own total
+        # (归属于母公司股东的净利润, 少数股东损益) is not one.
+        #
+        # A BANNER THAT NAMES ITS OWN TOTAL STANDS. China SCE prints "Profit/(loss) attributable
+        # to:" above the first pair, after the total comprehensive loss: the nearest total before
+        # the pair is the comprehensive one, but the banner says which total it splits.
+        from app.services.face_context import _page_of, attribution_headings, face_index
+        from app.services.mapping import section_of_banner
+        _split_heading = attribution_headings(
+            (st, _page_of(r), r) for st, _c, r in face_index(doc) if st == "profit_and_loss")
+
+        def _section_for(li):
+            heading = _split_heading.get(id(li))
+            banner = li.section_hint or ""
+            if heading is None or (
+                    section_of_banner(banner) in _SPLIT_SECTIONS
+                    and _NAMES_A_SPLIT_TOTAL.search(banner)):
+                return li.section_hint
+            return heading
+
         for done, li in enumerate(doc.line_items, start=1):
             res = matcher.match(li.source_label, statement=_statement_of(li),
-                                section=li.section_hint)
+                                section=_section_for(li))
             # A line that declares `row_terms` has said what its ROW is called, and a caption
             # sharing no subject word with those terms is not that row — it is almost always the
             # note or expense TOTAL the line is a component of.

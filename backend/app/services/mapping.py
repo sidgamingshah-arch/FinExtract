@@ -810,8 +810,15 @@ def label_segments(text: str, patterns: CaptionPatterns | None = None) -> list[s
     p = patterns or _CAPTION_PATTERNS
     parts = [text]
     if text and has_han(text):
-        han = " ".join(p.han_run.findall(text)).strip()
-        latin = p.han_run.sub(" ", text)
+        # THE SIGN NOTE GOES BEFORE THE SCRIPTS ARE SPLIT. Its brackets and quotes are not Han, so
+        # splitting first glued its words onto the caption's Han run — 1.归属于母公司股东的净利润
+        # （净亏损以“-”号填列） gave "归属于母公司股东的净利润 净亏损以 号填列", which `normalize_label`
+        # can no longer strip because the brackets that bound the note are gone. The whole caption
+        # cannot stand in for it either: the Arabic "1." is deliberately not stripped. Measured on
+        # 澜起科技, 四创电子 and 海博思创: the owners' row and 少数股东损益 matched nothing.
+        text_ = p.cas_sign_note.sub(" ", text)
+        han = " ".join(p.han_run.findall(text_)).strip()
+        latin = p.han_run.sub(" ", text_)
         latin = re.sub(r"\s+", " ", latin).strip()
         parts += [part for part in (latin, han) if part and part != text]
     out = list(parts)

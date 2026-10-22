@@ -360,6 +360,28 @@ DELIBERATELY_DROPPED_ALIASES = {
 }
 
 
+# ADDED TO THE HK SET AFTER THE FORK, AND NOT CARRIED ACROSS. The HK aliases were made to follow the
+# HK definitions (Profit for the year is the owners' share; the group total is Profit(Loss) Bef
+# Extraord Items; current guaranteed notes are CPLTD Other). The Ind AS set still carries the
+# earlier definitions for those lines — "the subtotal the filing PRINTS as 'Profit for the year'" —
+# so giving it the HK owners' captions would contradict its own definition. Moving the Ind AS lines
+# is a decision about that set, not a side effect of this one.
+HK_ALIASES_THAT_FOLLOW_HK_DEFINITIONS = {
+    "is_pl__profit_for_the_year": {
+        "owners of the company", "owners of the parent", "attributable to owners of the parent",
+        "attributable to owners of the company", "ordinary shareholders of the parent",
+        "shareholders of the company", "profit attributable to owners of the company",
+        "profit attributable to owners of the parent", "loss attributable to owners of the company",
+        "loss attributable to owners of the parent",
+    },
+    "is_pl__profit_loss_bef_extraord_items": {
+        "profit for the year", "loss for the year", "profit/(loss) for the year",
+        "(loss)/profit for the year",
+    },
+    "bs_cl__cpltd_other": {"guaranteed notes", "current portion of guaranteed notes"},
+}
+
+
 def test_no_english_alias_was_taken_away_from_the_inherited_vocabulary(indas):
     """ADDED ALONGSIDE, NEVER REPLACING. An Ind AS filing that prints an IFRS spelling — and they
     do, because Ind AS is IFRS-converged — must still match.
@@ -371,7 +393,8 @@ def test_no_english_alias_was_taken_away_from_the_inherited_vocabulary(indas):
     """
     hk = {i.key: i for i in _set(HK).items}
     for item in indas.items:
-        allowed = DELIBERATELY_DROPPED_ALIASES.get(item.key, set())
+        allowed = (DELIBERATELY_DROPPED_ALIASES.get(item.key, set())
+                   | HK_ALIASES_THAT_FOLLOW_HK_DEFINITIONS.get(item.key, set()))
         before = {a for a in (hk[item.key].aliases or ()) if not _HAN.search(a)}
         before -= {a for a in before if a.strip().lower() in allowed}
         after = set(item.aliases or ())

@@ -33,7 +33,9 @@ MAINLAND_CORE_ALIASES = {
     "is_pl__gross_profit": ["营业毛利"],
     "is_pl__profit_loss_before_tax": ["利润总额"],
     "is_pl__total_income_tax": ["所得税费用"],
-    "is_pl__profit_for_the_year": ["净利润", "本年净利润"],
+    # 净利润 is the group total printed above the owners / minority split: Bef Extraord Items, not
+    # Profit for the year (the owners' share, by the template's rollup).
+    "is_pl__profit_loss_bef_extraord_items": ["净利润", "本年净利润"],
     "cf_oper_indirect__cash_flows_oper_activ_indirect": ["经营活动产生的现金流量净额"],
 }
 

@@ -318,7 +318,8 @@ def test_critical_face_captions_have_their_correct_owner():
         "Selling & marketting expenses": "is_pl__selling_and_marketing_expenses",
         "Operating income": "is_pl__net_operating_profit",
         "Profit before taxation": "is_pl__profit_loss_before_tax",
-        "LOSS FOR THE YEAR": "is_pl__profit_for_the_year",
+        # The group total above the owners / minority split (the owners' share is Profit for the year).
+        "LOSS FOR THE YEAR": "is_pl__profit_loss_bef_extraord_items",
         "Other revenue and gains": "is_pl__other_operating_income",
         "Dividends on Perpetual Bond": "is_pl__interest_on_capital_market_instruments",
     }
@@ -526,6 +527,13 @@ def test_no_alias_steals_another_concepts_exact_label_within_a_statement():
             if owners:
                 shadows.append((mapping.canonical_key, alias, sorted(owners)))
 
+    # ONE LABEL THAT IS NOT ITS CONCEPT'S CAPTION. The fixed template labels the OWNERS' share
+    # "Profit for the year" (its rollup: Bef Extraord Items + extraordinary items + Minority
+    # Interests(PL)), while a filing prints "Profit for the year" for the GROUP total above the
+    # split — which is Profit(Loss) Bef Extraord Items, and that line carries the caption.
+    known = {("is_pl__profit_loss_bef_extraord_items", "Profit for the year",
+              ("is_pl__profit_for_the_year",))}
+    shadows = [s for s in shadows if (s[0], s[1], tuple(s[2])) not in known]
     assert shadows == []
 
 
