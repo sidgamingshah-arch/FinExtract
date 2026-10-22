@@ -6400,6 +6400,70 @@ def _fuse_wrapped_numbers(words: list[Word]) -> list[Word]:
     return [fused.get(id(w), w) for w in words if id(w) not in used]
 
 
+# A FIGURE WRAPPED IN ITS CELL ACROSS THE PAGE BREAK — the same wrap as above, with the page's foot
+# between the two halves. 000685's ten-column lessee table (关联租赁情况) ends page 266 on the row
+# 中山投资控股 土地使用权 with "530,09" and "703,66", and page 267 opens with "1.75" and "9.73" under
+# them: read page by page, 530,091.75 and 703,669.73 were in no row, and the related-party leases
+# total was short by exactly them. A figure-like word at the bottom of a page or the top of the next
+# is common, so the join is held to all of: every figure on the page's LAST figure row is a head
+# (no whole amount beside it) and nothing but a folio sits below that row; every figure on the next
+# page's FIRST figure row is a tail, with no figure above it; the counts match; each tail sits
+# inside one head's column; and each pair reads as one grouped two-decimal amount.
+_FIGURE_WORD = re.compile(r"^\(?-?[\d,.]*\d[\d,.]*\)?$")
+_FOLIO = re.compile(r"^\d{1,4}$")
+
+
+def _figure_rows(words: list[Word]) -> list[list[Word]]:
+    """The figure words of a page grouped into printed lines, top to bottom."""
+    figures = sorted((w for w in words if _FIGURE_WORD.match(w.text.strip())),
+                     key=lambda w: w.bbox.y0)
+    rows: list[list[Word]] = []
+    for w in figures:
+        if rows:
+            ref = rows[-1][0]
+            line = max(ref.bbox.y1 - ref.bbox.y0, 1e-4)
+            if abs(w.bbox.y0 - ref.bbox.y0) <= 0.4 * line:
+                rows[-1].append(w)
+                continue
+        rows.append([w])
+    return rows
+
+
+def fuse_figures_wrapped_over_the_page(words: list[Word], next_words: list[Word]
+                                       ) -> tuple[list[Word], list[Word], list[str]]:
+    """``(words, next_words, joined)`` with each figure that wrapped from this page's last row onto
+    the next page's first put back together on THIS page — see `_FIGURE_WORD`. The joined word
+    keeps the head's box (the row it belongs to is printed here); the tail leaves the next page.
+    Unchanged, with ``joined`` empty, unless every condition holds."""
+    rows, next_rows = _figure_rows(words), _figure_rows(next_words)
+    if not rows or not next_rows:
+        return words, next_words, []
+    # The page's folio is the only figure that may sit below the heads' row.
+    if len(rows) >= 2 and len(rows[-1]) == 1 and _FOLIO.match(rows[-1][0].text.strip()):
+        rows = rows[:-1]
+    heads = sorted(rows[-1], key=lambda w: w.bbox.x0)
+    tails = sorted(next_rows[0], key=lambda w: w.bbox.x0)
+    if len(heads) != len(tails) or len(heads) > 12:
+        return words, next_words, []
+    low = max(h.bbox.y1 for h in heads)
+    if any(w.bbox.y0 > low and not _FOLIO.match(w.text.strip()) for w in words):
+        return words, next_words, []
+    joined: list[str] = []
+    for h, t in zip(heads, tails):
+        head, tail = h.text.strip(), t.text.strip()
+        if (not _WRAP_HEAD.match(head) or _WHOLE_AMOUNT.match(head)
+                or not _WRAP_TAIL.match(tail)
+                or not (h.bbox.x0 - 0.005 <= t.bbox.x0 and t.bbox.x1 <= h.bbox.x1 + 0.015)
+                or not _WHOLE_AMOUNT.match(head + tail)):
+            return words, next_words, []
+        joined.append(head + tail)
+    by_head = {id(h): text for h, text in zip(heads, joined)}
+    dropped = {id(t) for t in tails}
+    return ([Word(text=by_head[id(w)], bbox=w.bbox, page_bbox=w.page_bbox)
+             if id(w) in by_head else w for w in words],
+            [w for w in next_words if id(w) not in dropped], joined)
+
+
 def build_line_items(words: list[Word], *, page_index: int, document_id: str | None,
                      source_kind: str, ordinal_start: int = 0,
                      number_format=None, statement: str | None = None,

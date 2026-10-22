@@ -6,14 +6,15 @@ from __future__ import annotations
 
 import re
 
-from app.core.models.enums import Basis, PageKind, PageSourceKind, PrintedIn
+from app.core.models.enums import Basis, PageKind, PageSourceKind, PrintedIn, StatementType
 from app.core.models.geometry import BBox
 from app.core.models.line_item import LineItem
 from app.core.stage import PipelineContext
 from app.services.mapping import known_captions
 from app.services.buckets import PRINTED_ON_FLAG
 from app.services import page_spread
-from app.services.row_reconstruct import Word, build_line_items, face_reporting_year
+from app.services.row_reconstruct import (Word, build_line_items, face_reporting_year,
+                                          fuse_figures_wrapped_over_the_page)
 
 
 def _pages_printing_a_name(pdf, pages: list, line_item_set, log=None) -> list:
@@ -537,6 +538,15 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
     # chapter only ever advances.
     # The fourth cell is the last note number read in the chapter — see `extract_note_tables`.
     notes_chapter: list = [None, 0, "", None]
+    # ONE EXCEPTION: THE STATEMENTS OPEN THE NOTES' OWN NUMBERING. A chapter read BEFORE the
+    # financial statements is the report's front matter or governance section, not the notes, and
+    # its numerals must not gate the notes' (the strictly-increasing rule refuses any chapter not
+    # above the highest seen). 中山公用 000685 prints governance chapters 八、 to 十七、 (十七、公司子公司
+    # 重大事项, page 114) on pages the classifier calls notes; carried into the notes they refused
+    # 三、 to 十七、 there, and every note of chapters 七 to 十七 came out as 十七、84. The cell is
+    # cleared once, on the first balance-sheet face page; a face page inside the notes (a cash-flow
+    # supplement) never clears it.
+    statements_open = [False]
     # THE RULEBOOK'S OWN VOCABULARY, so reconstruction can tell a wrapped caption's first
     # line from a line item that simply has no figures this year. A CSRC balance sheet prints
     # every template line whether the filer uses it or not, and on such a filing the two are
@@ -601,9 +611,51 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
                 groups[-1] if groups else None,
                 headers[-1] if headers else None)
 
+    # THE NEXT PAGE'S WORDS, read ahead when a figure wrapped over the page break into them — see
+    # `row_reconstruct.fuse_figures_wrapped_over_the_page`. Keyed by page index; the page's own
+    # iteration takes them instead of reading the page again.
+    read_ahead: dict[int, list] = {}
+    following = {id(t): targets[i + 1] for i, t in enumerate(targets[:-1])}
+
+    def _plain_native_words(nxt) -> list | None:
+        """The next page's words as the native branch below reads them, or None when that page
+        would not be read that way (scanned, an engine page, sideways text, a person's cut)."""
+        if (nxt is None or nxt.kind != PageKind.NOTES or nxt.source_kind != PageSourceKind.NATIVE
+                or nxt.index >= pdf.page_count or int(nxt.index) in widened_pages
+                or (nxt.evidence or {}).get("override_parts")
+                or (engine is not None and engine_every_page)):
+            return None
+        nxt_page = pdf[nxt.index]
+        if text_rotation(nxt_page):
+            return None
+        rect = nxt_page.rect
+        return _native_words(nxt_page, max(rect.width, 1.0), max(rect.height, 1.0), rotation=0)
+
     for ps in targets:
         if ps.index >= pdf.page_count:
             continue
+        if (not statements_open[0] and ps.kind == PageKind.FACE
+                and ps.statement == StatementType.BALANCE_SHEET.value):
+            statements_open[0] = True
+            if notes_chapter[0]:
+                ctx.log(f"extract:page={ps.index}:statements_open_notes_numbering"
+                        f"(forgot_chapter={notes_chapter[0]}、{notes_chapter[2]})")
+                notes_chapter[:] = [None, 0, "", None]
+                # Nor does a section open before the statements continue into them.
+                notes_carry, notes_grid, notes_group, notes_header = None, None, None, None
+                # What those chapters numbered keeps its number, out of the notes' namespace: with
+                # the notes now numbered as their own, 000685's governance 九、1 (员工数量) and
+                # 十四、1 (内控评价报告) would otherwise share an identity — and a request — with
+                # the notes' 九、1 (business combinations) and 十四、1 (the parent company).
+                from app.services.notes_extract import BEFORE_THE_STATEMENTS, split_note_number
+                renamed = 0
+                for table in doc.notes:
+                    if split_note_number(table.note_number)[0]:
+                        table.note_number = BEFORE_THE_STATEMENTS + table.note_number
+                        renamed += 1
+                if renamed:
+                    ctx.log(f"extract:page={ps.index}:notes_before_the_statements={renamed}"
+                            f"(identities prefixed {BEFORE_THE_STATEMENTS!r})")
         page = pdf[ps.index]
         rect = page.rect
         w, h = max(rect.width, 1.0), max(rect.height, 1.0)
@@ -630,6 +682,9 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
                 continue
             words = _ocr_words_for(page, ocr, ctx)
             source_kind = "ocr"
+        elif words is None and ps.index in read_ahead:
+            words = read_ahead.pop(ps.index)
+            source_kind = "native"
         elif words is None:
             # Text drawn sideways is read in reading space; the page records the angle so the
             # run is auditable and the viewer knows the page is not upright.
@@ -652,6 +707,23 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
                 ctx.log(f"extract:page={ps.index}:foot_chrome_words={before - len(words)}")
             if not words:
                 continue
+        # A FIGURE WRAPPED OVER THE PAGE BREAK, between two plain notes pages read one after the
+        # other: the joined figure is this page's, and the next page is read without its tail.
+        if (ps.kind == PageKind.NOTES and source_kind == "native" and not rot
+                and int(ps.index) not in widened_pages
+                and not (ps.evidence or {}).get("override_parts")):
+            nxt = following.get(id(ps))
+            ahead = _plain_native_words(nxt) if nxt is not None and nxt.index == ps.index + 1 \
+                else None
+            if ahead:
+                nxt_feet = chrome_feet.get(nxt.index) or ()
+                if nxt_feet:
+                    ahead = _without_foot_chrome(ahead, nxt_feet)
+                words, ahead, joined = fuse_figures_wrapped_over_the_page(words, ahead)
+                if joined:
+                    read_ahead[nxt.index] = ahead
+                    ctx.log(f"extract:page={ps.index}:figures_wrapped_over_page_break="
+                            f"{','.join(joined)}")
         # WHETHER THIS PAGE IS TWO PRINTED PAGES, decided once, here, where the page's own shape is
         # still known — see `page_spread.page_fold`. Every reader below is handed PART of the page
         # (a note section, a batch below a statement title) and cannot answer it for itself.

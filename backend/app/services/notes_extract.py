@@ -409,6 +409,13 @@ def chapter_headings(rows: list[list[Word]], seen: int) -> list[tuple[int, tuple
     return out
 
 
+# THE NAMESPACE OF A CHAPTER-NUMBERED SECTION READ BEFORE THE FINANCIAL STATEMENTS — a governance
+# chapter on a page the classifier called notes (`pdf_extract` clears the chapter cell on the first
+# balance-sheet page). Not a chapter numeral, so `split_note_number` reads such an identity as
+# unchaptered, and nothing in the notes, which are numbered afresh from the statements, shares it.
+BEFORE_THE_STATEMENTS = "front:"
+
+
 def split_note_number(identity: str | None) -> tuple[int, str]:
     """A note identity back into ``(chapter ordinal, note number)`` — ``"七、9"`` -> ``(7, "9")``.
 
