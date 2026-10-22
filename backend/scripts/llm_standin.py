@@ -296,8 +296,33 @@ _TRAILING = {"₹", "rs", "rs.", "in", "of", "to", "for", "from", "at", "by", "o
              "or", "the", "a", "an", "under", "as", "towards", "including", "less", "net"}
 # A heading's enumeration printed INSIDE a caption, after its first word: "… income A. (i) Items".
 _INNER_ENUMERATOR = re.compile(r"\S\s+(?:[IVX]{1,5}\.|[A-H]\.|\((?:[ivx]{1,4}|[a-h])\))\s")
-_NOTE_REF = re.compile(r"\bnotes?\b|附注|附註", re.I)
+# A REFERENCE TO A NOTE of the financial statements, not the word: "Notes Payable(CP)" is "bills
+# payable and short-term notes or commercial paper … not guaranteed notes, senior notes", and every
+# HK filing's request for it was flagged note_not_supplied for the instrument's name. A reference
+# is a note number ("note 12", "Note (3)"), a pointer ("see note", "refer to the notes"), a note a
+# determiner names ("the note", "a row of one of its notes", "the related-party note", "the
+# accounting-policy note"), or 附注. The instrument's names are read out first (`_NOTE_INSTRUMENT`)
+# so "the current portion of long-term notes" is not "the … notes".
+_NOTE_INSTRUMENT = re.compile(
+    r"\bnotes?\s+(?:payable|receivable|issued|due|programme|program)\b"
+    r"|\b(?:short|medium|long)[- ]term\s+notes?\b"
+    r"|\b(?:guaranteed|senior|junior|convertible|exchangeable|promissory|subordinated|unsecured|"
+    r"secured|perpetual|commercial|bank|treasury|credit[- ]linked|structured|fixed[- ]rate|"
+    r"floating[- ]rate|green|capital)\s+notes?\b"
+    r"|\b(?:bills?|bonds?|debentures?)\s+(?:and|or|,)\s+notes?\b"
+    r"|\bnotes?\s+(?:and|or)\s+(?:bills?|bonds?|debentures?|commercial paper)\b", re.I)
+_NOTE_REF = re.compile(
+    r"附注|附註"
+    r"|\bnotes?\s*(?:no\.?\s*)?[(（]?\s*(?:\d|[ivx]{1,4}\b|[a-z][)）])"   # note 12, Note (3), note (a)
+    r"|\b(?:see|refer(?:s|red|ring)?\s+to|per|cf\.?)\s+(?:the\s+)?notes?\b"
+    r"|\b(?:the|a|an|its|their|this|that|each|any|every|one\s+of\s+(?:its|the|their))\s+"
+    r"(?:(?!of\b|not\b)[\w'’,/-]+\s+){0,6}?notes?\b", re.I)
 _NOT_A_NOTE = re.compile(r"\bnot (?:in|from) (?:a|any|the) notes?\b", re.I)  # "its figure is not in a note"
+
+
+def refers_to_a_note(text: str) -> bool:
+    """Whether a line's `read_from` / `definition` points at a note of the financial statements."""
+    return bool(_NOTE_REF.search(_NOTE_INSTRUMENT.sub(" ", _NOT_A_NOTE.sub(" ", text or ""))))
 _UNIT_KEYS = {"unit", "units", "scale", "currency", "unit_scale", "amounts_in"}
 
 
@@ -536,7 +561,7 @@ def lint_request(req: dict, run: RunIndex, budget_tokens: int = DEFAULT_BUDGET_T
         hit("no_unit", "payload carries figures but states no unit, scale or currency anywhere")
     for li in payload.get("line_items") or []:
         text = f"{li.get('read_from') or ''} {li.get('definition') or ''}"
-        if _NOTE_REF.search(_NOT_A_NOTE.sub("", text)) and not li.get("notes_supplied"):
+        if refers_to_a_note(text) and not li.get("notes_supplied"):
             hit("note_not_supplied", f"{li.get('key')}: '{text.strip()[:160]}' but notes_supplied is empty")
     return hits
 
@@ -626,15 +651,21 @@ VERDICTS = Literal["answerable", "answerable_with_assumption", "not_answerable"]
 
 
 class Found(BaseModel):
-    block: str
-    caption: str
-    figures: dict[str, Any]
+    """Where the auditor found a line. Not always a row of figures: a text line (a share-capital
+    caption whose counts are in `share_counts`, a movement-schedule heading such as "（1）计提"), a
+    sentence of prose (`caption` blank), or a block named with no caption — or only a line of
+    text. Twelve carried records in eleven stand-in folders (000883's 1eb90d6005d3596f lineage
+    among them) hold such blocks and failed `validate` on the missing `figures`."""
+    model_config = {"extra": "allow"}
+    block: str | None = None
+    caption: str | None = None
+    figures: dict[str, Any] | None = None
 
 
 class PerLine(BaseModel):
     key: str
     needed: str
-    found: Found | None = None
+    found: Found | str | None = None
     verdict: VERDICTS
     assumption: str | None = None
 
@@ -1230,9 +1261,44 @@ def _source_rows(payload: dict, src) -> list[tuple[dict, dict]]:
     return out
 
 
-def _row_figure(r: dict, src, period: str) -> float | None:
+def _block_column_periods(block: dict | None) -> dict[str, str]:
+    """{column heading: period} the BLOCK states for its columns: a row's `periods` ("per column")
+    or `columns` legend ({"current": "本期发生额", …}) names the year over a heading, and every row
+    of the table printed under that heading is that year's. A heading two rows put in two years is
+    left out."""
+    seen: dict[str, set] = defaultdict(set)
+    for r in (block or {}).get("rows") or []:
+        if not isinstance(r, dict):
+            continue
+        for h, p in (r.get("periods") or {}).items():
+            if p in ("current", "prior"):
+                seen[str(h)].add(p)
+        for p, h in (r.get("columns") or {}).items():
+            if p in ("current", "prior"):
+                seen[str(h)].add(p)
+    return {h: next(iter(ps)) for h, ps in seen.items() if len(ps) == 1}
+
+
+def _column_period(heading: str, block: dict | None) -> str:
+    """The year a table prints over a column: the block's own legend for that heading, else the
+    heading's words as the stage reads them (`note_columns.relative_slot`: 本期发生额 → current,
+    上期发生额 → prior); "" where neither says."""
+    per = _block_column_periods(block).get(str(heading))
+    if per:
+        return per
+    from app.services.note_columns import relative_slot
+    return relative_slot(str(heading))[0]
+
+
+def _row_figure(r: dict, src, period: str, block: dict | None = None) -> float | None:
     """The row's figure for this period, as the citation reads it: a named column (its key or its
-    printed heading) filed under the row's own period, else the period's own key."""
+    printed heading) filed under the row's own period, else the period's own key.
+
+    A row whose period reads `unstated` in a table whose block states the year of the cited column
+    (`_column_period`) is filed under that year, as the stage files it
+    (`note_sourced` → `note_columns.period_of`): 000685's purchases and 300391's prior purchases
+    cite 本期发生额 / 上期发生额 of such rows, and were graded wrong or unresolved although the run
+    published the key's figure."""
     figs = r.get("figures") or {}
     if src.column and str(src.column).casefold() == "share_counts" and r.get("share_counts"):
         return _num((r.get("share_counts") or {}).get(period))   # the counts the caption prints
@@ -1242,6 +1308,8 @@ def _row_figure(r: dict, src, period: str) -> float | None:
         if col is None:
             return None
         per = (r.get("periods") or {}).get(col) or r.get("period") or ""
+        if per == "unstated":
+            per = _column_period(col, block) or per
         if per in ("current", "prior") and per != period:
             return None
         if per not in ("current", "prior") and col in ("current", "prior") and col != period:
@@ -1296,7 +1364,7 @@ def grade_answer(payload: dict, answer, kl: KeyLine, period: str, key_unit: str 
             if printed is None:   # nothing to pick for this year; the bad citation counts once
                 return "rightly_blank", ""
             return "unresolved", f"no row '{src.caption}' in {src.note or src.statement or src.page}"
-        figs = {f for f in (_row_figure(r, src, period) for _b, r in hits) if f is not None}
+        figs = {f for f in (_row_figure(r, src, period, b) for b, r in hits) if f is not None}
         if len(figs) > 1:
             return "ambiguous", f"'{src.caption}' matches rows with {sorted(figs)[:4]}"
         if not figs:

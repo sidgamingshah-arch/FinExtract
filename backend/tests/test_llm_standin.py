@@ -184,6 +184,35 @@ def test_a_line_said_not_to_be_in_a_note_is_not_note_not_supplied(run_dir: Path)
     assert "note_not_supplied" not in _checks(p, run_dir)
 
 
+_NOTES_PAYABLE_CP = (
+    "Bills payable and short-term notes or commercial paper, reported in the current liabilities "
+    "section of the balance sheet — on a CAS statement '应付票据' (bank and commercial acceptance "
+    "bills payable). Not bonds, guaranteed notes, senior notes or the current portion of long-term "
+    "notes, even where they are printed under current liabilities: those are 'CPLTD Other'.")
+
+
+@pytest.mark.parametrize("read_from,definition,fires", [
+    # the instrument's name is not a reference to a note: every HK filing's request was flagged
+    ("the face of its statement only — its figure is not in a note", _NOTES_PAYABLE_CP, False),
+    ("", "Extract the reported value for 'Notes Payable(CP)' from the stated section.", False),
+    ("", "Medium-term notes and guaranteed notes due within one year.", False),
+    # a reference to a note still is
+    ("a row of one of its notes only — its figure is not on the face of a statement", "x", True),
+    ("", "Depreciation for the period in the property, plant and equipment note.", True),
+    ("", "As disclosed in note 12 (borrowings).", True),
+    ("", "See Note (3) for the maturity analysis.", True),
+    ("", "Use the currency stated in the statements or accounting-policy note.", True),
+    ("", "按财务报表附注披露的金额填列。", True),
+])
+def test_note_not_supplied_reads_a_reference_to_a_note_not_the_word(read_from, definition, fires,
+                                                                    run_dir: Path):
+    p = _payload(line_items=[{"key": "bs_cl__notes_payable_cp", "notes_supplied": [],
+                              "read_from": read_from, "definition": definition}])
+    assert ("note_not_supplied" in _checks(p, run_dir)) is fires
+    p["line_items"][0]["notes_supplied"] = ["12"]
+    assert "note_not_supplied" not in _checks(p, run_dir)
+
+
 # ---- sample / validate shapes ----------------------------------------------------------------
 
 def test_sample_includes_clean_requests_and_spreads_strata(run_dir: Path):
@@ -216,6 +245,27 @@ def test_audit_record_and_scratch_key_shape(tmp_path: Path):
                                              "confidence": "certain"}}}))
     key = standin.load_key(k)
     assert key.unit == "₹ in lakhs" and key.lines["a"].current == "1.5" and key.lines["a"].where == "face"
+
+
+@pytest.mark.parametrize("found", [
+    {"block": "七、53 、股本", "caption": "股份总数"},                         # a text line (000883)
+    {"block": "note 28 SHARE CAPITAL", "caption": "720,429,301 ordinary shares",
+     "share_counts": {"current": "720429301", "prior": "720429301"}},     # counts, not figures
+    {"block": "36 COMMITMENTS", "caption": None},                        # prose: no caption
+    {"block": None, "caption": "Issued and fully paid ordinary shares"},
+    "Capital commitments are stated only in the note's prose",           # a line of text
+    {"block": "8 Inventories", "caption": "Finished goods", "figures": {"current": "2805.45"}},
+])
+def test_an_audit_record_validates_with_a_found_block_without_figures(found, tmp_path: Path):
+    rec = {"id": "1eb90d6005d3596f", "line_keys": ["k"], "verdict": "answerable_with_assumption",
+           "per_line": [{"key": "k", "needed": "the share count", "found": found,
+                         "verdict": "answerable_with_assumption", "assumption": None}],
+           "confidence": 0.7, "carried_from": "9c3d47ab4a14b652"}
+    standin.AuditRecord.model_validate(rec)
+    (tmp_path / "audit").mkdir()
+    (tmp_path / "audit" / "1eb90d6005d3596f.json").write_text(json.dumps(rec, ensure_ascii=False),
+                                                               encoding="utf-8")
+    assert standin.main(["validate", str(tmp_path)]) == 0
 
 
 # ---- report classification -------------------------------------------------------------------
@@ -607,3 +657,41 @@ def test_a_text_key_line_loads_and_is_not_counted_as_a_figure(tmp_path):
         encoding="utf-8")
     kl = standin.load_key(path).lines["statement_setup_controls__accountant"]
     assert kl.text == ["Ernst & Young"] and kl.current is None and kl.prior is None
+def test_grade_files_an_unstated_rows_column_under_the_year_its_table_states():
+    """000685's purchases table prints 本期发生额 | 获批的交易额度 | 上期发生额: rows with the
+    approved-limit column went out `period: unstated`, their neighbours `per column` with the
+    years. A column citation of an unstated row is filed under the year the block states for that
+    heading — as the stage files it — and, where no row of the block states it (300391's one-row
+    purchases table), under the year the heading's words name. A heading that names no year keeps
+    the old reading: the reporting year's, once."""
+    from app.services.line_item_llm import LineItemAnswer
+    from app.services.mapping import SourceRef
+    payload = _payload(notes=[
+        {"note": "十七、84", "title": "购销商品、提供和接受劳务的关联交易", "unit": "CNY units (x1)", "rows": [
+            {"caption": "污泥处理费", "period": "unstated",
+             "figures": {"本期发生额": "21750735.29", "获批的交易额度": "54300000.00",
+                         "上期发生额": "44340688.41"}},
+            {"caption": "采购自来水", "period": "per column",
+             "periods": {"本期发生额": "current", "上期发生额": "prior"},
+             "figures": {"本期发生额": "17047658.93", "上期发生额": "11951210.73"}}]},
+        {"note": "十四、5", "title": "采购商品/接受劳务情况表", "unit": "CNY units (x1)", "rows": [
+            {"caption": "采购商品", "period": "unstated",
+             "figures": {"本期发生额": "0.00", "获批的交易额度": "0.00", "上期发生额": "13933183.66"}}]}])
+
+    def grade(note, captions, kl, period):
+        ans = LineItemAnswer(key="k", role="component", signs=[1] * 2 * len(captions), sources=[
+            SourceRef(note=note, caption=c, column=col, period="unstated")
+            for c in captions for col in ("本期发生额", "上期发生额")])
+        return standin.grade_answer(payload, ans, kl, period, None)[0]
+
+    both = standin.KeyLine(current="38798394.22", prior="56291899.14")
+    assert grade("十七、84", ["污泥处理费", "采购自来水"], both, "current") == "right"
+    assert grade("十七、84", ["污泥处理费", "采购自来水"], both, "prior") == "right"
+    one = standin.KeyLine(current="0.00", prior="13933183.66")
+    assert grade("十四、5", ["采购商品"], one, "current") == "right"
+    assert grade("十四、5", ["采购商品"], one, "prior") == "right"
+    limit = LineItemAnswer(key="k", sources=[SourceRef(note="十四、5", caption="采购商品",
+                                                       column="获批的交易额度")])
+    assert standin.grade_answer(payload, limit, standin.KeyLine(current="0.00"), "current", None)[0] == "right"
+    assert standin.grade_answer(payload, limit, standin.KeyLine(current="0.00"), "prior",
+                                None)[0] == "rightly_blank"
