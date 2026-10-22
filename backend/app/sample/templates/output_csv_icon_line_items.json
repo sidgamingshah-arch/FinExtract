@@ -4815,7 +4815,7 @@
     "is_pl"
    ],
    "order": 66,
-   "definition": "Net Profit / Loss (12 -13) (PAT): Profit before tax/loss [10 + 11(iii)] (PBT) less Provision for taxes, as the template computes it. Use complete inputs on the same entity basis, reporting date/period, currency and scale. Do not sum both a component and its descendants or treat missing inputs as reported zeros.",
+   "definition": "The profit or loss for the year that the statement of profit and loss prints after the share of profit or loss of associates and joint ventures: the group's profit for the year, before other comprehensive income and before it is split between owners and non-controlling interests. Where the statement prints a profit for the year before that share and another after it, this line is the row after it. Where no such share is printed, it is the profit or loss for the year after tax.",
    "temporality": "duration",
    "unit_of_account": "subtotal",
    "sign_convention": "either",

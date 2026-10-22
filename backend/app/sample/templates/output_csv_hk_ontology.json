@@ -8973,7 +8973,7 @@
   {
    "canonical_key": "bs_cl__notes_payable_cp",
    "label": "Notes Payable(CP)",
-   "definition": "Extract the reported value for 'Notes Payable(CP)' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
+   "definition": "Bills payable and short-term notes or commercial paper, reported in the current liabilities section of the balance sheet — on a CAS statement '应付票据' (bank and commercial acceptance bills payable). Not bonds, guaranteed notes, senior notes or the current portion of long-term notes, even where they are printed under current liabilities: those are 'CPLTD Other'.",
    "aliases": [
     "Notes Payable(CP)",
     "Notes acceptance",
@@ -17251,7 +17251,7 @@
   {
    "canonical_key": "cf_financing__dividends_paid_fin",
    "label": "Dividends Paid(Fin)",
-   "definition": "Extract the reported value for 'Dividends Paid(Fin)' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
+   "definition": "Cash paid as dividends, reported in the financing activities section of the cash flow statement. Where the statement prints dividends and interest paid as one row — on a CAS statement '分配股利、利润或偿付利息支付的现金' (cash paid for distributing dividends or profits, or for paying interest) — that combined row is this line's figure, interest included, and it is not split. Otherwise this line is the row the statement prints for dividends paid. An 'of which' row printed under the combined row for dividends paid by subsidiaries to non-controlling shareholders (其中：子公司支付给少数股东的股利、利润) is part of that figure, not this line's.",
    "aliases": [
     "Dividends Paid(Fin)",
     "Dividends Paid"

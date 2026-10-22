@@ -18,6 +18,16 @@ arithmetic, so a blind reader picked a row the template does not mean, or none:
 
 Each assertion reads the relation from the template and the set, so it holds for whichever filing
 the line is asked about, and fails on the old text.
+
+Two more were the generic "Extract the reported value for '<label>'" text, which named no row:
+
+  * Dividends Paid(Fin). A CAS cash flow statement prints dividends and interest paid as ONE row
+    (分配股利、利润或偿付利息支付的现金), and a blind reader left the line empty because that row is
+    not dividends alone. The combined row is this line's figure; otherwise the dividends-paid row.
+  * Notes Payable(CP). A reader could not tell whether guaranteed notes due within a year are notes
+    payable. They are not: the line is bills payable and short-term notes or commercial paper, and
+    bonds, guaranteed and senior notes and the current portion of long-term notes are CPLTD Other,
+    the line whose aliases carry them.
 """
 from __future__ import annotations
 
@@ -106,7 +116,33 @@ def test_net_fixed_assets_names_every_class_gross_fixed_assets_takes_in():
         assert caption in text, caption
 
 
-@pytest.mark.parametrize("key", ["bs_nca__net_fixed_assets"])
+def test_a_combined_dividends_and_interest_row_is_dividends_paid():
+    key = "cf_financing__dividends_paid_fin"
+    combined = "分配股利、利润或偿付利息支付的现金"
+    # The deterministic route already binds the combined row here; the definition now says so too.
+    assert combined in ITEMS[key]["aliases_i18n"]["zh"]
+    text = _definition(key)
+    assert combined in text
+    assert "dividends and interest paid as one row" in text and "interest included" in text
+    assert "row the statement prints for dividends paid" in text
+    assert "Extract the reported value for" not in text
+
+
+def test_notes_payable_is_bills_and_short_term_paper_and_names_where_bonds_go():
+    key = "bs_cl__notes_payable_cp"
+    text = _definition(key)
+    assert "Extract the reported value for" not in text
+    assert "Bills payable" in text and "commercial paper" in text and "应付票据" in text
+    for excluded in ("bonds", "guaranteed notes", "senior notes", "current portion of long-term notes"):
+        assert excluded in text, excluded
+    # It names, by its label, the line the set gives bonds and senior notes in current liabilities.
+    home = ITEMS["bs_cl__cpltd_other"]
+    assert {"Bonds", "Senior notes", "Notes payables"} <= set(home["aliases"])
+    assert f"'{home['label']}'" in text
+
+
+@pytest.mark.parametrize("key", ["bs_nca__net_fixed_assets", "cf_financing__dividends_paid_fin",
+                                 "bs_cl__notes_payable_cp"])
 def test_the_ontology_carries_the_same_definition(key):
     concepts = [c for c in ONTOLOGY["concepts"] if c.get("canonical_key") == key] \
         if "concepts" in ONTOLOGY else []

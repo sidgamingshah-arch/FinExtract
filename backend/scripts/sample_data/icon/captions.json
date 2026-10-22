@@ -1896,7 +1896,8 @@
   ],
   "route": "face",
   "confidence": "high",
-  "note": "Schedule III 'Profit for the period (VII-VIII)' and 'XIII. Profit/(loss) for the period (IX+XII)' need a regex_hint. Suggested: ^(?:[ivxl]{1,5}\\s+)?(?:net\\s+)?(?:profit|loss)(?:\\s+(?:loss|profit))?\\s+(?:for\\s+the\\s+(?:year|period)|after\\s+tax(?:ation)?)(?:\\s+[ivxl]{1,5}){0,2}$ (tested; excludes 'from continuing operations'). The PAT row prints below the 'Tax expense' banner, so it is refused today (see conflicts)."
+  "note": "Schedule III 'Profit for the period (VII-VIII)' and 'XIII. Profit/(loss) for the period (IX+XII)' need a regex_hint. Suggested: ^(?:[ivxl]{1,5}\\s+)?(?:net\\s+)?(?:profit|loss)(?:\\s+(?:loss|profit))?\\s+(?:for\\s+the\\s+(?:year|period)|after\\s+tax(?:ation)?)(?:\\s+[ivxl]{1,5}){0,2}$ (tested; excludes 'from continuing operations'). The PAT row prints below the 'Tax expense' banner, so it is refused today (see conflicts).",
+  "definition": "The profit or loss for the year that the statement of profit and loss prints after the share of profit or loss of associates and joint ventures: the group's profit for the year, before other comprehensive income and before it is split between owners and non-controlling interests. Where the statement prints a profit for the year before that share and another after it, this line is the row after it. Where no such share is printed, it is the profit or loss for the year after tax."
  },
  "pl_icon__equity_dividend": {
   "aliases": [

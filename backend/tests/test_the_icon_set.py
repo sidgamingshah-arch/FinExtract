@@ -152,6 +152,42 @@ def test_the_operating_statement_computes_as_the_workbook_does():
     assert shown[P + "retained_profit"] == 240
 
 
+_OPERATING = {
+    P + "domestic_sales": 800, P + "export_sales": 200, P + "excise_duty": -50,
+    P + "other_recurring_operating_income": 30, P + "raw_materials": 400, P + "power_and_fuel": 60,
+    P + "depreciation": 40, P + "salary_and_staff_expenses": 100, P + "sga_others": 70,
+    P + "interest": 45, P + "interest_received": 12, P + "misc_income": 8, P + "current_tax": 40,
+    P + "deferred_tax": -15}
+
+
+def test_profit_after_tax_is_the_row_after_the_share_of_associates_and_the_cascade_carries_it():
+    """PAT is the profit for the year printed AFTER the share of profit or loss of associates and
+    joint ventures: an Ind AS face can print one profit for the year before that share and another
+    after it, and the definition the model reads (curated in `captions.json`) says which. The
+    template's cascade agrees where the share is printed above tax: the share's lines are
+    non-operating income and expense, which reach PAT through Profit before tax. Where a filing
+    prints the share BELOW tax, its printed Profit before tax leaves the share out, so PBT less tax
+    is the row before the share and differs from the printed PAT by the share."""
+    items = {i["key"]: i for i in _raw()["items"]}
+    text = items[P + "profit_after_tax"]["definition"]
+    assert "after the share of profit or loss of associates and joint ventures" in text
+    assert "this line is the row after it" in text
+    assert "less Provision for taxes" not in text            # the old text restated the cascade
+    reviewed = json.loads((TEMPLATES.parents[2] / "scripts" / "sample_data" / "icon"
+                           / "captions.json").read_text(encoding="utf-8"))
+    assert " ".join(reviewed[P + "profit_after_tax"]["definition"].split()) == text
+
+    assert [t["ref"] for t in items[P + "profit_after_tax"]["terms"]] == [
+        P + "profit_before_tax", P + "provision_for_taxes"]
+    assert "Share of profit of associates" in items[P + "non_operating_income_non_cash_others"]["aliases"]
+    assert "Share of loss of associates" in items[P + "non_operating_expense_non_cash_others"]["aliases"]
+    assert _shown(_OPERATING)[P + "profit_after_tax"] == 260
+    shown = _shown({**_OPERATING, P + "non_operating_income_non_cash_others": 5})
+    assert (shown[P + "profit_before_tax"], shown[P + "profit_after_tax"]) == (290, 265)
+    shown = _shown({**_OPERATING, P + "non_operating_expense_non_cash_others": 3})
+    assert (shown[P + "profit_before_tax"], shown[P + "profit_after_tax"]) == (282, 257)
+
+
 def test_the_balance_sheet_reaches_its_totals_through_printed_groups():
     """A filing that prints only 'Trade receivables' and 'Inventories' — not their CMA breakdown —
     still reaches Total Current Assets, because the total rolls up through the groups."""
