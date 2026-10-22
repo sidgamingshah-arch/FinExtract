@@ -16842,7 +16842,9 @@
     "row_caption_any": [
      "关键管理人员(?:报酬|薪酬)|關鍵管理人員(?:報酬|薪酬)",
      "(?:total\\s+)?(?:compensation|remuneration|emoluments)\\s+(?:paid\\s+)?(?:to|of)\\s+key\\s+management",
-     "key\\s+management\\s+(?:personnel\\s+)?(?:compensation|remuneration|emoluments)"
+     "key\\s+management\\s+(?:personnel\\s+)?(?:compensation|remuneration|emoluments)",
+     "(?:total\\s+)?(?:compensation|remuneration|emoluments)\\s+(?:paid\\s+)?(?:to|of)\\s+key\\s+managerial",
+     "key\\s+managerial\\s+personnel\\s+(?:compensation|remuneration|emoluments)"
     ],
     "row_caption_none": [
      "further\\s+details|set\\s+out\\s+in|载于|載於|详见|詳見",

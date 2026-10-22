@@ -2257,7 +2257,51 @@
   {
    "key": "bs_ca__due_from_related_parties_cp",
    "label": "Due from Related Parties(CP)",
-   "definition": "Extract the reported value for 'Due from Related Parties(CP)' from the stated section. Do not calculate it.",
+   "definition": "Amounts receivable from related parties within CURRENT assets, net of their loss allowance: the balance the balance sheet prints as a line of its own, plus the related-party balances the notes state are inside other receivables (current), which leave that line and arrive here. Excludes entrusted loans, trade receivables from related parties (their own line) and every non-current balance.",
+   "sign_rule": {},
+   "inherits": "bs_ca",
+   "face_only": false,
+   "namespace": "template",
+   "type": "derived",
+   "rollup": "alternatives",
+   "cascade": [
+    {
+     "id": "PRINTED_AND_MOVED",
+     "terms_op": "sum",
+     "refuse_negative": true,
+     "outranks_printed": false,
+     "terms": [
+      {
+       "ref": "sub__rp_face_due_from_cp",
+       "role": "any_of",
+       "sign": 1
+      },
+      {
+       "ref": "sub__cp_other_receivables_rp",
+       "role": "any_of",
+       "sign": 1,
+       "received": true
+      }
+     ],
+     "note": "WHAT LEAVES A FACE LINE ARRIVES ON THE RELATED-PARTY LINE OF THE SAME SECTION. bs_ca__other_receivables_cp deducts sub__cp_other_receivables_rp (the related-party balances the notes state are inside other receivables or other financial assets, current) on every rung, so the same figure is added here and total current assets is unchanged. Before, nothing received it: the deducted amount left the section total. Plus the printed \"Due from related parties\" row, through its face part (a derived line is unmatchable by caption). NOT carved_from_face: both terms are amounts the section total counts only through this line. Both `any_of`, so a filing with neither leaves the line empty. `received`: the term's configured parent is Other Receivables (CP), so it is declared as arriving here, which is what makes this cascade run on a filing that prints no related-party row of its own. Same cascade as the HK set's."
+    }
+   ]
+  },
+  {
+   "key": "sub__rp_face_due_from_cp",
+   "parent": "bs_ca__due_from_related_parties_cp",
+   "namespace": "internal",
+   "in_output": false,
+   "route": "face",
+   "inherits": "bs_ca",
+   "section_scope": [
+    "bs_ca"
+   ],
+   "statement": "balance_sheet",
+   "order": 10,
+   "face_only": false,
+   "label": "Due from related parties (printed, CP)",
+   "definition": "The current-assets row the balance sheet prints for amounts due from related parties.",
    "aliases": [
     "Due from Related Parties(CP)",
     "Due from related parties",
@@ -2281,12 +2325,8 @@
    "keyword_hints": [
     "Due from Related Parties(CP)"
    ],
-   "sign_rule": {},
-   "inherits": "bs_ca",
-   "face_only": false,
    "match_priority": 90,
-   "namespace": "template",
-   "route": "face"
+   "sign_rule": {}
   },
   {
    "key": "bs_ca__short_term_securities",
@@ -2807,9 +2847,14 @@
        "ref": "sub__cp_face_other_receivables",
        "role": "required",
        "sign": 1
+      },
+      {
+       "ref": "sub__cp_other_receivables_rp",
+       "role": "adjustment",
+       "sign": -1
       }
      ],
-     "note": "LAST: the balance sheet's own, which already holds the interest and dividends it prints beneath it as. Unchanged: on the corpus the note rung answers every slot, so this rung decides no figure."
+     "note": "LAST: the balance sheet's own other receivables (other financial assets, current) row LESS the related-party balances the notes state are inside it — the same deduction CP_P1 makes, so whichever rung answers, what leaves this line is what bs_ca__due_from_related_parties_cp receives."
     }
    ],
    "namespace": "template",
@@ -8864,47 +8909,351 @@
   {
    "key": "notes__related_party_transactions",
    "label": "Related Party Transactions",
-   "definition": "Narrative and quantitative disclosure of transactions and balances with related parties, including relationship, transaction type, amount, outstanding balance and terms. Capture the complete relevant disclosure with note number, reporting period, currency, unit, scope and exact source location. Preserve separate amounts and categories as structured child facts where available.",
-   "aliases": [
-    "Related Party Transactions",
-    "Transactions with related parties",
-    "Connected party transactions"
-   ],
-   "keyword_hints": [
-    "related party",
-    "key management",
-    "associate",
-    "joint venture",
-    "parent",
-    "subsidiary"
-   ],
+   "definition": "The total of the related-party TRANSACTIONS the related-party note prints for the year: sales of goods and services to related parties, purchases of goods and services from them, leases, interest, key managerial personnel compensation and the note's other transactions, added up from its parts. Year-end balances owed to or by related parties, the amounts of guarantees given or received, loans given or taken, investments made and commitments are not transactions of the year and are not added; they are quoted with the disclosure the line carries.",
+   "aliases": [],
+   "keyword_hints": [],
    "sign_rule": {},
    "inherits": "notes",
    "namespace": "template",
+   "aliases_i18n": {},
+   "type": "derived",
+   "rollup": "sum",
+   "cascade": [
+    {
+     "id": "RPT_SUM",
+     "terms_op": "sum",
+     "refuse_negative": false,
+     "terms": [
+      {
+       "ref": "sub__rpt_sales",
+       "role": "any_of",
+       "sign": 1
+      },
+      {
+       "ref": "sub__rpt_purchases",
+       "role": "any_of",
+       "sign": 1
+      },
+      {
+       "ref": "sub__rpt_leases",
+       "role": "any_of",
+       "sign": 1
+      },
+      {
+       "ref": "sub__rpt_interest",
+       "role": "any_of",
+       "sign": 1
+      },
+      {
+       "ref": "sub__rpt_key_management",
+       "role": "any_of",
+       "sign": 1
+      },
+      {
+       "ref": "sub__rpt_other",
+       "role": "any_of",
+       "sign": 1
+      }
+     ],
+     "note": "EVERY TRANSACTION CATEGORY THE RELATED-PARTY NOTE PRINTS, added up. An Ind AS 24 note prints one table of transactions by party and nature (sale of goods, purchase of goods, services received, rent, remuneration, dividend, reimbursement of expenses, contributions to post-employment plans) and often a separate compensation table for key managerial personnel; each part takes one category, so no amount is in two parts. Every term is `any_of`: a filing that prints only key managerial pay resolves on that one, and one that prints none of them leaves the line empty rather than publishing zero. NOT `refuse_negative`: a category can be printed net of returns, and the total is what the note adds up to. Balances, guarantees, loans and investments are not parts — they are stocks or financing, not transactions of the year — and travel with the line as the quoted disclosure instead. Same cascade as the HK set's."
+    }
+   ]
+  },
+  {
+   "key": "sub__rpt_sales",
+   "label": "Sales of goods and services to related parties",
+   "parent": "notes__related_party_transactions",
+   "namespace": "internal",
+   "in_output": false,
+   "inherits": "notes",
+   "statement": "notes",
+   "section_scope": [],
+   "route": "note_tables",
+   "order": 1,
+   "note_use": "decomposition_allowed",
+   "note_selection": "any",
+   "sign_rule": {},
+   "definition": "Sum of every amount the related-party note prints for goods sold and services rendered TO related parties in the period — sale of products, sale of services, revenue from sale of goods, processing or job-work income and other services provided — row by row, signed as printed. Excludes rent or lease income, interest income, royalty, dividends, reimbursements of expenses, purchases and totals. Read only an amount printed for a reporting period (the transaction value for the year ended, or the year's column); a balance outstanding at the year end (outstanding amount, closing balances), a guarantee given or received, a loan given or taken and its repayment, an investment made in a related party and a security deposit placed are not transactions of the year.",
    "note_source": {
     "note_title_any": [
      "related\\s+part(?:y|ies)\\s*(?:transactions?|disclosures?)?"
     ],
+    "row_caption_any": [],
+    "row_caption_none": [],
+    "prose_any": [],
+    "prose_subject": "",
+    "prose_landed_in": [],
     "note_terms": [
      "related party transactions",
-     "holding company",
-     "subsidiary companies",
-     "associate companies",
-     "joint ventures",
-     "key management personnel",
-     "enterprises over which key management personnel exercise significant influence",
-     "relatives of key management personnel",
-     "transactions with related parties during the year",
-     "balances outstanding with related parties",
-     "remuneration to key management personnel",
+     "related party disclosures",
+     "connected transactions",
      "sale of goods to related parties",
+     "sale of products",
+     "sale of services",
+     "transactions with related parties",
+     "transactions with related parties during the year",
+     "details of transactions with and balances outstanding",
+     "disclosure on related party transactions"
+    ],
+    "row_terms": [
+     "sales of goods",
+     "sales of inventories",
+     "services provided",
+     "income received",
+     "sale of goods",
+     "sale of products",
+     "sale of services",
+     "revenue from sale",
+     "processing income",
+     "job work income",
+     "services rendered"
+    ],
+    "row_terms_none": []
+   }
+  },
+  {
+   "key": "sub__rpt_purchases",
+   "label": "Purchases of goods and services from related parties",
+   "parent": "notes__related_party_transactions",
+   "namespace": "internal",
+   "in_output": false,
+   "inherits": "notes",
+   "statement": "notes",
+   "section_scope": [],
+   "route": "note_tables",
+   "order": 2,
+   "note_use": "decomposition_allowed",
+   "note_selection": "any",
+   "sign_rule": {},
+   "definition": "Sum of every amount the related-party note prints for goods bought and services received FROM related parties in the period — purchase of goods, raw materials, power, packing materials, property, plant and equipment, and services received (software maintenance, processing, advisory, subscriptions) — row by row. Excludes rent or lease payments, interest expense, remuneration of key managerial personnel, sales, CSR expenditure, donations and totals. Read only an amount printed for a reporting period (the transaction value for the year ended, or the year's column); a balance outstanding at the year end (outstanding amount, closing balances), a guarantee given or received, a loan given or taken and its repayment, an investment made in a related party and a security deposit placed are not transactions of the year.",
+   "note_source": {
+    "note_title_any": [
+     "related\\s+part(?:y|ies)\\s*(?:transactions?|disclosures?)?"
+    ],
+    "row_caption_any": [],
+    "row_caption_none": [],
+    "prose_any": [],
+    "prose_subject": "",
+    "prose_landed_in": [],
+    "note_terms": [
+     "related party transactions",
+     "related party disclosures",
+     "connected transactions",
      "purchase of goods from related parties",
+     "purchase of goods",
+     "services received",
+     "transactions with related parties",
+     "transactions with related parties during the year",
+     "details of transactions with and balances outstanding",
+     "disclosure on related party transactions"
+    ],
+    "row_terms": [
+     "purchases of inventories",
+     "purchases of goods",
+     "services received",
+     "fees paid",
+     "purchase of goods",
+     "purchase of",
+     "purchases",
+     "software maintenance",
+     "subscription fees",
+     "job work charges"
+    ],
+    "row_terms_none": []
+   }
+  },
+  {
+   "key": "sub__rpt_leases",
+   "label": "Leases with related parties",
+   "parent": "notes__related_party_transactions",
+   "namespace": "internal",
+   "in_output": false,
+   "inherits": "notes",
+   "statement": "notes",
+   "section_scope": [],
+   "route": "note_tables",
+   "order": 3,
+   "note_use": "decomposition_allowed",
+   "note_selection": "any",
+   "sign_rule": {},
+   "definition": "Sum of the lease amounts the related-party note prints for the period: rent or lease income where the entity is the lessor, and where it is the lessee the rent paid, the lease rentals and the lease payments the note states. Excludes the interest on lease liabilities (already in the rent paid), right-of-use assets added, security deposits, lease liability balances and totals. Read only an amount printed for a reporting period (the transaction value for the year ended, or the year's column); a balance outstanding at the year end (outstanding amount, closing balances), a guarantee given or received, a loan given or taken and its repayment, an investment made in a related party and a security deposit placed are not transactions of the year.",
+   "note_source": {
+    "note_title_any": [
+     "related\\s+part(?:y|ies)\\s*(?:transactions?|disclosures?)?"
+    ],
+    "row_caption_any": [],
+    "row_caption_none": [],
+    "prose_any": [],
+    "prose_subject": "",
+    "prose_landed_in": [],
+    "note_terms": [
+     "related party transactions",
+     "related party disclosures",
+     "connected transactions",
+     "rent paid to related parties",
+     "lease rentals",
+     "transactions with related parties",
+     "transactions with related parties during the year",
+     "details of transactions with and balances outstanding",
+     "disclosure on related party transactions"
+    ],
+    "row_terms": [
+     "rental income",
+     "leasing expense",
+     "lease payments",
+     "rent",
+     "rent paid",
+     "lease rentals"
+    ],
+    "row_terms_none": []
+   }
+  },
+  {
+   "key": "sub__rpt_interest",
+   "label": "Interest with related parties",
+   "parent": "notes__related_party_transactions",
+   "namespace": "internal",
+   "in_output": false,
+   "inherits": "notes",
+   "statement": "notes",
+   "section_scope": [],
+   "route": "note_tables",
+   "order": 4,
+   "note_use": "decomposition_allowed",
+   "note_selection": "any",
+   "sign_rule": {},
+   "definition": "Sum of the interest income received from and interest expense paid to related parties that the related-party note prints for the period, on loans, deposits and amounts due. Excludes interest on lease liabilities, loan principals and balances, and totals. Read only an amount printed for a reporting period (the transaction value for the year ended, or the year's column); a balance outstanding at the year end (outstanding amount, closing balances), a guarantee given or received, a loan given or taken and its repayment, an investment made in a related party and a security deposit placed are not transactions of the year.",
+   "note_source": {
+    "note_title_any": [
+     "related\\s+part(?:y|ies)\\s*(?:transactions?|disclosures?)?"
+    ],
+    "row_caption_any": [],
+    "row_caption_none": [],
+    "prose_any": [],
+    "prose_subject": "",
+    "prose_landed_in": [],
+    "note_terms": [
+     "related party transactions",
+     "related party disclosures",
+     "connected transactions",
+     "interest on loans to related parties",
      "loans given to related parties",
+     "transactions with related parties",
+     "transactions with related parties during the year",
+     "details of transactions with and balances outstanding",
+     "disclosure on related party transactions"
+    ],
+    "row_terms": [
+     "interest income",
+     "interest expense",
+     "interest received",
+     "interest paid"
+    ],
+    "row_terms_none": []
+   }
+  },
+  {
+   "key": "sub__rpt_key_management",
+   "label": "Key management personnel compensation",
+   "parent": "notes__related_party_transactions",
+   "namespace": "internal",
+   "in_output": false,
+   "inherits": "notes",
+   "statement": "notes",
+   "section_scope": [],
+   "route": "note_tables",
+   "order": 5,
+   "note_use": "decomposition_allowed",
+   "note_selection": "any",
+   "sign_rule": {},
+   "definition": "The compensation of key managerial personnel that the related-party note prints for the period (compensation of key management personnel, remuneration to key managerial personnel): the total it prints, or where it prints no total, the sum of each key managerial person's remuneration and the directors' sitting fees and commission it lists. Excludes the remuneration of relatives (close family members) of key managerial personnel, which is another related party's, dividends paid to them, and directors' remuneration printed only in another note. Where the note prints both a compensation table and each person's remuneration, they are the same money: read the table's total. Read only an amount printed for a reporting period (the transaction value for the year ended, or the year's column); a balance outstanding at the year end (outstanding amount, closing balances), a guarantee given or received, a loan given or taken and its repayment, an investment made in a related party and a security deposit placed are not transactions of the year.",
+   "note_source": {
+    "note_title_any": [],
+    "row_caption_any": [
+     "(?:total\\s+)?(?:compensation|remuneration|emoluments)\\s+(?:paid\\s+)?(?:to|of)\\s+key\\s+management",
+     "key\\s+management\\s+(?:personnel\\s+)?(?:compensation|remuneration|emoluments)",
+     "(?:total\\s+)?(?:compensation|remuneration|emoluments)\\s+(?:paid\\s+)?(?:to|of)\\s+key\\s+managerial",
+     "key\\s+managerial\\s+personnel\\s+(?:compensation|remuneration|emoluments)"
+    ],
+    "row_caption_none": [
+     "further\\s+details|set\\s+out\\s+in|载于|載於|详见|詳見",
+     "^\\s*\\(?[a-z]{1,3}\\)\\s.*[:：]",
+     "employee\\s+benefits|pension|post.?employment|salar|wages|bonus|share.?based|social\\s+(?:security|insurance)|福利|退休|薪金|工资|工資|社保|社会保险|社會保險|股份支付|以股份為基礎"
+    ],
+    "prose_any": [],
+    "prose_subject": "",
+    "prose_landed_in": [],
+    "note_terms": [
+     "compensation of key management personnel",
+     "key management personnel",
+     "related party transactions",
+     "related party disclosures",
+     "connected transactions",
+     "compensation to key managerial personnel",
+     "key managerial personnel",
+     "remuneration to key management personnel",
+     "transactions with related parties",
+     "transactions with related parties during the year",
+     "details of transactions with and balances outstanding",
+     "disclosure on related party transactions"
+    ],
+    "row_terms": [],
+    "row_terms_none": []
+   }
+  },
+  {
+   "key": "sub__rpt_other",
+   "label": "Other related-party transactions",
+   "parent": "notes__related_party_transactions",
+   "namespace": "internal",
+   "in_output": false,
+   "inherits": "notes",
+   "statement": "notes",
+   "section_scope": [],
+   "route": "note_tables",
+   "order": 6,
+   "note_use": "decomposition_allowed",
+   "note_selection": "any",
+   "sign_rule": {},
+   "definition": "Sum of the related-party transactions of the period the note prints that are none of sales, purchases, leases, interest or key managerial compensation — royalty and other non-operating income, reimbursement of expenses received or paid, dividends received and paid, contributions to post-employment benefit plans (gratuity and provident funds), CSR expenditure and donations, the remuneration of relatives of key managerial personnel, and sales or purchases of land and other assets — row by row. Excludes guarantees, balances, loans given or taken and their repayment, investments made, security deposits, commitments, and totals. Read only an amount printed for a reporting period (the transaction value for the year ended, or the year's column); a balance outstanding at the year end (outstanding amount, closing balances), a guarantee given or received, a loan given or taken and its repayment, an investment made in a related party and a security deposit placed are not transactions of the year.",
+   "note_source": {
+    "note_title_any": [
+     "related\\s+part(?:y|ies)\\s*(?:transactions?|disclosures?)?"
+    ],
+    "row_caption_any": [],
+    "row_caption_none": [],
+    "prose_any": [],
+    "prose_subject": "",
+    "prose_landed_in": [],
+    "note_terms": [
+     "related party transactions",
+     "related party disclosures",
+     "connected transactions",
      "dividend received",
-     "outstanding receivable from related parties",
-     "outstanding payable to related parties",
-     "post employment benefit plans"
-    ]
+     "dividend paid",
+     "reimbursement of expenses",
+     "post employment benefit plans",
+     "transactions with related parties",
+     "transactions with related parties during the year",
+     "details of transactions with and balances outstanding",
+     "disclosure on related party transactions"
+    ],
+    "row_terms": [
+     "proceeds from sales of subsidiaries",
+     "disposal",
+     "transfer of assets",
+     "dividend",
+     "reimbursement",
+     "contribution",
+     "corporate social responsibility",
+     "csr expenditure",
+     "donation",
+     "royalty",
+     "sale of land",
+     "sale of assets",
+     "non operating income"
+    ],
+    "row_terms_none": []
    }
   },
   {
