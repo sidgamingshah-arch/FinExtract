@@ -40,7 +40,7 @@ from app.core.models.line_item import LineItem
 from app.core.stage import PipelineContext, Stage
 from app.ports.registry import registry
 from app.services import (face_context, line_item_llm, line_item_notes, line_item_requests,
-                          line_item_routes, note_columns, note_sourced)
+                          line_item_routes, note_columns, note_sourced, text_lines)
 from app.services.face_bases import is_disclosure, note_basis_of, printed_bases, refuse_unprinted
 from app.services.mapping import authored_guidance
 from app.services.working_view import build_working_view
@@ -175,6 +175,13 @@ class LineItemLlmStage(Stage):
                     f"selected, so no request is spent on it — `stages.note_tag_gate` writes the "
                     f"zero)")
             plans = trimmed
+
+        # A TEXT LINE IS ASKED IN A REQUEST OF ITS OWN KIND — see `services.text_lines`. Its value
+        # is words a page prints, so it is sent the pages that print it under a contract whose reply
+        # can hold a text, and it is taken out of every figure request: a figure request sends no
+        # page text and its reply has no field for one. A plan that mixed the two is split, its
+        # figure lines kept exactly as they were planned.
+        plans, text_plans = _split_text_plans(plans, by_key)
 
         # The rulebook's judgement wording plus the master prompt, once for the run. The reply
         # contract goes FIRST and is not configurable — see `line_item_llm.REPLY_CONTRACT`. A
@@ -503,6 +510,14 @@ class LineItemLlmStage(Stage):
                 # A canceled run stops paying for requests nobody will read.
                 pool.shutdown(wait=False, cancel_futures=True)
 
+        if text_plans:
+            t_calls, t_failures, t_answered = self._ask_text(doc, ctx, provider, text_plans,
+                                                             by_key, by_concept)
+            calls += t_calls
+            failures += t_failures
+            answered += t_answered
+            filled += t_answered
+
         if indian and explained:
             _explain_swept_rows(doc, line_item_set, explained, ctx)
         blanked = self._reconcile_claimed_printed_rows(kept_printed, claimed_face_rows, ctx,
@@ -547,6 +562,108 @@ class LineItemLlmStage(Stage):
                 f"all {failures} line-item request(s) failed; every figure on this run comes from "
                 f"the deterministic route")
         return doc
+
+    def _ask_text(self, doc, ctx, provider, text_plans, by_key: dict, by_concept: dict
+                  ) -> tuple[int, int, int]:
+        """Ask about the TEXT lines and write each located text onto its line. ``(calls, failed,
+        answered)``.
+
+        One request per plan, each carrying the pages that print its lines' names
+        (`text_lines.text_pages`), sent under `line_item_llm.TEXT_REPLY_CONTRACT`. An answer's text
+        is checked against the page it names (`text_lines.locate`): a text no supplied page prints
+        is refused — logged and flagged on the line, nothing written — because a value the model
+        wrote rather than read is not the filing's.
+        """
+        try:
+            from app.services.derived import document_text
+            page_texts = document_text(ctx.raw_bytes or b"", getattr(doc.fmt, "value", doc.fmt))
+        except Exception as exc:  # noqa: BLE001 — no page text means no text request, not a failed run
+            ctx.log(f"line_item_llm:text_lines_skipped(page text unavailable: "
+                    f"{type(exc).__name__})")
+            return 0, 0, 0
+        if not page_texts:
+            ctx.log("line_item_llm:text_lines_skipped(the document has no page text)")
+            return 0, 0, 0
+        system = line_item_llm.TEXT_REPLY_CONTRACT
+        calls = failures = answered = 0
+        for plan in text_plans:
+            items = [by_key[k] for k in plan.keys if k in by_key]
+            pages = text_lines.text_pages(
+                page_texts, [n for it in items for n in line_item_notes.printed_names(it)], doc)
+            request = line_item_llm.build_text_request(plan, by_key, pages)
+            if not request["line_items"]:
+                continue
+            try:
+                reply, meta = line_item_llm.ask(
+                    provider, system, request,
+                    max_tokens=_max_tokens(len(request["line_items"])),
+                    schema=line_item_llm.LineItemTextReply)
+            except Exception as exc:  # noqa: BLE001 — the request is the unit of failure
+                failures += 1
+                ctx.llm_failures += 1
+                ctx.log(f"line_item_llm:text_request({plan.name}) FAILED "
+                        f"{type(exc).__name__}: {str(exc)[:160]}")
+                continue
+            calls += 1
+            ctx.llm_calls += 1
+            ctx.llm_input_tokens += int((meta or {}).get("input_tokens") or 0)
+            ctx.llm_output_tokens += int((meta or {}).get("output_tokens") or 0)
+            asked = {e["key"] for e in request["line_items"]}
+            seen: set[str] = set()
+            for answer in reply.answers:
+                key = (answer.key or "").strip()
+                if key not in asked or key in seen:
+                    ctx.log(f"line_item_llm:text_answer_ignored({key or '<empty>'}) "
+                            f"request={plan.name}")
+                    continue
+                seen.add(key)
+                text = " ".join(str(answer.text or "").split())
+                if not text:
+                    ctx.log(f"line_item_llm:{key}: text line — no supplied page prints it")
+                    continue
+                page = text_lines.locate(text, answer.page, pages)
+                if page is None:
+                    # LOGGED, NOT WRITTEN, and no row is made for it: an empty row of this key
+                    # would stand in the export's place for the line and blank what the run's
+                    # own reading says (`routes.extractions._build_supplemental_rows`).
+                    ctx.log(f"line_item_llm:{key}: text REFUSED (llm_text_not_on_page) — page "
+                            f"{answer.page!r} does not print {text[:80]!r}")
+                    continue
+                self._write_text(doc, by_concept, by_key[key], text, page, answer, ctx)
+                answered += 1
+        ctx.log(f"line_item_llm:text_lines requests={calls} failed={failures} "
+                f"texts_written={answered}")
+        return calls, failures, answered
+
+    @staticmethod
+    def _write_text(doc, by_concept: dict, item, text: str, page: int, answer, ctx) -> None:
+        """Put a located text on its line: a `value_text` fact, no figure, on the page it was read.
+
+        Filed under the reporting period and the basis the statements print — a text has no column
+        of its own, so it takes the one the filing's statements are presented on, as a prose figure
+        does (`note_sourced._prose_basis`).
+        """
+        from app.core.models.enums import Basis
+        from app.core.models.geometry import Provenance
+        from app.core.models.line_item import ExtractedValue
+        row = _text_row(doc, by_concept, item)
+        try:
+            basis = Basis(_prose_basis(doc) or "consolidated")
+        except ValueError:
+            basis = Basis.CONSOLIDATED
+        for k in [k for k, ev in row.values.items()
+                  if ev.basis == basis and ev.period_label == "current"]:
+            del row.values[k]
+        row.set_value(ExtractedValue(
+            basis=basis, period_label="current", value_text=text, derived=True,
+            provenance=Provenance(page_index=page - 1, text_snippet=text[:500],
+                                  producer="line_item_llm:text")))
+        row.confidence.method = MappingMethod.LLM.value
+        row.confidence.mapping = float(answer.confidence or 0.0)
+        row.confidence.flags.append(f"llm_text:page {page}")
+        if answer.reason:
+            row.confidence.flags.append(f"llm_reason:{answer.reason}")
+        ctx.log(f"line_item_llm:{item.key} = {text[:80]!r} (page {page})")
 
     def _write(self, doc, by_concept: dict, item, answer, resolved: list[dict],
                figures: dict, ctx, unverified: list[dict] | None = None,
@@ -1147,6 +1264,32 @@ def _prose_in_statement_units(amount: Decimal, scale, entries: list[dict]) -> De
     if doc_scale != 1 and abs(amount) < doc_scale:
         return amount
     return amount / doc_scale if doc_scale != 1 else amount
+
+
+def _split_text_plans(plans, by_key: dict) -> tuple[list, list]:
+    """``(figure plans, text plans)``: every text line (`text_lines.is_text_line`) moved out of the
+    plan it was in into a text plan of its own name, the plan's other lines left as planned."""
+    from dataclasses import replace
+    figures, texts = [], []
+    for plan in plans:
+        text = tuple(k for k in plan.keys if k in by_key and text_lines.is_text_line(by_key[k]))
+        rest = tuple(k for k in plan.keys if k not in text)
+        if rest:
+            figures.append(plan if not text else replace(plan, keys=rest))
+        if text:
+            texts.append(replace(plan, name=f"{plan.name}:text", keys=text, notes=(),
+                                 sections=()))
+    return figures, texts
+
+
+def _text_row(doc, by_concept: dict, item) -> LineItem:
+    """The line's row for a text: the one already holding it, else a new one."""
+    row = by_concept.get(item.key)
+    if row is None:
+        row = LineItem(source_label=item.label or item.key, canonical_key=item.key)
+        doc.line_items.append(row)
+        by_concept[item.key] = row
+    return row
 
 
 def _review(row) -> None:

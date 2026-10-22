@@ -665,6 +665,11 @@ class KeyLine(BaseModel):
     # reads grouped numbers only (so a note number is not an addend), which leaves out 966.91 and
     # an HKFRS note's 465; this states them. Preferred by `key_parts` when given.
     parts: dict[str, list[str]] | None = None
+    # A TEXT LINE'S VALUE, as the filing prints it — the auditor's name, the opinion sentence. A
+    # list where the filing prints the same value more than one way (the English and the Chinese
+    # name; "Renminbi" and "RMB"), any of which is right. Graded by `grade_text`; a text line has
+    # no `current`/`prior`, so coverage does not count it.
+    text: str | list[str] | None = None
 
 
 class Key(BaseModel):
@@ -1181,7 +1186,7 @@ def cmd_coverage(a) -> int:
 # grade
 # ------------------------------------------------------------------------------------------------
 
-GRADES = ("right", "wrong_period", "wrong_figure", "ambiguous", "unresolved", "missed",
+GRADES = ("right", "wrong_period", "wrong_figure", "wrong_text", "ambiguous", "unresolved", "missed",
           "cited_unprinted", "rightly_blank", "derived")
 
 
@@ -1320,8 +1325,37 @@ def grade_answer(payload: dict, answer, kl: KeyLine, period: str, key_unit: str 
     return "wrong_figure", f"{' + '.join(notes_)} = {total:,.2f}, the filing prints {printed:,.2f}"
 
 
+def _text_form(text) -> str:
+    """A text compared as printed: `text_lines.fold` (spacing and case do not count), and the full
+    stop that ends a sentence does not either."""
+    from app.services.text_lines import fold
+    return fold(text).rstrip(".。")
+
+
+def grade_text(payload: dict, answer, kl: KeyLine) -> tuple[str, str]:
+    """Whether a text answer gives what the filing prints for the line, by normalised exact match.
+
+    The answer is first checked as the gateway checks it (`text_lines.locate` against the page it
+    cites in the request's `text_pages`): a text that page does not print is `unresolved`, refused
+    before it is compared. A figure reply for a text line has no text to give and is `missed`."""
+    from app.services.text_lines import locate
+    accepted = [kl.text] if isinstance(kl.text, str) else list(kl.text or ())
+    given = str(getattr(answer, "text", "") or "").strip()
+    if not given:
+        return ("missed", "no text") if accepted else ("rightly_blank", "")
+    pages = (payload or {}).get("text_pages") if isinstance(payload, dict) else None
+    if locate(given, getattr(answer, "page", None), pages or []) is None:
+        return "unresolved", f"page {getattr(answer, 'page', None)} does not print {given[:60]!r}"
+    if not accepted:
+        return "cited_unprinted", f"gave {given[:60]!r}; the filing prints nothing"
+    if _text_form(given) in {_text_form(t) for t in accepted}:
+        return "right", ""
+    return "wrong_text", f"gave {given[:80]!r}, the filing prints {accepted[0][:80]!r}"
+
+
 def grade_folder(d: Path, key: Key) -> list[dict]:
     reqs = load_requests(d)
+    latest = set(current_ids(d))
     out = []
     for ap in sorted((d / "answers").glob("*.txt")):
         req = reqs.get(ap.stem)
@@ -1337,6 +1371,15 @@ def grade_folder(d: Path, key: Key) -> list[dict]:
         for ans in getattr(reply, "answers", []) or []:
             kl = key.lines.get(ans.key)
             if kl is None:
+                continue
+            if kl.text is not None or hasattr(ans, "text"):
+                # THE LATEST RUN'S REQUEST ONLY: a text line asked before it had a text request
+                # was asked as a figure, and that superseded answer could only ever be blank.
+                if ap.stem not in latest:
+                    continue
+                g, detail = grade_text(payload, ans, kl)
+                out.append({"request": ap.stem, "key": ans.key, "period": "text", "grade": g,
+                            "detail": detail})
                 continue
             for period in ("current", "prior"):
                 g, detail = grade_answer(payload, ans, kl, period, key.unit, key.basis)

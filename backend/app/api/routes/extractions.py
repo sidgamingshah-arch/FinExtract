@@ -265,6 +265,45 @@ NOT_DETERMINED = "not_determined"
 _NOT_DETERMINED_CONFIDENCE = 0.0
 
 
+# THE SETUP VALUES THE RUN READS FOR ITSELF, in a controlled form a downstream system keys on: the
+# ISO currency (`UnitContext.currency`), the scale's name, the period end the statements' columns
+# print. Where the run has one it stays the cell, and a text the model located for the same line is
+# its evidence rather than its replacement ("人民币" is CNY; "RMB'000" is thousands).
+_CONTROLLED_SETUP = frozenset({
+    "statement_setup_controls__source_currency",
+    "statement_setup_controls__rounding",
+    "statement_setup_controls__statement_date",
+})
+
+
+def _is_text_row(li) -> bool:
+    """A row holding words and no figure — a text line's (`services.text_lines`)."""
+    values = list((getattr(li, "values", None) or {}).values())
+    return bool(values) and all(getattr(ev, "value_text", None) is not None for ev in values)
+
+
+def _text_facts(doc_model) -> dict[str, dict]:
+    """Every text line the run located, by key: its text, the page it was read on, its confidence
+    and flags. A text row is not served by `_serialize_rows` (its slots hold no figure, and every
+    reader of a served row's `value` reads a number); it reaches the export here, as the row of
+    the template line it answers."""
+    folio_of = _folio_lookup(doc_model) if getattr(doc_model, "pages", None) else (lambda _i: None)
+    out: dict[str, dict] = {}
+    for li in getattr(doc_model, "line_items", None) or ():
+        if not li.canonical_key or not _is_text_row(li) or li.canonical_key in out:
+            continue
+        ev = next((v for v in li.values.values() if (v.value_text or "").strip()), None)
+        if ev is None:
+            continue
+        out[li.canonical_key] = {
+            "text": ev.value_text,
+            "provenance": (_prov_dict(ev.provenance, folio_of)
+                           if ev.provenance is not None else None),
+            "confidence": float(li.confidence.mapping or 0.0),
+            "flags": [f for f in li.confidence.flags if str(f).startswith("llm_text")]}
+    return out
+
+
 def _note_evidence(doc_model, key: str) -> tuple[object, object] | None:
     """The first note line mapped to ``key``, with its note, or None."""
     for table in getattr(doc_model, "notes", None) or []:
@@ -417,6 +456,7 @@ def _build_supplemental_rows(*, template_def: dict | None, base_rows: list[dict]
     def _norm(s: str) -> str:
         return "".join(ch for ch in s.lower() if ch.isalnum())
 
+    text_facts = _text_facts(doc_model)
     out: list[dict] = []
     for node in nodes:
         key = str(node.get("canonical_key") or "").strip()
@@ -429,11 +469,26 @@ def _build_supplemental_rows(*, template_def: dict | None, base_rows: list[dict]
         evidence: dict = {}
         not_determined = False
 
-        if key in setup_values:
+        fact = text_facts.get(key)
+        if fact is not None and not (key in _CONTROLLED_SETUP and setup_values.get(key)):
+            # THE WORDS THE FILING PRINTS, as the model located them on a page and the page's own
+            # text confirmed (`stages.line_item_llm._ask_text`). They outrank what this builder
+            # would otherwise say: a constant ("Financial statements"), the file format, a presence
+            # scan that found no qualification, or nothing at all.
+            value = fact["text"]
+            evidence = {"provenance": fact["provenance"], "confidence": fact["confidence"],
+                        "flags": ["supplemental:text_line", *fact["flags"]]}
+        elif key in setup_values:
             value = setup_values[key]
             if key == "statement_setup_controls__target_currency" and requested_currency \
                     and value is None:
                 evidence["flags"] = [f"target_currency_not_applied:{requested_currency}"]
+            if fact is not None:
+                # A CONTROLLED VALUE THE RUN READ ITSELF — the ISO currency, the scale name, the
+                # period end — stays the cell, and the words the filing prints for it ride along
+                # as its evidence and its page.
+                evidence = {"provenance": fact["provenance"],
+                            "flags": [f"printed_as:{fact['text'][:120]}"]}
         elif key.startswith("notes__") \
                 and key.removeprefix("notes__") in _NOT_DETERMINED_UNLESS_EVIDENCE:
             nkey = key.removeprefix("notes__")
@@ -963,6 +1018,8 @@ def _serialize_rows(doc_model, working_view=None) -> list[dict]:
     folio_of = _folio_lookup(doc_model)
     rows = []
     for li in doc_model.line_items:
+        if _is_text_row(li):
+            continue       # served as its template line's row — `_text_facts`
         values = []
         for ev in li.values.values():
             p = ev.provenance

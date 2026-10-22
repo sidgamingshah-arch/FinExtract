@@ -15500,7 +15500,7 @@
   {
    "key": "statement_setup_controls__customer_s_name",
    "label": "Customer's Name",
-   "definition": "Legal name of the reporting customer or entity for which the financial statements are presented. Use the legal entity name presented on the financial statements, cover page or corporate information section. Retain legal suffixes and the reported language.",
+   "definition": "Legal name of the reporting entity, as printed on the cover, the corporate information page or the company profile (公司的中文名称), with its legal suffix — the Chinese name on a mainland filing, the English name on a Hong Kong one. Not the stock short name.",
    "aliases": [
     "Customer's Name",
     "Customer Name",
@@ -15517,12 +15517,24 @@
    ],
    "sign_rule": {},
    "inherits": "statement_setup_controls",
-   "namespace": "template"
+   "namespace": "template",
+   "output_structure": "phrase",
+   "aliases_i18n": {
+    "zh": [
+     "公司的中文名称",
+     "公司的外文名称",
+     "公司信息"
+    ],
+    "en": [
+     "Corporate Information",
+     "Company Profile"
+    ]
+   }
   },
   {
    "key": "statement_setup_controls__customer_statement_type",
    "label": "Customer Statement Type",
-   "definition": "Scope of the financial statements, such as consolidated, separate, standalone, company-only or combined. Use the explicit scope stated in the title or basis-of-preparation note.",
+   "definition": "Scope of the financial statements, in the word their titles print for it: 'Consolidated' (合并) for the group's statements; 'Company', 'Separate' or 母公司 for the parent's alone.",
    "aliases": [
     "Customer Statement Type",
     "Statement Scope",
@@ -15540,12 +15552,21 @@
    ],
    "sign_rule": {},
    "inherits": "statement_setup_controls",
-   "namespace": "template"
+   "namespace": "template",
+   "output_structure": "phrase",
+   "aliases_i18n": {
+    "zh": [
+     "合并财务报表"
+    ],
+    "en": [
+     "Basis of consolidation"
+    ]
+   }
   },
   {
    "key": "statement_setup_controls__rounding",
    "label": "Rounding",
-   "definition": "Reported scaling or rounding basis applied to monetary values in the financial statements. Capture the scale exactly as reported, then map it to the controlled value.",
+   "definition": "The scale the statements' amounts are printed in, as the filing declares it: the unit declaration as printed ('RMB'000', 'HK$'000', '单位：元', '单位：万元', 'rounded to the nearest thousand').",
    "aliases": [
     "Rounding",
     "Units",
@@ -15564,12 +15585,25 @@
    ],
    "sign_rule": {},
    "inherits": "statement_setup_controls",
-   "namespace": "template"
+   "namespace": "template",
+   "output_structure": "phrase",
+   "aliases_i18n": {
+    "zh": [
+     "金额单位",
+     "单位：元",
+     "单位：万元"
+    ],
+    "en": [
+     "rounded to the nearest thousand",
+     "RMB'000",
+     "HK$'000"
+    ]
+   }
   },
   {
    "key": "statement_setup_controls__source_currency",
    "label": "Source Currency",
-   "definition": "Currency in which the source financial statements are presented. Use the presentation currency explicitly stated in the statements or accounting-policy note. Return ISO 4217 code where determinable.",
+   "definition": "The currency the financial statements are presented in, as the filing names it ('Renminbi', 'RMB', 'HK$', 人民币): the presentation currency the basis-of-preparation note or the unit declaration states (以人民币为记账本位币, 币种：人民币).",
    "aliases": [
     "Source Currency",
     "Presentation Currency",
@@ -15582,7 +15616,18 @@
    ],
    "sign_rule": {},
    "inherits": "statement_setup_controls",
-   "namespace": "template"
+   "namespace": "template",
+   "output_structure": "phrase",
+   "aliases_i18n": {
+    "zh": [
+     "记账本位币",
+     "币种：人民币"
+    ],
+    "en": [
+     "presentation currency",
+     "functional currency"
+    ]
+   }
   },
   {
    "key": "statement_setup_controls__target_currency",
@@ -15606,7 +15651,7 @@
   {
    "key": "statement_setup_controls__statement_date",
    "label": "Statement Date",
-   "definition": "Financial statement reporting date or period end date. For annual or interim statements, use the end date of the reporting period.",
+   "definition": "The reporting date: the end date of the current reporting period, as the statements or the auditor's report print it ('31 December 2024', '2024年12月31日').",
    "aliases": [
     "Statement Date",
     "Reporting Date",
@@ -15625,7 +15670,17 @@
    ],
    "sign_rule": {},
    "inherits": "statement_setup_controls",
-   "namespace": "template"
+   "namespace": "template",
+   "output_structure": "phrase",
+   "aliases_i18n": {
+    "zh": [
+     "资产负债表日",
+     "合并资产负债表"
+    ],
+    "en": [
+     "Consolidated Statement of Financial Position"
+    ]
+   }
   },
   {
    "key": "statement_setup_controls__periods",
@@ -15730,7 +15785,7 @@
   {
    "key": "statement_setup_controls__audit_opinion_stmt_source",
    "label": "Audit Opinion(Stmt Source)",
-   "definition": "Type of external auditor opinion expressed on the financial statements. Classify from the formal audit opinion paragraph.",
+   "definition": "The type of opinion the auditor's report expresses on the financial statements, in the words the filing prints for it: the opinion type as stated (标准的无保留意见, 'unqualified opinion', 'unmodified opinion'), or, where nothing names the type, the heading of the report's opinion section as printed ('Opinion', 'Qualified Opinion', 'Adverse Opinion', 'Disclaimer of Opinion'). Not the internal-control audit's opinion.",
    "aliases": [
     "Audit Opinion(Stmt Source)",
     "Audit Opinion",
@@ -15747,12 +15802,24 @@
    ],
    "sign_rule": {},
    "inherits": "statement_setup_controls",
-   "namespace": "template"
+   "namespace": "template",
+   "output_structure": "phrase",
+   "aliases_i18n": {
+    "zh": [
+     "审计意见类型",
+     "标准的无保留意见",
+     "标准无保留意见"
+    ],
+    "en": [
+     "Basis for Opinion",
+     "Unqualified opinion"
+    ]
+   }
   },
   {
    "key": "statement_setup_controls__accounting_standard",
    "label": "Accounting Standard",
-   "definition": "Financial reporting framework explicitly used to prepare the statements. Use the explicit framework in the basis-of-preparation or auditor report.",
+   "definition": "The financial reporting framework the statements are prepared under, by the name the filing prints for it ('Hong Kong Financial Reporting Standards', 'IFRS Accounting Standards', 企业会计准则), from the basis-of-preparation or statement-of-compliance note or the auditor's opinion.",
    "aliases": [
     "Accounting Standard",
     "Reporting Framework",
@@ -15770,12 +15837,24 @@
    ],
    "sign_rule": {},
    "inherits": "statement_setup_controls",
-   "namespace": "template"
+   "namespace": "template",
+   "output_structure": "phrase",
+   "aliases_i18n": {
+    "zh": [
+     "遵循企业会计准则的声明",
+     "财务报表的编制基础",
+     "企业会计准则"
+    ],
+    "en": [
+     "Statement of compliance",
+     "prepared in accordance with"
+    ]
+   }
   },
   {
    "key": "statement_setup_controls__accountant",
    "label": "Accountant",
-   "definition": "Name of the external auditor or reporting accountant associated with the financial statements. Use the audit firm signing the report; capture engagement partner separately only if another ontology requires it.",
+   "definition": "The external auditor: the name of the audit firm that signs the auditor's report on the financial statements, as printed with its legal suffix (安永华明会计师事务所（特殊普通合伙）, 'Ernst & Young'). Not the engagement partner.",
    "aliases": [
     "Accountant",
     "Auditor",
@@ -15789,7 +15868,19 @@
    ],
    "sign_rule": {},
    "inherits": "statement_setup_controls",
-   "namespace": "template"
+   "namespace": "template",
+   "output_structure": "phrase",
+   "aliases_i18n": {
+    "zh": [
+     "会计师事务所名称",
+     "审计机构名称",
+     "签字会计师姓名"
+    ],
+    "en": [
+     "Certified Public Accountants",
+     "Public Interest Entity Auditor"
+    ]
+   }
   },
   {
    "key": "statement_setup_controls__analyst",
@@ -15812,7 +15903,7 @@
   {
    "key": "statement_setup_controls__statement_type",
    "label": "Statement type",
-   "definition": "Frequency or reporting nature of the source statements. Use explicit document title and reporting period.",
+   "definition": "Whether the statements are annual or interim, in the words the report's title prints ('Annual Report', '年度报告', 'Interim Report', '半年度报告').",
    "aliases": [
     "Statement type",
     "Reporting Type",
@@ -15827,7 +15918,18 @@
    ],
    "sign_rule": {},
    "inherits": "statement_setup_controls",
-   "namespace": "template"
+   "namespace": "template",
+   "output_structure": "phrase",
+   "aliases_i18n": {
+    "zh": [
+     "年度报告",
+     "半年度报告"
+    ],
+    "en": [
+     "Annual Report",
+     "Interim Report"
+    ]
+   }
   },
   {
    "key": "statement_setup_controls__status",
@@ -15852,7 +15954,7 @@
   {
    "key": "statement_setup_controls__reconcile_to",
    "label": "Reconcile To",
-   "definition": "Comparative reporting date against which the current-period statement is reconciled. Use the comparative column date corresponding to the current statement.",
+   "definition": "The comparative reporting date: the end date of the prior period the statements print beside the current one, as printed ('31 December 2023', '2023年12月31日').",
    "aliases": [
     "Reconcile To",
     "Comparative Date",
@@ -15867,7 +15969,16 @@
    ],
    "sign_rule": {},
    "inherits": "statement_setup_controls",
-   "namespace": "template"
+   "namespace": "template",
+   "output_structure": "phrase",
+   "aliases_i18n": {
+    "zh": [
+     "母公司资产负债表"
+    ],
+    "en": [
+     "Statement of Financial Position"
+    ]
+   }
   },
   {
    "key": "supplemental_data__exchange_rate_period_end",
@@ -17081,7 +17192,7 @@
   {
    "key": "notes__auditor_s_opinion",
    "label": "Auditor's opinion",
-   "definition": "Verbatim classification-oriented summary of the independent auditor's opinion and separately identified opinion-related sections. Capture the complete relevant disclosure with note number, reporting period, currency, unit, scope and exact source location. Preserve separate amounts and categories as structured child facts where available.",
+   "definition": "The independent auditor's opinion on the financial statements, in the auditor's own words: the sentence of the auditor's report's opinion section that states the opinion, from 'In our opinion' (我们认为 / 我們認為) to the full stop that ends that sentence, copied as printed. Not the opinion on internal control, and not a key audit matter.",
    "aliases": [
     "Auditor's opinion",
     "Independent auditor's opinion",
@@ -17100,7 +17211,20 @@
    ],
    "sign_rule": {},
    "inherits": "notes",
-   "namespace": "template"
+   "namespace": "template",
+   "output_structure": "phrase",
+   "aliases_i18n": {
+    "zh": [
+     "审计意见",
+     "形成审计意见的基础",
+     "我们认为",
+     "審計意見"
+    ],
+    "en": [
+     "Independent Auditor's Report",
+     "In our opinion"
+    ]
+   }
   },
   {
    "key": "notes__notes",

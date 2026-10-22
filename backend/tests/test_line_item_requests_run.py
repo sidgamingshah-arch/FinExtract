@@ -37,7 +37,7 @@ from app.core.models.enums import Basis
 from app.core.models.line_item import (ExtractedValue, LineItem, NoteItem, NotesTable, Provenance)
 from app.core.stage import PipelineContext
 from app.schemas.line_items import load_line_item_set
-from app.services import line_item_llm, line_item_requests
+from app.services import line_item_llm, line_item_requests, text_lines
 from app.services.working_view import build_working_view
 from app.stages.line_item_llm import LineItemLlmStage
 
@@ -358,8 +358,10 @@ def test_focus_keys_restrict_which_lines_are_asked_about(shipped):
     everything = {e["key"] for request in wide.requests for e in request["line_items"]}
     assert SUB in offered and SUB in everything
     assert len(offered) < len(everything)
+    # A TEXT LINE IS NOT IN A FIGURE REQUEST: it is asked with the pages that print it
+    # (`services.text_lines`), and this document has no page text to send.
     assert everything == {i.key for i in shipped.items
-                          if line_item_requests.asked_about(i)}
+                          if line_item_requests.asked_about(i) and not text_lines.is_text_line(i)}
 
 
 def test_the_reply_contract_goes_first_and_the_master_prompt_after_it(shipped):

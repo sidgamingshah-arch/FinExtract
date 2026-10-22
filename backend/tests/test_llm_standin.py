@@ -569,3 +569,41 @@ def test_grade_names_a_statement_row_by_the_section_it_is_under():
     assert grade("Current liabilities") == "right"
     assert grade("Non-current liabilities") == "wrong_figure"
     assert grade("") == "ambiguous"
+
+
+def test_a_text_line_is_graded_by_the_words_it_gives_not_scored_blank():
+    """A text key line (the auditor, the opinion) is graded by normalised exact match against what
+    the filing prints, after the gateway's own check that the page it cites prints it. A blank was
+    graded `rightly_blank` before — the key had no figure for it — however plainly it was printed."""
+    from app.services.line_item_llm import LineItemAnswer, LineItemTextAnswer
+    payload = {"line_items": [{"key": "k"}], "text_pages": [
+        {"page": 83, "text": "The engagement partner is Wendy Kee.\nErnst &  Young\nCertified "
+                             "Public Accountants\nHong Kong"}]}
+    kl = standin.KeyLine(text=["Ernst & Young", "安永"])
+
+    def grade(text, page=83):
+        return standin.grade_text(payload, LineItemTextAnswer(key="k", text=text, page=page), kl)[0]
+
+    assert grade("Ernst & Young") == "right"
+    assert grade("ERNST &YOUNG") == "right"                  # case and spacing do not count
+    said = {"line_items": [{"key": "o"}], "text_pages": [{"page": 9, "text": "In our opinion, a\n"
+                                                                             "true view."}]}
+    opinion = LineItemTextAnswer(key="o", text="In our opinion, a true view", page=9)
+    assert standin.grade_text(said, opinion, standin.KeyLine(text="In our opinion, a true view."))[0] \
+        == "right"                                             # nor the stop that ends it
+    assert grade("Certified Public Accountants") == "wrong_text"
+    assert grade("KPMG") == "unresolved"                      # the page does not print it
+    assert grade("Ernst & Young", page=84) == "unresolved"    # a page the request did not supply
+    assert grade("") == "missed"
+    assert standin.grade_text(payload, LineItemAnswer(key="k"), kl)[0] == "missed"
+    assert standin.grade_text(payload, LineItemTextAnswer(key="k"), standin.KeyLine(text=[]))[0] \
+        == "rightly_blank"
+
+
+def test_a_text_key_line_loads_and_is_not_counted_as_a_figure(tmp_path):
+    path = tmp_path / "key.json"
+    path.write_text(json.dumps({"filing": "x", "lines": {
+        "statement_setup_controls__accountant": {"text": ["Ernst & Young"], "page": 83}}}),
+        encoding="utf-8")
+    kl = standin.load_key(path).lines["statement_setup_controls__accountant"]
+    assert kl.text == ["Ernst & Young"] and kl.current is None and kl.prior is None

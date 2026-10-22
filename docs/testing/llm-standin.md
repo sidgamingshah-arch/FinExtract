@@ -145,7 +145,15 @@ What the filing prints, written by someone reading the filing:
 `null` (the whole entry, or a period) means the filing does not print it. A line printed as many
 addends can list them, signed, under `"parts": {"current": ["2,046,232.67", "-44,598.86"], "prior": [...]}`;
 coverage then looks for each addend in a row (the `where` text reads grouped numbers only, so it
-cannot name 966.91 or an HKFRS note's 465). The older scratch shape (numbers instead of strings,
+cannot name 966.91 or an HKFRS note's 465). A TEXT line (the auditor's opinion, the entity's name,
+the currency, the framework, the auditor — a line the set marks `output_structure: phrase`) gives
+its value as printed under `"text"`, a string or a list of the ways the filing prints it
+(`["Renminbi", "RMB"]`), and no `current`/`prior`. Its request is a text request (schema
+`LineItemTextReply`: `text` and `page`, the text copied from one of the request's `text_pages`);
+`grade` checks the text against the page it cites as the gateway does (`unresolved` when that page
+does not print it), then compares it with the key by normalised exact match (spacing, case and a
+closing full stop do not count): `right` or `wrong_text`, `missed` for no text. Only the latest
+run's text request is graded. The older scratch shape (numbers instead of strings,
 `units`, `source` for `where`, `confidence`) is accepted and converted.
 
 ## The report
