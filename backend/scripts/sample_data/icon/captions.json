@@ -198,16 +198,22 @@
    "Cost of raw materials & components consumed",
    "Raw materials and components consumed",
    "Raw materials & components consumed",
-   "Cost of material consumed"
+   "Cost of material consumed",
+   "Purchases of stock-in-trade",
+   "Purchase of stock-in-trade",
+   "Purchases of traded goods",
+   "Purchase of traded goods",
+   "Purchases of stock in trade",
+   "Purchase of stock in trade"
   ],
   "exclude_hints": [
    "(?i)\\bimport|\\bc\\.?\\s*i\\.?\\s*f\\b|value\\s+of\\s+imports",
-   "(?i)inventor|closing\\s+stock|opening\\s+stock|stock\\s+at",
-   "(?i)purchases?\\s+of\\s+(?:stock|traded)"
+   "(?i)inventor|closing\\s+stock|opening\\s+stock|stock\\s+at"
   ],
   "route": "face",
   "confidence": "high",
-  "note": "Dropped the draft's bare 'Raw materials': it is the inventory caption and the row label under 'CIF value of imports', both different figures. This is calculated: if the model fills only one of imported or indigenous, the partial sum replaces the printed figure (rollups.py:342, 446-449). Purchases of stock-in-trade cannot be added here (see unplaced)."
+  "definition": "Raw materials and components consumed in the year (the face row 'Cost of materials consumed'), together with purchases of stock-in-trade (traded goods) where the face prints them: the CMA operating statement carries a trader's purchases on this line, and the movement in stock-in-trade stays on changes in inventories. When the face prints both rows, this line is their sum. Not closing raw-material inventory and not the CIF value of imports.",
+  "note": "Dropped the draft's bare 'Raw materials': it is the inventory caption and the row label under 'CIF value of imports', both different figures. This is calculated: if the model fills only one of imported or indigenous, the partial sum replaces the printed figure (rollups.py:342, 446-449). Purchases of stock-in-trade bind here as a second face row (the CMA place for a trader's purchases; the stock-in-trade movement is on changes in inventories): Laurus Labs printed 'Purchase of traded goods' 172.56 beside cost of materials consumed 2,794.34 and, unbound, left computed profit before tax 172.56 too high."
  },
  "pl_icon__raw_materials_imported": {
   "aliases": [
@@ -1207,8 +1213,12 @@
   "note": "Schedule III 'Profit before exceptional items and tax' includes other income, so it is not this figure. It belongs to the PBT block."
  },
  "pl_icon__interest_received": {
+  "sign_rule": {
+   "convention": "natural_positive"
+  },
   "aliases": [
    "Interest received",
+   "Finance income",
    "Interest income",
    "Interest income on bank deposits",
    "Interest on bank deposits",
@@ -1428,6 +1438,9 @@
    "Notional interest income",
    "Share of profit of associates",
    "Share of profit of joint ventures",
+   "Share of profit in associates",
+   "Share of profit in joint ventures",
+   "Share of profit of associates and joint ventures",
    "Gain on termination of leases"
   ],
   "exclude_hints": [
@@ -1882,14 +1895,23 @@
    "Profit/(loss) after tax",
    "Net profit after tax",
    "Profit after taxation",
-   "Profit after tax for the year"
+   "Profit after tax for the year",
+   "Profit for the year after share of profit/(loss) of associates and joint ventures",
+   "Profit for the year after share of profit/(loss) from associates and joint venture",
+   "Profit for the year after share of profit of associates and joint ventures",
+   "Profit for the year after share of profit of associates",
+   "Profit after tax and share of profit/(loss) of associates and joint ventures",
+   "Profit after tax and share of profit of associates"
+  ],
+  "regex_hints": [
+   "^(?:[ivxl]{1,6}\\s+)?(?:net\\s+)?(?:profit|loss)(?:\\s+(?:loss|profit))?\\s+(?:for\\s+the\\s+(?:year|period)\\s+after|after\\s+tax(?:ation)?(?:\\s+(?:and|&))?)\\s+(?:the\\s+)?share\\s+(?:of|in)\\s+(?:net\\s+)?(?:profit|loss|result)"
   ],
   "exclude_hints": [
    "comprehensive",
    "attributable",
    "\\bbefore\\b",
    "continuing|discontinued",
-   "share\\s+of",
+   "^(?!.*\\bafter\\s+(?:tax(?:ation)?\\s+(?:(?:and|&)\\s+)?)?(?:the\\s+)?share\\s+(?:of|in)\\b).*\\bshare\\s+(?:of|in)\\b",
    "per\\s+share|\\beps\\b",
    "non[-\\s]?controlling|minority",
    "brought\\s+forward|carried|transferred|opening|closing|balance"
@@ -3645,7 +3667,9 @@
    "Loans to employees",
    "Staff advances",
    "Advances to staff",
-   "Other loans and advances"
+   "Other loans and advances",
+   "Loans",
+   "Short-term loans and advances"
   ],
   "exclude_hints": [
    "(?i)capital",

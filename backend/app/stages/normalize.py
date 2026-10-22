@@ -359,11 +359,21 @@ class NormalizeStage:
         if hasattr(template, "model_dump"):
             template = template.model_dump(mode="json")
         natural_negative = _natural_negative_keys(template)
+        # LINES DECLARED A MAGNITUDE (`sign_rule.convention: natural_positive`): a figure that can
+        # only be positive whatever the face's sign does in that place. Laurus Labs prints "Finance
+        # income (6.57)" in the block it deducts from EBITDA (depreciation, finance income, finance
+        # costs), so the row arrives -6.57 in the expense block's convention; ICON's interest
+        # received is income, stored positive, and at -6.57 profit before tax came out 13.14 short.
+        # Opt-in per line, so the expectation check below still flags every other wrong sign.
+        magnitude_keys: set[str] = set()
         if ontology is not None:
             for m in getattr(ontology, "mappings", []) or []:
                 pats = getattr(getattr(m, "sign_rule", None), "flip_if_label_matches", None) or []
                 if pats:
                     sign_by_key[m.canonical_key] = [re.compile(p, re.IGNORECASE) for p in pats]
+                convention = getattr(getattr(m, "sign_rule", None), "convention", None)
+                if str(getattr(convention, "value", convention) or "") == "natural_positive":
+                    magnitude_keys.add(m.canonical_key)
                 if m.sign_convention in _SIGN_EXPECTED:
                     expected_sign[m.canonical_key] = m.sign_convention
                 if m.temporality:
@@ -379,7 +389,8 @@ class NormalizeStage:
             flips = sign_by_key.get(li.canonical_key or "", [])
             flip = any(rx.search(label) for rx in flips)
             contra = li.canonical_key in natural_negative
-            if not (less or add or flip or contra):
+            magnitude = li.canonical_key in magnitude_keys
+            if not (less or add or flip or contra or magnitude):
                 continue
             for ev in li.values.values():
                 raw = ev.value_raw
@@ -413,6 +424,9 @@ class NormalizeStage:
                 if contra:
                     v = -abs(raw)
                     rules = ["natural_negative"]
+                elif magnitude:
+                    v = abs(raw)
+                    rules = ["natural_positive"]
                 if v != ev.value:
                     ev.value = v
                     # EVERY RULE THAT CHANGED THE FIGURE SAYS SO, on the value and on the row —

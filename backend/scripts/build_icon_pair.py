@@ -679,6 +679,10 @@ def build() -> tuple[dict, dict, dict]:
             item["route"] = "face"
         elif cap.get("route") in ROUTES:
             item["route"] = cap["route"]
+        # A reviewed sign rule (`captions.json` "sign_rule"): `natural_positive` declares a line
+        # that is a magnitude wherever the face prints it (`stages.normalize`).
+        if cap.get("sign_rule"):
+            item["sign_rule"] = dict(cap["sign_rule"])
         if cap.get("exclude_criteria"):
             item["exclude_criteria"] = [_prose(x) for x in cap["exclude_criteria"] if _prose(x)]
         # NO `note_source`. It only ever said which notes' TEXT a request carries
@@ -694,7 +698,11 @@ def build() -> tuple[dict, dict, dict]:
         if aliases:
             item["aliases"] = aliases
             item["aliases_i18n"] = {"en": list(aliases)}
-            item["regex_hints"] = _regex_hint(aliases) + [_printed_hint(h) for h in held]
+            # A reviewed hint (`captions.json` "regex_hints") for a caption no alias can spell: a
+            # row whose printed label row reconstruction cut short ("VIII. Profit for the year
+            # after share of profit/(loss) from associates and", its tail on the next line).
+            item["regex_hints"] = (_regex_hint(aliases) + [_printed_hint(h) for h in held]
+                                   + list(cap.get("regex_hints") or []))
             if cap.get("exclude_hints"):
                 item["exclude_hints"] = list(cap["exclude_hints"])
         if k in CATCH_ALLS:

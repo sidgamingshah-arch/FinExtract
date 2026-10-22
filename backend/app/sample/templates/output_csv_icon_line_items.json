@@ -1056,7 +1056,7 @@
     "pl_expenses"
    ],
    "order": 9,
-   "definition": "Raw-material consumption expense, comprising imported and indigenous consumption. Not purchases unless adjusted for inventory movements, and not closing raw-material inventory.",
+   "definition": "Raw materials and components consumed in the year (the face row 'Cost of materials consumed'), together with purchases of stock-in-trade (traded goods) where the face prints them: the CMA operating statement carries a trader's purchases on this line, and the movement in stock-in-trade stays on changes in inventories. When the face prints both rows, this line is their sum. Not closing raw-material inventory and not the CIF value of imports.",
    "temporality": "duration",
    "unit_of_account": "subtotal",
    "sign_convention": "either",
@@ -1087,7 +1087,13 @@
     "Cost of raw materials & components consumed",
     "Raw materials and components consumed",
     "Raw materials & components consumed",
-    "Cost of material consumed"
+    "Cost of material consumed",
+    "Purchases of stock-in-trade",
+    "Purchase of stock-in-trade",
+    "Purchases of traded goods",
+    "Purchase of traded goods",
+    "Purchases of stock in trade",
+    "Purchase of stock in trade"
    ],
    "aliases_i18n": {
     "en": [
@@ -1103,16 +1109,21 @@
      "Cost of raw materials & components consumed",
      "Raw materials and components consumed",
      "Raw materials & components consumed",
-     "Cost of material consumed"
+     "Cost of material consumed",
+     "Purchases of stock-in-trade",
+     "Purchase of stock-in-trade",
+     "Purchases of traded goods",
+     "Purchase of traded goods",
+     "Purchases of stock in trade",
+     "Purchase of stock in trade"
     ]
    },
    "regex_hints": [
-    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+)?(?:cost\\s+of\\s+raw\\s+materials\\s+and\\s+components\\s+consumed|cost\\s+of\\s+raw\\s+materials\\s+components\\s+consumed|raw\\s+materials\\s+and\\s+components\\s+consumed|raw\\s+materials\\s+components\\s+consumed|cost\\s+of\\s+raw\\s+materials\\s+consumed|cost\\s+of\\s+raw\\s+material\\s+consumed|consumption\\s+of\\s+raw\\s+materials|consumption\\s+of\\s+raw\\s+material|cost\\s+of\\s+materials\\s+consumed|cost\\s+of\\s+material\\s+consumed|raw\\s+materials\\s+consumed|raw\\s+material\\s+consumed|materials\\s+consumed)(?:\\s+(?:[ivxl]{1,5}|\\d{1,2}))*(?:\\s+(?:liabilities))?$"
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+)?(?:cost\\s+of\\s+raw\\s+materials\\s+and\\s+components\\s+consumed|cost\\s+of\\s+raw\\s+materials\\s+components\\s+consumed|raw\\s+materials\\s+and\\s+components\\s+consumed|raw\\s+materials\\s+components\\s+consumed|cost\\s+of\\s+raw\\s+materials\\s+consumed|cost\\s+of\\s+raw\\s+material\\s+consumed|consumption\\s+of\\s+raw\\s+materials|consumption\\s+of\\s+raw\\s+material|purchases\\s+of\\s+stock\\s+in\\s+trade|cost\\s+of\\s+materials\\s+consumed|purchase\\s+of\\s+stock\\s+in\\s+trade|cost\\s+of\\s+material\\s+consumed|purchases\\s+of\\s+traded\\s+goods|purchase\\s+of\\s+traded\\s+goods|raw\\s+materials\\s+consumed|raw\\s+material\\s+consumed|materials\\s+consumed)(?:\\s+(?:[ivxl]{1,5}|\\d{1,2}))*(?:\\s+(?:liabilities))?$"
    ],
    "exclude_hints": [
     "(?i)\\bimport|\\bc\\.?\\s*i\\.?\\s*f\\b|value\\s+of\\s+imports",
-    "(?i)inventor|closing\\s+stock|opening\\s+stock|stock\\s+at",
-    "(?i)purchases?\\s+of\\s+(?:stock|traded)"
+    "(?i)inventor|closing\\s+stock|opening\\s+stock|stock\\s+at"
    ]
   },
   {
@@ -3302,8 +3313,12 @@
    "analyst_bucket": "non_operating",
    "match_priority": 80,
    "route": "face",
+   "sign_rule": {
+    "convention": "natural_positive"
+   },
    "aliases": [
     "Interest received",
+    "Finance income",
     "Interest income",
     "Interest income on bank deposits",
     "Interest on bank deposits",
@@ -3336,6 +3351,7 @@
    "aliases_i18n": {
     "en": [
      "Interest received",
+     "Finance income",
      "Interest income",
      "Interest income on bank deposits",
      "Interest on bank deposits",
@@ -3367,7 +3383,7 @@
     ]
    },
    "regex_hints": [
-    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+)?(?:interest\\s+income\\s+from\\s+financial\\s+assets\\s+measured\\s+at\\s+amortised\\s+cost|interest\\s+income\\s+on\\s+financial\\s+assets\\s+measured\\s+at\\s+amortised\\s+cost|interest\\s+income\\s+on\\s+financial\\s+assets\\s+carried\\s+at\\s+amortised\\s+cost|interest\\s+income\\s+from\\s+financial\\s+assets\\s+at\\s+amortised\\s+cost|interest\\s+income\\s+on\\s+inter\\s+corporate\\s+deposits|interest\\s+on\\s+delayed\\s+payments\\s+from\\s+customers|interest\\s+income\\s+on\\s+deposits\\s+with\\s+banks|interest\\s+on\\s+fixed\\s+deposits\\s+with\\s+banks|interest\\s+income\\s+on\\s+income\\s+tax\\s+refund|interest\\s+received\\s+on\\s+fixed\\s+deposits|interest\\s+income\\s+from\\s+bank\\s+deposits|interest\\s+income\\s+from\\s+related\\s+party|interest\\s+income\\s+on\\s+fixed\\s+deposits|interest\\s+income\\s+from\\s+investments|interest\\s+income\\s+on\\s+bank\\s+deposits|interest\\s+on\\s+deposits\\s+with\\s+banks|interest\\s+income\\s+on\\s+investments|interest\\s+on\\s+income\\s+tax\\s+refund|interest\\s+income\\s+from\\s+others|interest\\s+income\\s+on\\s+others|interest\\s+on\\s+bank\\s+deposits|interest\\s+income\\s+on\\s+loans|interest\\s+from\\s+customers|other\\s+interest\\s+incomes|other\\s+interest\\s+income|bank\\s+interest\\s+income|interest\\s+received|interest\\s+income|interest\\s+on\\s+fdr)(?:\\s+(?:[ivxl]{1,5}|\\d{1,2}))*(?:\\s+(?:liabilities))?$"
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+)?(?:interest\\s+income\\s+from\\s+financial\\s+assets\\s+measured\\s+at\\s+amortised\\s+cost|interest\\s+income\\s+on\\s+financial\\s+assets\\s+measured\\s+at\\s+amortised\\s+cost|interest\\s+income\\s+on\\s+financial\\s+assets\\s+carried\\s+at\\s+amortised\\s+cost|interest\\s+income\\s+from\\s+financial\\s+assets\\s+at\\s+amortised\\s+cost|interest\\s+income\\s+on\\s+inter\\s+corporate\\s+deposits|interest\\s+on\\s+delayed\\s+payments\\s+from\\s+customers|interest\\s+income\\s+on\\s+deposits\\s+with\\s+banks|interest\\s+on\\s+fixed\\s+deposits\\s+with\\s+banks|interest\\s+income\\s+on\\s+income\\s+tax\\s+refund|interest\\s+received\\s+on\\s+fixed\\s+deposits|interest\\s+income\\s+from\\s+bank\\s+deposits|interest\\s+income\\s+from\\s+related\\s+party|interest\\s+income\\s+on\\s+fixed\\s+deposits|interest\\s+income\\s+from\\s+investments|interest\\s+income\\s+on\\s+bank\\s+deposits|interest\\s+on\\s+deposits\\s+with\\s+banks|interest\\s+income\\s+on\\s+investments|interest\\s+on\\s+income\\s+tax\\s+refund|interest\\s+income\\s+from\\s+others|interest\\s+income\\s+on\\s+others|interest\\s+on\\s+bank\\s+deposits|interest\\s+income\\s+on\\s+loans|interest\\s+from\\s+customers|other\\s+interest\\s+incomes|other\\s+interest\\s+income|bank\\s+interest\\s+income|interest\\s+received|interest\\s+income|interest\\s+on\\s+fdr|finance\\s+income)(?:\\s+(?:[ivxl]{1,5}|\\d{1,2}))*(?:\\s+(?:liabilities))?$"
    ],
    "exclude_hints": [
     "expense",
@@ -3744,6 +3760,10 @@
     "Notional interest income",
     "Share of profit of associates",
     "Share of profit of joint ventures",
+    "Share of profit in associates",
+    "Share of profit in joint ventures",
+    "Share of profit of associates and joint ventures",
+    "Share of profit of associates & joint ventures",
     "Gain on termination of leases"
    ],
    "aliases_i18n": {
@@ -3762,11 +3782,15 @@
      "Notional interest income",
      "Share of profit of associates",
      "Share of profit of joint ventures",
+     "Share of profit in associates",
+     "Share of profit in joint ventures",
+     "Share of profit of associates and joint ventures",
+     "Share of profit of associates & joint ventures",
      "Gain on termination of leases"
     ]
    },
    "regex_hints": [
-    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+)?(?:net\\s+gain\\s+on\\s+financial\\s+assets\\s+mandatorily\\s+measured\\s+at\\s+fvtpl|fair\\s+value\\s+gain\\s+on\\s+financial\\s+instruments\\s+at\\s+fvtpl|net\\s+gain\\s+on\\s+financial\\s+assets\\s+measured\\s+at\\s+fvtpl|liabilities\\s+no\\s+longer\\s+required\\s+written\\s+back|provisions\\s+no\\s+longer\\s+required\\s+written\\s+back|unwinding\\s+of\\s+discount\\s+on\\s+security\\s+deposits|sundry\\s+credit\\s+balances\\s+written\\s+back|share\\s+of\\s+profit\\s+of\\s+joint\\s+ventures|excess\\s+provisions\\s+written\\s+back|net\\s+gain\\s+on\\s+fair\\s+value\\s+changes|gain\\s+on\\s+termination\\s+of\\s+leases|share\\s+of\\s+profit\\s+of\\s+associates|credit\\s+balances\\s+written\\s+back|sundry\\s+balances\\s+written\\s+back|notional\\s+interest\\s+income)(?:\\s+(?:[ivxl]{1,5}|\\d{1,2}))*(?:\\s+(?:liabilities))?$"
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+)?(?:net\\s+gain\\s+on\\s+financial\\s+assets\\s+mandatorily\\s+measured\\s+at\\s+fvtpl|fair\\s+value\\s+gain\\s+on\\s+financial\\s+instruments\\s+at\\s+fvtpl|share\\s+of\\s+profit\\s+of\\s+associates\\s+and\\s+joint\\s+ventures|net\\s+gain\\s+on\\s+financial\\s+assets\\s+measured\\s+at\\s+fvtpl|share\\s+of\\s+profit\\s+of\\s+associates\\s+joint\\s+ventures|liabilities\\s+no\\s+longer\\s+required\\s+written\\s+back|provisions\\s+no\\s+longer\\s+required\\s+written\\s+back|unwinding\\s+of\\s+discount\\s+on\\s+security\\s+deposits|sundry\\s+credit\\s+balances\\s+written\\s+back|share\\s+of\\s+profit\\s+in\\s+joint\\s+ventures|share\\s+of\\s+profit\\s+of\\s+joint\\s+ventures|excess\\s+provisions\\s+written\\s+back|net\\s+gain\\s+on\\s+fair\\s+value\\s+changes|gain\\s+on\\s+termination\\s+of\\s+leases|share\\s+of\\s+profit\\s+in\\s+associates|share\\s+of\\s+profit\\s+of\\s+associates|credit\\s+balances\\s+written\\s+back|sundry\\s+balances\\s+written\\s+back|notional\\s+interest\\s+income)(?:\\s+(?:[ivxl]{1,5}|\\d{1,2}))*(?:\\s+(?:liabilities))?$"
    ],
    "exclude_hints": [
     "\\bloss",
@@ -4850,7 +4874,18 @@
     "Profit/(loss) after tax",
     "Net profit after tax",
     "Profit after taxation",
-    "Profit after tax for the year"
+    "Profit after tax for the year",
+    "Profit for the year after share of profit/(loss) of associates and joint ventures",
+    "Profit for the year after share of profit/(loss) of associates & joint ventures",
+    "Profit for the year after share of profit/(loss) from associates and joint venture",
+    "Profit for the year after share of profit/(loss) from associates & joint venture",
+    "Profit for the year after share of profit of associates and joint ventures",
+    "Profit for the year after share of profit of associates & joint ventures",
+    "Profit for the year after share of profit of associates",
+    "Profit after tax and share of profit/(loss) of associates and joint ventures",
+    "Profit after tax & share of profit/(loss) of associates & joint ventures",
+    "Profit after tax and share of profit of associates",
+    "Profit after tax & share of profit of associates"
    ],
    "aliases_i18n": {
     "en": [
@@ -4870,18 +4905,30 @@
      "Profit/(loss) after tax",
      "Net profit after tax",
      "Profit after taxation",
-     "Profit after tax for the year"
+     "Profit after tax for the year",
+     "Profit for the year after share of profit/(loss) of associates and joint ventures",
+     "Profit for the year after share of profit/(loss) of associates & joint ventures",
+     "Profit for the year after share of profit/(loss) from associates and joint venture",
+     "Profit for the year after share of profit/(loss) from associates & joint venture",
+     "Profit for the year after share of profit of associates and joint ventures",
+     "Profit for the year after share of profit of associates & joint ventures",
+     "Profit for the year after share of profit of associates",
+     "Profit after tax and share of profit/(loss) of associates and joint ventures",
+     "Profit after tax & share of profit/(loss) of associates & joint ventures",
+     "Profit after tax and share of profit of associates",
+     "Profit after tax & share of profit of associates"
     ]
    },
    "regex_hints": [
-    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+)?(?:profit\\s+after\\s+tax\\s+for\\s+the\\s+year|net\\s+profit\\s+loss\\s+for\\s+the\\s+year|profit\\s+loss\\s+for\\s+the\\s+period|net\\s+profit\\s+for\\s+the\\s+period|loss\\s+profit\\s+for\\s+the\\s+year|profit\\s+loss\\s+for\\s+the\\s+year|net\\s+profit\\s+for\\s+the\\s+year|profit\\s+after\\s+taxation|profit\\s+for\\s+the\\s+period|profit\\s+loss\\s+after\\s+tax|net\\s+profit\\s+after\\s+tax|loss\\s+for\\s+the\\s+period|profit\\s+for\\s+the\\s+year|loss\\s+for\\s+the\\s+year|profit\\s+after\\s+tax|net\\s+profit\\s+loss|loss\\s+after\\s+tax)(?:\\s+(?:[ivxl]{1,5}|\\d{1,2}))*(?:\\s+(?:liabilities))?$"
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+)?(?:profit\\s+for\\s+the\\s+year\\s+after\\s+share\\s+of\\s+profit\\s+loss\\s+from\\s+associates\\s+and\\s+joint\\s+venture|profit\\s+for\\s+the\\s+year\\s+after\\s+share\\s+of\\s+profit\\s+loss\\s+of\\s+associates\\s+and\\s+joint\\s+ventures|profit\\s+for\\s+the\\s+year\\s+after\\s+share\\s+of\\s+profit\\s+loss\\s+from\\s+associates\\s+joint\\s+venture|profit\\s+for\\s+the\\s+year\\s+after\\s+share\\s+of\\s+profit\\s+loss\\s+of\\s+associates\\s+joint\\s+ventures|profit\\s+after\\s+tax\\s+and\\s+share\\s+of\\s+profit\\s+loss\\s+of\\s+associates\\s+and\\s+joint\\s+ventures|profit\\s+for\\s+the\\s+year\\s+after\\s+share\\s+of\\s+profit\\s+of\\s+associates\\s+and\\s+joint\\s+ventures|profit\\s+for\\s+the\\s+year\\s+after\\s+share\\s+of\\s+profit\\s+of\\s+associates\\s+joint\\s+ventures|profit\\s+after\\s+tax\\s+share\\s+of\\s+profit\\s+loss\\s+of\\s+associates\\s+joint\\s+ventures|profit\\s+for\\s+the\\s+year\\s+after\\s+share\\s+of\\s+profit\\s+of\\s+associates|profit\\s+after\\s+tax\\s+and\\s+share\\s+of\\s+profit\\s+of\\s+associates|profit\\s+after\\s+tax\\s+share\\s+of\\s+profit\\s+of\\s+associates|profit\\s+after\\s+tax\\s+for\\s+the\\s+year|net\\s+profit\\s+loss\\s+for\\s+the\\s+year|profit\\s+loss\\s+for\\s+the\\s+period|net\\s+profit\\s+for\\s+the\\s+period|loss\\s+profit\\s+for\\s+the\\s+year|profit\\s+loss\\s+for\\s+the\\s+year|net\\s+profit\\s+for\\s+the\\s+year|profit\\s+after\\s+taxation|profit\\s+for\\s+the\\s+period|profit\\s+loss\\s+after\\s+tax|net\\s+profit\\s+after\\s+tax|loss\\s+for\\s+the\\s+period|profit\\s+for\\s+the\\s+year|loss\\s+for\\s+the\\s+year|profit\\s+after\\s+tax|net\\s+profit\\s+loss|loss\\s+after\\s+tax)(?:\\s+(?:[ivxl]{1,5}|\\d{1,2}))*(?:\\s+(?:liabilities))?$",
+    "^(?:[ivxl]{1,6}\\s+)?(?:net\\s+)?(?:profit|loss)(?:\\s+(?:loss|profit))?\\s+(?:for\\s+the\\s+(?:year|period)\\s+after|after\\s+tax(?:ation)?(?:\\s+(?:and|&))?)\\s+(?:the\\s+)?share\\s+(?:of|in)\\s+(?:net\\s+)?(?:profit|loss|result)"
    ],
    "exclude_hints": [
     "comprehensive",
     "attributable",
     "\\bbefore\\b",
     "continuing|discontinued",
-    "share\\s+of",
+    "^(?!.*\\bafter\\s+(?:tax(?:ation)?\\s+(?:(?:and|&)\\s+)?)?(?:the\\s+)?share\\s+(?:of|in)\\b).*\\bshare\\s+(?:of|in)\\b",
     "per\\s+share|\\beps\\b",
     "non[-\\s]?controlling|minority",
     "brought\\s+forward|carried|transferred|opening|closing|balance"
@@ -9004,7 +9051,10 @@
     "Staff advances",
     "Advances to staff",
     "Other loans and advances",
-    "Other loans & advances"
+    "Other loans & advances",
+    "Loans",
+    "Short-term loans and advances",
+    "Short-term loans & advances"
    ],
    "aliases_i18n": {
     "en": [
@@ -9019,11 +9069,14 @@
      "Staff advances",
      "Advances to staff",
      "Other loans and advances",
-     "Other loans & advances"
+     "Other loans & advances",
+     "Loans",
+     "Short-term loans and advances",
+     "Short-term loans & advances"
     ]
    },
    "regex_hints": [
-    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+)?(?:advances\\s+recoverable\\s+in\\s+cash\\s+or\\s+in\\s+kind\\s+or\\s+for\\s+value\\s+to\\s+be\\s+received|advances\\s+recoverable\\s+in\\s+cash\\s+or\\s+kind\\s+or\\s+for\\s+value\\s+to\\s+be\\s+received|advances\\s+recoverable\\s+in\\s+cash\\s+or\\s+in\\s+kind|advances\\s+recoverable\\s+in\\s+cash\\s+or\\s+kind|loans\\s+and\\s+advances\\s+to\\s+employees|loans\\s+advances\\s+to\\s+employees|other\\s+loans\\s+and\\s+advances|advances\\s+to\\s+employees|other\\s+loans\\s+advances|loans\\s+to\\s+employees|advances\\s+to\\s+staff|staff\\s+advances)(?:\\s+(?:[ivxl]{1,5}|\\d{1,2}))*(?:\\s+(?:liabilities))?$"
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+)?(?:advances\\s+recoverable\\s+in\\s+cash\\s+or\\s+in\\s+kind\\s+or\\s+for\\s+value\\s+to\\s+be\\s+received|advances\\s+recoverable\\s+in\\s+cash\\s+or\\s+kind\\s+or\\s+for\\s+value\\s+to\\s+be\\s+received|advances\\s+recoverable\\s+in\\s+cash\\s+or\\s+in\\s+kind|advances\\s+recoverable\\s+in\\s+cash\\s+or\\s+kind|loans\\s+and\\s+advances\\s+to\\s+employees|short\\s+term\\s+loans\\s+and\\s+advances|loans\\s+advances\\s+to\\s+employees|short\\s+term\\s+loans\\s+advances|other\\s+loans\\s+and\\s+advances|advances\\s+to\\s+employees|other\\s+loans\\s+advances|loans\\s+to\\s+employees|advances\\s+to\\s+staff|staff\\s+advances|loans)(?:\\s+(?:[ivxl]{1,5}|\\d{1,2}))*(?:\\s+(?:liabilities))?$"
    ],
    "exclude_hints": [
     "(?i)capital",
