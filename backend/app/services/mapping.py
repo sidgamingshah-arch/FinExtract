@@ -133,7 +133,12 @@ class SourceRef(BaseModel):
     table: str = Field(default="", description="the `title` of the note block the row is in, as "
                                                "given — needed when one note number has several "
                                                "blocks")
-    group: str = Field(default="", description="the row's `group`, as given, when it has one")
+    # A STATEMENT ROW IS NAMED BY ITS HEADING TOO: a balance sheet prints "Borrowings" under
+    # non-current and again under current liabilities, and a citation of statement, entity and
+    # caption could not say which. The row's `subheading`, else its `under`, as given.
+    group: str = Field(default="", description="the heading the row is printed under, as given: "
+                                               "a note row's `group`, a statement row's "
+                                               "`under` or `subheading`")
     # THE PERIOD OF THE ROW'S BLOCK, for a table whose columns are not periods: a movement schedule
     # prints "Disposals" once per year under each group, and only this tells the two apart.
     period: str = Field(default="", description="the row's `period`, as given, when it has one")

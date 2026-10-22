@@ -1214,10 +1214,12 @@ def _source_rows(payload: dict, src) -> list[tuple[dict, dict]]:
         for r in b.get("rows") or []:
             if _norm_caption(r.get("caption")) != cap:
                 continue
-            # A statement row is named by the heading it is printed under (`subheading`), as the
-            # gateway reads it (`note_sourced.resolve_sources`); a note row by its `group`.
-            heading = r.get("group") if kind != "statement_rows" else r.get("subheading")
-            if src.group and _norm_caption(heading) != _norm_caption(src.group):
+            # A statement row is named by the heading it is printed under (`subheading` or
+            # `under`), as the gateway reads it (`note_sourced.resolve_sources`); a note row by
+            # its `group`.
+            heads = ([r.get("group")] if kind != "statement_rows"
+                     else [r.get("subheading"), r.get("under")])
+            if src.group and _norm_caption(src.group) not in {_norm_caption(h) for h in heads}:
                 continue
             out.append((b, r))
     return out

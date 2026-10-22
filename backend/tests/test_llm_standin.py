@@ -547,3 +547,25 @@ def test_grade_leaves_out_a_line_the_key_computes():
     ans = LineItemAnswer(key="k", sources=[])
     kl = standin.KeyLine(current="5.00", where="computed: revenue less cost of sales")
     assert standin.grade_answer(_payload(), ans, kl, "current", None)[0] == "derived"
+
+
+def test_grade_names_a_statement_row_by_the_section_it_is_under():
+    """Laurus prints "Financial liabilities Borrowings" under non-current and under current
+    liabilities: a citation naming the row's `under` in `group` picks one, as the stage does."""
+    from app.services.line_item_llm import LineItemAnswer
+    from app.services.mapping import SourceRef
+    payload = _payload(statement_rows=[{"statement": "balance_sheet", "entity": "consolidated",
+        "rows": [{"caption": "Financial liabilities Borrowings", "under": "Non-current liabilities",
+                  "figures": {"current": "611.34"}},
+                 {"caption": "Financial liabilities Borrowings", "under": "Current liabilities",
+                  "figures": {"current": "1786.15"}}]}])
+    kl = standin.KeyLine(current="1786.15")
+
+    def grade(group):
+        ans = LineItemAnswer(key="k", sources=[SourceRef(
+            statement="balance_sheet", caption="Financial liabilities Borrowings", group=group)])
+        return standin.grade_answer(payload, ans, kl, "current", None)[0]
+
+    assert grade("Current liabilities") == "right"
+    assert grade("Non-current liabilities") == "wrong_figure"
+    assert grade("") == "ambiguous"

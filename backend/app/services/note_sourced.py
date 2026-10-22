@@ -1653,11 +1653,19 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
                     from app.services.face_context import _page_of, attribution_headings
                     face_headings = attribution_headings(
                         (f[0], _page_of(f[2]), f[2]) for f in face_rows)
-                in_group = [f for f in _tied_captions(want_cap, on_stmt, key=lambda f: norm(f[1]))
-                            if any(_caption_matches(want_group, norm(h)) for h in (
-                                [face_headings[id(f[2])]] if id(f[2]) in face_headings
-                                else [getattr(f[2], "section_hint", None) or "",
-                                      getattr(f[2], "group_hint", "") or ""]) if h)]
+                def _headings(f):
+                    return [norm(h) for h in (
+                        [face_headings[id(f[2])]] if id(f[2]) in face_headings
+                        else [getattr(f[2], "section_hint", None) or "",
+                              getattr(f[2], "group_hint", "") or ""]) if h]
+                tied = _tied_captions(want_cap, on_stmt, key=lambda f: norm(f[1]))
+                # AN EXACT HEADING FIRST. Containment alone cannot tell "Current liabilities" from
+                # "Non-current liabilities" — the one is inside the other — so a citation naming
+                # the current section took the non-current row, printed first. A heading matched
+                # only by containment is used where no row's heading is the one named.
+                in_group = ([f for f in tied if want_group in _headings(f)]
+                            or [f for f in tied
+                                if any(_caption_matches(want_group, h) for h in _headings(f))])
                 if in_group:
                     on_face = in_group[0]
             if on_face is None:

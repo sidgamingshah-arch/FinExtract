@@ -198,3 +198,49 @@ def test_a_cash_flow_row_about_non_controlling_interests_gets_no_heading():
     doc.line_items = rows
     sent = face_context.face_rows(doc, {"cash_flow"})[0]["rows"]
     assert all("subheading" not in r for r in sent)
+
+
+# --- a statement row named by the section it is printed under -----------------------------------
+
+BS = "balance_sheet"
+
+
+def _laurus():
+    """Laurus Labs prints "Financial liabilities Borrowings" under both liabilities sections."""
+    doc = _doc([
+        _row("Financial liabilities Borrowings", "611.34", "645.58", banner="Non-current liabilities"),
+        _row("Total non-current liabilities", "1444.40", "1193.33", banner="Non-current liabilities"),
+        _row("Financial liabilities Borrowings", "1786.15", "2047.50", banner="Current liabilities"),
+    ], pages=(5,))
+    doc.pages = [PageSource(index=5, kind=PageKind.FACE, statement=BS)]
+    return doc
+
+
+def test_a_citation_names_a_statement_row_by_the_section_it_is_under():
+    """"Current liabilities" is inside "Non-current liabilities", so a containment match alone
+    took the non-current row, printed first, for a citation naming the current section."""
+    face = face_context.face_index(_laurus())
+
+    def cite(group=""):
+        resolved, unresolved = resolve_sources(
+            [SourceRef(statement=BS, caption="Financial liabilities Borrowings", group=group)],
+            [], face)
+        assert not unresolved
+        return resolved[0]["figures"]["current"]
+
+    assert cite("Current liabilities") == "1786.15"
+    assert cite("Non-current liabilities") == "611.34"
+    assert cite() == "611.34"        # no group: document order, as before
+
+
+def test_the_request_sends_the_section_a_citation_can_name():
+    rows = face_context.face_rows(_laurus(), {BS})[0]["rows"]
+    assert [r.get("under") for r in rows if r["caption"].endswith("Borrowings")] == [
+        "Non-current liabilities", "Current liabilities"]
+
+
+def test_the_contract_says_a_statement_row_is_named_by_its_under():
+    from app.services.line_item_llm import FACE_ONLY_REPLY_CONTRACT
+    for contract in (REPLY_CONTRACT, FACE_ONLY_REPLY_CONTRACT):
+        assert "give its `under` in `group`" in contract
+    assert "a statement row's `under` or `subheading`" in SourceRef.model_fields["group"].description
