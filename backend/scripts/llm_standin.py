@@ -1214,7 +1214,10 @@ def _source_rows(payload: dict, src) -> list[tuple[dict, dict]]:
         for r in b.get("rows") or []:
             if _norm_caption(r.get("caption")) != cap:
                 continue
-            if src.group and _norm_caption(r.get("group")) != _norm_caption(src.group):
+            # A statement row is named by the heading it is printed under (`subheading`), as the
+            # gateway reads it (`note_sourced.resolve_sources`); a note row by its `group`.
+            heading = r.get("group") if kind != "statement_rows" else r.get("subheading")
+            if src.group and _norm_caption(heading) != _norm_caption(src.group):
                 continue
             out.append((b, r))
     return out
@@ -1224,6 +1227,8 @@ def _row_figure(r: dict, src, period: str) -> float | None:
     """The row's figure for this period, as the citation reads it: a named column (its key or its
     printed heading) filed under the row's own period, else the period's own key."""
     figs = r.get("figures") or {}
+    if src.column and str(src.column).casefold() == "share_counts" and r.get("share_counts"):
+        return _num((r.get("share_counts") or {}).get(period))   # the counts the caption prints
     if src.column:
         heads = {**{str(v): k for k, v in (r.get("columns") or {}).items()}}
         col = src.column if src.column in figs else heads.get(src.column)

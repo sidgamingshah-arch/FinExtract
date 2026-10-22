@@ -49,7 +49,8 @@ from decimal import Decimal, InvalidOperation
 from app.services import derivation, note_columns, prose_grammar
 from app.services.note_sections import open_to as _open_to
 # One split for every side of every comparison — see `line_item_notes`.
-from app.services.note_context import matches_title, note_blocks, same_table_title, subject_tokens
+from app.services.note_context import (SHARE_COUNTS_COLUMN, caption_share_counts, matches_title,
+                                       note_blocks, same_table_title, subject_tokens)
 
 # A pattern an author mistyped must not take the run down, and must not silently match nothing
 # either. Both outcomes are reported by `fill`, which returns the refusals alongside the fills.
@@ -1504,6 +1505,7 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
         return (want.casefold() == str(lay.get("period") or "").casefold()
                 or (bool(lay.get("period_text")) and norm(want) == norm(lay["period_text"])))
     face_rows = list(face or ())
+    face_headings: dict[int, str] | None = None
 
     resolved: list[dict] = []
     unresolved: list[dict] = []
@@ -1641,6 +1643,23 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
                        if section_of_banner(getattr(f[2], "section_hint", None)) in sections]
                 if own:
                     on_face = own[0]
+            # THE HEADING THE ROW IS PRINTED UNDER, when the citation names one in `group`: an
+            # income statement prints "Owners of the Company" under the profit for the year and
+            # again under the total comprehensive income, and document order took the first for
+            # either. Narrowed only where it matches, as a note row's group is.
+            want_group = norm(getattr(ref, "group", ""))
+            if on_face is not None and want_group:
+                if face_headings is None:
+                    from app.services.face_context import _page_of, attribution_headings
+                    face_headings = attribution_headings(
+                        (f[0], _page_of(f[2]), f[2]) for f in face_rows)
+                in_group = [f for f in _tied_captions(want_cap, on_stmt, key=lambda f: norm(f[1]))
+                            if any(_caption_matches(want_group, norm(h)) for h in (
+                                [face_headings[id(f[2])]] if id(f[2]) in face_headings
+                                else [getattr(f[2], "section_hint", None) or "",
+                                      getattr(f[2], "group_hint", "") or ""]) if h)]
+                if in_group:
+                    on_face = in_group[0]
             if on_face is None:
                 # EMPTY IS NOT A STATEMENT. A face row whose page resolved none carries "", and
                 # reporting it read "it is on " with nothing after it — a diagnostic worse than
@@ -1880,6 +1899,26 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
             continue
         number, caption, row, table, _block, _heading = hit
         lay = layout.get(id(row))
+        # THE SHARE COUNTS A CAPTION PRINTS ("2,253,204,500 (2023: 2,253,204,500) ordinary shares"),
+        # sent on the row as `share_counts` beside the money figures — see
+        # `note_context.caption_share_counts`. Numbers of shares, so no unit applies.
+        if want_col and want_col.casefold() == SHARE_COUNTS_COLUMN:
+            counts = caption_share_counts(caption)
+            if counts is None:
+                unresolved.append({"at": at, "note": want_note or number,
+                                   "table": str(getattr(ref, "table", "") or ""),
+                                   "caption": getattr(ref, "caption", ""), "quote": quote,
+                                   "column": want_col,
+                                   "why": "that row's caption prints no number of shares"})
+                continue
+            _figs, filed, prov = _figures_by_basis(row, filed_only=True)
+            basis = filed.get("basis")
+            resolved.append({"at": at, "note": number, "title": getattr(table, "title", "") or "",
+                             "caption": caption, "figures": dict(counts), "provenance": prov,
+                             "basis": basis,
+                             "figures_by_basis": {basis: dict(counts)} if basis else None,
+                             "quote": quote, "measure": "shares"})
+            continue
         if want_col:
             picked, why = (_by_laid_out_column(row, lay, ref) if lay is not None
                            else _by_column(row, ref))

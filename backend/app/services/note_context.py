@@ -670,10 +670,48 @@ _GROUPED_NUMBER = re.compile(r"\d{1,3}(?:,\d{3})+")
 SHARE_COUNT_NOTE = "number of shares — a count, not an amount of money; no unit applies"
 
 
+# THE COUNT A SHARE-CAPITAL CAPTION PRINTS, WITH ITS COMPARATIVE. An HKFRS share-capital note
+# prints "Issued and fully paid 2,253,204,500 (2023: 2,253,204,500) ordinary shares" with the
+# nominal amount in the figure column: the number of shares is in the caption and nowhere else. The
+# request carried the caption whole, so a model could read the current count off it but had no
+# figure to cite for either year (BYD note 30, Hon Kwok note 28).
+_CAPTION_COUNTS = re.compile(
+    r"(?P<current>\d{1,3}(?:,\d{3})+)\s*[(（]\s*(?:19|20)\d\d\s*[:：]\s*"
+    r"(?P<prior>\d{1,3}(?:,\d{3})+)\s*(?:股)?\s*[)）]")
+_SHARES_WORD = re.compile(r"(?i)\bshares?\b|股")
+# The figure key a citation names to take the counts rather than the amount.
+SHARE_COUNTS_COLUMN = "share_counts"
+SHARE_COUNTS_NOTE = ("the number of shares the caption prints for each year — a count, not an "
+                     "amount of money; no unit applies. `figures` are the amount of the share "
+                     "capital. Cite the count with `column`: \"share_counts\"")
+
+
+def caption_share_counts(caption: str) -> dict[str, str] | None:
+    """``{"current": count, "prior": count}`` for a caption that prints the number of shares with
+    its comparative — "2,253,204,500 (2023: 2,253,204,500) ordinary shares" — else None.
+
+    ONE DEFINITION FOR BOTH SIDES OF THE CITATION: `identified_notes` sends the counts on the row
+    and `note_sourced.resolve_sources` resolves a citation of `column` "share_counts" to them.
+    """
+    text = str(caption or "")
+    m = _CAPTION_COUNTS.search(text)
+    if not m or not _SHARES_WORD.search(text):
+        return None
+    return {"current": m.group("current").replace(",", ""),
+            "prior": m.group("prior").replace(",", "")}
+
+
 def share_count_caption(caption: str) -> bool:
     """Whether a note row's caption says its figures count SHARES (see `_SHARE_COUNT`)."""
     text = str(caption or "")
     return bool(_SHARE_COUNT.search(text)) and not _GROUPED_NUMBER.search(text)
+
+
+def _share_counts_fields(caption: str) -> dict:
+    """The row fields that carry a caption's share counts (`caption_share_counts`), or none."""
+    counts = caption_share_counts(caption)
+    return ({SHARE_COUNTS_COLUMN: counts, "share_counts_are": SHARE_COUNTS_NOTE}
+            if counts else {})
 
 
 def note_blocks(notes) -> list[tuple[tuple[str, str], str]]:
@@ -939,6 +977,7 @@ def identified_notes(line_item_set, notes, *, cited=None, every_note: bool = Fal
                              **({"nil": True} if note_columns.printed_nil(row) else {}),
                              **({"measure": SHARE_COUNT_NOTE}
                                 if laid and share_count_caption(caption) else {}),
+                             **_share_counts_fields(caption),
                              "_unit": units.row_unit(row, doc_unit)}
                 printed = [h for h in (getattr(row, "printed_columns", None) or ()) if h]
                 if printed and note_columns.blank_columns(row) and printed != printed_prev:
@@ -975,6 +1014,7 @@ def identified_notes(line_item_set, notes, *, cited=None, every_note: bool = Fal
                          **({"nil": True} if note_columns.printed_nil(row) else {}),
                          **({"measure": SHARE_COUNT_NOTE}
                             if figures and share_count_caption(caption) else {}),
+                         **_share_counts_fields(caption),
                          "_unit": units.row_unit(row, doc_unit)}
             if legend and legend != legend_prev:
                 entry_row["columns"] = legend

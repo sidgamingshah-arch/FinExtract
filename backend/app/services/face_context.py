@@ -145,6 +145,10 @@ def face_rows(doc, statements) -> list[dict]:
                     for p in (getattr(doc, "pages", None) or ())}
     chrome = set(getattr(doc, "page_chrome", None) or ())
     doc_unit = getattr(doc, "unit_context", None)
+    # THE TOTAL EACH ATTRIBUTION ROW SPLITS, over the rows a citation is resolved against
+    # (`face_index`) — see `attribution_headings`.
+    headings = attribution_headings(
+        (st, _page_of(r), r) for st, _c, r in face_index(doc) if st in want)
 
     # ONE BLOCK PER STATEMENT AND ENTITY. A mainland filing prints the group's statements and the
     # parent company's own, and the two blocks were one: 000709's 货币资金 arrived twice — 31.8bn
@@ -169,6 +173,10 @@ def face_rows(doc, statements) -> list[dict]:
                 entry["under"] = banner
             if sub := (getattr(row, "group_hint", "") or "").strip():
                 entry["subheading"] = sub
+            # An owners' / non-controlling share names the total it splits, so the two pairs an
+            # income statement prints are told apart and a citation can name one by its `group`.
+            if id(row) in headings:
+                entry["subheading"] = headings[id(row)]
             # THE DETERMINISTIC ROUTE'S PROPOSAL. Omitted for a row the mapper could not place —
             # `stages.face_mapping_contract` keys those `engine_unclassified_face__…`, which names
             # no line and would read as one.
@@ -228,6 +236,112 @@ def face_rows(doc, statements) -> list[dict]:
         block["unit"] = units.block_units(rows, doc_unit)
         block["rows"] = rows
         out.append(block)
+    return out
+
+
+# THE TOTAL AN ATTRIBUTION ROW SPLITS. An HKFRS / IFRS income statement prints "Owners of the
+# Company" and "Non-controlling interests" twice: once under the profit for the year and once under
+# the total comprehensive income, and the second pair is a different figure. Lai Sun prints both
+# pairs under a bare "Attributable to:", BYD's second pair arrived under the OCI sub-heading carried
+# on from above it, and nothing in the request told the two pairs apart — a citation of "Owners of
+# the Company" matched two rows (-1,675,589 and -1,562,216). A CAS statement names the total in the
+# caption itself (归属于母公司股东的净利润 / 归属于母公司股东的综合收益总额) and needs nothing.
+_ATTRIBUTION_ROW = re.compile(
+    r"(?i)owners?\s+of\s+the\s+(?:company|parent)|equity\s+holders|shareholders\s+of\s+the\s+"
+    r"(?:company|parent)|non[-\s]?controlling\s+interests?|minority\s+interests?"
+    r"|擁有人應佔|拥有人应占|非控股權益|非控股权益|非控制性權益|少數股東|少数股东|母公司股东|母公司股東"
+    r"|母公司所有者|母公司擁有人|母公司拥有人")
+_COMPREHENSIVE_TOTAL = re.compile(
+    r"(?i)total\s+comprehensive\s+(?:income|expense|loss)|綜合收益總額|综合收益总额|全面收益總額"
+    r"|全面收益总额|全面收入總額|綜合收入總額")
+_PROFIT_TOTAL = re.compile(
+    r"(?i)\b(?:profit|loss|earnings)(?:\s*/\s*\(?(?:loss|profit)\)?)?\s+for\s+the\s+(?:year|period)"
+    r"|^\W*net\s+(?:profit|loss)\b|年度溢利|年內溢利|期內溢利|年度虧損|年內虧損|本年度溢利"
+    r"|净利润|淨利潤|净亏损|淨虧損")
+# A caption that already names which total it is a share of — and earnings per share.
+_NAMES_ITS_TOTAL = re.compile(
+    r"(?i)profit|loss|comprehensive|earnings|per\s+share|损益|損益|利润|利潤|溢利|虧損|亏损"
+    r"|综合收益|綜合收益|全面收益|每股")
+_ATTRIBUTABLE = re.compile(r"(?i)attributable|ownership|應佔|应占|归属|歸屬|所有权|所有權")
+
+
+def _total_kind(caption: str) -> str:
+    """"comprehensive" / "profit" for a row that is one of the two totals an attribution splits."""
+    text = caption or ""
+    if _COMPREHENSIVE_TOTAL.search(text):
+        return "comprehensive"
+    # Not the profit before tax, and not the continuing / discontinued split printed under the
+    # net profit (CAS 按经营持续性分类), which is a part of the total rather than the total.
+    if _PROFIT_TOTAL.search(text) and not re.search(
+            r"(?i)before\s+(?:income\s+)?tax|除稅前|除税前|continu|持续经营|持續經營|终止经营|終止經營",
+            text):
+        return "profit"
+    return ""
+
+
+def is_attribution_row(caption: str) -> bool:
+    """Whether a face row is a share of a total — owners / non-controlling interests — whose
+    caption does not itself say which total it is a share of."""
+    text = caption or ""
+    return bool(_ATTRIBUTION_ROW.search(text)) and not _NAMES_ITS_TOTAL.search(text)
+
+
+def attribution_headings(rows) -> dict[int, str]:
+    """``{id(row): heading}`` for every attribution row of a statement, naming the total it splits.
+
+    `rows` is ``(statement, page, row)`` in document order. ONE DEFINITION FOR BOTH SIDES OF THE
+    CITATION: `face_rows` sends the heading as the row's `subheading` and
+    `note_sourced.resolve_sources` reads a citation's `group` against it, so the row a model names
+    by its heading is the row the answer resolves to.
+
+    The heading is the banner the row was printed under (`section_hint`) where that banner names
+    the total — PetroChina's "PROFIT FOR THE YEAR ATTRIBUTABLE TO:" — and no total of the other
+    kind has been printed since the banner's first row: a banner carried past the total
+    comprehensive income onto the second pair would name the wrong total. Otherwise it is the
+    nearest total printed before the row, in printed order, with the banner after it: "LOSS FOR
+    THE YEAR — Attributable to:".
+    """
+    by_statement: dict[str, list[tuple[int, int, object]]] = {}
+    for at, (statement, page, row) in enumerate(rows or ()):
+        # The income statement only: a cash flow's "Dividends paid to non-controlling interests"
+        # and an equity statement's NCI column are not shares of a total.
+        if statement == "profit_and_loss" and (getattr(row, "source_label", "") or ""):
+            by_statement.setdefault(statement, []).append(
+                (page if page is not None else 0, at, row))
+    out: dict[int, str] = {}
+    for seq in by_statement.values():
+        ordered = [r for _p, _a, r in sorted(seq, key=lambda t: (t[0], t[1]))]
+        first_under: dict[str, int] = {}
+        for i, row in enumerate(ordered):
+            under = (getattr(row, "section_hint", None) or "").strip()
+            if under:
+                first_under.setdefault(under, i)
+            if not is_attribution_row(getattr(row, "source_label", "") or ""):
+                continue
+            last_total, last_kind = None, ""
+            for j in range(i - 1, -1, -1):
+                caption = getattr(ordered[j], "source_label", "") or ""
+                if is_attribution_row(caption):
+                    continue
+                kind = _total_kind(caption)
+                if kind:
+                    last_total, last_kind = j, kind
+                    break
+            under_kind = _total_kind(under) if under else ""
+            if under_kind:
+                since = first_under.get(under, i)
+                stale = (last_total is not None and last_total > since
+                         and last_kind != under_kind)
+                if not stale:
+                    out[id(row)] = under
+                    continue
+            if last_total is None:
+                continue
+            total = (getattr(ordered[last_total], "source_label", "") or "").strip()
+            group = (getattr(row, "group_hint", "") or "").strip()
+            tail = next((t for t in (under, group) if t and _ATTRIBUTABLE.search(t)),
+                        "attributable to:")
+            out[id(row)] = f"{total} — {tail}"
     return out
 
 
