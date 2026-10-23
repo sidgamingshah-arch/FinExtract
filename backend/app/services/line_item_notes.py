@@ -387,11 +387,12 @@ def notes_for_line_item(item, pool: ContextPool, *, min_score: float = MIN_SCORE
     return out
 
 
-def line_names(item) -> list[tuple[frozenset[str], bool, str]]:
+def line_names(item) -> list[tuple[frozenset[str], bool, str, tuple[str, ...]]]:
     """What a line is CALLED, one entry per name: its token set (`_fold`ed), whether it is an
-    authored `note_terms` entry, and its last token — the head of the name. A line with
-    `note_terms` is called by them — the vocabulary written for finding its note — and a line
-    without is called by its label and every printed alias.
+    authored `note_terms` entry, its last token — the head of the name — and its SUBJECT, the
+    name without its measure word as a phrase (`name_subject`; empty when it has none, or when
+    what is left is one word). A line with `note_terms` is called by them — the vocabulary written
+    for finding its note — and a line without is called by its label and every printed alias.
 
     NOT ITS DEFINITION. The definition is an instruction to the model — which row to cite, which
     rows it is NOT ("It is not total operating costs (营业总成本 …), which also takes in … the
@@ -402,14 +403,72 @@ def line_names(item) -> list[tuple[frozenset[str], bool, str]]:
     source = getattr(item, "note_source", None)
     authored = [t for t in (getattr(source, "note_terms", None) or ()) if t and str(t).strip()]
     raw = authored or [str(getattr(item, "label", "") or "")] + printed_names(item)
-    out: list[tuple[frozenset[str], bool, str]] = []
+    out: list[tuple[frozenset[str], bool, str, tuple[str, ...]]] = []
     for name in raw:
         ordered = subject_tokens(str(name))
         tokens = frozenset(_fold(ordered))
-        entry = (tokens, bool(authored), next(iter(_fold(ordered[-1:])), "") if ordered else "")
+        entry = (tokens, bool(authored), next(iter(_fold(ordered[-1:])), "") if ordered else "",
+                 () if authored else name_subject(str(name)))
         if tokens and entry not in out:
             out.append(entry)
     return out
+
+
+# THE MEASURE WORD OF A NAME — the word that says WHICH FIGURE of a subject the line is, not what
+# the subject is: "Net Trade Receivables", "Gross Fixed Assets", 无形资产净额, 其他综合收益的税后
+# 净额, 固定资产原值. A note is filed under its subject and prints every measure of it — BYD's note 20
+# TRADE RECEIVABLES prints the gross, the impairment allowance and the "Net carrying amount" — so
+# its heading never carries the measure word. Removed from the TEXT, before tokenising, so a Han
+# name does not keep the bigram that straddles the cut (无形资产净额 -> 无形资产, not + 产净).
+_MEASURE = (
+    re.compile(r"\bnet\s+of\s+(?:income\s+)?tax(?:es|ation)?\b|\(\s*(?:net|gross)\s*\)"
+               r"|\b(?:net|gross)\b", re.IGNORECASE),
+    re.compile(r"的?(?:税后|稅後)?(?:净额|淨額|净值|淨值)|原值|账面价值|賬面價值|账面余额|賬面餘額"),
+)
+_PHRASE = re.compile(r"[a-z]{3,}|[㐀-䶿一-鿿豈-﫿]+")
+
+
+def _phrase(text: str) -> tuple[str, ...]:
+    """`text` as the score reads its words — English words of three letters or more, plural-folded
+    (`_fold`), and whole Han runs — IN PRINTED ORDER, so a name can be looked for as a phrase."""
+    out = []
+    for word in _PHRASE.findall((text or "").lower()):
+        out.append(next(iter(_fold((word,)))) if word.isascii() else word)
+    return tuple(out)
+
+
+def name_subject(name: str) -> tuple[str, ...]:
+    """`name` without its measure word, as a `_phrase` — or empty when it had none, or when what is
+    left is one word.
+
+    ONE WORD IS NOT A SUBJECT. "Net profit" without "net" is "profit", which every PROFIT BEFORE TAX
+    and 未分配利润 heading carries; "Net Income" is OTHER INCOME's "income". Two words — "trade
+    receivables", 无形资产 (three bigrams), 其他综合收益 — name one thing."""
+    text = str(name or "")
+    stripped = text
+    for pattern in _MEASURE:
+        stripped = pattern.sub(" ", stripped)
+    if " ".join(stripped.split()) == " ".join(text.split()):
+        return ()
+    if len(set(_fold(subject_tokens(stripped)))) < 2:
+        return ()
+    return _phrase(stripped)
+
+
+def _prints_phrase(heading: str, subject: tuple[str, ...]) -> bool:
+    """Whether `heading` prints `subject` AS A PHRASE: its English words consecutively, and each of
+    its Han runs inside one of the heading's. "Investment income" is not in DEBT INVESTMENT AT FAIR
+    VALUE THROUGH OTHER COMPREHENSIVE INCOME, though both its words are."""
+    if not subject:
+        return False
+    words = _phrase(heading)
+    english = [w for w in words if w.isascii()]
+    han = [w for w in words if not w.isascii()]
+    want = [w for w in subject if w.isascii()]
+    if want and not any(english[i:i + len(want)] == want
+                        for i in range(len(english) - len(want) + 1)):
+        return False
+    return all(any(run in h for h in han) for run in subject if not run.isascii())
 
 
 def _fold(tokens) -> set[str]:
@@ -479,6 +538,20 @@ def heading_names_line(item, unit, names=None, *, pool=None) -> bool:
       溢利 and 未经抵销的递延所得税资产 share 所得税 and nothing that says "before tax"; "Profit from
       operating activities" and 与经营活动有关的现金 share the activity and not the profit.
 
+    * a label or alias carrying a MEASURE WORD (`name_subject` — net, gross, 净额, 税后净额, 原值) is
+      also held when the heading (or its chapter) PRINTS the name without it, as a phrase. The weighing above
+      counted the measure word against the heading at the full weight of a word no heading
+      prints, and no heading prints it: BYD's TRADE RECEIVABLES (note 20, the note the face row
+      cites) held "trade receivables" and still failed "Net Trade Receivables" at 8.5 of 22.6,
+      because "net" alone weighed 14.1. The phrase, not its words — Far East Horizon's DEBT
+      INVESTMENT AT FAIR VALUE THROUGH OTHER COMPREHENSIVE INCOME carries "investment" and
+      "income" and is not the note of "Net investment income"; the cash-flow supplement
+      与经营活动有关的现金 is not 经营活动产生的现金流量净额's.
+
+    A heading holding every word of a `note_terms_none` entry is refused whatever else it holds,
+    as `covered_notes` refuses it: 1966's CONTRACT IN PROGRESS 在建工程合同 is not the 在建工程 a
+    fixed-asset line names.
+
     The heading words are its own and its chapter's, as the score reads them; plurals are folded
     (`_fold`) on both sides.
     """
@@ -486,6 +559,10 @@ def heading_names_line(item, unit, names=None, *, pool=None) -> bool:
     if names_other_entity(item, heading):
         return False
     words = _fold(unit.tokens)
+    refused = [frozenset(_fold(t)) for t in _term_sets(
+        getattr(getattr(item, "note_source", None), "note_terms_none", None))]
+    if any(t <= words for t in refused):
+        return False
     idf: dict[str, float] = {}
     for token, value in (getattr(pool, "idf", None) or {}).items():
         for folded in _fold((token,)):
@@ -496,7 +573,9 @@ def heading_names_line(item, unit, names=None, *, pool=None) -> bool:
         return (idf.get(token, unseen) if idf else 1.0) ** 2
 
     rows_hold = None
-    for name, authored, head in (names if names is not None else line_names(item)):
+    for name, authored, head, subject in (names if names is not None else line_names(item)):
+        if subject and any(_prints_phrase(text, subject) for text in (unit.title, *unit.captions)):
+            return True
         shared = name & words
         if authored and shared == {head} and len(name) > 1 and not sums_line_items(item):
             # THE HEAD OF A TERM, AND A ROW THE LINE'S OWN ROW RULE TAKES. A note whose rows the

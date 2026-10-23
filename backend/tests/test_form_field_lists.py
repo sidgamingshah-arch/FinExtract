@@ -107,11 +107,14 @@ def test_parent_is_authorable_because_every_part_declares_it() -> None:
     # `line_item_notes.note_probe` scores a line's notes with, and three template lines carry one
     # (staff costs, capitalised interest, the receivables allowance) so they are sent the note
     # their figure is printed in. No note reader acts on it, so they are not note-read parts.
+    # `note_terms_none` beside it reads nothing either: it refuses a heading the terms would hold
+    # (Net Fixed Assets refuses 1966's CONTRACT IN PROGRESS 在建工程合同).
     readers = ("note_title_any", "row_caption_any", "prose_any", "prose_subject", "row_terms")
     parts = [i for i in SEED["items"] if i.get("note_source")
              and any(i["note_source"].get(f) for f in readers)]
     probes_only = [i for i in SEED["items"] if i.get("note_source") and i not in parts]
-    assert all(i.get("namespace") == "template" and set(i["note_source"]) == {"note_terms"}
+    assert all(i.get("namespace") == "template" and "note_terms" in i["note_source"]
+               and set(i["note_source"]) <= {"note_terms", "note_terms_none"}
                for i in probes_only), [i["key"] for i in probes_only]
     # 60 items carry a `note_source` — see the census in `test_retired_derivations`.
     #

@@ -1136,7 +1136,17 @@
      "物業、廠房及設備",
      "物業、機器及設備",
      "物业、厂房及设备",
-     "物業及設備"
+     "物業及設備",
+     "在建工程",
+     "使用权资产",
+     "使用權資產"
+    ],
+    "note_terms_none": [
+     "在建工程合同",
+     "contract in progress",
+     "转租",
+     "轉租",
+     "sublease"
     ]
    }
   },
@@ -9073,7 +9083,16 @@
      "abs": true
     }
    ],
-   "namespace": "template"
+   "namespace": "template",
+   "note_source": {
+    "note_terms": [
+     "cost of sales",
+     "营业成本",
+     "營業成本",
+     "销售成本",
+     "銷售成本"
+    ]
+   }
   },
   {
    "key": "is_pl__gross_profit",

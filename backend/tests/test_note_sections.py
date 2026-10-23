@@ -202,11 +202,13 @@ def test_a_face_section_line_is_not_offered_the_note_route():
     # `bs_cl__st_bank_loans_payable` names BANK BORROWINGS / 短期借款, and the two fixed-asset
     # totals PROPERTY, PLANT AND EQUIPMENT / 固定资产: none of their aliases is the heading a filing
     # files that note under, and a heading must name the line to be sent
-    # (`line_item_notes.heading_names_line`).
+    # (`line_item_notes.heading_names_line`). `is_pl__total_cost_of_sales` names 营业成本 /
+    # 營業成本 / cost of sales: its names are English only and the CAS revenue-and-cost note
+    # 营业收入和营业成本 is where its row is analysed.
     assert {i.key for i in probes_only} == {
         "is_pl__personnel_and_benefit_expenses", "is_pl__interest_expense_capitalised",
         "bs_ca__allow_for_doubtful_accounts", "bs_cl__st_bank_loans_payable",
-        "bs_nca__gross_fixed_assets", "bs_nca__net_fixed_assets"}
+        "bs_nca__gross_fixed_assets", "bs_nca__net_fixed_assets", "is_pl__total_cost_of_sales"}
 
     sections = st.section_defaults
     for item in selected:
