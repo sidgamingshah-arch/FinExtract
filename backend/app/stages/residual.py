@@ -143,6 +143,15 @@ def _has_value(li) -> bool:
     return any(ev.value is not None or ev.value_raw is not None for ev in li.values.values())
 
 
+def _page_of_row(li) -> int | None:
+    """The page a face row was read from, off its first provenanced figure."""
+    for ev in (getattr(li, "values", None) or {}).values():
+        page = getattr(getattr(ev, "provenance", None), "page_index", None)
+        if page is not None:
+            return int(page)
+    return None
+
+
 def _statement_map(doc: DocumentModel):
     """(page -> statement) plus the per-row lookup both paths use.
 
@@ -1080,6 +1089,32 @@ class ResidualStage:
             if li.canonical_key in statement_totals:
                 stmt = statement_of(li) or ""
                 closing[stmt] = max(closing.get(stmt, li.ordinal), li.ordinal)
+        # A STATEMENT TOTAL IS NOT ALWAYS THE LAST LINE. An HKFRS statement of financial position
+        # prints "Total assets" after the assets and only then the liabilities, the net-assets line
+        # and the equity (BYD Electronic 2024: 'Total assets 資產總值', then current liabilities).
+        # Closing the statement at "Total assets" made every liability and equity row below it
+        # "narrative": none was swept, so current liabilities' Others lost 'Trade and bills payables',
+        # 'Tax payable' and the rest while the section's own subtotal was still to come. A section
+        # whose subtotal is printed below the statement total is still being printed, so the
+        # statement ends no earlier than the last subtotal of any of its sections — PRINTED ON ITS
+        # OWN PAGES.
+        # A section subtotal many pages further on belongs to another printing of the statement
+        # (PetroChina prints a CAS balance sheet on p.126 and the IFRS one on p.227), so the run of
+        # pages may only continue onto the page that follows.
+        if closing:
+            section_closers = {k: mem.statement for mem in members.values()
+                               for k in mem.subtotals}
+            by_ordinal = {li.ordinal: li for li in doc.line_items}
+            for stmt in list(closing):
+                end_page = _page_of_row(by_ordinal.get(closing[stmt]))
+                for li in sorted(doc.line_items, key=lambda r: r.ordinal):
+                    if (li.ordinal <= closing[stmt] or (statement_of(li) or "") != stmt
+                            or section_closers.get(li.canonical_key or "") != stmt):
+                        continue
+                    page = _page_of_row(li)
+                    if end_page is None or page is None or page > end_page + 1:
+                        break
+                    closing[stmt], end_page = li.ordinal, page
 
         ordered = sorted(doc.line_items, key=lambda li: li.ordinal)
         # The position at which each section's CLOSING subtotal is printed. A banner naming a

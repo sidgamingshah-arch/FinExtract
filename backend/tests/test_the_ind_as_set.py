@@ -379,6 +379,21 @@ HK_ALIASES_THAT_FOLLOW_HK_DEFINITIONS = {
         "(loss)/profit for the year",
     },
     "bs_cl__cpltd_other": {"guaranteed notes", "current portion of guaranteed notes"},
+    # HKEX balance-sheet face rows (Lai Sun, Hon Kwok, BYD Electronic, Far East Horizon,
+    # PetroChina): the borrowings, cash and equity-total captions the HK definitions place. The
+    # Ind AS set is a separate set with its own reviewer; carrying them across is its decision.
+    "bs_ncl__ltd_bank": {"bank borrowings", "interest-bearing bank borrowings",
+                         "interest-bearing loans"},
+    "bs_cl__cpltd_bank": {"interest-bearing bank borrowings", "interest-bearing loans"},
+    "bs_ncl__ltd_other": {"guaranteed notes"},
+    "bs_cl__st_other_loans_payable": {"other borrowings", "other interest bearing borrowings",
+                                      "loans from third parties"},
+    "bs_ca__cash_in_hand_and_at_banks": {"cash and bank balances"},
+    "bs_ncl__ltd_convertible": {"convertible bonds - host debts"},
+    "bs_cl__cpltd_convertible": {"convertible bonds - host debts"},
+    "bs_equity__total_equity_and_reserves": {"total shareholders' equity"},
+    "bs_cl__total_equity_and_liabilities": {"total liabilities and equity",
+                                            "total liabilities and shareholders' equity"},
 }
 
 

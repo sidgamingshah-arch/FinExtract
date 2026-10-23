@@ -4780,7 +4780,8 @@
     "Cash and Cash Equivalents",
     "Fixed deposits",
     "Bank deposits",
-    "Time deposits"
+    "Time deposits",
+    "Cash and bank balances"
    ],
    "keyword_hints": [
     "Cash in Hand and at Banks"
@@ -4812,7 +4813,8 @@
      "Cash and Cash Equivalents",
      "Fixed deposits",
      "Bank deposits",
-     "Time deposits"
+     "Time deposits",
+     "Cash and bank balances"
     ],
     "zh": [
      "现金及现金等价物",
@@ -4922,7 +4924,7 @@
    ],
    "exclude_hints": [
     "^total assets less current liabilities",
-    "^net current (?:assets|liabilities)"
+    "^net current\\s*\\(?\\s*(?:assets|liabilities)"
    ]
   },
   {
@@ -5783,7 +5785,8 @@
     "Total equity",
     "Total equity and reserves",
     "權益總額",
-    "總權益"
+    "總權益",
+    "Total shareholders' equity"
    ],
    "keyword_hints": [
     "Total Equity & Reserves"
@@ -5815,7 +5818,8 @@
      "Total Equity & Reserves",
      "Equity / Stockholders Equity/ Owners' Equity",
      "Total equity",
-     "Total equity and reserves"
+     "Total equity and reserves",
+     "Total shareholders' equity"
     ],
     "zh": [
      "所有者权益合计",
@@ -5841,7 +5845,10 @@
     "Term loan",
     "Due to banks and other financial institutions",
     "Interest bearing borrowings",
-    "Mudaraba"
+    "Mudaraba",
+    "Bank borrowings",
+    "Interest-bearing bank borrowings",
+    "Interest-bearing loans"
    ],
    "keyword_hints": [
     "LTD Bank"
@@ -5875,7 +5882,10 @@
      "Term loan",
      "Due to banks and other financial institutions",
      "Interest bearing borrowings",
-     "Mudaraba"
+     "Mudaraba",
+     "Bank borrowings",
+     "Interest-bearing bank borrowings",
+     "Interest-bearing loans"
     ],
     "zh": [
      "流动借款",
@@ -6028,7 +6038,8 @@
     "loans from government",
     "Other borrowings",
     "Other interest bearing borrowings",
-    "Sukuk"
+    "Sukuk",
+    "Guaranteed notes"
    ],
    "keyword_hints": [
     "LTD Other"
@@ -6061,7 +6072,8 @@
      "loans from government",
      "Other borrowings",
      "Other interest bearing borrowings",
-     "Sukuk"
+     "Sukuk",
+     "Guaranteed notes"
     ],
     "zh": [
      "优先票据",
@@ -6080,7 +6092,8 @@
    "aliases": [
     "LTD Convertible",
     "Convertible bonds",
-    "Convertible notes"
+    "Convertible notes",
+    "Convertible bonds - host debts"
    ],
    "keyword_hints": [
     "LTD Convertible"
@@ -6106,7 +6119,8 @@
     "en": [
      "LTD Convertible",
      "Convertible bonds",
-     "Convertible notes"
+     "Convertible notes",
+     "Convertible bonds - host debts"
     ]
    }
   },
@@ -6525,7 +6539,7 @@
     "Do not bind calculated balance-sheet subtotals such as net current assets/liabilities, total assets less current liabilities, or this section's own closing total Total Non-Current Liabilities."
    ],
    "exclude_hints": [
-    "^net current (?:assets|liabilities)",
+    "^net current\\s*\\(?\\s*(?:assets|liabilities)",
     "^total assets less current liabilities",
     "^total non[\\-–—]?current liabilities"
    ],
@@ -7372,7 +7386,9 @@
     "Term loan",
     "Due to banks and other financial institutions",
     "Interest bearing borrowings",
-    "Mudaraba"
+    "Mudaraba",
+    "Interest-bearing bank borrowings",
+    "Interest-bearing loans"
    ],
    "keyword_hints": [
     "CPLTD Bank"
@@ -7405,7 +7421,9 @@
      "Term loan",
      "Due to banks and other financial institutions",
      "Interest bearing borrowings",
-     "Mudaraba"
+     "Mudaraba",
+     "Interest-bearing bank borrowings",
+     "Interest-bearing loans"
     ],
     "zh": [
      "一年内到期的长期借款",
@@ -7474,10 +7492,7 @@
     "Bonds",
     "Notes payables",
     "Senior notes",
-    "Loans from third parties",
     "Debentures",
-    "Other borrowings",
-    "Other interest bearing borrowings",
     "Sukuk",
     "Guaranteed notes",
     "Current portion of guaranteed notes"
@@ -7508,10 +7523,7 @@
      "Bonds",
      "Notes payables",
      "Senior notes",
-     "Loans from third parties",
      "Debentures",
-     "Other borrowings",
-     "Other interest bearing borrowings",
      "Sukuk",
      "Guaranteed notes",
      "Current portion of guaranteed notes"
@@ -7533,7 +7545,8 @@
    "aliases": [
     "CPLTD Convertible",
     "Convertible bonds",
-    "Convertible notes"
+    "Convertible notes",
+    "Convertible bonds - host debts"
    ],
    "keyword_hints": [
     "CPLTD Convertible"
@@ -7559,7 +7572,8 @@
     "en": [
      "CPLTD Convertible",
      "Convertible bonds",
-     "Convertible notes"
+     "Convertible notes",
+     "Convertible bonds - host debts"
     ]
    }
   },
@@ -7821,7 +7835,10 @@
    "aliases": [
     "ST Other Loans Payable",
     "Short term loan from third parties",
-    "Short term other loan"
+    "Short term other loan",
+    "Other borrowings",
+    "Other interest bearing borrowings",
+    "Loans from third parties"
    ],
    "keyword_hints": [
     "ST Other Loans Payable"
@@ -7847,7 +7864,10 @@
     "en": [
      "ST Other Loans Payable",
      "Short term loan from third parties",
-     "Short term other loan"
+     "Short term other loan",
+     "Other borrowings",
+     "Other interest bearing borrowings",
+     "Loans from third parties"
     ],
     "zh": [
      "向中央银行借款",
@@ -9528,7 +9548,8 @@
    ],
    "exclude_hints": [
     "^total assets less current liabilities",
-    "^net current (?:assets|liabilities)"
+    "^net current\\s*\\(?\\s*(?:assets|liabilities)",
+    "^total liabilities and\\b"
    ]
   },
   {
@@ -9536,7 +9557,9 @@
    "label": "Total Equity and Liabilities",
    "definition": "Calculated target using the exact formula retained in the supplied template: ={bs_equity__total_equity_and_reserves}+{bs_cl__total_liabilities}",
    "aliases": [
-    "Total Equity and Liabilities"
+    "Total Equity and Liabilities",
+    "Total liabilities and equity",
+    "Total liabilities and shareholders' equity"
    ],
    "keyword_hints": [
     "Total Equity and Liabilities"
@@ -9565,7 +9588,9 @@
    "unit_of_account": "subtotal",
    "aliases_i18n": {
     "en": [
-     "Total Equity and Liabilities"
+     "Total Equity and Liabilities",
+     "Total liabilities and equity",
+     "Total liabilities and shareholders' equity"
     ],
     "zh": [
      "权益及负债总额",
@@ -9581,7 +9606,7 @@
    ],
    "exclude_hints": [
     "^total assets less current liabilities",
-    "^net current (?:assets|liabilities)"
+    "^net current\\s*\\(?\\s*(?:assets|liabilities)"
    ]
   },
   {
