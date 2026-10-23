@@ -15799,7 +15799,8 @@
     "en": [
      "Basis of consolidation",
      "Consolidated Statement of Profit or Loss",
-     "Consolidated Income Statement"
+     "Consolidated Income Statement",
+     "Consolidated Statement of Comprehensive Income"
     ]
    }
   },
@@ -16198,7 +16199,7 @@
   {
    "key": "statement_setup_controls__reconcile_to",
    "label": "Reconcile To",
-   "definition": "The comparative reporting date: the end date of the prior period the statements print beside the current one, as printed ('31 December 2023', '2023年12月31日').",
+   "definition": "The comparative reporting date: the end date of the prior period, as printed ('31 December 2023', '2023年12月31日'). Where the statements print it beside the current date, that is the value, cited from the statement. Where they print no comparative date (the comparative column headed 期初余额 or 上年年末余额), it is the prior period's end date — one year before the statement date — as another page of the filing prints it, cited from that page. Not the column heading.",
    "aliases": [
     "Reconcile To",
     "Comparative Date",

@@ -21,7 +21,10 @@ WHAT A TEXT LINE IS. `LineItemDef.output_structure == "phrase"`: words lifted FR
     (`anchored_pages`): the statement face the run identified under a title the line names, and
     the opening page of the auditor's report when the line names the report. Ranked by count
     alone, the reporting date was sent three accounting-policy pages that say 资产负债表日 and
-    never the balance sheet that prints 2024年12月31日.
+    never the balance sheet that prints 2024年12月31日. Three lines are sent a page by what they
+    ask rather than by a name (`designated_pages`): the comparative date the page that prints the
+    prior period's end date, the entity's name the cover and the auditor's report's address, and
+    the opinion type is scored without the internal-control audit's sentences.
   * ITS REPLY IS THE TEXT, AS PRINTED, WITH ITS PAGE (`line_item_llm.LineItemTextReply`), and the
     text is CHECKED AGAINST THAT PAGE'S TEXT (`locate`) and refused when it is not there — the
     prose amount's rule (`note_sourced.resolve_sources`) applied to words: the model LOCATES what
@@ -71,7 +74,8 @@ def _forms(page_text: str) -> tuple[str, ...]:
     return fold(page_text), fold(_HYPHEN_BREAK.sub("", page_text or ""))
 
 
-def select_pages(page_texts, names, *, cap: int = TEXT_PAGES_CAP, anchored=()) -> list[int]:
+def select_pages(page_texts, names, *, cap: int = TEXT_PAGES_CAP, anchored=(),
+                 prefer=()) -> list[int]:
     """The 0-based indices of the pages that print the most of `names`, at most `cap`, in page order.
 
     A page counts a name when the name, folded, is in the page's folded text. Ranked by how many
@@ -85,6 +89,10 @@ def select_pages(page_texts, names, *, cap: int = TEXT_PAGES_CAP, anchored=()) -
     tier 1, by the same score within a tier, inside the same `cap`: a page that prints a name many
     times (an accounting-policy page that says 资产负债表日 eight times) no longer displaces the
     page that prints the value.
+
+    `prefer` (folded substrings, `OPINION_TYPES`) breaks a tie on the number of names: of two pages
+    that print as many different names, the one that prints more of `prefer` ranks first, before
+    the count of hits is compared.
     """
     wanted = [n for n in dict.fromkeys(fold(x) for x in names or ()) if len(n) >= MIN_NAME_CHARS]
     if not wanted:
@@ -98,9 +106,10 @@ def select_pages(page_texts, names, *, cap: int = TEXT_PAGES_CAP, anchored=()) -
         distinct = sum(1 for h in hits if h)
         tier = tiers.get(int(index), 2)
         if distinct or tier < 2:
-            scored.append((tier, -distinct, -sum(hits), int(index)))
+            preferred = sum(1 for p in prefer or () if p in folded)
+            scored.append((tier, -distinct, -preferred, -sum(hits), int(index)))
     chosen = sorted(scored)[:max(cap, 0)]
-    return sorted(i for _t, _d, _n, i in chosen)
+    return sorted(entry[-1] for entry in chosen)
 
 
 #: The titles an auditor's report prints at its head, folded when compared. A line NAMES the
@@ -193,6 +202,260 @@ def anchored_pages(page_texts, names, doc) -> dict[int, int]:
     return out
 
 
+# ── what a line's names designate beyond a title ────────────────────────────────────────────
+#
+# Three lines need a page no name of theirs is printed on, or must not be sent a page that prints
+# their names about something else. Each is recognised by a name it carries, as the auditor's
+# report is (`REPORT_TITLES`): a folded name of the line EQUAL to one of these.
+
+#: A line that names the COMPARATIVE DATE asks for the prior period's end date. Its page is the one
+#: that prints that date (`prior_date_page`), ranked first: on a Shenzhen-format filing the
+#: statements head the comparative column 期初余额 / 上年年末余额 and print no date beside the
+#: current one, so no name of the line reaches a page that prints 2023年12月31日.
+COMPARATIVE_DATE_NAMES = ("Comparative Date", "Prior Period Date", "Previous Statement Date")
+#: A line that names the ENTITY asks for its legal name, printed on the cover and in the address of
+#: the auditor's report ("To the members of Lai Sun Garment (International) Limited") — pages that
+#: print none of the line's names ("Company Name" is a caption the corporate-information page of an
+#: HKEX filing need not print). Both are anchored (`entity_pages`).
+ENTITY_NAMES = ("Entity Name", "Company Name", "Name of reporting entity")
+#: A line that names the AUDIT OPINION asks for the type of the opinion on the FINANCIAL
+#: STATEMENTS. Its pages are scored without the sentences about the internal-control audit
+#: (`without_internal_control_audit`): PetroChina's governance page says KPMG "issued a standard
+#: and unqualified audit opinion" on internal control, and on name count it outranked the
+#: chairman's statement that both auditors "have issued unqualified opinions on the financial
+#: statements".
+OPINION_TYPE_NAMES = ("Audit Opinion", "审计意见类型")
+#: The types an auditor's opinion is named by, folded (`select_pages` `prefer`): of the pages that
+#: print as many of the line's names, the one that names a type is sent first — PetroChina's
+#: chairman's statement ("unqualified opinions") over a page of the auditor's report that prints
+#: "our audit opinion" more often and no type. A Chinese type ends in 意见 / 意見 (无保留意见
+#: contains 保留意见; both count).
+OPINION_TYPES = tuple(fold(t) for t in (
+    "无保留意见", "保留意见", "否定意见", "无法表示意见", "無保留意見", "保留意見", "否定意見",
+    "無法表示意見", "unqualified opinion", "unmodified opinion", "qualified opinion",
+    "adverse opinion", "disclaimer of opinion"))
+
+
+def _names_one_of(names, wanted) -> bool:
+    folded = {fold(n) for n in names or ()}
+    return any(fold(w) in folded for w in wanted)
+
+
+#: What marks a sentence as being about the INTERNAL-CONTROL audit: it names internal control and
+#: an audit or an opinion. An auditor's report on the statements says it is "not for the purpose
+#: of expressing an opinion on the effectiveness of the Group's internal control" — that sentence
+#: goes too, and it names no opinion type.
+_INTERNAL_CONTROL = re.compile(r"internalcontrol|内部控制|內部控制|内控|內控")
+_AUDIT_OR_OPINION = re.compile(r"audit|opinion|审计|審計|核數|意见|意見")
+#: A sentence ends at a full stop (CJK or Latin, a Latin one followed by a space or a line end), a
+#: question or exclamation mark, or a semicolon. A line end alone does not end one: an English
+#: sentence is broken over lines.
+_SENTENCE_END = re.compile(r"(?<=[。！？；!?;])|(?<=\.)(?=\s)")
+
+
+def without_internal_control_audit(text: str) -> str:
+    """`text` without its sentences about the internal-control audit — 内部控制审计, "internal
+    control over financial reporting", "audited the effectiveness of the internal control system …
+    and issued a standard and unqualified audit opinion". For SCORING a page only: the page is sent
+    as printed."""
+    kept = []
+    for sentence in _SENTENCE_END.split(text or ""):
+        folded = fold(sentence)
+        if _INTERNAL_CONTROL.search(folded) and _AUDIT_OR_OPINION.search(folded):
+            continue
+        kept.append(sentence)
+    return "".join(kept)
+
+
+_MONTHS = ("january", "february", "march", "april", "may", "june", "july", "august",
+           "september", "october", "november", "december")
+_CN_DIGITS = "零一二三四五六七八九"
+_MONTH_RE = "|".join(_MONTHS)
+#: The ways a statement prints a date: 2024年12月31日, 二零二四年十二月三十一日, 31 December 2024,
+#: December 31, 2024. A Chinese date is matched with every space removed (`fold` keeps no space),
+#: so "2024 年 12 月 31 日" is one too; an English one with its spaces.
+_DATE_PATTERNS = (
+    re.compile(r"(?<!\d)(?P<y>\d{4})年(?P<m>\d{1,2})月(?P<d>\d{1,2})日"),
+    re.compile(r"(?P<y>[零〇一二三四五六七八九]{4})年(?P<m>[十一二三四五六七八九]{1,2})月"
+               r"(?P<d>[十一二三四五六七八九]{1,3})日"),
+    re.compile(r"(?<!\d)(?P<d>\d{1,2}) ?(?P<mn>" + _MONTH_RE + r") ?,? ?(?P<y>\d{4})(?!\d)"),
+    re.compile(r"(?<![a-z])(?P<mn>" + _MONTH_RE + r") ?(?P<d>\d{1,2}) ?, ?(?P<y>\d{4})(?!\d)"),
+)
+
+
+def _cn_number(text: str) -> int | None:
+    """二零二四 -> 2024 (digit by digit), 十二 -> 12, 三十一 -> 31."""
+    t = text.replace("〇", "零")
+    if "十" not in t:
+        if all(c in _CN_DIGITS for c in t):
+            return int("".join(str(_CN_DIGITS.index(c)) for c in t))
+        return None
+    tens, _, units = t.partition("十")
+    try:
+        return ((_CN_DIGITS.index(tens) if tens else 1) * 10
+                + (_CN_DIGITS.index(units) if units else 0))
+    except ValueError:
+        return None
+
+
+def printed_dates(text: str) -> list:
+    """Every date `text` prints, as `datetime.date` (`_DATE_PATTERNS`)."""
+    import datetime
+
+    folded = fold(text)
+    # An English date is read with its spaces (one each): with none, "2024 31 December 2023" in a
+    # column head would read as "202431december2023".
+    spaced = _SPACE.sub(" ", unicodedata.normalize("NFKC", str(text or "")).casefold())
+    found = []
+    for pattern in _DATE_PATTERNS:
+        for m in pattern.finditer(spaced if "mn" in pattern.groupindex else folded):
+            g = m.groupdict()
+            y = int(g["y"]) if g["y"].isdigit() else _cn_number(g["y"])
+            if g.get("mn"):
+                mo = _MONTHS.index(g["mn"]) + 1
+            else:
+                mo = int(g["m"]) if g["m"].isdigit() else _cn_number(g["m"])
+            d = int(g["d"]) if g["d"].isdigit() else _cn_number(g["d"])
+            try:
+                found.append((m.start(), datetime.date(y, mo, d)))
+            except (TypeError, ValueError):
+                continue
+    return [d for _pos, d in found]
+
+
+def _is_month_end(day) -> bool:
+    import datetime
+
+    return (day + datetime.timedelta(days=1)).day == 1
+
+
+def date_forms(day) -> tuple[str, ...]:
+    """The ways a filing prints `day` (`_DATE_PATTERNS`), folded: 2023年12月31日,
+    二零二三年十二月三十一日 (and with 〇), 31 December 2023, December 31, 2023."""
+    def cn(n: int) -> str:
+        if n < 10:
+            return _CN_DIGITS[n]
+        tens, units = divmod(n, 10)
+        return (_CN_DIGITS[tens] if tens > 1 else "") + "十" + (_CN_DIGITS[units] if units else "")
+    month = _MONTHS[day.month - 1]
+    year_cn = "".join(_CN_DIGITS[int(c)] for c in str(day.year))
+    forms = (f"{day.year}年{day.month}月{day.day}日",
+             f"{year_cn}年{cn(day.month)}月{cn(day.day)}日",
+             f"{year_cn.replace('零', '〇')}年{cn(day.month)}月{cn(day.day)}日",
+             f"{day.day} {month} {day.year}", f"{month} {day.day}, {day.year}")
+    return tuple(dict.fromkeys(fold(f) for f in forms))
+
+
+def statement_date(page_texts, doc):
+    """The current period's end date: the month-end date the statement face pages print most
+    often (the later one on a tie) — the balance sheet's heading, the "At 31 December 2024" rows of
+    the equity statement, "Year ended 31 March 2024". Only a face page the run identified by its
+    title (`_face_titles`) counts: 000709's company-history pages, classified as faces, print
+    2009年12月31日 three times. With no titled face that prints one, the pages that open the
+    auditor's report (`report_openings`). None when neither prints a date."""
+    from collections import Counter
+
+    by_index = {int(i): t for i, t in page_texts or ()}
+    for pages in (sorted(_face_titles(doc)), report_openings(page_texts, doc)):
+        counts = Counter(d for i in pages for d in printed_dates(by_index.get(i, ""))
+                         if _is_month_end(d))
+        if counts:
+            return max(counts, key=lambda d: (counts[d], d))
+    return None
+
+
+def prior_period_end(day):
+    """The end of the period before the one ending `day`: the same day one year earlier (28
+    February for a 29 February)."""
+    import datetime
+
+    try:
+        return day.replace(year=day.year - 1)
+    except ValueError:
+        return datetime.date(day.year - 1, day.month, 28)
+
+
+def _report_pages(page_texts, doc) -> set[int]:
+    """The pages of the auditor's report(s): from the page that opens each to the statements."""
+    starts = _statement_starts(doc)
+    out = set()
+    for opening in report_openings(page_texts, doc):
+        end = min((s for s in starts if s > opening), default=opening + 1)
+        out.update(range(opening, end))
+    return out
+
+
+def prior_date_page(page_texts, doc) -> int | None:
+    """The 0-based index of THE page that prints the prior period's end date (`prior_period_end`
+    of `statement_date`, in any of its printed forms, `date_forms`): a statement face page first,
+    then a page of the auditor's report, then a notes page, then any other page — the earliest of
+    its kind. On an HKFRS filing it is the statement that prints the comparative date beside the
+    current one; on a Shenzhen-format CAS filing, whose statements print none, it is a note that
+    compares "截至2024年12月31日 … (2023年12月31日：…)", or the definitions page's 上年同期 entry.
+    None when no page prints it (000709)."""
+    from app.core.models.enums import PageKind
+
+    current = statement_date(page_texts, doc)
+    if current is None:
+        return None
+    forms = date_forms(prior_period_end(current))
+    kinds = {int(getattr(p, "index", -1)): getattr(p, "kind", None)
+             for p in getattr(doc, "pages", None) or ()}
+    report = _report_pages(page_texts, doc)
+
+    def rank(index: int) -> int:
+        kind = kinds.get(index)
+        if kind in (PageKind.FACE, PageKind.FACE.value):
+            return 0
+        if index in report:
+            return 1
+        if kind in (PageKind.NOTES, PageKind.NOTES.value):
+            return 2
+        return 3
+
+    printing = [int(i) for i, t in page_texts or ()
+                if any(f in form for f in forms for form in _forms(t))]
+    return min(printing, key=lambda i: (rank(i), i), default=None)
+
+
+def cover_page(page_texts) -> int | None:
+    """The 0-based index of the cover: the first page with a text layer (hkex_1966's printed cover
+    is an image, and its first page with text is the title page)."""
+    for i, t in sorted(((int(i), t) for i, t in page_texts or ()), key=lambda x: x[0]):
+        if fold(t):
+            return i
+    return None
+
+
+def entity_pages(page_texts, doc) -> list[int]:
+    """The cover (`cover_page`) and the page that opens the (first) auditor's report — addressed
+    "To the members of <the entity>" / 致<the entity>全体股东 — for a line naming the entity."""
+    out = []
+    cover = cover_page(page_texts)
+    if cover is not None:
+        out.append(cover)
+    openings = report_openings(page_texts, doc) if doc is not None else []
+    if openings:
+        out.append(openings[0])
+    return out
+
+
+def designated_pages(page_texts, names, doc) -> dict[int, int]:
+    """`anchored_pages`, and the pages the lines of `COMPARATIVE_DATE_NAMES` and `ENTITY_NAMES`
+    designate: the prior-date page at tier -1, ahead of every other page; the cover and the
+    report's address at tier 1, after a named statement's first page and ahead of the pages that
+    merely print a name."""
+    out = anchored_pages(page_texts, names, doc)
+    if doc is not None and _names_one_of(names, COMPARATIVE_DATE_NAMES):
+        page = prior_date_page(page_texts, doc)
+        if page is not None:
+            out[page] = -1
+    if _names_one_of(names, ENTITY_NAMES):
+        for page in entity_pages(page_texts, doc):
+            out[page] = min(out.get(page, 1), 1)
+    return out
+
+
 def text_pages(page_texts, names, doc=None, *, cap: int = TEXT_PAGES_CAP,
                chars: int = TEXT_PAGE_CHARS) -> list[dict]:
     """The `text_pages` block of a text line's request: ``[{"page", "printed_page"?, "text"}]``.
@@ -208,8 +471,12 @@ def text_pages(page_texts, names, doc=None, *, cap: int = TEXT_PAGES_CAP,
         if folio:
             folios[int(getattr(p, "index", -1))] = folio
     out = []
-    anchored = anchored_pages(page_texts, names, doc)
-    for index in select_pages(page_texts, names, cap=cap, anchored=anchored):
+    anchored = designated_pages(page_texts, names, doc)
+    scored, prefer = page_texts, ()
+    if _names_one_of(names, OPINION_TYPE_NAMES):
+        scored = [(i, without_internal_control_audit(t)) for i, t in page_texts or ()]
+        prefer = OPINION_TYPES
+    for index in select_pages(scored, names, cap=cap, anchored=anchored, prefer=prefer):
         text = (by_index.get(index) or "").strip()
         entry: dict = {"page": index + 1}
         if index in folios:
