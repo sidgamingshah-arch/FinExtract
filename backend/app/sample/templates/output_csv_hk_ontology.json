@@ -7375,7 +7375,7 @@
   {
    "canonical_key": "bs_cl__cpltd_bank",
    "label": "CPLTD Bank",
-   "definition": "Extract the reported value for 'CPLTD Bank' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
+   "definition": "The current portion of long-term bank loans: the part of term, syndicated, mortgage and other long-term bank loans that falls due within one year, reported in the current liabilities section of the balance sheet, in a row such as 'Current portion of long-term borrowings' or 'Current portion of long term bank loans'. Where the filing prints that portion in several rows (secured and unsecured, or by currency), this line is their total. On a CAS statement it is a row '一年内到期的长期借款' where the face prints one; the single face row '一年内到期的非流动负债' is 'CPLTD Other', and its parts are not split out to this line. Not this line: short-term bank loans ('ST Bank Loans Payable'); the current portion of bonds, guaranteed or senior notes and other non-bank debt ('CPLTD Other'), of convertible debt ('CPLTD Convertible') or of subordinated debt ('CPLTD Subordinated'); lease liabilities ('Lease liabilities(CP)'); bank overdrafts ('Overdrafts'). The part due after one year is 'LTD Bank'.",
    "aliases": [
     "CPLTD Bank",
     "Current portion of Long term debt",
@@ -7486,7 +7486,7 @@
   {
    "canonical_key": "bs_cl__cpltd_other",
    "label": "CPLTD Other",
-   "definition": "Extract the reported value for 'CPLTD Other' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
+   "definition": "The current portion of long-term debt other than bank loans: bonds, guaranteed notes, senior notes, debentures, sukuk and domestic bonds falling due within one year, as a row printed in the current liabilities section of the balance sheet ('Guaranteed notes', 'Senior notes and domestic bonds', 'Current portion of guaranteed notes'). Where the face prints the same instrument under both current and non-current liabilities, this line is the current row; the non-current row is 'LTD Other'. On a CAS statement this line is '一年内到期的非流动负债' as printed: the face states the current portion of every non-current liability in that one row. Not this line: short-term other loans and loans from third parties ('ST Other Loans Payable'); bank loans ('ST Bank Loans Payable', 'CPLTD Bank'); convertible bonds ('CPLTD Convertible'); subordinated debt ('CPLTD Subordinated'); bills payable, short-term notes and commercial paper ('Notes Payable(CP)').",
    "aliases": [
     "CPLTD Other",
     "Bonds",
@@ -7676,7 +7676,7 @@
   {
    "canonical_key": "bs_cl__st_bank_loans_payable",
    "label": "ST Bank Loans Payable",
-   "definition": "Extract the reported value for 'ST Bank Loans Payable' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
+   "definition": "Short-term bank borrowings: loans from banks repayable within one year, secured and unsecured together, reported in the current liabilities section of the balance sheet. Where the filing prints bank loans and other loans in one row (an HKFRS face row 'Interest-bearing bank and other borrowings' or 'Bank and other loans'), this line is the bank loans part only, as the filing's breakdown of that row splits it (its current 'Bank loans' rows); the other loans are 'ST Other Loans Payable'. Where a short-term borrowings figure takes in the current portion of long-term borrowings, this line leaves that portion out (a row such as 'Short-term borrowings excluding current portion of long-term borrowings'); the current portion is 'CPLTD Bank'. On a CAS statement this line is '短期借款' as printed, whatever kinds of loan its breakdown lists (信用借款, 保证借款, 抵押借款, 质押借款, discounted bills, accrued interest). Not this line: bank overdrafts ('Overdrafts'); trust receipt, import and export loans ('Trade financing'); bills and notes payable ('Notes Payable(CP)'); bonds and guaranteed or senior notes due within one year ('CPLTD Other').",
    "aliases": [
     "ST Bank Loans Payable",
     "Short term bank loan",
@@ -7831,7 +7831,7 @@
   {
    "canonical_key": "bs_cl__st_other_loans_payable",
    "label": "ST Other Loans Payable",
-   "definition": "Extract the reported value for 'ST Other Loans Payable' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
+   "definition": "Short-term loans from lenders other than banks (third parties, other financial institutions, government and other non-bank lenders) repayable within one year, as a row printed in the current liabilities section of the balance sheet ('Other borrowings', 'Other loans', 'Loans from third parties'; on a CAS statement '向中央银行借款' and '拆入资金'). A row that prints bank and other borrowings together ('Interest-bearing bank and other borrowings') is not this line: it is read as 'ST Bank Loans Payable'. Not this line: bank loans ('ST Bank Loans Payable', 'CPLTD Bank'); bonds and guaranteed or senior notes due within one year ('CPLTD Other'); entrusted loans ('Entrusted loan payables- third parties(CP)' and its related-party and shareholder peers); amounts due to related parties, directors or shareholders ('Due to Related Parties(CP)', 'Due to directors(CP)', 'Due to S'holder(CP)'); bills and notes payable ('Notes Payable(CP)').",
    "aliases": [
     "ST Other Loans Payable",
     "Short term loan from third parties",

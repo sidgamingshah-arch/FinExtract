@@ -7860,7 +7860,7 @@
     "bs_ca"
    ],
    "order": 119,
-   "definition": "Cash and Bank Balances: the sum of Cash balance and Bank balance, as the template computes it. Use complete inputs on the same entity basis, reporting date/period, currency and scale. Do not sum both a component and its descendants or treat missing inputs as reported zeros.",
+   "definition": "Cash on hand and balances with banks that are cash and cash equivalents: on an Ind AS balance sheet the face row 'Cash and cash equivalents', on an Indian GAAP balance sheet 'Cash and bank balances' (or 'Cash on hand and balances with banks'), as printed; where the face prints cash on hand and bank balances as rows of their own, the sum of Cash balance and Bank balance, as the template computes it. 'Other balances with banks', 'Bank balances other than cash and cash equivalents', earmarked balances printed outside cash and cash equivalents (unpaid dividend accounts, margin money) and deposits with an original maturity beyond three months are not this line, even where they are printed next to it: they are Fixed Deposits with banks, FDs under Lien or the current assets Others line, as the set binds them. Use complete inputs on the same entity basis, reporting date/period, currency and scale. Do not sum both a component and its descendants or treat missing inputs as reported zeros.",
    "temporality": "instant",
    "unit_of_account": "subtotal",
    "sign_convention": "either",

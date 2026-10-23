@@ -141,8 +141,96 @@ def test_notes_payable_is_bills_and_short_term_paper_and_names_where_bonds_go():
     assert f"'{home['label']}'" in text
 
 
+BORROWINGS = ("bs_cl__st_bank_loans_payable", "bs_cl__st_other_loans_payable", "bs_cl__cpltd_bank",
+              "bs_cl__cpltd_other")
+
+
+def _label(key: str) -> str:
+    return f"'{ITEMS[key]['label']}'"
+
+
+def _refers_to_a_note(text: str) -> bool:
+    import importlib.util
+    path = pathlib.Path(__file__).resolve().parents[1] / "scripts" / "llm_standin.py"
+    spec = importlib.util.spec_from_file_location("llm_standin_defs", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.refers_to_a_note(text)
+
+
+@pytest.mark.parametrize("key", BORROWINGS)
+def test_a_borrowing_line_says_what_it_is_not_extract_the_label(key):
+    """Blind answers read the four placeholders ("Extract the reported value for 'ST Bank Loans
+    Payable' ...") as definition_unclear on 1966, PetroChina, Hubei Energy, Zhongshan, Crystal
+    Optech, Lai Sun and Far East Horizon: whether other loans, the current portion of long-term debt
+    or a CAS 短期借款 of credit loans belong to the line."""
+    text = _definition(key)
+    assert "Extract the reported value for" not in text
+    assert "within one year" in text and "current liabilities section" in text
+    # A line the model may read only on the face is not told to read a note (the stand-in lint's
+    # note_not_supplied, and the reply contract's read_from).
+    assert not _refers_to_a_note(text)
+
+
+def test_short_term_bank_loans_is_the_bank_part_and_names_its_peers():
+    key = "bs_cl__st_bank_loans_payable"
+    text = _definition(key)
+    # hkex_1966: face 'Interest-bearing bank and other borrowings' 9,817,976 is bank 8,151,188 plus
+    # other loans 1,666,788; the line is the bank part, the other loans are ST Other Loans Payable.
+    assert "Interest-bearing bank and other borrowings" in text
+    assert "bank loans part only" in text
+    # PetroChina: 'Short-term borrowings' 138,783 takes in the current portion 92,828; the line is
+    # 'Short-term borrowings excluding current portion of long-term borrowings' 45,955.
+    assert "Short-term borrowings excluding current portion of long-term borrowings" in text
+    # CAS: 短期借款 as printed, whatever its breakdown lists (信用借款 on Hubei Energy, Zhongshan).
+    assert "短期借款" in ITEMS[key]["aliases_i18n"]["zh"]
+    assert "'短期借款' as printed" in text and "信用借款" in text
+    for peer in ("bs_cl__st_other_loans_payable", "bs_cl__cpltd_bank", "bs_cl__overdrafts",
+                 "bs_cl__trade_financing", "bs_cl__notes_payable_cp", "bs_cl__cpltd_other"):
+        assert _label(peer) in text, peer
+
+
+def test_short_term_other_loans_names_the_bank_line_and_the_due_to_lines():
+    key = "bs_cl__st_other_loans_payable"
+    text = _definition(key)
+    assert "Other borrowings" in ITEMS[key]["aliases"] and "'Other borrowings'" in text
+    assert "Interest-bearing bank and other borrowings" in text
+    for peer in ("bs_cl__st_bank_loans_payable", "bs_cl__cpltd_bank", "bs_cl__cpltd_other",
+                 "bs_cl__entrusted_loan_payables_third_parties_cp", "bs_cl__due_to_related_parties_cp",
+                 "bs_cl__due_to_directors_cp", "bs_cl__due_to_sholder_cp", "bs_cl__notes_payable_cp"):
+        assert _label(peer) in text, peer
+
+
+def test_cpltd_bank_is_the_current_portion_of_long_term_bank_loans_and_sums_its_rows():
+    key = "bs_cl__cpltd_bank"
+    text = _definition(key)
+    # Far East Horizon prints it as '... bank loans – secured' and '– unsecured': the line is both.
+    assert "Current portion of long term bank loans" in text and "their total" in text
+    # The CAS face row for every current portion binds to CPLTD Other, and the definition agrees.
+    combined = "一年内到期的非流动负债"
+    assert combined in ITEMS["bs_cl__cpltd_other"]["aliases_i18n"]["zh"]
+    assert combined not in ITEMS[key]["aliases_i18n"]["zh"]
+    assert f"'{combined}' is {_label('bs_cl__cpltd_other')}" in text
+    for peer in ("bs_cl__st_bank_loans_payable", "bs_cl__cpltd_other", "bs_cl__cpltd_convertible",
+                 "bs_cl__cpltd_subordinated", "bs_cl__lease_liabilities_cp", "bs_cl__overdrafts",
+                 "bs_ncl__ltd_bank"):
+        assert _label(peer) in text, peer
+
+
+def test_cpltd_other_is_bonds_and_notes_due_within_a_year_not_other_loans():
+    key = "bs_cl__cpltd_other"
+    text = _definition(key)
+    # Lai Sun: current 'Guaranteed notes' 3,877,188 is the line; current 'Other borrowings' is not.
+    assert "Guaranteed notes" in ITEMS[key]["aliases"] and "'Guaranteed notes'" in text
+    assert "'一年内到期的非流动负债' as printed" in text
+    for peer in ("bs_cl__st_other_loans_payable", "bs_cl__st_bank_loans_payable",
+                 "bs_cl__cpltd_bank", "bs_cl__cpltd_convertible", "bs_cl__cpltd_subordinated",
+                 "bs_cl__notes_payable_cp", "bs_ncl__ltd_other"):
+        assert _label(peer) in text, peer
+
+
 @pytest.mark.parametrize("key", ["bs_nca__net_fixed_assets", "cf_financing__dividends_paid_fin",
-                                 "bs_cl__notes_payable_cp"])
+                                 "bs_cl__notes_payable_cp", *BORROWINGS])
 def test_the_ontology_carries_the_same_definition(key):
     concepts = [c for c in ONTOLOGY["concepts"] if c.get("canonical_key") == key] \
         if "concepts" in ONTOLOGY else []

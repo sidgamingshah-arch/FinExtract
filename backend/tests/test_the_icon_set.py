@@ -188,6 +188,32 @@ def test_profit_after_tax_is_the_row_after_the_share_of_associates_and_the_casca
     assert (shown[P + "profit_before_tax"], shown[P + "profit_after_tax"]) == (282, 257)
 
 
+def test_cash_and_bank_balances_is_cash_and_cash_equivalents_not_other_bank_balances():
+    """A blind answer on Asian Paints added 'Other Balances with Banks' (400.85 / 336.70) to 'Cash and
+    Cash Equivalents' (672.83 / 445.28): the old text, "the sum of Cash balance and Bank balance",
+    did not say that bank balances outside cash and cash equivalents are not this line. The
+    definition the model reads (curated in `captions.json`) now says so; the line's aliases and its
+    template terms are unchanged."""
+    items = {i["key"]: i for i in _raw()["items"]}
+    key = B + "cash_and_bank_balances"
+    text = items[key]["definition"]
+    assert not text.startswith("Cash and Bank Balances: the sum of")
+    assert text.startswith("Cash on hand and balances with banks that are cash and cash equivalents")
+    for excluded in ("'Other balances with banks'",
+                     "'Bank balances other than cash and cash equivalents'",
+                     "earmarked balances", "original maturity beyond three months"):
+        assert excluded in text, excluded
+    # It names where they go, by the lines' labels (braces stripped, as the build strips them).
+    for peer in ("fixed_deposits_with_banks", "fds_under_lien"):
+        assert items[B + peer]["label"] in text, peer
+    assert "the sum of Cash balance and Bank balance, as the template computes it" in text
+    reviewed = json.loads((TEMPLATES.parents[2] / "scripts" / "sample_data" / "icon"
+                           / "captions.json").read_text(encoding="utf-8"))
+    assert " ".join(reviewed[key]["definition"].split()) == text
+    # Definition only: no alias names an 'other' bank balance.
+    assert not [a for a in items[key]["aliases"] if "other" in a.lower()]
+
+
 def test_the_balance_sheet_reaches_its_totals_through_printed_groups():
     """A filing that prints only 'Trade receivables' and 'Inventories' — not their CMA breakdown —
     still reaches Total Current Assets, because the total rolls up through the groups."""
