@@ -888,9 +888,9 @@ class MapOntologyStage:
                 return li.section_hint
             return heading
 
-        # ONE INCOME STATEMENT PER ENTITY BASIS — see `face_context.unread_set_pages`. A row printed
-        # on the face of the statement set this template does not read is matched to nothing, so it
-        # cannot put a second figure on a line the read set already prints.
+        # ONE PRINTING OF EACH STATEMENT PER ENTITY BASIS — see `statement_sets.unread_set_pages`.
+        # A row printed on the face of the statement set this template does not read is matched to
+        # nothing, so it cannot put a second figure on a line the read set already prints.
         from app.services.statement_sets import SET_NOT_READ_FLAG, unread_set_pages
         _unread = unread_set_pages(doc)
         set_refused = 0
@@ -1012,7 +1012,7 @@ class MapOntologyStage:
         if set_refused:
             ctx.log(f"map_line_items:statement_set_not_read={set_refused} (rows printed on the "
                     f"{'/'.join(sorted(set(_unread.values())))} statements, pages "
-                    f"{sorted(_unread)}: the template reads one income statement per basis)")
+                    f"{sorted(_unread)}: the template reads one printing of each statement per basis)")
         if matrix_refused:
             ctx.log(f"map_line_items:matrix_column_rows_not_claimed={matrix_refused} "
                     f"(a statement of changes in equity files each cell under a component COLUMN, "

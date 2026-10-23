@@ -330,6 +330,17 @@ def test_a_subtotal_caption_the_mapper_missed_is_refused_by_never_sweep(raw_onto
             m["never_sweep"].remove("bs_current_liabilities__total_current_liabilities")
     doc = _current_liabilities("Total current liabilities", unclaimed=125)
     _run(doc, _ontology(raw))
+    # …the caption still reads as a total, which eligibility 3 refuses on the balance sheet
+    # (`residual._TOTAL_CAPTION`) whatever any one residual's `never_sweep` lists…
+    assert doc.line_items[1].canonical_key is None
+    assert any(f.startswith("residual_ineligible:total caption")
+               for f in doc.line_items[1].confidence.flags), doc.line_items[1].confidence.flags
+
+    # …and with "section subtotal" gone from the eligibility list as well, it sweeps in.
+    elig = raw["residual_framework"]["sweep"]["eligibility"]
+    elig[2] = elig[2].replace("section subtotal, ", "")
+    doc = _current_liabilities("Total current liabilities", unclaimed=125)
+    _run(doc, _ontology(raw))
     assert doc.line_items[1].canonical_key == "bs_current_liabilities__others"
 
 

@@ -12,7 +12,11 @@ from app.services.mapping import normalize_statement
 # The standards the HK template is built on — see `face_context.face_rows`.
 PREFERRED_FRAMEWORK = "IFRS"
 # The statements whose OTHER set feeds nothing on the deterministic route — see `unread_set_pages`.
-ONE_SET_STATEMENTS = frozenset({"profit_and_loss"})
+# Every statement the template's face lines are read from: PetroChina's CAS balance sheet (page
+# index 125-126) and cash flow statement (128) were summed with the IFRS ones (227, 228-229) as one
+# consolidated basis, which roughly doubled every balance-sheet total (Total current liabilities
+# 784,751 against a printed 637,317).
+ONE_SET_STATEMENTS = frozenset({"profit_and_loss", "balance_sheet", "cash_flow"})
 # On a face row of a statement set this template does not read: `<flag>:<its standards>`.
 SET_NOT_READ_FLAG = "statement_set_not_read"
 
@@ -36,13 +40,15 @@ def read_framework(doc) -> str | None:
 def unread_set_pages(doc, statements=ONE_SET_STATEMENTS) -> dict[int, str]:
     """``{page index: standards}`` for the face pages of the statement set NOT read, per statement.
 
-    ONE INCOME STATEMENT PER ENTITY BASIS FEEDS THE FACE. An A+H filer prints its statements twice:
+    ONE PRINTING OF EACH STATEMENT PER ENTITY BASIS FEEDS THE FACE. An A+H filer prints its statements twice:
     PetroChina's CAS "CONSOLIDATED AND COMPANY INCOME STATEMENTS" (page index 127, the Group and
     the Company side by side) and its IFRS "CONSOLIDATED STATEMENT OF COMPREHENSIVE INCOME" (226).
     The model's blocks already keep the CAS set apart (`face_context.face_rows`), but the
     deterministic route read both as one face: the CAS rows were bound and swept beside the IFRS rows, so the profit for the
     year carried a second owners' row (164,676 beside the IFRS 164,684) and the CAS net profit,
-    taxation and revenue went into Other Operating Expenses. Rows on these pages are left unbound
+    taxation and revenue went into Other Operating Expenses. The balance sheet and the cash flow
+    statement were summed the same way (CAS page index 125-126 and 128 beside IFRS 227 and 228-229), so
+    every balance-sheet total came out at about twice the printed figure. Rows on these pages are left unbound
     and unswept (`SET_NOT_READ_FLAG`); they are still extracted and still shown to the model, apart.
     """
     read = read_framework(doc)

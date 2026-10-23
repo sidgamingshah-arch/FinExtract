@@ -61,7 +61,8 @@ Those three sentences are held by ``tests/test_residual_framework.py``:
 they point at, alongside the itemisation and aggregation tests beside it.
 
 Rows deliberately NOT routed: anything that is itself a subtotal or total (it would be counted
-twice), a section header, an attribution caption, a per-share figure, a narrative sentence, a
+twice — by its role, and on the balance sheet and cash flow by its caption, `_TOTAL_CAPTION`), a
+row of a statement-of-changes-in-equity matrix, a section header, an attribution caption, a per-share figure, a narrative sentence, a
 note-reference-only row, and rows with no value at all — the eligibility list the framework prints,
 each entry with its own test here. A row whose SECTION cannot be resolved is not swept either: it
 goes to review, because guessing a section is exactly the cross-section rescue the block forbids.
@@ -377,6 +378,101 @@ _EXCLUSIONS: tuple[tuple[str, object], ...] = (
 # row-only test like the ones above: "the row's sign agrees with the section's sign_convention,
 # where the section states one". Read the same way — delete the sentence and the veto goes.
 _SIGN_AGREES = "sign agrees with the section"
+
+
+# A CAPTION THAT READS AS A TOTAL IS A TOTAL, whatever role the reader gave its row.
+#
+# Entries "section subtotal" and "statement total" of the eligibility list are tested above by ROLE
+# — the classifier's verdict — and say nothing on the run where the classifier missed one, which is
+# the only run that reaches a bucket. The gap was closed one residual at a time (``exclude_hints``
+# on Other Current / Non-Current Liabilities, Other Reserves, the three cash-flow residuals), and
+# every caption the lists did not foresee went straight in. Measured at b1e309a, answer-free:
+#
+#   PetroChina IFRS  'CASH FLOWS GENERATED FROM OPERATIONS' 461,866 / 519,430 into Other non-cash
+#                    adjustments, beside the working-capital rows it totals (the hint reads "cash
+#                    generated from operations"); 'NET CASH FLOWS USED FOR INVESTING ACTIVITIES'
+#                    into Other investing cash flows; once its CAS sheet is no longer read,
+#                    'TOTAL EQUITY AND NON-CURRENT LIABILITIES' 2,115,434 into Other NCL and
+#                    'NET CURRENT LIABILITIES' / 'TOTAL ASSETS LESS CURRENT LIABILITIES' into Other
+#                    Reserves, whose hints name neither
+#   China SCE        'Net cash flows from/(used in) investing activities' 4,044,304 into Other
+#                    financing cash flows, and the cash at 'AT END OF YEAR' beside it
+#   Grand Ming       'Operating (loss)/profit before working capital changes' into Other non-cash
+#                    adjustments; 'Net cash used in investing activities' into Other investing
+#   Hon Kwok         'Cash and cash equivalents as stated in the statement of cash flows' into
+#                    Other financing cash flows
+#
+# So it is ONE RULE, on every residual of the balance sheet and the cash flow statement, in both
+# scripts: each half of a bilingual caption is tested, Han folded to Simplified, the way
+# ``exclude_hints`` are (see `_vetoed_by_never_sweep`). Every alternative names a total by its
+# SHAPE — "total …", "net cash … activities", "… before working capital changes", 合计/总计/小计,
+# …活动…现金流量净额 — never by a line's subject, so a component that merely mentions a total's
+# words ("Net cash received from disposal of subsidiaries", 处置子公司…收到的现金净额) is untouched.
+# The income statement keeps its own list on Other Operating Expenses, whose margins ("Gross
+# profit", "Operating profit") are shaped like components and need the concept's own judgement.
+_TOTAL_CAPTION_STATEMENTS = frozenset({"balance_sheet", "cash_flow"})
+_TOTAL_CAPTION = re.compile(
+    # "Total …", "TOTAL EQUITY AND NON-CURRENT LIABILITIES", "Sub-total of cash inflows"
+    r"^\W*(?:sub[\s-]*)?totals?\b"
+    # "Net current assets", "NET CURRENT (LIABILITIES)/ASSETS"
+    r"|^\W*net\s+current\s*\(?\s*(?:assets|liabilities)\b"
+    # "Net assets", "Net (liabilities)/assets" — the whole caption, not "net assets of a disposal group"
+    r"|^\W*net\s*\(?\s*(?:assets|liabilities)\s*\)?(?:\s*/\s*\(?\s*(?:assets|liabilities)\s*\)?)?\W*$"
+    # "Net cash flows from/(used in) investing activities", "Net cash used in investing activities"
+    r"|^\W*net\s+cash\b.*\bactivities\b"
+    # "Cash generated from operations", "CASH FLOWS GENERATED FROM OPERATIONS",
+    # "Cash (used in)/generated from operations"
+    r"|^\W*(?:net\s+)?cash(?:\s+flows?)?(?:[\s(/)]*(?:generated|used|from|in|by|absorbed|"
+    r"utili[sz]ed))+[\s(/)]*operations\W*$"
+    # "Operating (loss)/profit before working capital changes"
+    r"|\bbefore\s+(?:(?:movements?|changes?)\s+in\s+)?working\s+capital\b"
+    # "Net (decrease)/increase in cash and cash equivalents", and the same without "Net" (PetroChina
+    # IFRS: "(Decrease)/increase in cash and cash equivalents" -76,524 into Other financing)
+    r"|^\W*(?:net\s*)?\(?\s*(?:increase|decrease)\s*\)?(?:\s*/\s*\(?\s*(?:increase|decrease)\s*\)?)?"
+    r"\s+in\s+cash\s+and\s+(?:cash\s+equivalents|bank\s+balances)\W*$"
+    # "Cash and cash equivalents at (the) beginning / end of the year", "… as stated in the
+    # statement of cash flows", and the bare "AT END OF YEAR" a cash flow's last line is printed as
+    r"|cash\s+and\s+cash\s+equivalents\s+(?:at|as\s+at)\s+(?:the\s+)?(?:beginning|end|start)\b"
+    r"|cash\s+and\s+cash\s+equivalents\s+as\s+(?:stated|shown|reported)\b"
+    r"|^\W*at\s+(?:the\s+)?(?:beginning|end|start)\s+of\s+(?:the\s+)?(?:year|period)\W*$"
+    # 流动资产合计, 资产总计, 经营活动现金流入小计
+    r"|合计|总计|小计"
+    # 经营活动产生的现金流量净额, 投资活动所得╱（所用）现金流量净额, 投资活动所用现金净额
+    r"|活动.*现金(?:流量)?\W*净(?:额|值)"
+    # 经营所得现金 (cash generated from operations), 营运资金变动前的经营溢利
+    r"|^\W*经营(?:业务)?[\W所得用产生之]*现金(?:流量)?(?:净额)?\W*$|营运资金变动前"
+    # 现金及现金等价物净增加额, 现金及现金等价物增加╱（减少）净额, 期末现金及现金等价物余额
+    r"|现金及现金等价物\W*(?:净(?:增加|减少)|(?:增加|减少).*净额)"
+    r"|(?:期|年)\W*(?:初|末|终)\W*(?:之|的)?\W*现金及现金等价物"
+    # 流动负债净额, 流动资产净值, 资产总值减流动负债, 资产净值, 权益总额
+    r"|流动\W*(?:资产|负债)(?:\W*(?:资产|负债))?\W*净(?:额|值)"
+    r"|资产(?:总值|总额)?\W*减\W*流动负债"
+    r"|^\W*(?:资产净值|资产净额|净资产)"
+    r"|(?:资产|负债|权益)\W*总(?:额|值)\W*$",
+    re.IGNORECASE)
+
+
+def _reads_as_total(label: str) -> str | None:
+    """The spelling of this caption that reads as a subtotal or total, or None.
+
+    Each script's half of a bilingual caption, and each Han half folded to Simplified, is tested on
+    its own, so "Net cash used in investing activities 投資活動所用現金淨額" is caught by either.
+    """
+    spellings = list(dict.fromkeys(
+        t for seg in label_segments(label or "") for t in (seg, to_simplified(seg)) if t))
+    return next((t for t in spellings if _TOTAL_CAPTION.search(t)), None)
+
+
+# A STATEMENT OF CHANGES IN EQUITY IS A MATRIX: its columns are equity components and its rows are
+# movements, so `row_reconstruct` files every cell of a matrix row under a `column_index` and the
+# component's header as its `period_label`. `map_ontology` refuses to bind such a row, because no
+# consumer publishes a matrix column as a line's figure; the sweep took it anyway, and Lai Sun's
+# standalone matrix (page index 350: 'At 1 August 2023', 'Loss for the year', 'Total comprehensive
+# income/(expense) for the year' filed under "Retained profits", "Total") sat in Other Reserves as
+# components of a balance-sheet bucket. It is the same refusal, at the sweep.
+def _is_matrix_row(li) -> bool:
+    values = list((getattr(li, "values", None) or {}).values())
+    return bool(values) and all(getattr(ev, "column_index", None) is not None for ev in values)
 
 
 # Phrase in the framework's ``prohibitions`` list -> the guard it switches on. Read the same way
@@ -756,7 +852,9 @@ def _dedicated_captions(ontology, members: dict) -> _Captions:
     so absorbing it means the sweep ran on a row nobody tested. Anything looser would refuse rows on
     a resemblance, which is the mapper's job and not a prohibition's.
 
-    THE SUBTOTALS ARE NOT COVERED, HERE OR ANYWHERE BY CAPTION. This said they were — "not its
+    THE SUBTOTALS ARE NOT COVERED HERE. On the balance sheet and the cash flow statement a caption
+    shaped like a total is refused by `_TOTAL_CAPTION` before this index is asked; what follows is
+    still true of the income statement. This said they were — "not its
     subtotals, which the eligibility list and ``never_sweep`` already refuse" — and neither half
     holds. The eligibility list refuses a subtotal by ROLE (``_EXCLUSIONS``: ``row.role is
     LineRole.SUBTOTAL``), which is the classifier's verdict, so it says nothing about the run where
@@ -1170,6 +1268,10 @@ class ResidualStage:
                 ineligible += 1
                 li.confidence.flags.append("residual_ineligible:another statement set")
                 continue
+            if _is_matrix_row(li):
+                ineligible += 1
+                li.confidence.flags.append("residual_ineligible:matrix column row")
+                continue
             stmt = statement_of(li)
             # Membership of a per-share BLOCK is tested at the per-share position in the ordering,
             # not after every other phrase: a bare "基本" is two characters, so the
@@ -1244,6 +1346,18 @@ class ResidualStage:
                 ineligible += 1
                 li.confidence.flags.append(f"residual_never_sweep:{veto}")
                 continue
+
+            if ("section subtotal" in terms.exclusions
+                    and (target.statement or stmt) in _TOTAL_CAPTION_STATEMENTS):
+                total_caption = _reads_as_total(li.source_label or "")
+                if total_caption is not None:
+                    # Eligibility 3 read off the CAPTION — see `_TOTAL_CAPTION`. After the
+                    # residual's own `never_sweep`, so a veto the rulebook names is still the one
+                    # reported; this catches every total it does not name.
+                    ineligible += 1
+                    li.confidence.flags.append(
+                        f"residual_ineligible:total caption({total_caption[:60]})")
+                    continue
 
             wrong_way = (_sign_contradicts_section(target, li) if terms.sign_must_agree else None)
             if wrong_way is not None:
