@@ -67,8 +67,10 @@ note-plus-rows units; both sides differ here.
 """
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import dataclass
+from functools import lru_cache
 
 from app.services.note_context import (ContextPool, ContextUnit, matches_title,
                                        subject_tokens)
@@ -196,6 +198,15 @@ def header_pool(notes) -> ContextPool:
                                  captions=(chapter,) if chapter and chapter != title else ()))
         prints.append(_prints_figures(table))
     pool = ContextPool(units)
+    # THE TABLES UNDER EACH NOTE NUMBER, for `heading_names_line`'s row evidence: a note whose
+    # rows the line's own row rule accepts can carry its figure whatever its heading shares.
+    by_ref: dict[str, list] = {}
+    for table in notes or ():
+        number = str(getattr(table, "note_number", "") or "").strip()
+        title = (getattr(table, "title", "") or "").strip()
+        if number or title:
+            by_ref.setdefault(number or title, []).append(table)
+    pool.tables_by_ref = by_ref
     # WHICH UNITS PRINT A FIGURE IN A ROW, aligned with `pool.units`. See `notes_for_line_item`'s
     # `rows_only`: an accounting-policy paragraph headed "Leases" is not where a lease figure is.
     # NONE WHEN NOTHING DOES: a set of notes with no row figures at all (headings only — a caller
@@ -344,12 +355,19 @@ def notes_for_line_item(item, pool: ContextPool, *, min_score: float = MIN_SCORE
     # IFRS note 22 — the receivables note the line was asking about — was not sent. A prose-reading
     # or undeclared line keeps every unit: a sentence is a place its figure can be.
     prints = getattr(pool, "prints_figures", None) if rows_only else None
+    # A NOTE IS OFFERED ONLY ON A HEADING THAT NAMES THE LINE — see `heading_names_line`. Applied
+    # when the call OFFERS notes (a positive floor), not when it only RANKS them (`min_score=0.0`,
+    # which `note_sets` and `claimed_notes` use to order notes they already hold): a declared or
+    # cited note keeps its rank whatever its heading says.
+    names = line_names(item) if min_score > 0 else None
     scored = []
     for index, unit in enumerate(pool.units):
         if prints is not None and index < len(prints) and not prints[index]:
             continue
         score = pool._score(unit, probe)
         if score >= min_score:
+            if names is not None and not heading_names_line(item, unit, names, pool=pool):
+                continue
             scored.append((score, index, unit))
     # Descending score, document order breaking ties, so a rerun of the same filing selects the
     # same notes in the same order.
@@ -367,6 +385,173 @@ def notes_for_line_item(item, pool: ContextPool, *, min_score: float = MIN_SCORE
         if len(out) == cap:
             break
     return out
+
+
+def line_names(item) -> list[tuple[frozenset[str], bool, str]]:
+    """What a line is CALLED, one entry per name: its token set (`_fold`ed), whether it is an
+    authored `note_terms` entry, and its last token — the head of the name. A line with
+    `note_terms` is called by them — the vocabulary written for finding its note — and a line
+    without is called by its label and every printed alias.
+
+    NOT ITS DEFINITION. The definition is an instruction to the model — which row to cite, which
+    rows it is NOT ("It is not total operating costs (营业总成本 …), which also takes in … the
+    selling, administrative, research and finance expenses"), which arithmetic is declared
+    elsewhere — so its words are as often what the line excludes as what it is. It still feeds the
+    cosine that RANKS headings (`note_probe`); it does not by itself make a heading this line's.
+    """
+    source = getattr(item, "note_source", None)
+    authored = [t for t in (getattr(source, "note_terms", None) or ()) if t and str(t).strip()]
+    raw = authored or [str(getattr(item, "label", "") or "")] + printed_names(item)
+    out: list[tuple[frozenset[str], bool, str]] = []
+    for name in raw:
+        ordered = subject_tokens(str(name))
+        tokens = frozenset(_fold(ordered))
+        entry = (tokens, bool(authored), next(iter(_fold(ordered[-1:])), "") if ordered else "")
+        if tokens and entry not in out:
+            out.append(entry)
+    return out
+
+
+def _fold(tokens) -> set[str]:
+    """English plurals folded — "parties" is "party", "commitments" "commitment" — so a heading
+    and a name in different numbers are the same words. Han bigrams are left as they are."""
+    out = set()
+    for t in tokens:
+        if t.isascii() and len(t) > 4 and t.endswith("ies"):
+            t = t[:-3] + "y"
+        elif t.isascii() and len(t) > 3 and t.endswith("s") and not t.endswith("ss"):
+            t = t[:-1]
+        out.add(t)
+    return out
+
+
+# A HEADING THAT NAMES ANOTHER ENTITY — an associate, a joint venture, a subsidiary, a segment.
+# Its rows are that entity's figures, printed under the same captions as the group's: 000883's
+# 十、3 重要联营企业的主要财务信息 prints an associate's 净利润 / 资产合计 / 负债合计, Lai Sun's note 43
+# PARTLY-OWNED SUBSIDIARIES prints one subsidiary's "Non-current assets" and "Loss attributable to
+# owners of the Company", and a segment note prints each segment's totals. Each family is one
+# pattern over the heading AND its chapter (a CAS filing files associates under 十、在其他主体中的
+# 权益). The parent company's own statements are not here: that is the standalone basis, which the
+# template reads.
+_OTHER_ENTITY = tuple(re.compile(p, re.IGNORECASE) for p in (
+    r"\bassociat(?:e|es|ed)\b|联营|聯營",
+    r"\bjoint\s+(?:ventures?|operations?)\b|合营|合營",
+    r"\bsubsidiar(?:y|ies)\b|子公司|附属公司|附屬公司",
+    r"\bsegments?\b|分部",
+    r"\bstructured\s+entit(?:y|ies)\b|其他主体|其他主體|结构化主体|結構化主體",
+))
+
+
+def names_other_entity(item, heading: str) -> bool:
+    """Whether `heading` is about an entity the line's own names do not name.
+
+    A line whose names carry the same family — "Investments in associates", 对联营企业投资 — is
+    asking about that entity, and its note is its own."""
+    own = " ".join([str(getattr(item, "label", "") or "")] + printed_names(item)
+                   + [str(t) for t in (getattr(getattr(item, "note_source", None), "note_terms",
+                                               None) or ())])
+    return any(p.search(heading or "") and not p.search(own) for p in _OTHER_ENTITY)
+
+
+def heading_names_line(item, unit, names=None, *, pool=None) -> bool:
+    """Whether a note heading NAMES this line, rather than sharing a word with it.
+
+    THE COSINE OVER A SHORT HEADING IS ONE TOKEN WIDE. A CAS heading is two to four bigrams, so a
+    single shared bigram clears the 0.25 floor: measured on 000883, 营业外收入 / 营业外支出 scored
+    0.25-0.29 for Total Cost of Sales and Gross Profit on 营业 alone, 未分配利润 0.41 for the PBT
+    depreciation part on 利润 alone, 固定资产 0.27 for Total Assets on 资产 (IDF 1.62); on Lai Sun,
+    CONTINGENT LIABILITIES 0.25 for "Interest on lease liabilities" on "liabilities", TAX and
+    DEFERRED TAX for staff costs on "tax". None of those notes can carry the line's figure.
+
+    SO A HEADING IS THE LINE'S WHEN IT HOLDS ONE OF ITS NAMES (`line_names`), and does not name
+    another entity (`names_other_entity`):
+
+    * an authored `note_terms` entry is held when the heading carries two of its words, or the
+      whole of a one-word term. A term is written to name the CONTAINER, so two of its words are
+      the container: 物業、廠房及設備 for 物業、機器及設備, RELATED PARTY TRANSACTIONS for "due to
+      related parties", LOSS FROM OPERATING ACTIVITIES for "from operating activities". One word of
+      a longer term is not — TAX for "before tax", 未分配利润 for 税前利润, FINANCE COSTS for "staff
+      costs" — unless it is the term's head and the note prints a row the line's own row rule
+      takes (below);
+    * a label or alias is a ROW's name, not a container's, and a heading holds it only when the
+      words they share also carry more than half of its weight, weighed as the score weighs words
+      (the pool's IDF, squared; a word no heading of the filing prints weighs the most). 除所得税前
+      溢利 and 未经抵销的递延所得税资产 share 所得税 and nothing that says "before tax"; "Profit from
+      operating activities" and 与经营活动有关的现金 share the activity and not the profit.
+
+    The heading words are its own and its chapter's, as the score reads them; plurals are folded
+    (`_fold`) on both sides.
+    """
+    heading = " ".join([unit.title or "", *unit.captions])
+    if names_other_entity(item, heading):
+        return False
+    words = _fold(unit.tokens)
+    idf: dict[str, float] = {}
+    for token, value in (getattr(pool, "idf", None) or {}).items():
+        for folded in _fold((token,)):
+            idf[folded] = max(idf.get(folded, 0.0), value)
+    unseen = math.log(len(getattr(pool, "units", ()) or ()) + 1) if idf else 1.0
+
+    def weight(token: str) -> float:
+        return (idf.get(token, unseen) if idf else 1.0) ** 2
+
+    rows_hold = None
+    for name, authored, head in (names if names is not None else line_names(item)):
+        shared = name & words
+        if authored and shared == {head} and len(name) > 1 and not sums_line_items(item):
+            # THE HEAD OF A TERM, AND A ROW THE LINE'S OWN ROW RULE TAKES. A note whose rows the
+            # line reads is a note that can carry its figure: 1966's FINANCIAL GUARANTEES prints
+            # "Guarantees given to banks in connection with loan facilities granted to joint
+            # ventures and associates", the row `sub__cl_related_party_guarantee_balance` is
+            # defined by, under a heading holding only the head of "related party guarantees".
+            # The head and not any word — 销售费用 shares 销售, not 成本, with 销售成本 — and a row
+            # rule that names its rows, not one that adds every row up (`sums_line_items`).
+            if rows_hold is None:
+                rows_hold = _rows_take(item, (getattr(pool, "tables_by_ref", None) or {})
+                                       .get(unit.ref, ()))
+            if rows_hold:
+                return True
+        if len(shared) < min(2, len(name)):
+            continue
+        if authored:
+            return True
+        total = sum(weight(t) for t in name)
+        if total and sum(weight(t) for t in shared) * 2 > total:
+            return True
+    return False
+
+
+def _rows_take(item, tables) -> bool:
+    """Whether a row of `tables` that prints a figure is one the line's `row_caption_any` takes
+    and its `row_caption_none` does not refuse. A line without row rules takes none."""
+    src = getattr(item, "note_source", None)
+    take = _compiled(tuple(getattr(src, "row_caption_any", None) or ()))
+    if not take:
+        return False
+    refuse = _compiled(tuple(getattr(src, "row_caption_none", None) or ()))
+    for table in tables or ():
+        for row in getattr(table, "items", None) or ():
+            caption = str(getattr(row, "raw_label", "") or "")
+            if not caption or not any(p.search(caption) for p in take):
+                continue
+            if any(p.search(caption) for p in refuse):
+                continue
+            values = getattr(row, "values", None) or {}
+            evs = values.values() if hasattr(values, "values") else values
+            if any(getattr(ev, "value", None) is not None for ev in evs):
+                return True
+    return False
+
+
+@lru_cache(maxsize=4096)
+def _compiled(patterns: tuple[str, ...]) -> tuple[re.Pattern, ...]:
+    out = []
+    for raw in patterns:
+        try:
+            out.append(re.compile(raw, re.IGNORECASE))
+        except re.error:
+            continue
+    return tuple(out)
 
 
 def content_terms(item) -> list[str]:
@@ -518,6 +703,11 @@ def named_row_notes(item, notes, *, cap: int = NAMED_ROW_CAP) -> list[NoteHit]:
         number = str(getattr(table, "note_number", "") or "")
         if not number:
             continue
+        # NOT ANOTHER ENTITY'S ROW. A caption match is exactly how an associate's 净利润 or a
+        # segment's 资产总额 reaches the group's line — see `_OTHER_ENTITY`.
+        if names_other_entity(item, " ".join((str(getattr(table, "title", "") or ""),
+                                              str(getattr(table, "chapter_title", "") or "")))):
+            continue
         for row in getattr(table, "items", None) or ():
             values = getattr(row, "values", None) or {}
             evs = values.values() if hasattr(values, "values") else values
@@ -542,6 +732,106 @@ def named_row_notes(item, notes, *, cap: int = NAMED_ROW_CAP) -> list[NoteHit]:
     ranked = sorted(best.items(), key=lambda kv: kv[1][:3], reverse=True)
     return [NoteHit(note=num, title=meta[3], score=0.0, via="named_row")
             for num, meta in ranked[:cap]]
+
+
+# AT MOST THIS MANY NOTES ARE ADDED BECAUSE A NOTE IN THE LINE'S SET POINTS TO THEM.
+XREF_CAP = 2
+
+# A REFERENCE TO ANOTHER NOTE inside a note: "note 9", "(note 35(c))", "(Note 8)", "附註9". The
+# number is the note's; a sub-item letter after it ("35(c)") names a part of that note.
+_XREF = re.compile(r"(?i)\bnotes?\s*\.?\s*(\d{1,3})(?![\d,]\d)|(?:附註|附注)\s*(\d{1,3})(?!\d)")
+_OPEN = "(（"
+_CLOSE = ")）"
+
+
+def _name_pattern(name: str) -> re.Pattern | None:
+    """A printed name as a pattern over running text: its words in order, any spacing or
+    punctuation between them, an English plural either way. None for a one-word name."""
+    words = re.findall(r"[A-Za-z]+|[\u3400-\u9fff\uf900-\ufaff]+", name or "")
+    if len(words) < 2 and not (len(words) == 1 and not words[0].isascii() and len(words[0]) >= 3):
+        return None
+    parts = [re.escape(w.lower().rstrip("s")) + "s?" if w.isascii() else re.escape(w)
+             for w in words]
+    return re.compile(r"[\W_]*".join(parts), re.IGNORECASE)
+
+
+def referenced_notes(item, numbers, notes, *, cap: int = XREF_CAP) -> list[NoteHit]:
+    """The notes a note of this line's set REFERS TO for this line, in the order they are printed.
+
+    THE FILING'S OWN POINTER, ONE LEVEL IN. A staff-cost line reaches the note that prints staff
+    costs, and that note says where the rest of the figure is: Lai Sun's note 7 prints "Staff costs
+    (including directors' and chief executive officer's remuneration — note 9)", BYD Electronic's
+    note 6 "Employee benefit expense (excluding directors', supervisors' and senior executive
+    officers' remuneration (note 35(c)))", Far East Horizon's note 7 "Employee benefit expense
+    (including directors' remuneration (Note 8))". None of those notes was supplied, so whether the
+    figure includes directors' pay could not be read.
+
+    A REFERENCE COUNTS WHEN IT IS THE LINE'S OWN PARENTHETICAL: one of the line's names (label,
+    alias or note term, of two words or more) is printed, and the reference follows it inside a
+    bracket opened after the name, within one caption or sentence — "<name> (… note N)". A note's
+    other references are about something else, even where the line's name is in the sentence:
+    "investment properties are leased … details of which are included in note 16", "bank loans
+    are secured by … as detailed in note 26". The text read is each row's sub-heading and caption,
+    and the note's prose. Only a note this document holds, not one already in the set, at most
+    `cap`; marked `via="referenced"`.
+    """
+    numbers = [str(n) for n in numbers if n]
+    if not numbers or not notes or cap <= 0:
+        return []
+    raw = ([str(getattr(item, "label", "") or "")] + printed_names(item)
+           + [str(t) for t in (getattr(getattr(item, "note_source", None), "note_terms", None)
+                               or ())])
+    patterns = [p for p in dict.fromkeys(_name_pattern(n) for n in raw) if p is not None]
+    if not patterns:
+        return []
+    have: dict[str, str] = {}
+    for table in notes:
+        number = str(getattr(table, "note_number", "") or "")
+        if number and number not in have:
+            have[number] = str(getattr(table, "title", "") or "")
+    wanted = set(numbers)
+    out: list[str] = []
+    for table in notes:
+        own = str(getattr(table, "note_number", "") or "")
+        if own not in wanted:
+            continue
+        texts = [" ".join((str(getattr(r, "group_hint", "") or ""),
+                           str(getattr(r, "raw_label", "") or "")))
+                 for r in (getattr(table, "items", None) or ())]
+        texts.append(str(getattr(table, "prose_text", None) or getattr(table, "source_text", "")
+                         or ""))
+        for text in texts:
+            for match in _XREF.finditer(text):
+                ref = match.group(1) or match.group(2)
+                if ref == own or ref not in have or ref in out or ref in wanted:
+                    continue
+                before = text[max(0, match.start() - 240):match.start()]
+                if any(_opens_after(before, pattern) for pattern in patterns):
+                    out.append(ref)
+                    if len(out) == cap:
+                        break
+            if len(out) == cap:
+                break
+        if len(out) == cap:
+            break
+    return [NoteHit(note=n, title=have[n], score=0.0, via="referenced") for n in out]
+
+
+def _opens_after(before: str, pattern: re.Pattern) -> bool:
+    """Whether a name is printed in `before` with a bracket opened right after it that is still
+    open where `before` ends — so the reference that follows is the name's own parenthetical."""
+    for found in pattern.finditer(before):
+        tail = before[found.end():].lstrip()
+        if not tail or tail[0] not in _OPEN:
+            continue
+        depth = 0
+        for ch in tail:
+            depth += (ch in _OPEN) - (ch in _CLOSE)
+            if depth <= 0:
+                break
+        else:
+            return True
+    return False
 
 
 def cited_notes(doc) -> dict[str, tuple[str, ...]]:
@@ -959,7 +1249,14 @@ def note_sets(items, notes, *, min_score: float = MIN_SCORE,
              for num in declared_notes(item, notes) if num not in {c.note for c in first}),
             key=lambda h: rank.get(h.note, (len(ranked), 0.0))[0])
         held = {h.note for h in first} | {h.note for h in declared}
-        scored = [h for h in ranked if h.score >= min_score and h.note not in held][:cap]
+        # THE SCORED CONTRIBUTION IS WHAT `notes_for_line_item` OFFERS at the floor — headings that
+        # name the line (`heading_names_line`) — rather than every ranked note above it. Asked
+        # separately because the gate is per fragment: a note whose best-scoring fragment shares
+        # one word with the line can still be offered on a fragment that names it.
+        offered = notes_for_line_item(item, pool, min_score=min_score,
+                                      cap=len(notes or ()) or cap, parent=parent,
+                                      rows_only=rows_only) if min_score > 0 else ranked
+        scored = [h for h in offered if h.score >= min_score and h.note not in held][:cap]
         # THE CITED/SCORED TRADE IS UNTOUCHED — `first + scored` is still bounded by `cap`, so a
         # citation still displaces the lowest-scoring note and `note_sets`' behaviour on a line
         # that declares nothing is byte-for-byte what it was.
@@ -998,11 +1295,23 @@ def note_sets(items, notes, *, min_score: float = MIN_SCORE,
         # set already held 七、5 应收账款, two more notes that merely mention receivables (a
         # foreign-currency table, the related-party balances at ~17k tokens) and took seven
         # requests over budget. A line whose heading search found its note does not need this.
-        if line_item_routes.may_read_table_rows(item) and best < NAMED_ROW_BELOW:
+        #
+        # AND ONLY FOR A LINE THE TEMPLATE DOES NOT ADD UP. A line declaring `terms` is a subtotal
+        # (Total Assets, 净利润, Profit for the year): its statement prints it, its parts are asked
+        # about on their own, and a note row carrying its name is a subtotal of something else —
+        # an associate's 净利润 and 资产合计 (000883 十、3), a segment's 资产总额 (十八、6), a
+        # capital-management table's "Equity attributable to owners of the Company" (Lai Sun 48).
+        if (line_item_routes.may_read_table_rows(item) and best < NAMED_ROW_BELOW
+                and not list(getattr(item, "terms", None) or ())):
             named = named_row_notes(item, notes, cap=len(notes or ()))
             seen = {h.note for h in hits}
             if named and not any(h.note in seen for h in named):
                 hits.extend(named[:NAMED_ROW_CAP])
+        # THE NOTE THE LINE'S OWN NOTE POINTS TO — see `referenced_notes`. After every other
+        # search, because it reads the notes they chose.
+        seen = {h.note for h in hits}
+        hits.extend(h for h in referenced_notes(item, [h.note for h in hits], notes)
+                    if h.note not in seen)
         if hits:
             out[item.key] = hits
     return out

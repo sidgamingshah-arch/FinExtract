@@ -465,8 +465,9 @@ def _declared_items(line_item_set) -> list:
     "nothing was said", never "face", which is the same convention `section_scope` and `statement`
     already use. The five `either` sections (`supplemental_data`, `credit_compliance`,
     `capital_and_lease_commitments`, `off_balance_sheet_data`, `statement_setup_controls`) are open
-    for the same reason: they are neither face nor notes, and none of their 60 items declares a
-    `note_source` anyway.
+    for the same reason: they are neither face nor notes, and those of their items that declare a
+    `note_source` declare `note_terms` alone — which notes the model is shown — and no row or
+    prose pattern for this stage to read.
     """
     items = getattr(line_item_set, "items", None) or []
     declared = [i for i in items if getattr(i, "note_source", None) is not None]

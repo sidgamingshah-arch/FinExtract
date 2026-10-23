@@ -643,7 +643,10 @@ def test_the_indian_note_vocabulary_widens_context_and_not_the_deterministic_rea
     # 44 with the expense-notes depreciation part.
     # 39 and 50 since Related Party Transactions became derived (its created note_source went
     # to six inherited related-party parts).
-    assert created == 39 and inherited == 50, (created, inherited)
+    # 37 and 52 since the HK set gave its fixed-asset and short-term bank loan lines `note_terms`
+    # (the headings PROPERTY, PLANT AND EQUIPMENT and BANK BORROWINGS their aliases do not name):
+    # the Ind AS set is unchanged, the HK lines it is compared with now declare a note_source.
+    assert created == 37 and inherited == 52, (created, inherited)
 
     # THE BEHAVIOURAL HALF. A note whose heading matches the PPE family's own title pattern, with a
     # row that any depreciation vocabulary would claim. A line whose note_source was created must

@@ -1053,7 +1053,20 @@
      "sign": 1
     }
    ],
-   "namespace": "template"
+   "namespace": "template",
+   "note_source": {
+    "note_terms": [
+     "fixed assets",
+     "property, plant and equipment",
+     "property and equipment",
+     "固定资产",
+     "固定資產",
+     "物業、廠房及設備",
+     "物業、機器及設備",
+     "物业、厂房及设备",
+     "物業及設備"
+    ]
+   }
   },
   {
    "key": "bs_nca__accum_deprec_and_impairment",
@@ -1112,7 +1125,20 @@
      "sign": 1
     }
    ],
-   "namespace": "template"
+   "namespace": "template",
+   "note_source": {
+    "note_terms": [
+     "fixed assets",
+     "property, plant and equipment",
+     "property and equipment",
+     "固定资产",
+     "固定資產",
+     "物業、廠房及設備",
+     "物業、機器及設備",
+     "物业、厂房及设备",
+     "物業及設備"
+    ]
+   }
   },
   {
    "key": "bs_nca__goodwill",
@@ -7011,7 +7037,19 @@
    "sign_rule": {},
    "inherits": "bs_cl",
    "face_only": false,
-   "namespace": "template"
+   "namespace": "template",
+   "note_source": {
+    "note_terms": [
+     "bank borrowings",
+     "bank loans",
+     "short term borrowings",
+     "短期借款",
+     "银行借款",
+     "銀行借款",
+     "银行贷款",
+     "銀行貸款"
+    ]
+   }
   },
   {
    "key": "bs_cl__ipo_loans_st_bank_loans_pay",
@@ -16168,7 +16206,20 @@
    ],
    "sign_rule": {},
    "inherits": "off_balance_sheet_data",
-   "namespace": "template"
+   "namespace": "template",
+   "note_source": {
+    "note_terms": [
+     "operating lease commitments",
+     "commitments",
+     "leases",
+     "承擔",
+     "承担",
+     "承诺",
+     "承諾",
+     "租賃",
+     "租赁"
+    ]
+   }
   },
   {
    "key": "off_balance_sheet_data__off_balance_sheet_liabilities",
@@ -16187,7 +16238,17 @@
    ],
    "sign_rule": {},
    "inherits": "off_balance_sheet_data",
-   "namespace": "template"
+   "namespace": "template",
+   "note_source": {
+    "note_terms": [
+     "contingent liabilities",
+     "financial guarantees",
+     "或然負債",
+     "或有负债",
+     "或有事项",
+     "或有事項"
+    ]
+   }
   },
   {
    "key": "supplemental_data__exchange_rate_period_average",
@@ -16645,7 +16706,19 @@
    ],
    "sign_rule": {},
    "inherits": "capital_and_lease_commitments",
-   "namespace": "template"
+   "namespace": "template",
+   "note_source": {
+    "note_terms": [
+     "capital commitments",
+     "commitments",
+     "資本承擔",
+     "资本承担",
+     "承擔",
+     "承担",
+     "承诺",
+     "承諾"
+    ]
+   }
   },
   {
    "key": "capital_and_lease_commitments__capital_commitments_for_lt_assets",
@@ -16663,7 +16736,19 @@
    ],
    "sign_rule": {},
    "inherits": "capital_and_lease_commitments",
-   "namespace": "template"
+   "namespace": "template",
+   "note_source": {
+    "note_terms": [
+     "capital commitments",
+     "commitments",
+     "資本承擔",
+     "资本承担",
+     "承擔",
+     "承担",
+     "承诺",
+     "承諾"
+    ]
+   }
   },
   {
    "key": "capital_and_lease_commitments__capital_commitments_for_intangible_assets",
@@ -16680,7 +16765,19 @@
    ],
    "sign_rule": {},
    "inherits": "capital_and_lease_commitments",
-   "namespace": "template"
+   "namespace": "template",
+   "note_source": {
+    "note_terms": [
+     "capital commitments",
+     "commitments",
+     "資本承擔",
+     "资本承担",
+     "承擔",
+     "承担",
+     "承诺",
+     "承諾"
+    ]
+   }
   },
   {
    "key": "capital_and_lease_commitments__capital_commitments_for_investments",
@@ -16696,7 +16793,19 @@
    ],
    "sign_rule": {},
    "inherits": "capital_and_lease_commitments",
-   "namespace": "template"
+   "namespace": "template",
+   "note_source": {
+    "note_terms": [
+     "capital commitments",
+     "commitments",
+     "資本承擔",
+     "资本承担",
+     "承擔",
+     "承担",
+     "承诺",
+     "承諾"
+    ]
+   }
   },
   {
    "key": "capital_and_lease_commitments__capital_commitments",
@@ -16711,7 +16820,19 @@
    ],
    "sign_rule": {},
    "inherits": "capital_and_lease_commitments",
-   "namespace": "template"
+   "namespace": "template",
+   "note_source": {
+    "note_terms": [
+     "capital commitments",
+     "commitments",
+     "資本承擔",
+     "资本承担",
+     "承擔",
+     "承担",
+     "承诺",
+     "承諾"
+    ]
+   }
   },
   {
    "key": "capital_and_lease_commitments__operating_lease_commitments_notes",
@@ -16728,7 +16849,20 @@
    ],
    "sign_rule": {},
    "inherits": "capital_and_lease_commitments",
-   "namespace": "template"
+   "namespace": "template",
+   "note_source": {
+    "note_terms": [
+     "operating lease commitments",
+     "commitments",
+     "leases",
+     "承擔",
+     "承担",
+     "承诺",
+     "承諾",
+     "租賃",
+     "租赁"
+    ]
+   }
   },
   {
    "key": "notes__related_party_transactions",
@@ -17307,7 +17441,9 @@
      "研究及開發",
      "研發開支",
      "研发费用",
-     "研究开发费"
+     "研究开发费",
+     "研发支出",
+     "研發支出"
     ],
     "row_terms": [
      "depreciation",

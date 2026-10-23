@@ -199,9 +199,14 @@ def test_a_face_section_line_is_not_offered_the_note_route():
         assert not (src.note_title_any or src.row_caption_any or src.prose_any
                     or src.prose_subject or src.row_terms), (
             f"{item.key}: a face-section line declaring a note pattern — read this test")
+    # `bs_cl__st_bank_loans_payable` names BANK BORROWINGS / 短期借款, and the two fixed-asset
+    # totals PROPERTY, PLANT AND EQUIPMENT / 固定资产: none of their aliases is the heading a filing
+    # files that note under, and a heading must name the line to be sent
+    # (`line_item_notes.heading_names_line`).
     assert {i.key for i in probes_only} == {
         "is_pl__personnel_and_benefit_expenses", "is_pl__interest_expense_capitalised",
-        "bs_ca__allow_for_doubtful_accounts"}
+        "bs_ca__allow_for_doubtful_accounts", "bs_cl__st_bank_loans_payable",
+        "bs_nca__gross_fixed_assets", "bs_nca__net_fixed_assets"}
 
     sections = st.section_defaults
     for item in selected:
