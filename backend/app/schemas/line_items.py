@@ -306,6 +306,25 @@ class CascadeRung(BaseModel):
     # and its section total does not add it; a rung reading a face row of its own (an HKEX
     # "Amounts due to related parties") is not carved and is added as before.
     carved_from_face: bool = False
+    # THE FIGURE THIS RUNG READS IS PART OF THE LINE AND NOT PART OF ITS PRINTED ROW. The other
+    # half of `carved_from_face`: there the note figure is already inside a face caption and must not
+    # be added again; here it is inside a face caption the template does NOT read for it, so unless
+    # it arrives on this line it reaches no line at all.
+    #
+    # THE CASE. A CAS income statement prints 营业收入 — principal plus other-business revenue — and
+    # Sales(Revenues) is, by its definition, the principal-business revenue the revenue note prints
+    # (主营业务). The note's 其他业务 row (688008 七、61: 10,141,512.36) therefore left the face's
+    # revenue and was taken up by no line, while cost of sales is the whole 营业成本: profit before
+    # tax came out short by exactly that row. Other Operating Income is the line whose aliases name
+    # 其他业务收入, and the face already prints a row for it (加：其他收益, 91,576,969.33). A printed
+    # figure ordinarily stands over a cascade, so the rung would decide nothing.
+    #
+    # So the rung's figure is written BESIDE the printed one, on a row of its own carrying the line's
+    # key, and the line is their sum — the printed row keeps its own figure and provenance, and the
+    # note row is cited on its own carrier. With no printed figure in the column it is the line.
+    # A model's answer for the line is the printed figure's equal here, not a competitor: it reads
+    # the face, and the part it does not print still arrives beside it.
+    adds_to_printed: bool = False
 
 
 class NoteSource(BaseModel):

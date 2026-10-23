@@ -293,7 +293,10 @@ _ROUND_TRIP: dict[str, tuple[str, object]] = {
          "outranks_printed": False,
          # …and whether the figure is read out of captions the face already carries, so it is shown
          # on its line and not added into its section a second time.
-         "carved_from_face": False}]),
+         "carved_from_face": False,
+         # …and whether its figure arrives BESIDE the printed row rather than contesting it — a
+         # part of the line the face prints inside another caption (CAS other-business revenue).
+         "adds_to_printed": False}]),
     "implemented_by": ("implemented_by", "probe_service"),
     # prose
     "decomposition_rule": ("decomposition_rule", "= total cash − other"),

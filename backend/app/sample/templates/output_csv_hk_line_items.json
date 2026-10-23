@@ -9225,7 +9225,26 @@
    "face_only": false,
    "match_priority": 11,
    "namespace": "template",
-   "route": "face"
+   "route": "face",
+   "cascade": [
+    {
+     "id": "OB_NOTE",
+     "terms": [
+      {
+       "ref": "sub__revenue_note_other_business_revenue",
+       "const": null,
+       "sign": 1,
+       "abs": false,
+       "role": "required"
+      }
+     ],
+     "terms_op": "sum",
+     "note": "Other-business revenue from the revenue note's 其他业务 row. The face's 营业收入 holds it and Sales(Revenues) does not, so it arrives here, beside the printed 其他收益.",
+     "refuse_negative": true,
+     "outranks_printed": false,
+     "adds_to_printed": true
+    }
+   ]
   },
   {
    "key": "is_pl__commission_income_other_operating_inc",
@@ -10880,7 +10899,25 @@
    "face_only": false,
    "match_priority": 49,
    "namespace": "template",
-   "route": "face"
+   "route": "face",
+   "cascade": [
+    {
+     "id": "FIN_NOTE_OTHER",
+     "terms": [
+      {
+       "ref": "sub__finance_expense_note_other_charges",
+       "const": null,
+       "sign": -1,
+       "abs": false,
+       "role": "required"
+      }
+     ],
+     "terms_op": "sum",
+     "note": "The 财务费用 note's bank charges and other rows, which it prints as expenses: negated, a charge is negative here. Where the face prints such a line of its own, that printed figure stands.",
+     "refuse_negative": false,
+     "outranks_printed": false
+    }
+   ]
   },
   {
    "key": "is_pl__deferred_interest_expense",
@@ -11317,7 +11354,25 @@
    "face_only": false,
    "match_priority": 35,
    "namespace": "template",
-   "route": "face"
+   "route": "face",
+   "cascade": [
+    {
+     "id": "FX_NOTE",
+     "terms": [
+      {
+       "ref": "sub__finance_expense_note_exchange",
+       "const": null,
+       "sign": -1,
+       "abs": false,
+       "role": "required"
+      }
+     ],
+     "terms_op": "sum",
+     "note": "The 财务费用 note's exchange row, which it prints as an expense: negated, a gain is positive here. Where the face prints an exchange line of its own, that printed figure stands.",
+     "refuse_negative": false,
+     "outranks_printed": false
+    }
+   ]
   },
   {
    "key": "is_pl__fmv_adj_on_derivatives",
@@ -20435,6 +20490,124 @@
      "营业成本"
     ]
    }
+  },
+  {
+   "key": "sub__revenue_note_other_business_revenue",
+   "label": "Other business revenue (revenue note)",
+   "in_output": false,
+   "parent": "is_pl__other_operating_income",
+   "order": 1,
+   "namespace": "internal",
+   "inherits": "notes",
+   "note_source": {
+    "note_title_any": [],
+    "row_caption_any": [
+     "^\\s*(?:其中\\s*[:：]?\\s*)?(?:其他业务|其他業務)(?:收入)?\\s*$"
+    ],
+    "row_caption_none": [
+     "^\\s*(?:合计|合計|小计|小計|总计|總計|subtotal|total)",
+     "成本"
+    ],
+    "prose_any": [],
+    "prose_subject": "",
+    "prose_landed_in": [],
+    "note_terms": [
+     "营业收入",
+     "營業收入"
+    ],
+    "row_terms": [],
+    "row_terms_none": []
+   },
+   "statement": "notes",
+   "section_scope": [],
+   "definition": "Other-business revenue (其他业务收入) for the period, as the revenue note of a mainland filing prints it in its own 其他业务 row beside 主营业务: revenue outside the principal business, such as the rental of assets and the sale of materials and scrap. Read the printed row, not the note's total less its principal row. The face's 营业收入 holds it but Sales(Revenues) does not, being the principal-business revenue only, so it is part of Other Operating Income. Count it once, not again from a breakdown of the revenue by product, region or timing.",
+   "exclude_criteria": [
+    "Principal business revenue",
+    "Other income"
+   ],
+   "route": "note_tables",
+   "rollup": "alternatives"
+  },
+  {
+   "key": "sub__finance_expense_note_exchange",
+   "label": "Exchange gains/losses (finance-expense note)",
+   "in_output": false,
+   "parent": "is_pl__rlzd_forex_translation_g_l",
+   "order": 1,
+   "namespace": "internal",
+   "inherits": "notes",
+   "note_source": {
+    "note_title_any": [],
+    "row_caption_any": [
+     "^\\s*(?:加\\s*[:：]\\s*)?(?:汇兑|匯兌)"
+    ],
+    "row_caption_none": [
+     "^\\s*(?:合计|合計|小计|小計|总计|總計|subtotal|total)",
+     "^\\s*(?:减|減)\\s*[:：]?"
+    ],
+    "prose_any": [],
+    "prose_subject": "",
+    "prose_landed_in": [],
+    "note_terms": [
+     "财务费用",
+     "財務費用"
+    ],
+    "row_terms": [],
+    "row_terms_none": []
+   },
+   "statement": "notes",
+   "section_scope": [],
+   "definition": "The exchange gains and losses for the period that the finance-expenses note of a mainland filing (财务费用) prints in a row of its own: 汇兑损益, 汇兑净损益, 汇兑损失. The note prints the row as part of a finance EXPENSE, so a loss is positive and a gain negative. Read the printed row, not the note's total less its interest rows. The face prints only the interest rows of 财务费用 (其中：利息费用, 利息收入), so this row reaches the template through Rlzd Forex Translation G(L) and nowhere else.",
+   "exclude_criteria": [
+    "Interest expense",
+    "Interest income"
+   ],
+   "route": "note_tables",
+   "rollup": "sum"
+  },
+  {
+   "key": "sub__finance_expense_note_other_charges",
+   "label": "Bank charges and other finance expenses (finance-expense note)",
+   "in_output": false,
+   "parent": "is_pl__other_debt_service_expenses",
+   "order": 1,
+   "namespace": "internal",
+   "inherits": "notes",
+   "note_source": {
+    "note_title_any": [],
+    "row_caption_any": [
+     "手续费|手續費",
+     "^\\s*其他\\s*$",
+     "现金折扣|現金折扣",
+     "贴息|貼息|贴现|貼現",
+     "担保|擔保"
+    ],
+    "row_caption_none": [
+     "^\\s*(?:合计|合計|小计|小計|总计|總計|subtotal|total)",
+     "利息",
+     "汇兑|匯兌",
+     "^\\s*(?:减|減)\\s*[:：]?"
+    ],
+    "prose_any": [],
+    "prose_subject": "",
+    "prose_landed_in": [],
+    "note_terms": [
+     "财务费用",
+     "財務費用"
+    ],
+    "row_terms": [],
+    "row_terms_none": []
+   },
+   "statement": "notes",
+   "section_scope": [],
+   "definition": "The finance expenses other than interest and exchange differences that the finance-expenses note of a mainland filing (财务费用) prints in rows of their own for the period: bank and other financial-institution charges (手续费), cash discounts and discounting interest (现金折扣, 贴息), guarantee fees and income, and the note's own 其他 row. Sum those printed rows as the note prints them, an expense positive and an income negative. Not the interest rows, which the face prints, not the exchange row, and not the note's total less its other rows.",
+   "exclude_criteria": [
+    "Interest expense",
+    "Interest income",
+    "Exchange gains/losses"
+   ],
+   "route": "note_tables",
+   "rollup": "sum"
   }
  ],
  "others_master": {

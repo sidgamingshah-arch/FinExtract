@@ -392,7 +392,14 @@ def evaluate(d: LineItemDef, known: dict[str, Decimal | None],
             return Evaluation(_dec(known.get(d.key)))
         return _apply_terms(d.terms, known, getattr(d, "terms_op", "sum"), sources)
 
-    if d.type == "derived":
+    # AN EXTRACTED LINE MAY DECLARE A CASCADE TOO: the line the face prints, and the note rows that
+    # reach it where the face does not print them. Other-debt-service expenses on a CAS filing is
+    # the case — the face prints only 财务费用's interest rows, and its bank charges are printed in
+    # the 财务费用 note alone. The cascade gives the figure the note rows come to; whether it may
+    # stand over a printed one is `stages.note_sourced`'s question, and for a line that is not
+    # `derived` the printed figure always stands. With no cascade an extracted line reports what
+    # it was given, as before.
+    if d.type == "derived" or d.cascade:
         refused: list[str] = []
         refusals: list[dict] = []
         for rung in d.cascade:

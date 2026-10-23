@@ -478,7 +478,18 @@ _COUNTERPARTY_TABLE_HEADER = re.compile(
     r"^(?:关联方|關聯方|承租方|出租方|被担保方|担保方|被擔保方|擔保方)(?:名称|名稱)?$")
 # The line that names such a table — "出售商品/提供劳务情况表", "本公司作为出租方：" — so the new
 # section is titled by the table it holds rather than by the heading the two tables share.
-_TABLE_NAME = re.compile(r"(?:情况表|情況表|作为(?:出租方|承租方|担保方|被担保方)|作為(?:出租方|承租方|擔保方|被擔保方))[:：]?$")
+_TABLE_NAME = re.compile(r"(?:情况表|情況表|作为(?:出租方|承租方|担保方|被担保方)|作為(?:出租方|承租方|擔保方|被擔保方)"
+                         r"|分解信息)[:：]?$")
+# THE HEADER OF A CAS REVENUE NOTE'S SECOND TABLE. 营业收入和营业成本 prints the year's revenue and
+# cost by 主营业务 / 其他业务 under 本期发生额 | 上期发生额 over 收入 | 成本 (four columns), and then
+# "营业收入、营业成本的分解信息：" — the same revenue by 合同分类, under 分部1 | 分部2 | 合计 over
+# 营业收入 | 营业成本 (six or eight). Where the second table starts on the same page it was read in one
+# section with the first, the two tables' figures clustered into one set of value bands, the
+# first table's two-level header no longer fitted them, and its columns were labelled by position:
+# on 000883 this year's principal revenue (19,832,930,478.27) went out as the PRIOR year's, and on
+# 300257 the prior-year slot held this year's cost of sales. Its first cell is 合同分类, or the
+# segment band itself where that caption is printed on the next line (000883: 分部1 | 分部2 | 合计).
+_REVENUE_BREAKDOWN_HEADER = re.compile(r"^(?:合同分类|合同分類|分部\s*[0-9一二三四五]+)$")
 
 
 def _opens_a_sub_table(row: list[Word]) -> bool:
@@ -499,7 +510,9 @@ def _opens_a_sub_table(row: list[Word]) -> bool:
     # line opened a section in the middle of its 坏账准备 movement table.
     counterparty = (_COUNTERPARTY_TABLE_HEADER.match(words[0].text.strip()) is not None
                     and len(words) >= 3)
-    if not (_SUB_TABLE_HEADER.match(words[0].text) or counterparty):
+    breakdown = (_REVENUE_BREAKDOWN_HEADER.match(words[0].text.strip()) is not None
+                 and len(words) >= 3)
+    if not (_SUB_TABLE_HEADER.match(words[0].text) or counterparty or breakdown):
         return False
     # Its own bucket digits ("Less than 6 months") and dates ("As at 31 March 2025") are not figures.
     return not _carries_amounts(_fuse_bucket_numbers(row))

@@ -1397,6 +1397,22 @@ def _fill_by_cascade(parent_def, kids: list, by_key: dict, doc: DocumentModel,
         carriers = [parent]
         by_key[parent_def.key] = parent
 
+    # THE CARRIER A RUNG'S FIGURE ARRIVES ON BESIDE THE PRINTED ROW — see
+    # `CascadeRung.adds_to_printed`. One per parent, made the first time a slot needs it. A parent
+    # row this function had to create is already such a carrier: it holds nothing printed.
+    arrived: list[LineItem] = [parent] if not any(
+        ev.value is not None for li in carriers for ev in (li.values or {}).values()) else []
+
+    def arrival() -> LineItem:
+        if not arrived:
+            row = LineItem(source_label=_arrival_label(parent_def, kids),
+                           canonical_key=parent_def.key)
+            row.confidence.flags.append(ARRIVED_BESIDE_PRINTED)
+            row.is_computed = True
+            doc.line_items.append(row)
+            arrived.append(row)
+        return arrived[0]
+
     # THE CASCADE SEES EVERY FIGURE IN THE COLUMN, not only this parent's own children.
     #
     # THE BUG THIS FIXES, measured. `known` was built from `kids` alone, so a rung term naming a key
@@ -1460,10 +1476,16 @@ def _fill_by_cascade(parent_def, kids: list, by_key: dict, doc: DocumentModel,
         # THE TEST IS THE ROW'S MAPPING METHOD, not a flag on the value: `confidence.method` is
         # what the mapper stamps when a concept came from the model (`MappingMethod.LLM`), and it
         # is the same field the review queue and the export read to say where a figure came from.
+        # A RUNG WHOSE FIGURE ARRIVES BESIDE THE PRINTED ONE (`CascadeRung.adds_to_printed`) does
+        # not compete with whatever holds the line's printed row — the face's figure, or the
+        # model's reading of it — so neither the deferral below nor the contest further down
+        # applies to it. It is written on a carrier of its own, `_arrival_row`.
+        rung_def = next((r for r in parent_def.cascade or () if r.id == got.rung_used), None)
+        beside = rung_def is not None and getattr(rung_def, "adds_to_printed", False)
         llm_answered = [li for li in carriers
                         if str(getattr(li.confidence, "method", "") or "").lower().endswith("llm")
                         and (ev := _slot(li, basis, period)) is not None and ev.value is not None]
-        if llm_answered:
+        if llm_answered and not beside:
             ctx.log(f"note_sourced:{parent_def.key}[{basis}:{period}]: cascade "
                     f"{got.rung_used}={got.value} NOT applied — the model answered this line "
                     f"({len(llm_answered)} row(s)); the declared cascade does not overrule it")
@@ -1487,6 +1509,10 @@ def _fill_by_cascade(parent_def, kids: list, by_key: dict, doc: DocumentModel,
         # `summable` cannot deduplicate.
         target_row, existing = held[0] if held else (parent, _slot(parent, basis, period))
         displaced = None
+        if beside:
+            # NOT A CONTEST: the printed carriers keep their figures and the rung's is one more
+            # carrier of the line, which `concept_value` adds to them.
+            target_row, existing = arrival(), None
         if existing is not None and existing.value is not None:
             if existing.value == got.value and len(held) == 1:
                 continue
@@ -1595,7 +1621,6 @@ def _fill_by_cascade(parent_def, kids: list, by_key: dict, doc: DocumentModel,
         # Per SLOT, not per row: one basis may be read out of the face's captions and another
         # printed as a line of its own. See `CascadeRung.carved_from_face`.
         from app.services.rollups import CARVED_FROM_FACE
-        rung_def = next((r for r in parent_def.cascade or () if r.id == got.rung_used), None)
         if rung_def is not None and rung_def.carved_from_face and not _face_prints_line(
                 parent_def, by_key, defs or {}, basis, period):
             slot = _slot(target_row, basis, period)
@@ -1605,6 +1630,20 @@ def _fill_by_cascade(parent_def, kids: list, by_key: dict, doc: DocumentModel,
                 f"-> {got.value} from {len(got.inputs)} term(s)")
         filled += 1
     return filled
+
+
+#: Raised on the carrier a rung's figure is written on beside the line's printed row — see
+#: `CascadeRung.adds_to_printed`.
+ARRIVED_BESIDE_PRINTED = "arrived_beside_printed"
+
+
+def _arrival_label(parent_def, kids: list) -> str:
+    """What the carrier of an `adds_to_printed` rung's figure is called: the parts it is read from,
+    as their own labels say, so the row reads as what it is rather than as a second copy of the
+    line ("Other business revenue (revenue note)" beside "加：其他收益")."""
+    labels = [str(getattr(item, "label", "") or getattr(item, "key", "")) for item, _row in kids]
+    labels = [x for i, x in enumerate(labels) if x and x not in labels[:i]]
+    return " + ".join(labels) or str(getattr(parent_def, "label", "") or parent_def.key)
 
 
 def _face_prints_line(parent_def, by_key: dict, defs: dict, basis: str, period: str) -> bool:
