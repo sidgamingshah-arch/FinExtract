@@ -15793,10 +15793,13 @@
    "output_structure": "phrase",
    "aliases_i18n": {
     "zh": [
-     "合并财务报表"
+     "合并财务报表",
+     "合并利润表"
     ],
     "en": [
-     "Basis of consolidation"
+     "Basis of consolidation",
+     "Consolidated Statement of Profit or Loss",
+     "Consolidated Income Statement"
     ]
    }
   },
@@ -15828,12 +15831,14 @@
     "zh": [
      "金额单位",
      "单位：元",
-     "单位：万元"
+     "单位：万元",
+     "资产负债表"
     ],
     "en": [
      "rounded to the nearest thousand",
      "RMB'000",
-     "HK$'000"
+     "HK$'000",
+     "Statement of Financial Position"
     ]
    }
   },
@@ -15912,10 +15917,12 @@
    "aliases_i18n": {
     "zh": [
      "资产负债表日",
-     "合并资产负债表"
+     "合并资产负债表",
+     "审计报告"
     ],
     "en": [
-     "Consolidated Statement of Financial Position"
+     "Consolidated Statement of Financial Position",
+     "Independent Auditor's Report"
     ]
    }
   },
@@ -16213,7 +16220,7 @@
      "母公司资产负债表"
     ],
     "en": [
-     "Statement of Financial Position"
+     "Consolidated Statement of Changes in Equity"
     ]
    }
   },

@@ -89,6 +89,117 @@ def test_the_block_numbers_pages_from_one_and_carries_their_folio():
     assert blocks[0]["printed_page"] == "73" and "Ernst & Young" in blocks[0]["text"]
 
 
+# ── the pages a line's definition names come first ────────────────────────────────────────────
+#
+# A mainland filing, shaped as 000685 prints it: the auditor's report opens on p5 (一、审计报告
+# under the running header), the consolidated balance sheet is p7 and the parent's p8, and the
+# accounting-policy pages p10-p12 say 资产负债表日 again and again. Ranked by how often a page
+# prints the line's names, statement_date was sent the three policy pages — none prints the date.
+
+HEADER = "中山公用事业集团股份有限公司2024 年年度报告全文 \n"
+POLICY = HEADER + "资产负债表日" * 6 + "合并资产负债表 按照资产负债表日的汇率折算。"
+CAS_PAGES = [
+    (0, "2024 年年度报告"),
+    (3, HEADER + "第四节 公司治理 \n" + "报告期内，公司董事会按照内部控制规范体系的要求，"
+        "对公司内部控制的有效性进行了评价。" * 4 + "会计师事务所出具了标准无保留意见的内部控制审计报告。"),
+    (4, HEADER + "第十节 财务报告 \n一、审计报告 \n审计意见类型 \n标准的无保留意见 \n审 计 报 告 \n"
+        "我们审计了财务报表，包括2024 年12 月31 日的合并及母公司资产负债表。"),
+    (5, HEADER + "关键审计事项 审计报告"),
+    (6, HEADER + "1、合并资产负债表 \n编制单位：中山公用 \n2024 年12 月31 日 \n单位：元"),
+    (7, HEADER + "2、母公司资产负债表 \n2024 年12 月31 日 \n单位：元"),
+    (9, POLICY), (10, POLICY), (11, POLICY),
+]
+
+
+def _cas_doc():
+    from app.core.models.enums import PageKind
+
+    def face(i, statement, title):
+        return PageSource(index=i, kind=PageKind.FACE, statement=statement,
+                          evidence={"matched_title": title} if title else {})
+    return SimpleNamespace(pages=[
+        PageSource(index=0, kind=PageKind.COVER), PageSource(index=3, kind=PageKind.OTHER),
+        PageSource(index=4, kind=PageKind.OTHER), PageSource(index=5, kind=PageKind.OTHER),
+        face(6, "balance_sheet", "1、合并资产负债表"), face(7, "balance_sheet", "2、母公司资产负债表"),
+        PageSource(index=9, kind=PageKind.NOTES), PageSource(index=10, kind=PageKind.NOTES),
+        PageSource(index=11, kind=PageKind.NOTES)])
+
+
+def test_the_statement_face_and_the_auditors_report_are_sent_before_pages_that_repeat_the_name(
+        items):
+    """statement_date: 'as the statements or the auditor's report print it' — the balance sheet
+    the run identified by its title, and the report's opening page, outrank three policy pages
+    that print 资产负债表日 six times each. Before this the request carried p10-p12 only."""
+    key = "statement_setup_controls__statement_date"
+    blocks = text_lines.text_pages(CAS_PAGES, printed_names(items[key]), _cas_doc())
+    assert [b["page"] for b in blocks][:2] == [5, 7]
+    assert all(any(text_lines.fold("2024年12月31日") in f for f in text_lines._forms(b["text"]))
+               for b in blocks[:2])
+
+
+def test_the_auditors_report_opens_where_its_title_heads_the_page_before_the_statements():
+    """The report opens on p5, the page whose head prints 审计报告 inside the window before the
+    first statement face. The governance page that names the internal-control 审计报告 in a sentence
+    and the key-audit-matter page further into the report do not open it."""
+    assert text_lines.report_openings(CAS_PAGES, _cas_doc()) == [4]
+
+
+def test_a_face_is_anchored_by_the_title_the_run_identified_it_by_not_by_a_running_header(items):
+    """statement_type names 年度报告, which the running header prints on every page, the faces
+    included: it is not sent the faces. rounding names 资产负债表, which both balance sheets' titles
+    contain: the first one titled with it (the consolidated) is tier 0, the parent's a further page.
+    statement_date names 合并资产负债表 — the consolidated title only — and 审计报告."""
+    doc = _cas_doc()
+    assert text_lines.anchored_pages(CAS_PAGES, printed_names(
+        items["statement_setup_controls__statement_type"]), doc) == {}
+    assert text_lines.anchored_pages(CAS_PAGES, printed_names(
+        items["statement_setup_controls__rounding"]), doc) == {6: 0, 7: 1}
+    assert text_lines.anchored_pages(CAS_PAGES, printed_names(
+        items["statement_setup_controls__statement_date"]), doc) == {4: 0, 6: 0}
+
+
+def test_the_first_page_of_each_named_statement_comes_before_a_further_page_of_one():
+    """reconcile_to on an HKEX filing: the balance sheet over three headed pages and the statement
+    of changes in equity, whose 'At 31 December 2022' row prints the comparative date. Ranked by
+    score alone, the three balance-sheet pages filled the request (hkex_1966)."""
+    from app.core.models.enums import PageKind
+
+    sofp = "CONSOLIDATED STATEMENT OF FINANCIAL POSITION\n31 December 2023\n2023 2022"
+    pages = [(i, sofp) for i in (103, 104, 105)] + [
+        (106, "CONSOLIDATED STATEMENT OF CHANGES IN EQUITY\nAt 31 December 2022")]
+    doc = SimpleNamespace(pages=[
+        PageSource(index=i, kind=PageKind.FACE, statement=s, evidence={"matched_title": t})
+        for i, s, t in [(103, "balance_sheet", sofp.split("\n")[0]),
+                        (104, "balance_sheet", sofp.split("\n")[0]),
+                        (105, "balance_sheet", sofp.split("\n")[0]),
+                        (106, "changes_in_equity", "CONSOLIDATED STATEMENT OF CHANGES IN EQUITY")]])
+    names = ["Consolidated Statement of Financial Position",
+             "Consolidated Statement of Changes in Equity"]
+    assert text_lines.anchored_pages(pages, names, doc) == {103: 0, 104: 1, 105: 1, 106: 0}
+    assert [b["page"] for b in text_lines.text_pages(pages, names, doc)] == [104, 105, 107]
+
+
+#: Primary-statement titles as the classifier matches them on the corpus (`matched_title`).
+ZH_TITLES = ("1、合并资产负债表", "2、母公司资产负债表", "3、合并利润表", "7、合并所有者权益变动表")
+EN_TITLES = ("CONSOLIDATED STATEMENT OF FINANCIAL POSITION", "CONSOLIDATED STATEMENT OF PROFIT OR LOSS",
+             "Consolidated Income Statement", "CONSOLIDATED STATEMENT OF CHANGES IN EQUITY")
+
+
+def test_each_line_that_reads_the_statements_names_a_statement_title_in_both_scripts(items):
+    """The lines whose definition sends them to the statements — the date, the scale, the scope
+    word of the titles, the comparative date — each name a title the run identifies a face by, in
+    both scripts; the reporting date also names the auditor's report. (Each with its OWN spelling:
+    a title given to two of these lines would be an alias tie, `test_configuration_invariants`.)"""
+    for key in ("statement_date", "rounding", "customer_statement_type", "reconcile_to"):
+        names = [text_lines.fold(n) for n in printed_names(items[f"statement_setup_controls__{key}"])
+                 if len(text_lines.fold(n)) >= text_lines.MIN_NAME_CHARS]
+        assert any(n in text_lines.fold(t) for n in names for t in ZH_TITLES), key
+        assert any(n in text_lines.fold(t) for n in names for t in EN_TITLES), key
+    names = [text_lines.fold(n) for n in printed_names(items["statement_setup_controls__statement_date"])]
+    for title in ("审计报告", "Auditor's Report"):
+        assert any(text_lines.fold(title) in n for n in names), title
+
+
 def test_a_text_request_carries_its_pages_and_no_note_or_statement(items):
     key = "statement_setup_controls__accountant"
     plan = RequestPlan(name=key, keys=(key,), notes=())
