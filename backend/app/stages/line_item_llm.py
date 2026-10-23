@@ -1094,7 +1094,9 @@ class LineItemLlmStage(Stage):
             parent = parent_of.get(key, "")
             if not parent:
                 continue
-            for cell in {c for c in cells if c}:
+            # `dict.fromkeys`, not a set: the groups are walked below in the order they are
+            # built, and a set of cell ids would build them in the hash seed's order.
+            for cell in dict.fromkeys(c for c in cells if c):
                 shared.setdefault((parent, cell), []).append(key)
         shared = {k: v for k, v in shared.items() if len(set(v)) > 1}
         if not shared:

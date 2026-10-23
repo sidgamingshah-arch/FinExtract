@@ -515,8 +515,11 @@ def heading_names_line(item, unit, names=None, *, pool=None) -> bool:
             continue
         if authored:
             return True
-        total = sum(weight(t) for t in name)
-        if total and sum(weight(t) for t in shared) * 2 > total:
+        # `math.fsum` over the two SETS, for the reason `ContextPool._score` gives: a plain sum
+        # follows the hash seed's order, and a name whose shared words carry exactly half its
+        # weight would pass or fail on the last bit of it from one run to the next.
+        total = math.fsum(weight(t) for t in name)
+        if total and math.fsum(weight(t) for t in shared) * 2 > total:
             return True
     return False
 
@@ -572,8 +575,9 @@ def content_terms(item) -> list[str]:
     for raw in (getattr(source, "row_caption_any", None) or []):
         if raw and not _re.search(r"[\\|()\[\]{}?*+^$]", raw):
             out.append(raw)
-    # Longest first, so the specificity ranking below reads the most specific match it can.
-    return sorted({t.strip().lower() for t in out if t.strip()}, key=len, reverse=True)
+    # Longest first, so the specificity ranking below reads the most specific match it can; then
+    # alphabetically, so terms of one length are not left in the hash seed's order.
+    return sorted({t.strip().lower() for t in out if t.strip()}, key=lambda t: (-len(t), t))
 
 
 def content_vetoes(item) -> list[str]:

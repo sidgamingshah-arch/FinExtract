@@ -318,13 +318,20 @@ class ContextPool:
         shared = probe.intersection(unit.tokens)
         if not shared:
             return 0.0
-        num = sum(self.idf.get(t, 0.0) ** 2 for t in shared)
+        # `math.fsum`, NOT `sum`, ON ALL THREE: each runs over a SET, whose iteration order is the
+        # string hash's and so changes with PYTHONHASHSEED from one process to the next. A float
+        # sum taken in another order differs in its last bit, and two notes the probe scores
+        # equally — 000883's 七、63 管理费用 / 七、64 销售费用 / 七、65 研发费用 for the depreciation
+        # part — then sorted by that bit instead of by document order, so the same filing named
+        # its notes in a different order (and stranded a recorded answer) from run to run.
+        # `fsum` is the correctly rounded sum, the same whatever order its terms arrive in.
+        num = math.fsum(self.idf.get(t, 0.0) ** 2 for t in shared)
         if not num:
             # Every shared token is boilerplate this filing prints everywhere. A match on those is
             # a coincidence, not a subject.
             return 0.0
-        probe_norm = math.sqrt(sum(self.idf[t] ** 2 for t in probe if t in self.idf))
-        unit_norm = math.sqrt(sum(self.idf.get(t, 0.0) ** 2 for t in set(unit.tokens)))
+        probe_norm = math.sqrt(math.fsum(self.idf[t] ** 2 for t in probe if t in self.idf))
+        unit_norm = math.sqrt(math.fsum(self.idf.get(t, 0.0) ** 2 for t in set(unit.tokens)))
         if not probe_norm or not unit_norm:
             return 0.0
         return num / (probe_norm * unit_norm)
@@ -1071,7 +1078,9 @@ def identified_notes(line_item_set, notes, *, cited=None, every_note: bool = Fal
         prose = (getattr(table, "source_text", "") or "").strip()
         if prose and doc is not None:
             folios = {folio_of.get(int(i), "") for i in (getattr(table, "source_pages", None) or ())}
-            prose = strip_page_furniture(prose, furniture, folios - {""})
+            # SORTED: the folios are tried in turn, and a set would try them in the hash
+            # seed's order.
+            prose = strip_page_furniture(prose, furniture, sorted(folios - {""}))
         if prose:
             acc["_prose"].append(prose)
 
