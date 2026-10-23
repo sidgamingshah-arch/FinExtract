@@ -10859,7 +10859,8 @@
     "^\\s*total\\b",
     "^\\s*(?:\\(?(?:profit|loss)\\)?(?:\\s*/\\s*\\(?(?:profit|loss)\\)?)?)\\s+(?:before|from|for|after)\\b",
     "^\\s*(?:gross|operating|net)\\s+(?:profit|loss)\\b",
-    "^\\s*(?:合计|合計|总计|總計|小计|小計)"
+    "^\\s*(?:合计|合計|总计|總計|小计|小計)",
+    "营业利润"
    ]
   },
   {
@@ -11542,12 +11543,13 @@
      "息税前利润",
      "经营利润",
      "经营活动业绩",
-     "营业利润",
-     "营业利润/息税前利润",
      "经营亏损",
      "经营溢利"
     ]
-   }
+   },
+   "exclude_hints": [
+    "^[^a-z]*[营營][业業]利[润潤][^a-z]*$"
+   ]
   },
   {
    "canonical_key": "is_pl__interest_income_from_derivatives",

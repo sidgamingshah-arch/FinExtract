@@ -9722,7 +9722,8 @@
     "^\\s*total\\b",
     "^\\s*(?:\\(?(?:profit|loss)\\)?(?:\\s*/\\s*\\(?(?:profit|loss)\\)?)?)\\s+(?:before|from|for|after)\\b",
     "^\\s*(?:gross|operating|net)\\s+(?:profit|loss)\\b",
-    "^\\s*(?:合计|合計|总计|總計|小计|小計)"
+    "^\\s*(?:合计|合計|总计|總計|小计|小計)",
+    "营业利润"
    ]
   },
   {
@@ -10263,7 +10264,7 @@
   {
    "key": "is_pl__net_operating_profit",
    "label": "Net Operating Profit",
-   "definition": "The operating profit or loss the statement of profit and loss prints: the result of the year's operations before finance costs, the share of results of associates and joint ventures, and income tax — 'Operating profit', 'Profit from operations' or 'Loss from operating activities' on an HKFRS statement, 营业利润 (三、营业利润) on a CAS one. It is gross profit plus the other operating income, less the selling, administrative, research and other operating expenses, as this template's rollup adds them. It is not profit before tax and not gross profit. Read the printed subtotal. Do not add it up from its components yourself; the arithmetic is declared in this template's rollup. Where the filing prints no operating profit, answer with an empty sources list and leave it to the rollup.",
+   "definition": "The operating profit or loss as this template's rollup adds it: gross profit plus the other operating income, less the selling, administrative, research and other operating expenses — the result of the year's operations before finance costs, investment income, fair-value changes, the share of results of associates and joint ventures, and income tax. It is not profit before tax and not gross profit. On an HKFRS statement that prints this subtotal — 'Operating profit', 'Profit from operations' or 'Loss from operating activities' (經營溢利 / 經營虧損) — cite that printed row. On a CAS income statement it is not 营业利润 (三、营业利润), which is struck after 财务费用 (finance costs) and 投资收益 (investment income) and so is a different subtotal: do not cite that row; answer with an empty sources list and leave it to this template's rollup. Do not add the line up from its components yourself; the arithmetic is declared in this template's rollup. Where the filing prints no operating profit, answer with an empty sources list and leave it to the rollup.",
    "extraction_mode": "extract_or_derive",
    "aliases": [
     "Net Operating Profit",
@@ -10294,8 +10295,6 @@
      "息税前利润",
      "经营利润",
      "经营活动业绩",
-     "营业利润",
-     "营业利润/息税前利润",
      "经营亏损",
      "经营溢利"
     ]
@@ -10460,7 +10459,10 @@
      "sign": 1
     }
    ],
-   "namespace": "template"
+   "namespace": "template",
+   "exclude_hints": [
+    "^[^a-z]*[营營][业業]利[润潤][^a-z]*$"
+   ]
   },
   {
    "key": "is_pl__interest_income_from_derivatives",
