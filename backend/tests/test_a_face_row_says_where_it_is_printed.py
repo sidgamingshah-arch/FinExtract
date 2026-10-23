@@ -170,8 +170,9 @@ def test_a_one_word_banner_over_a_caption_of_its_own_is_a_banner():
 
 
 def test_a_joined_financial_assets_heading_is_shown_as_the_rows_heading():
-    """Asian Paints' "Financial Assets Investments": the reader keeps the joined caption (the Ind
-    AS set binds it), and the request shows the row by its own caption under its heading."""
+    """Asian Paints' "Financial Assets Investments", where it still reaches the request joined: the
+    face reader now splits the heading off itself (tests/test_schedule_iii_financial_headings.py),
+    and a row it still joins is shown by its own caption under its heading."""
     doc = _doc("balance_sheet", [
         _row("Financial Assets Investments", "119.32", banner="Non-Current Assets"),
         _row("Other Financial Assets", "1523.85", banner="Non-Current Assets"),

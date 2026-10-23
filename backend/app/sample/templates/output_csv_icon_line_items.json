@@ -9534,7 +9534,8 @@
    ],
    "exclude_hints": [
     "(?i)provision|impairment|diminution",
-    "(?i)share\\s+of\\s+(?:net\\s+)?(?:profit|loss|result)"
+    "(?i)share\\s+of\\s+(?:net\\s+)?(?:profit|loss|result)",
+    "(?i)^\\W*(?:(?:[ivxl]{1,6}|[a-h]|\\d{1,2})\\W+)?investments\\W*$"
    ]
   },
   {

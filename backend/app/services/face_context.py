@@ -400,10 +400,12 @@ def block_context(rows, statement: str = "", chrome=(), titles=()) -> list[tuple
 BORROWED_CAPTION = "{heading} (total, printed without a caption)"
 
 
-# A SCHEDULE III HEADING THE READER LEFT JOINED TO THE CAPTION BENEATH IT: "Financial Assets
-# Investments", "Financial liabilities Borrowings". The reader keeps the joined caption, which the Ind
-# AS set's aliases are written against (`row_reconstruct._FACE_GROUP_HEADING` says why); the request
-# shows the row by its own caption, with the heading as its `subheading`.
+# A SCHEDULE III HEADING JOINED TO THE CAPTION BENEATH IT: "Financial Assets Investments",
+# "Financial liabilities Borrowings". The face reader splits the heading off itself now
+# (`row_reconstruct._FACE_GROUP_HEADING`), so a row reaches here with its own caption and the
+# heading as its `group_hint`. This stays for a row the reader still joins — a heading clustered
+# with a caption that does not open one of its own — so the request shows it by its own caption,
+# with the heading as its `subheading`.
 _JOINED_HEADING = re.compile(
     r"^\W*((?i:financial\s+(?:assets|liabilities)))\s+(?=[A-Z])"
     # …not a caption that merely begins with the words, in a title-case filing: "Financial Assets

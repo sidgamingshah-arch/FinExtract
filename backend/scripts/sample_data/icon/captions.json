@@ -3837,11 +3837,12 @@
   ],
   "exclude_hints": [
    "(?i)provision|impairment|diminution",
-   "(?i)share\\s+of\\s+(?:net\\s+)?(?:profit|loss|result)"
+   "(?i)share\\s+of\\s+(?:net\\s+)?(?:profit|loss|result)",
+   "(?i)^\\W*(?:(?:[ivxl]{1,6}|[a-h]|\\d{1,2})\\W+)?investments\\W*$"
   ],
   "route": null,
   "confidence": "high",
-  "note": "Draft alias 'Investments' is dropped. It would bind the Ind AS non-current '(i) Investments' face row, which also holds mutual funds and other securities.",
+  "note": "Draft alias 'Investments' is dropped. It would bind the Ind AS non-current '(i) Investments' face row, which also holds mutual funds and other securities. The bare caption is also EXCLUDED, and the exclusion is what lets the non-current sweep take it: this line's label is 'Investments', so without it stages/residual refuses the bare row as this line's own untested caption (prohibition 4) and it reaches no line at all. The face reader now prints Schedule III's '(i) Investments' as its own caption under its 'Financial assets' sub-heading (row_reconstruct._FACE_GROUP_HEADING) instead of 'Financial assets Investments'; refused that way, Total assets lost it (Laurus 10511.19 -> 10201.92, Asian Paints 34534.49 -> 34414.67). With the exclusion it is swept into {Others} exactly as the joined caption was. Aliasing it to other non-current investments instead was measured and held back: on ICON test filing f5 (standalone) that row is equity in subsidiaries (key: group investments 4052.40 / 3149.40), and on Laurus standalone 890.94 of it is not printed apart from the subsidiaries either.",
   "note_terms": [
    "non current investments",
    "investments",

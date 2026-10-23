@@ -1317,33 +1317,63 @@ def _is_wrapped_head(head: list[Word], cont: list[Word],
 # was glued onto the first row under it — "Equity attributable to owners of the Company Share
 # capital" — which then mapped to nothing.
 #
-# NOT A SCHEDULE III "Financial assets" / "Financial liabilities" heading, though it is the same
-# shape: split off here, "Investments" under it reached no line of the Ind AS set's non-current
-# assets (Laurus and Asian Paints lost 309.27 and 119.82 crore of total assets), because that set's
-# aliases are written against the joined caption. The request shows those rows by their own caption
-# instead (`face_context.shown_caption`), and the reader's caption is left as it was.
+# A SCHEDULE III "Financial assets" / "Financial liabilities" heading is the same shape: printed
+# alone over "(i) Investments", "(ii) Trade receivables", "(i) Borrowings", it was glued onto the
+# first row under it ("Financial assets Investments", "Financial liabilities Borrowings") and the
+# rows after it carried no sub-heading at all. Only the bare heading line is one: "Financial assets
+# at fair value through profit or loss" (Lai Sun, PetroChina) is a caption, and `$` refuses it.
+#
+# Division II prints the heading NUMBERED, over numbered rows: "(b) Financial assets" over "(i)
+# Investments". The heading's own enumerator is allowed for it (and only for it), and the row under
+# it opens a caption of its own after its enumerator (`_opens_a_caption`, ``numbered``).
+#
+# The split waited on the ICON set, whose aliases were written against the joined caption: split
+# off alone, "Investments" was refused by the non-current sweep as `bs_icon__group_investments`'s
+# own label, reached no line, and Total assets lost it (Laurus 10511.19 -> 10201.92, Asian Paints
+# 34534.49 -> 34414.67). `captions.json` now excludes the bare caption from that line, so the sweep
+# takes it into {Others} exactly as it took the joined one; the bare "Trade receivables",
+# "Borrowings", "Lease liabilities", "Loans" and "Other financial ..." rows already reached the same
+# lines as the joined ones.
+_SCHEDULE_III_FINANCIAL_HEADING = re.compile(
+    r"(?i)^\W*(?:(?:[ivxl]{1,6}|[a-h])[.)]\s*)?financial\s+(?:assets|liabilities)$")
 _FACE_GROUP_HEADING = re.compile(
-    r"(?i)^\W*(?:equity|capital\s+and\s+reserves)\s+attributable\s+to\s+(?:the\s+)?"
-    r"(?:owners|equity\s+holders|shareholders|holders|ordinary\s+shareholders)\b.*$")
+    r"(?i)^\W*(?:(?:equity|capital\s+and\s+reserves)\s+attributable\s+to\s+(?:the\s+)?"
+    r"(?:owners|equity\s+holders|shareholders|holders|ordinary\s+shareholders)\b.*)$")
 
 
 def _is_face_group_heading(text: str) -> bool:
     """Whether a figure-less face line is a heading of the rows printed under it (see above).
     Judged on its Latin words, so a bilingual heading's translation does not hide it."""
     latin = re.sub(r"\s+", " ", _HAN.sub(" ", text or "")).strip()
-    return bool(latin) and bool(_FACE_GROUP_HEADING.match(latin)) and not latin.endswith(
-        (",", "-", "–"))
+    return bool(latin) and bool(_FACE_GROUP_HEADING.match(latin)
+                                or _SCHEDULE_III_FINANCIAL_HEADING.match(latin)) and not (
+        latin.endswith((",", "-", "–")))
 
 
-def _opens_a_caption(words: list[Word]) -> bool:
+def _is_numbered_face_heading(text: str) -> bool:
+    """A Schedule III financial heading (`_SCHEDULE_III_FINANCIAL_HEADING`), over rows that may be
+    numbered themselves."""
+    latin = re.sub(r"\s+", " ", _HAN.sub(" ", text or "")).strip()
+    return bool(_SCHEDULE_III_FINANCIAL_HEADING.match(latin))
+
+
+# The enumerator a Schedule III row opens with: "(i)", "(ii)", "(a)", "i.", "1.".
+_ROW_ENUMERATOR = re.compile(r"(?i)^\(?(?:[ivxl]{1,6}|[a-h]|\d{1,2})[.)]$")
+
+
+def _opens_a_caption(words: list[Word], numbered: bool = False) -> bool:
     """Whether a printed line starts a caption of its own: its first word opens with a capital
     letter and is not a connective. "Share capital" under "Equity attributable to owners of the
     Company" does; "investments designated at FVOCI" under "Equity" — the tail of one caption
-    wrapped after its first word — does not."""
+    wrapped after its first word — does not. ``numbered``: the line may open with its own
+    enumerator ("(i) Investments" under "(b) Financial assets"), and the word after it is judged."""
     if not words:
         return False
-    first = min(words, key=lambda w: w.bbox.x0).text.strip()
-    text = " ".join(w.text for w in sorted(words, key=lambda w: w.bbox.x0))
+    ordered = sorted(words, key=lambda w: w.bbox.x0)
+    if numbered and len(ordered) > 1 and _ROW_ENUMERATOR.match(ordered[0].text.strip()):
+        ordered = ordered[1:]
+    first = ordered[0].text.strip()
+    text = " ".join(w.text for w in ordered)
     return bool(first[:1]) and first[:1].isupper() and not _CONT_STARTS.match(text)
 
 
@@ -1364,7 +1394,8 @@ def _split_face_heading_prefix(label_words: list[Word]) -> tuple[str | None, lis
     if len(lines) < 2:
         return None, label_words
     head = _join_words(_regroup_scripts(lines[0]))
-    if not _is_face_group_heading(head) or not _opens_a_caption(lines[1]):
+    if not _is_face_group_heading(head) or not _opens_a_caption(
+            lines[1], numbered=_is_numbered_face_heading(head)):
         return None, label_words
     return head, [w for line in lines[1:] for w in line]
 
@@ -1946,7 +1977,9 @@ def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
             # ON A FACE, A HEADING OF THE ROWS BENEATH IT — see `_is_face_group_heading`.
             and not (on_face and not pending
                      and _is_face_group_heading(_join_words(label_words))
-                     and _opens_a_caption(_scan_row(nxt, fmt)[0]))
+                     and _opens_a_caption(
+                         _scan_row(nxt, fmt)[0],
+                         numbered=_is_numbered_face_heading(_join_words(label_words))))
             and (on_face or not (_heads_indented_rows(label_words, _scan_row(nxt, fmt)[0])
                                  or _titles_the_table(label_words, _scan_row(nxt, fmt)[0])
                                  or _heads_a_movement_block(label_words,
