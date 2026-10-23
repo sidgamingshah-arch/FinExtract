@@ -289,7 +289,16 @@ def _readers(rows: list[dict], basis: str, period: str, netted: dict[str, float]
                    for x in groups.get(key, []) for v in x.get("values") or ()
                    if v.get("basis") == basis and v.get("period_label") == period)
 
-    return groups, reported, overridden, carved
+    def swept(key: str) -> bool:
+        """The figure is the sum of face rows the residual sweep put here, each at its printed sign
+        — see `SWEPT_SIGN` in :func:`evaluate`. An analyst's answer is not a sweep."""
+        figured = [x for x in groups.get(key, [])
+                   if any(v.get("basis") == basis and v.get("period_label") == period
+                          and v.get("value") is not None for v in x.get("values") or ())]
+        return (bool(figured) and not overridden(key)
+                and all(x.get("mapping_method") == "residual" for x in figured))
+
+    return groups, reported, overridden, carved, swept
 
 
 def evaluate_rows(template_def: dict | None, rows: list[dict], basis: str, period: str,
@@ -302,9 +311,9 @@ def evaluate_rows(template_def: dict | None, rows: list[dict], basis: str, perio
     ``periods.concept_value``, which means a component's manual correction flows straight into
     every subtotal above it.
     """
-    _, reported, overridden, carved = _readers(rows, basis, period, netted)
+    _, reported, overridden, carved, swept = _readers(rows, basis, period, netted)
     return evaluate(template_def, reported, labels=node_labels(template_def, locale),
-                    overridden=overridden, carved=carved)
+                    overridden=overridden, carved=carved, swept=swept)
 
 
 def figures_as_shown(template_def: dict | None, rows: list[dict], basis: str, period: str,
@@ -329,9 +338,9 @@ def figures_as_shown(template_def: dict | None, rows: list[dict], basis: str, pe
     year, and a period whose components were not extracted is not made computable by the other
     period's being so.
     """
-    groups, reported, overridden, carved = _readers(rows, basis, period, netted)
+    groups, reported, overridden, carved, swept = _readers(rows, basis, period, netted)
     calc = evaluate(template_def, reported, labels=node_labels(template_def, locale),
-                    overridden=overridden, carved=carved)
+                    overridden=overridden, carved=carved, swept=swept)
     out: dict[str, float] = {}
     for key in groups:
         value = reported(key)
@@ -374,7 +383,7 @@ def _order(nodes: dict[str, dict]) -> tuple[list[str], set[str]]:
 
 def evaluate(template_def: dict | None, reported, *, labels: dict[str, str] | None = None,
              prefer_calculated: bool = True, overridden=None,
-             carved=None) -> dict[str, Calculated]:
+             carved=None, swept=None) -> dict[str, Calculated]:
     """Evaluate every calculated line for one (basis, period).
 
     ``reported(key)`` returns the figure the DOCUMENT gives for a canonical key — the extracted
@@ -422,6 +431,22 @@ def evaluate(template_def: dict | None, reported, *, labels: dict[str, str] | No
         # the figure. Declared per rollup, so the same concept can be a magnitude in a `sum` of
         # costs and stay untouched in the residual rollups that subtract it from a reported total.
         magnitude = set(rollup.get("cost_magnitude_children") or [])
+        # A SWEPT RESIDUAL IS A SIGNED SUM, on a filing that prints its costs signed. The P&L's
+        # Other Operating Expenses is a magnitude member, and on a mainland face — costs printed
+        # unsigned — that is right for it as for its siblings. But on an HKEX face its figure is the
+        # sum of every swept row at its PRINTED sign: costs in parentheses AND the gains swept beside
+        # them. Where the gains win, the sum is positive, and spending it as a magnitude took it off
+        # the total instead of adding it — twice the figure. MEASURED on Hon Kwok 2023/24 (prior
+        # year): Others 91,059 (a 98,973 fair-value gain and a 26,979 share of an associate's
+        # profit, less 34,893 of other expenses) entered the profit before tax as -91,059. The
+        # filing's own costs say which convention holds: the members a concept claimed (not swept,
+        # not carved) are all printed negative, so the swept sum keeps its sign.
+        if swept is not None and magnitude:
+            claimed = [figure(c) for c in children if c in magnitude and not swept(c)
+                       and not (carved is not None and carved(c))]
+            claimed = [v for v in claimed if v]
+            if claimed and all(v < 0 for v in claimed):
+                magnitude = {c for c in magnitude if not swept(c)}
         for i, child in enumerate(children):
             # A FIGURE ALREADY INSIDE ITS SIBLINGS is not added again — in a sum or in a residual's
             # deductions alike. See ``CascadeRung.carved_from_face``.

@@ -84,7 +84,10 @@ from app.core.models import DocumentModel
 from app.core.models.enums import LineRole
 from app.core.models.line_item import ExtractedValue, LineItem
 from app.core.stage import PipelineContext
+from app.services.statement_sets import SET_NOT_READ_FLAG
+from app.services.han import to_simplified
 from app.services.mapping import (
+    label_segments,
     normalize_label,
     section_of_banner,
     section_of_key,
@@ -706,8 +709,16 @@ def _vetoed_by_never_sweep(res: _Residual, label: str) -> str | None:
     norm = normalize_label(label)
     if not norm:
         return None
+    # EACH SCRIPT'S HALF IS A CAPTION TOO. A bilingual HKEX caption prints the English and the
+    # Chinese on one row, so a pattern anchored at both ends ("^(?:profit|loss) for the year$", the
+    # OCI residual's own refusal of the income statement's bottom line) never matched "Loss for the
+    # year 年內虧損": 嘉民 swept its loss for the year into the OCI's Others. The halves are the ones
+    # the mapper already matches aliases against (`mapping.label_segments`), Han folded to Simplified
+    # so a pattern written once covers both scripts.
+    spellings = list(dict.fromkeys(
+        t for seg in label_segments(label) for t in (seg, to_simplified(seg)) if t))
     for pattern in res.exclude_patterns:
-        if re.search(pattern, label, re.IGNORECASE):
+        if any(re.search(pattern, text, re.IGNORECASE) for text in spellings):
             return f"exclude_hints:{pattern}"
     if norm in res.never_keys:
         return res.never_keys[norm]
@@ -1152,6 +1163,12 @@ class ResidualStage:
             if terms.require_unclaimed and li.canonical_key:
                 continue
             if terms.require_value and not _has_value(li):
+                continue
+            if any(str(f).startswith(SET_NOT_READ_FLAG) for f in li.confidence.flags):
+                # Printed in the statement set the template does not read
+                # (`face_context.unread_set_pages`): no section of THIS statement holds it.
+                ineligible += 1
+                li.confidence.flags.append("residual_ineligible:another statement set")
                 continue
             stmt = statement_of(li)
             # Membership of a per-share BLOCK is tested at the per-share position in the ordering,

@@ -46,6 +46,7 @@ import re
 from app.services import units
 from app.services.gap_explanation import _BOILERPLATE
 from app.services.mapping import normalize_statement
+from app.services.statement_sets import PREFERRED_FRAMEWORK as _PREFERRED
 
 
 def _figures(row) -> dict[str, str]:
@@ -249,6 +250,8 @@ def face_rows(doc, statements) -> list[dict]:
 _ATTRIBUTION_ROW = re.compile(
     r"(?i)owners?\s+of\s+the\s+(?:company|parent)|equity\s+holders|shareholders\s+of\s+the\s+"
     r"(?:company|parent)|non[-\s]?controlling\s+interests?|minority\s+interests?"
+    # 远东宏信 splits its profit three ways: owners, perpetual securities' holders, NCI.
+    r"|holders\s+of\s+perpetual\s+(?:capital\s+)?securities"
     r"|擁有人應佔|拥有人应占|非控股權益|非控股权益|非控制性權益|少數股東|少数股东|母公司股东|母公司股東"
     r"|母公司所有者|母公司擁有人|母公司拥有人")
 _COMPREHENSIVE_TOTAL = re.compile(
@@ -346,8 +349,8 @@ def attribution_headings(rows) -> dict[int, str]:
 
 
 _ENTITY_ORDER = {"consolidated": 0, "standalone": 1}
-# The standards the HK template is built on — see `face_rows`.
-PREFERRED_FRAMEWORK = "IFRS"
+# The standards the HK template is built on — see `face_rows` and `services.statement_sets`.
+PREFERRED_FRAMEWORK = _PREFERRED
 
 
 # The supplement's own title. The classifier marks the supplement only where it also finds the

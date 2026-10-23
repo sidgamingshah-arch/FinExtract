@@ -10202,7 +10202,11 @@
     "Other revenue and gains/(losses), net",
     "Other revenue and gains/(losses)",
     "Other gain",
-    "Other gains"
+    "Other gains",
+    "Other income and gains",
+    "Other income and gains, net",
+    "Other income and gains/(losses), net",
+    "Other income and gains/(losses)"
    ],
    "keyword_hints": [
     "Other Operating Income"
@@ -10239,7 +10243,11 @@
      "Other revenue and gains/(losses), net",
      "Other revenue and gains/(losses)",
      "Other gain",
-     "Other gains"
+     "Other gains",
+     "Other income and gains",
+     "Other income and gains, net",
+     "Other income and gains/(losses), net",
+     "Other income and gains/(losses)"
     ],
     "zh": [
      "其他收入",
@@ -10248,7 +10256,8 @@
      "其他收入及收益净额",
      "其他收益",
      "其他经营收入",
-     "其他业务收入"
+     "其他业务收入",
+     "其他收入及收益/（亏损）净额"
     ]
    }
   },
@@ -10329,7 +10338,8 @@
    "aliases": [
     "Grants & Subsidies",
     "Government grants",
-    "Government subsidies"
+    "Government subsidies",
+    "Government grants and subsidies"
    ],
    "keyword_hints": [
     "Grants & Subsidies"
@@ -10355,7 +10365,11 @@
     "en": [
      "Grants & Subsidies",
      "Government grants",
-     "Government subsidies"
+     "Government subsidies",
+     "Government grants and subsidies"
+    ],
+    "zh": [
+     "政府补助及补贴"
     ]
    }
   },
@@ -10372,7 +10386,10 @@
     "Selling and marketing expenses",
     "Selling & marketing expense",
     "Selling and marketting expenses",
-    "Selling & marketting expenses"
+    "Selling & marketting expenses",
+    "Selling and distribution costs",
+    "Selling expenses",
+    "Distribution costs"
    ],
    "keyword_hints": [
     "Selling & Marketing Expenses"
@@ -10404,7 +10421,10 @@
      "Selling and marketing expenses",
      "Selling & marketing expense",
      "Selling and marketting expenses",
-     "Selling & marketting expenses"
+     "Selling & marketting expenses",
+     "Selling and distribution costs",
+     "Selling expenses",
+     "Distribution costs"
     ],
     "zh": [
      "分销成本",
@@ -10431,7 +10451,8 @@
     "General and administrative expenses",
     "General & administrative expenses",
     "General and administration expenses",
-    "General & administration expenses"
+    "General & administration expenses",
+    "Selling, general and administrative expenses"
    ],
    "keyword_hints": [
     "General & Admin Expenses"
@@ -10465,7 +10486,8 @@
      "General and administrative expenses",
      "General & administrative expenses",
      "General and administration expenses",
-     "General & administration expenses"
+     "General & administration expenses",
+     "Selling, general and administrative expenses"
     ],
     "zh": [
      "一般及行政开支",
@@ -10492,7 +10514,9 @@
     "Unutilised annual leave",
     "staff messing",
     "Staff costs",
-    "Medical"
+    "Medical",
+    "Employee compensation costs",
+    "Employee benefit expenses"
    ],
    "keyword_hints": [
     "Personnel & Benefit Expenses"
@@ -10526,7 +10550,9 @@
      "Unutilised annual leave",
      "staff messing",
      "Staff costs",
-     "Medical"
+     "Medical",
+     "Employee compensation costs",
+     "Employee benefit expenses"
     ],
     "zh": [
      "员工成本",
@@ -10644,7 +10670,10 @@
     "Research & Development",
     "Research and Development",
     "Development cost",
-    "R&D expenses"
+    "R&D expenses",
+    "Research and development expenses",
+    "Research and development expense",
+    "Research and development costs"
    ],
    "keyword_hints": [
     "Research & Development"
@@ -10671,12 +10700,16 @@
      "Research & Development",
      "Research and Development",
      "Development cost",
-     "R&D expenses"
+     "R&D expenses",
+     "Research and development expenses",
+     "Research and development expense",
+     "Research and development costs"
     ],
     "zh": [
      "研发开支",
      "研发费用",
-     "研究及开发开支"
+     "研究及开发开支",
+     "研究及开发费用"
     ]
    }
   },
@@ -10721,7 +10754,8 @@
    "definition": "Extract the reported value for 'Asset impairment loss' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
    "aliases": [
     "Asset impairment loss",
-    "Impairment loss on other assets"
+    "Impairment loss on other assets",
+    "Write down to net realisable value of completed properties held for sale and properties under development"
    ],
    "keyword_hints": [
     "Asset impairment loss"
@@ -10746,7 +10780,8 @@
    "aliases_i18n": {
     "en": [
      "Asset impairment loss",
-     "Impairment loss on other assets"
+     "Impairment loss on other assets",
+     "Write down to net realisable value of completed properties held for sale and properties under development"
     ],
     "zh": [
      "资产减值损失"
@@ -10819,6 +10854,12 @@
     "is_pl__profit_for_the_year",
     "any row printed in the other comprehensive income section",
     "any row printed in the retained-profits reconciliation"
+   ],
+   "exclude_hints": [
+    "^\\s*total\\b",
+    "^\\s*(?:\\(?(?:profit|loss)\\)?(?:\\s*/\\s*\\(?(?:profit|loss)\\)?)?)\\s+(?:before|from|for|after)\\b",
+    "^\\s*(?:gross|operating|net)\\s+(?:profit|loss)\\b",
+    "^\\s*(?:合计|合計|总计|總計|小计|小計)"
    ]
   },
   {
@@ -11449,7 +11490,11 @@
     "Operating loss",
     "Operating income",
     "Profit from operating activities",
-    "Loss from operating activities"
+    "Loss from operating activities",
+    "Profit from operations",
+    "Loss from operations",
+    "Profit/(loss) from operations",
+    "(Loss)/profit from operations"
    ],
    "keyword_hints": [
     "Net Operating Profit"
@@ -11487,14 +11532,20 @@
      "Operating loss",
      "Operating income",
      "Profit from operating activities",
-     "Loss from operating activities"
+     "Loss from operating activities",
+     "Profit from operations",
+     "Loss from operations",
+     "Profit/(loss) from operations",
+     "(Loss)/profit from operations"
     ],
     "zh": [
      "息税前利润",
      "经营利润",
      "经营活动业绩",
      "营业利润",
-     "营业利润/息税前利润"
+     "营业利润/息税前利润",
+     "经营亏损",
+     "经营溢利"
     ]
    }
   },
@@ -12119,7 +12170,10 @@
    "label": "Net Interest Income(Expense)",
    "definition": "Calculated target using the exact formula retained in the supplied template: =SUM({is_pl__interest_income_from_derivatives}:{is_pl__interest_income})-SUM({is_pl__interest_on_lease_liabilities}:{is_pl__deferred_interest_expense})",
    "aliases": [
-    "Net Interest Income(Expense)"
+    "Net Interest Income(Expense)",
+    "Net finance costs",
+    "Total net finance costs",
+    "Finance costs, net"
    ],
    "keyword_hints": [
     "Net Interest Income(Expense)"
@@ -12151,7 +12205,10 @@
    "unit_of_account": "subtotal",
    "aliases_i18n": {
     "en": [
-     "Net Interest Income(Expense)"
+     "Net Interest Income(Expense)",
+     "Net finance costs",
+     "Total net finance costs",
+     "Finance costs, net"
     ],
     "zh": [
      "财务费用"
@@ -12174,7 +12231,10 @@
     "Dividend income from / Share of result of Associates/ related parties/ associates / fellow subsidiaries",
     "Share of profits and losses of associates",
     "Share of profit and loss of associates",
-    "Share of results of associates"
+    "Share of results of associates",
+    "Share of profit of associates and joint ventures",
+    "Share of profits of associates and joint ventures",
+    "Share of profit of associates"
    ],
    "keyword_hints": [
     "Income(Loss) from Related Party"
@@ -12203,7 +12263,10 @@
      "Dividend income from / Share of result of Associates/ related parties/ associates / fellow subsidiaries",
      "Share of profits and losses of associates",
      "Share of profit and loss of associates",
-     "Share of results of associates"
+     "Share of results of associates",
+     "Share of profit of associates and joint ventures",
+     "Share of profits of associates and joint ventures",
+     "Share of profit of associates"
     ],
     "zh": [
      "对联营企业和合营企业的投资收益",
@@ -12535,7 +12598,13 @@
     "Rlzd Forex Translation G(L)",
     "Exchange difference",
     "exchange gain/loss",
-    "Gain/loss on foreign translation"
+    "Gain/loss on foreign translation",
+    "Exchange gain",
+    "Exchange loss",
+    "Exchange gains",
+    "Exchange losses",
+    "Exchange gains/(losses), net",
+    "Net exchange gains/(losses)"
    ],
    "keyword_hints": [
     "Rlzd Forex Translation G(L)"
@@ -12562,7 +12631,13 @@
      "Rlzd Forex Translation G(L)",
      "Exchange difference",
      "exchange gain/loss",
-     "Gain/loss on foreign translation"
+     "Gain/loss on foreign translation",
+     "Exchange gain",
+     "Exchange loss",
+     "Exchange gains",
+     "Exchange losses",
+     "Exchange gains/(losses), net",
+     "Net exchange gains/(losses)"
     ]
    }
   },
@@ -12881,7 +12956,10 @@
    "label": "Other Non-Income Related Taxes",
    "definition": "Extract the reported value for 'Other Non-Income Related Taxes' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
    "aliases": [
-    "Other Non-Income Related Taxes"
+    "Other Non-Income Related Taxes",
+    "Taxes and surcharges",
+    "Tax and surcharges",
+    "Taxes other than income taxes"
    ],
    "keyword_hints": [
     "Other Non-Income Related Taxes"
@@ -12905,7 +12983,10 @@
    "section_disambiguation": "Bind only to Income Statement / is_pl.",
    "aliases_i18n": {
     "en": [
-     "Other Non-Income Related Taxes"
+     "Other Non-Income Related Taxes",
+     "Taxes and surcharges",
+     "Tax and surcharges",
+     "Taxes other than income taxes"
     ],
     "zh": [
      "税金及附加",
@@ -12977,7 +13058,10 @@
     "Fair value gains on investment properties",
     "Increase in fair value of investment properties",
     "Decrease in fair value of investment properties",
-    "Net gain from fair value adjustment on investment properties"
+    "Net gain from fair value adjustment on investment properties",
+    "Changes in fair value of investment properties",
+    "Changes in fair value of investment properties, net",
+    "Change in fair value of investment properties"
    ],
    "keyword_hints": [
     "FMV adj on investment properties"
@@ -13010,14 +13094,20 @@
      "Fair value gains on investment properties",
      "Increase in fair value of investment properties",
      "Decrease in fair value of investment properties",
-     "Net gain from fair value adjustment on investment properties"
+     "Net gain from fair value adjustment on investment properties",
+     "Changes in fair value of investment properties",
+     "Changes in fair value of investment properties, net",
+     "Change in fair value of investment properties"
     ],
     "zh": [
      "投资性房地产公允价值变动收益",
      "投资性房地产公允价值变动损益",
      "投资物业公允价值变动",
      "投资物业公平值变动",
-     "投资物业公平值收益"
+     "投资物业公平值收益",
+     "投资物业之公平值变动",
+     "投资物业公允值变动净额",
+     "投资物业公平值变动净额"
     ]
    }
   },
@@ -13106,7 +13196,11 @@
     "Profit before tax",
     "Loss before tax",
     "Profit/(loss) before taxation",
-    "Profit or loss before tax"
+    "Profit or loss before tax",
+    "Profit before income tax expense",
+    "Profit before income tax",
+    "Loss before income tax",
+    "Profit/(loss) before income tax"
    ],
    "keyword_hints": [
     "Profit(Loss) Before Tax"
@@ -13144,7 +13238,11 @@
      "Profit before tax",
      "Loss before tax",
      "Profit/(loss) before taxation",
-     "Profit or loss before tax"
+     "Profit or loss before tax",
+     "Profit before income tax expense",
+     "Profit before income tax",
+     "Loss before income tax",
+     "Profit/(loss) before income tax"
     ],
     "zh": [
      "利润总额",
@@ -13280,7 +13378,10 @@
     "Income tax expense",
     "Income tax credit",
     "Tax expense",
-    "Tax credit"
+    "Tax credit",
+    "Income tax credit/(expenses)",
+    "Income tax credit/(expense)",
+    "Income tax (expense)/credit"
    ],
    "keyword_hints": [
     "Total Income Tax"
@@ -13315,7 +13416,10 @@
      "Income tax expense",
      "Income tax credit",
      "Tax expense",
-     "Tax credit"
+     "Tax credit",
+     "Income tax credit/(expenses)",
+     "Income tax credit/(expense)",
+     "Income tax (expense)/credit"
     ],
     "zh": [
      "年内税项开支",
@@ -13325,7 +13429,8 @@
      "所得税费用总额",
      "税务开支",
      "税项",
-     "税项开支"
+     "税项开支",
+     "所得税收益/（支出）"
     ]
    },
    "sign_rule": {
@@ -13471,7 +13576,9 @@
     "Non-controlling interests",
     "Minority interests",
     "Profit attributable to non-controlling interests",
-    "Loss attributable to non-controlling interests"
+    "Loss attributable to non-controlling interests",
+    "Holders of perpetual securities",
+    "Holders of perpetual capital securities"
    ],
    "keyword_hints": [
     "Minority Interests(PL)"
@@ -13503,7 +13610,9 @@
      "Non-controlling interests",
      "Minority interests",
      "Profit attributable to non-controlling interests",
-     "Loss attributable to non-controlling interests"
+     "Loss attributable to non-controlling interests",
+     "Holders of perpetual securities",
+     "Holders of perpetual capital securities"
     ],
     "zh": [
      "少数股东应占全面收益总额",
@@ -13529,7 +13638,8 @@
      "非控制性權益",
      "非控制性权益",
      "非控股股東應佔",
-     "非控股股东应占"
+     "非控股股东应占",
+     "holders of perpetual (?:capital )?securities"
     ]
    }
   },

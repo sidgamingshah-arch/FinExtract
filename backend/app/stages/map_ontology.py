@@ -63,6 +63,16 @@ _NAMES_A_SPLIT_TOTAL = re.compile(
 _CLOSING_BALANCE = re.compile(r"^(?:at\b|closing\s+(?:balance|net)|net\s+(?:book|carrying))",
                               re.IGNORECASE)
 
+# THE REVENUE BLOCK — see `MapOntologyStage._revenue_block_parts`.
+_REVENUE_PART = "sub__face_principal_revenue"
+_COST_OF_SALES = "is_pl__cost_of_sales"
+# A row bound here is not revenue, whatever it is printed beside: other income stays other income.
+_NOT_REVENUE = frozenset({"is_pl__other_operating_income"})
+_REVENUE_BLOCK_MAX = 6
+REVENUE_BLOCK_FLAG = "revenue_block_part"
+# THE INCOME STATEMENT'S CLOSING TOTAL — see `MapOntologyStage._closing_total_once`.
+_CLOSING_TOTAL = "is_pl__profit_loss_bef_extraord_items"
+
 
 def _columns_of(li) -> set[tuple[str, str]]:
     """The (basis, period) columns one row carries."""
@@ -878,7 +888,22 @@ class MapOntologyStage:
                 return li.section_hint
             return heading
 
+        # ONE INCOME STATEMENT PER ENTITY BASIS — see `face_context.unread_set_pages`. A row printed
+        # on the face of the statement set this template does not read is matched to nothing, so it
+        # cannot put a second figure on a line the read set already prints.
+        from app.services.statement_sets import SET_NOT_READ_FLAG, unread_set_pages
+        _unread = unread_set_pages(doc)
+        set_refused = 0
+
         for done, li in enumerate(doc.line_items, start=1):
+            unread = _unread.get(_page_of(li)) if _unread and li.printed_in is not PrintedIn.NOTES \
+                else None
+            if unread is not None:
+                set_refused += 1
+                li.confidence.flags.append(f"{SET_NOT_READ_FLAG}:{unread}")
+                if done % 10 == 0 or done == total_rows:
+                    ctx.emit_step(done, total_rows, "row")
+                continue
             res = matcher.match(li.source_label, statement=_statement_of(li),
                                 section=_section_for(li))
             # A line that declares `row_terms` has said what its ROW is called, and a caption
@@ -982,6 +1007,12 @@ class MapOntologyStage:
             # database write.
             if done % 10 == 0 or done == total_rows:
                 ctx.emit_step(done, total_rows, "row")
+        mapped += self._revenue_block_parts(doc, ontology, _statement_of, ctx)
+        mapped += self._closing_total_once(doc, ontology, matcher, _statement_of, ctx)
+        if set_refused:
+            ctx.log(f"map_line_items:statement_set_not_read={set_refused} (rows printed on the "
+                    f"{'/'.join(sorted(set(_unread.values())))} statements, pages "
+                    f"{sorted(_unread)}: the template reads one income statement per basis)")
         if matrix_refused:
             ctx.log(f"map_line_items:matrix_column_rows_not_claimed={matrix_refused} "
                     f"(a statement of changes in equity files each cell under a component COLUMN, "
@@ -1076,6 +1107,131 @@ class MapOntologyStage:
             # differently from "the mapper failed on N rows".
             ctx.log(f"map_line_items:confusable_ties={matcher.usage['confusable_ties']}")
         return doc
+
+    @staticmethod
+    def _pl_face(doc: DocumentModel, statement_of) -> list:
+        """The income statement's printed rows in print order, without the set it does not read."""
+        from app.services.statement_sets import SET_NOT_READ_FLAG
+
+        return sorted((li for li in doc.line_items
+                       if li.printed_in is not PrintedIn.NOTES
+                       and statement_of(li) == "profit_and_loss"
+                       and not any(str(f).startswith(SET_NOT_READ_FLAG)
+                                   for f in li.confidence.flags)),
+                      key=lambda li: li.ordinal)
+
+    @staticmethod
+    def _revenue_block_parts(doc: DocumentModel, ontology, statement_of,
+                             ctx: PipelineContext) -> int:
+        """Rows printed in the REVENUE BLOCK are the face's revenue, bound to its face part.
+
+        An income statement that prints its revenue as several rows and no revenue total — a
+        lessor-lender's interest income, lease revenue and contract revenue, less the taxes levied on
+        them — prints its revenue block between the top of the statement and the cost of sales.
+        MEASURED on 远东宏信 (Far East Horizon) 2024: "Interest income" 21,182,108, "Revenue from
+        operating leases" 6,350,698, "Revenue from contracts with customers" 10,353,429 and "Tax and
+        surcharges" (137,079), then "Cost of sales". Its note 5 prints the same four rows and "Total
+        revenue" 37,749,156, which is what Sales(Revenues) reads (rung P1). Only the third row was
+        the face's revenue part; the interest income was bound to Interest Income and the other two
+        were swept into Other Operating Expenses, so all three were counted a second time beside
+        the revenue that already holds them — the computed profit before tax came out 28,314,942
+        against a printed 8,021,363.
+
+        The block is what is printed CONTIGUOUSLY with a row already bound to the face's revenue
+        part, on its page: down to the cost of sales — which must be reached, or this is not a
+        revenue block and nothing is bound — and up to the head of the statement. Each row taken
+        carries a figure; a subtotal, a heading or a figureless row ends the walk, and a row bound
+        to other income refuses the block. A statement printing one revenue row directly above its
+        cost of sales (every other HKFRS face in the corpus) has an empty block and nothing moves.
+        """
+        keys = {m.canonical_key for m in getattr(ontology, "mappings", None) or ()}
+        if _REVENUE_PART not in keys or _COST_OF_SALES not in keys:
+            return 0
+        face = MapOntologyStage._pl_face(doc, statement_of)
+
+        def figured(li) -> bool:
+            return any((ev.value if ev.value is not None else ev.value_raw) not in (None, 0)
+                       for ev in (li.values or {}).values())
+
+        def ends_walk(li) -> bool:
+            return li.role is not LineRole.LINE or not figured(li)
+
+        taken: list = []
+        for i, anchor in enumerate(face):
+            if anchor.canonical_key != _REVENUE_PART:
+                continue
+            page = _page_of(anchor)
+            block: list = []
+            reached = False
+            for li in face[i + 1:i + 2 + _REVENUE_BLOCK_MAX]:
+                if _page_of(li) != page:
+                    break
+                if li.canonical_key == _COST_OF_SALES:
+                    reached = True
+                    break
+                if ends_walk(li) or li.canonical_key in _NOT_REVENUE:
+                    break
+                block.append(li)
+            if not reached:
+                continue
+            refused = False
+            for li in reversed(face[:i]):
+                if _page_of(li) != page or ends_walk(li) or len(block) >= _REVENUE_BLOCK_MAX:
+                    break
+                if li.canonical_key in _NOT_REVENUE:
+                    refused = True
+                    break
+                block.append(li)
+            if refused:
+                continue
+            taken += [li for li in block if li.canonical_key != _REVENUE_PART]
+        fresh = 0
+        for li in taken:
+            was = li.canonical_key
+            fresh += not was
+            li.canonical_key = _REVENUE_PART
+            li.confidence.method = MappingMethod.RULE.value
+            li.confidence.flags.append(REVENUE_BLOCK_FLAG + (f":from:{was}" if was else ""))
+        if taken:
+            ctx.log(f"map_line_items:revenue_block_parts={len(taken)} "
+                    + ", ".join(f"{(li.source_label or '')[:40]!r}" for li in taken))
+        return fresh
+
+    @staticmethod
+    def _closing_total_once(doc: DocumentModel, ontology, matcher, statement_of,
+                            ctx: PipelineContext) -> int:
+        """The profit for the year is bound once per basis, where the income statement prints it.
+
+        A statement of comprehensive income printed on its own page opens with the profit for the
+        year it starts from. Where the income statement's own row was bound, that copy is the same
+        figure and stays unbound — two rows on one line are summed. But BYD Electronic prints its
+        profit for the year only as the heading over "Attributable to owners of the parent"
+        (row context reads it as the owners' row's subheading), so the comprehensive-income copy
+        "PROFIT FOR THE YEAR 年度溢利" is the only row printing it — and the stale attribution banner
+        it inherits made the matcher refuse it. For a basis no bound row covers, the first unbound
+        row whose caption is the line's own (matched with no section) is bound to it.
+        """
+        keys = {m.canonical_key for m in getattr(ontology, "mappings", None) or ()}
+        if _CLOSING_TOTAL not in keys:
+            return 0
+        face = MapOntologyStage._pl_face(doc, statement_of)
+        covered: set = set()
+        for li in face:
+            if li.canonical_key == _CLOSING_TOTAL:
+                covered |= _bases_of(li)
+        bound = 0
+        for li in face:
+            if li.canonical_key or li.role is LineRole.HEADER or not (_bases_of(li) - covered):
+                continue
+            res = matcher.match(li.source_label, statement="profit_and_loss", section=None)
+            if res is None or res.canonical_key != _CLOSING_TOTAL or not _apply_result(li, res):
+                continue
+            li.confidence.flags.append("closing_total_bound_once")
+            covered |= _bases_of(li)
+            bound += 1
+            ctx.log(f"map_line_items:closing_total_bound_once {_CLOSING_TOTAL} <- "
+                    f"{(li.source_label or '')[:60]!r} (no other row prints it on this basis)")
+        return bound
 
     @staticmethod
     def _unexplained_columns(parent, children: list, tol: Decimal) -> list[str]:

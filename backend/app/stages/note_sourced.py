@@ -1616,18 +1616,32 @@ def _face_prints_line(parent_def, by_key: dict, defs: dict, basis: str, period: 
     face row is counted nowhere but through this line. So a ``carved_from_face`` rung is carved
     only where no face part of the line holds a figure: 000709 prints no such row, and its
     related-party amounts sit inside 其他应付款 and 长期应付款.
+
+    THE LINE'S OWN STATEMENT'S FACE. A face term printed on ANOTHER statement says nothing about
+    whether this one prints the line: Deprec & Impairment(Oper Exp) reads the cash-flow add-back
+    (`sub__cfo_depreciation`, `cf_oper_indirect__depreciation`) as a fallback rung, and every filing
+    prints that row — so the line's note figure was never carved, and the computed profit before tax
+    counted the depreciation inside the administrative expenses a second time (BYD 5,465,598).
     """
+    own = _statement_name(getattr(parent_def, "statement", None))
     for rung in parent_def.cascade or ():
         for term in rung.terms:
             part = defs.get(term.ref) if term.ref else None
             route = getattr(part, "route", None) if part is not None else None
             if str(getattr(route, "value", route) or "") != "face":
                 continue
+            printed_on = _statement_name(getattr(part, "statement", None))
+            if own and printed_on and printed_on != own:
+                continue
             row = by_key.get(term.ref)
             ev = _slot(row, basis, period) if row is not None else None
             if ev is not None and ev.value is not None:
                 return True
     return False
+
+
+def _statement_name(statement) -> str:
+    return str(getattr(statement, "value", statement) or "")
 
 
 def _parts_note_basis(rows, basis: str, period: str) -> str:

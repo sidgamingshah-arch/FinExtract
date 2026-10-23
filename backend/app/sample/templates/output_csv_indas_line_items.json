@@ -5492,7 +5492,8 @@
      "terms_op": "sum",
      "note": "The cost-of-sales note's depreciation rows.",
      "refuse_negative": true,
-     "outranks_printed": false
+     "outranks_printed": false,
+     "carved_from_face": true
     },
     {
      "id": "COS_P2",
@@ -5515,7 +5516,8 @@
      "terms_op": "sum",
      "note": "Total depreciation less the operating-expense share. Used when the cost-of-sales note itself discloses nothing.",
      "refuse_negative": true,
-     "outranks_printed": false
+     "outranks_printed": false,
+     "carved_from_face": true
     }
    ],
    "rollup": "alternatives",
@@ -5842,7 +5844,8 @@
        "role": "any_of"
       }
      ],
-     "note": "The sentences that state each operating-expense function's share, summed. Any subset a filing states is still a sum, so each term is optional."
+     "note": "The sentences that state each operating-expense function's share, summed. Any subset a filing states is still a sum, so each term is optional.",
+     "carved_from_face": true
     },
     {
      "id": "P2",
@@ -5851,7 +5854,8 @@
        "ref": "sub__pbt_oper_exp_depreciation"
       }
      ],
-     "note": "The PBT note's own operating-expense callout. Already means this line, so nothing is deducted."
+     "note": "The PBT note's own operating-expense callout. Already means this line, so nothing is deducted.",
+     "carved_from_face": true
     },
     {
      "id": "P3",
@@ -5865,7 +5869,8 @@
        "role": "adjustment"
       }
      ],
-     "note": "Total depreciation less the cost-of-sales share. A filing that discloses no cost-of-sales depreciation is taken to charge none, so the deduction is optional and the base is not."
+     "note": "Total depreciation less the cost-of-sales share. A filing that discloses no cost-of-sales depreciation is taken to charge none, so the deduction is optional and the base is not.",
+     "carved_from_face": true
     },
     {
      "id": "EXPENSE_NOTES",
@@ -5874,7 +5879,8 @@
        "ref": "sub__expense_notes_depreciation"
       }
      ],
-     "note": "The depreciation rows of the selling, administrative and R&D expense notes, summed. After the sentences and the PBT note, so a filing that states its split keeps it."
+     "note": "The depreciation rows of the selling, administrative and R&D expense notes, summed. After the sentences and the PBT note, so a filing that states its split keeps it.",
+     "carved_from_face": true
     },
     {
      "id": "P4",
@@ -5905,7 +5911,8 @@
        "role": "adjustment"
       }
      ],
-     "note": "The asset notes, less the cost-of-sales share."
+     "note": "The asset notes, less the cost-of-sales share.",
+     "carved_from_face": true
     },
     {
      "id": "P5",
@@ -5919,7 +5926,8 @@
        "role": "adjustment"
       }
      ],
-     "note": "The cash-flow add-back, less the cost-of-sales share."
+     "note": "The cash-flow add-back, less the cost-of-sales share.",
+     "carved_from_face": true
     }
    ],
    "rollup": "alternatives",

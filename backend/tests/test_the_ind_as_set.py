@@ -396,6 +396,28 @@ HK_ALIASES_THAT_FOLLOW_HK_DEFINITIONS = {
                                             "total liabilities and shareholders' equity"},
 }
 
+# ADDED TO THE HK SET FOR THE HKEX FACES THAT PRINT THEM, AND NOT CARRIED ACROSS EITHER: the
+# spellings PetroChina, Far East Horizon and 嘉民 print for these lines, which their rows missed
+# (`tests/test_hk_pl_face_rows_reach_their_lines.py`). Whether an Ind AS face needs them is the Ind
+# AS set's own question, for the same reason as above.
+HK_FACE_SPELLINGS_NOT_CARRIED = {
+    "is_pl__other_operating_income": {
+        "other income and gains", "other income and gains, net", "other income and gains/(losses)",
+        "other income and gains/(losses), net"},
+    "is_pl__personnel_and_benefit_expenses": {"employee compensation costs"},
+    "is_pl__net_operating_profit": {"(loss)/profit from operations", "loss from operations",
+                                    "profit from operations", "profit/(loss) from operations"},
+    "is_pl__net_interest_income_expense": {"finance costs, net", "net finance costs",
+                                           "total net finance costs"},
+    "is_pl__profit_loss_before_tax": {"loss before income tax", "profit before income tax",
+                                      "profit before income tax expense",
+                                      "profit/(loss) before income tax"},
+    "is_pl__total_income_tax": {"income tax (expense)/credit", "income tax credit/(expense)",
+                                "income tax credit/(expenses)"},
+    "is_pl__minority_interests_pl": {"holders of perpetual capital securities",
+                                     "holders of perpetual securities"},
+}
+
 
 def test_no_english_alias_was_taken_away_from_the_inherited_vocabulary(indas):
     """ADDED ALONGSIDE, NEVER REPLACING. An Ind AS filing that prints an IFRS spelling — and they
@@ -409,7 +431,8 @@ def test_no_english_alias_was_taken_away_from_the_inherited_vocabulary(indas):
     hk = {i.key: i for i in _set(HK).items}
     for item in indas.items:
         allowed = (DELIBERATELY_DROPPED_ALIASES.get(item.key, set())
-                   | HK_ALIASES_THAT_FOLLOW_HK_DEFINITIONS.get(item.key, set()))
+                   | HK_ALIASES_THAT_FOLLOW_HK_DEFINITIONS.get(item.key, set())
+                   | HK_FACE_SPELLINGS_NOT_CARRIED.get(item.key, set()))
         before = {a for a in (hk[item.key].aliases or ()) if not _HAN.search(a)}
         before -= {a for a in before if a.strip().lower() in allowed}
         after = set(item.aliases or ())
