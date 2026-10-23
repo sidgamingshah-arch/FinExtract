@@ -121,7 +121,11 @@ _SCALE_PATTERNS = [
 # show at all, so a ¥254,937,045 balance rendered as a bare number on screen. HKD came through on
 # an HKEX filing because "HK$" is unmissable; RMB did not, because the character it hangs on was
 # absent from this table.
-_CCY = [("₹", "INR"), ("rs.", "INR"), ("inr", "INR"),
+# "RUPEES" IS A DECLARATION TOO. Laurus Labs states every face's unit as "(All amounts in Crore Rupees
+# …)" and prints ₹ only where its font maps it (the EPS caption on some pages, "(`)" on others), so a
+# scan reaching the standalone face first read crores with no currency, and every request said
+# "crores (x10,000,000), currency not stated" over figures the filing says are rupees.
+_CCY = [("₹", "INR"), ("rs.", "INR"), ("inr", "INR"), ("rupee", "INR"),
         ("hk$", "HKD"), ("hkd", "HKD"), ("港幣", "HKD"), ("港币", "HKD"), ("港元", "HKD"),
         ("rmb", "CNY"), ("cny", "CNY"), ("人民幣", "CNY"), ("人民币", "CNY"),
         ("us$", "USD"), ("usd", "USD"), ("美元", "USD"),

@@ -360,10 +360,20 @@ def _is_noise_row(label: str, vals: list,
         return True
     if cut_sentence_figures(label, vals):
         return True
+    # A SIGNATORY'S IDENTIFIER UNDER THE FACE. An Indian face is signed on the page, and the
+    # signature block prints each director's DIN and the auditor's membership and firm numbers
+    # under the value columns: Laurus Labs' standalone balance sheet read "DIN: 01424180" as a row
+    # whose current figure was 1,424,180, and the sweep put it in other current liabilities —
+    # 1,424,559.26 where the three face rows swept there sum to 379.26 (crore).
+    if bool(vals) and _SIGNATORY_ID.match(label):
+        return True
     return bool(vals) and bool(_HDR_LABEL.search(label)) and all(_is_date_ish(v) for v in vals)
 
 
 _NOTE_NO_HEADER = re.compile(r"^\s*(?:notes?\s*)?no\.?\s*$", re.I)
+_SIGNATORY_ID = re.compile(
+    r"^\s*(?:DIN|PAN|CIN|M\.?\s*No|Membership\s+No|(?:ICAI\s+)?Firm\s+Registration\s+(?:No|Number)"
+    r"|FRN|F\.\s*R\.\s*N)\.?\s*[:：.]?\s*$", re.IGNORECASE)
 
 
 # A SENTENCE CUT AT A DATE OR A CROSS-REFERENCE IS NOT A ROW. Prose that wraps over a date — "…
@@ -1756,6 +1766,14 @@ def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
             tail = bool(prev_values and prev_label) and _wrap_adjacent(
                 _row_box(out[-1]), _row_box(row), label_words) and _completes_the_caption_above(
                     prev_label, label_words, steps, known)
+        # …OR, ON A FACE, THE CAPTION ABOVE IS PLAINLY UNFINISHED IN ENGLISH — see
+        # `_english_tail_of_the_row_above`. The vocabulary test above cannot see it: the joined
+        # caption of a Schedule III subtotal is rarely a known alias.
+        if not tail and on_face and label_words and note_ref is None and out and not pending:
+            prev_label, _prev_note, prev_values = _scan_row(out[-1], fmt)
+            tail = _prints_an_amount(prev_values, fmt) and bool(prev_label) and _wrap_adjacent(
+                _row_box(out[-1]), _row_box(row), label_words) and _english_tail_of_the_row_above(
+                    prev_label, label_words, steps, known)
         if tail and pending and _wrap_adjacent(_row_box(pending), _row_box(row), label_words):
             # The head is still in `pending`, waiting for figures that are printed further down.
             # Completing the caption HERE is what lets the known-caption veto below see it whole:
@@ -2576,6 +2594,87 @@ def _completes_the_caption_above(prev_label: list[Word], label_words: list[Word]
     return False
 
 
+# A CAPTION THAT ENDS ON A WORD NO CAPTION ENDS ON: a conjunction, a preposition, an ampersand or a
+# comma. "…from associates and", "…EXCEPTIONAL ITEMS AND" name nothing until their next line is read.
+# NOT AFTER A SEMICOLON: Schedule III prints its enumerated trade-payables pair as "(A) total
+# outstanding dues of micro enterprises and small enterprises; and" / "(B) …", where "; and" joins
+# two complete items of a list and the line below is the next item, not the rest of this one.
+_HANGING_CONNECTIVE = re.compile(
+    r"(?:(?<![;；])\s(?:and|or|of|in|for|to|from|with|by|on|at|the|less|including|excluding)"
+    r"|[&,])\s*$", re.IGNORECASE)
+# A line that opens on its own enumerator — "(B)", "(ii)", "VII.", "b)", "1." — starts an item.
+_OPENS_ENUMERATED = re.compile(
+    r"^\s*(?:\(\s*(?:[A-Za-z]|[ivxIVX]{1,5}|\d{1,2})\s*\)|(?:[A-Za-z]|[ivxIVX]{1,5}|\d{1,2})[.)])\s")
+# The arithmetic a Schedule III total prints after its caption — "(IV-V)", "(I-II)", "(VI-VII)" —
+# with an operator, so a bare "(I)" (which also closes "Total income (I)") is not read as one.
+_SCHEDULE_III_ARITHMETIC_TAIL = re.compile(
+    r"\(\s*[IVX]{1,5}(?:\s*[-+]\s*[IVX]{1,5})+\s*\)\s*$")
+
+
+def _prints_an_amount(value_words: list[Word], fmt=None) -> bool:
+    """Whether a row's figures include an AMOUNT, not only the dates of a column header.
+
+    PetroChina's continuation balance sheet prints its column heads "December 31, 2024 …" on the
+    baseline of "LIABILITIES AND", so the header line reads as a caption ending on AND with four
+    figures — 31, 2024, 31, 2023 — and its second line "SHAREHOLDERS' EQUITY Notes The Group …"
+    would be its tail. A year or a day of the month is a date; a caption's figures are amounts."""
+    for w in value_words:
+        t = w.text.strip().strip(",.;")
+        if _num(t, fmt) is None or _REPORT_YEAR.match(t) or re.fullmatch(r"\d{1,2}", t):
+            continue
+        return True
+    return False
+
+
+def _english_tail_of_the_row_above(prev_label: list[Word], label_words: list[Word],
+                                   steps: tuple[tuple[str, object], ...],
+                                   known: frozenset[str]) -> bool:
+    """Whether a label-only line on a FACE is the rest of the valued caption printed above it.
+
+    THE INDIAN FACE SETS ITS FIGURES BESIDE A CAPTION'S FIRST LINE. Laurus Labs 2025-26 prints
+
+        VI. Profit for the year before share of profit/(loss) from associates and   889.85  354.41
+        joint venture (IV-V)
+        VII. Share of profit/(loss) from associates and joint venture, net of tax      0.29    3.93
+
+    and Asian Paints "PROFIT BEFORE SHARE OF PROFIT IN ASSOCIATES, EXCEPTIONAL ITEMS AND  5,995.46"
+    over "TAX", "EARNING BEFORE INTEREST, TAX, DEPRECIATION AND AMORTISATION  7,419.72" over
+    "(EBITDA) (I-II)", "(b) Income tax … on investment in equity  3.97" over "instruments through
+    OCI". Every one of those second lines was folded FORWARD onto the caption beneath it — "joint
+    venture (IV-V) VII. Share of profit…", "of tax" carrying the subtotal 2.84 — and the cut first
+    line reached the model as a caption, with its tail read as the section of every row below it
+    ("under": "TAX", "under": "(EBITDA) (I-II)").
+
+    Three signs, any one of which settles it, all of them English and all of them on the words:
+
+    * the caption above ENDS ON A CONNECTIVE ("…associates and", "…ITEMS AND") — it cannot be
+      complete, so the line under it is its remainder whatever that line says;
+    * the line ENDS ON SCHEDULE III ARITHMETIC ("joint venture (IV-V)", "(EBITDA) (I-II)") — the
+      close of a total's caption, and a line printing no figure of its own;
+    * the line OPENS IN LOWER CASE ("of tax", "instruments through OCI", "operations") — no
+      caption of a statement starts that way, so it continues one.
+
+    The caller has already required what makes the two lines one cell: the row above carries
+    figures and a caption, nothing is pending, and the line sits tight under it in the caption
+    column (`_wrap_adjacent`). A line that is itself a caption the vocabulary knows is refused on
+    the third sign alone; a heading — a line ending in a colon — and a line that opens on its own
+    enumerator ("(B) total outstanding dues of creditors…", "B. Items that will be reclassified")
+    are never a tail. No Han text: a mainland face's tails are `_completes_the_caption_above`'s.
+    And the row above must print an AMOUNT (`_prints_an_amount`), not a header's dates.
+    """
+    text = _join_words(label_words).strip()
+    head = _join_words(prev_label).strip()
+    if not text or not head or _HAN.search(text) or _HAN.search(head):
+        return False
+    if not _LATIN.search(text) or text.endswith((":", "：")) or _OPENS_ENUMERATED.match(text):
+        return False
+    if _HANGING_CONNECTIVE.search(head):
+        return True
+    if _SCHEDULE_III_ARITHMETIC_TAIL.search(text):
+        return True
+    return text[0].islower() and not _is_known_caption(label_words, steps, known)
+
+
 # The enumeration `_CAS_SUB_LINE`/`_CAS_STATEMENT_LINE` recognise, as something to STRIP. The
 # two-column path gets this from the rulebook's declared `numbering` normalisation step; the matrix
 # path is handed no steps at all, so it has to strip its own.
@@ -3341,23 +3440,58 @@ def _detect_note_column(rows: list[list[Word]]) -> float | None:
     return best if best_n >= 2 else None
 
 
+# WHAT ELSE A NOTE COLUMN HOLDS, besides a bare "14" or "16(b)": a Schedule III face numbers its
+# notes in sections and cites several at once. Laurus Labs 2025-26 prints "Other equity  11.6",
+# "Summary of material accounting policies  2.2" and "Depreciation and amortisation expense
+# 3,4 & 39A" in its Note column; none is note-number SHAPED, so each was read as a FIGURE — the
+# model was sent {"current_col0": "34"}, {"current_col1": "11.6"}, a policies row carrying 2.2 that
+# the mapper filed under other current liabilities, and a column legend "current_col1" for a
+# column of note numbers. A sectioned note ("11.6") or a list of one- or two-digit notes ("3,4")
+# is never a formatted amount in a column the header names Note, so it is read as the reference.
+#
+# ONLY INSIDE A DETECTED NOTE COLUMN (`_detect_note_column`): elsewhere a "2.2" is a figure.
+_SECTIONED_NOTE_REF = re.compile(r"^(\d{1,2}(?:\.\d{1,2}){1,2}[A-Za-z]?)[.,;]?$")
+_NOTE_REF_LIST = re.compile(r"^(\d{1,2}[A-Za-z]{0,2})(?:,\s*\d{1,2}[A-Za-z]{0,2})+[.,;]?$")
+
+
+def _note_column_ref(t: str) -> str | None:
+    """The reference a token printed in the note column cites, or None when it is not one.
+
+    A list ("3,4") cites its first note, as "14, 16(b)" read token by token always has."""
+    s = t.strip()
+    if (ref := _note_ref_value(s)) is not None:
+        return ref
+    m = _SECTIONED_NOTE_REF.match(s) or _NOTE_REF_LIST.match(s)
+    return m.group(1) if m else None
+
+
 def _resolve_note_column(note_ref: str | None, value_words: list[Word],
                          note_x: float | None, fmt=None) -> tuple[str | None, list[Word]]:
     """Separate the note-reference cell from the monetary values. When a note column was detected,
     a value token sitting in it (and shaped like a note number) is the reference. Otherwise, a
     leading bare 1–2 digit integer followed by a real amount is treated as the note ref — the
-    common ``Revenue  6  45,230  40,110`` layout, where '6' is Note 6, not the current-year value."""
-    if note_ref is not None or not value_words:
+    common ``Revenue  6  45,230  40,110`` layout, where '6' is Note 6, not the current-year value.
+
+    EVERY TOKEN IN THE NOTE COLUMN IS PART OF THE REFERENCE, not only the first. A row citing
+    several notes prints them all there — Laurus Labs' standalone "3, 4 & 39A" — and once `_scan_row`
+    had taken "3," as the note, this returned early and the "4" stayed a figure of the row
+    ({"current_col0": "4"}). With a note column detected, a note-shaped token standing in it is
+    removed from the figures whether or not a reference was already read; the first one read
+    remains the row's reference."""
+    if not value_words:
         return note_ref, value_words
     if note_x is not None:
         kept: list[Word] = []
         for vw in value_words:
             xc = (vw.bbox.x0 + vw.bbox.x1) / 2
-            if note_ref is None and abs(xc - note_x) <= 0.03 and _is_note_number(vw.text):
-                note_ref = _note_ref_value(vw.text)
+            ref = _note_column_ref(vw.text) if abs(xc - note_x) <= 0.03 else None
+            if ref is not None:
+                note_ref = note_ref if note_ref is not None else ref
             else:
                 kept.append(vw)
         return note_ref, kept
+    if note_ref is not None:
+        return note_ref, value_words
     if (len(value_words) >= 2 and _is_note_number(value_words[0].text)
             and any(_is_money_like(w.text, fmt) for w in value_words[1:])):
         return _note_ref_value(value_words[0].text), value_words[1:]
@@ -7310,8 +7444,15 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
         # tax (III - IV)" was read inside "IV. Expenses" and "IX. Profit for the year (VII - VIII)"
         # inside "VIII. Tax expense:". The section it names is the one its heading IS
         # (`numbered_face_heading`): none, for those two. Lettered parts ("A.") stay inside theirs.
-        if on_face and value_words and label_words and _ROMAN_NUMBER.match(
-                min(label_words, key=lambda w: w.bbox.x0).text.strip()) and not promoted:
+        # …AND SO DOES A TOTAL THAT PRINTS ITS SCHEDULE III ARITHMETIC WITHOUT THE NUMBER. Asian
+        # Paints 2025-26 numbers nothing on its face, and "EARNING BEFORE INTEREST, TAX,
+        # DEPRECIATION AND AMORTISATION (EBITDA) (I-II)" is computed from the income and expense
+        # blocks and belongs to neither: read under EXPENSES, the rows after it — share of profit
+        # in associates among them — were offered only expense lines. Laurus prints the same total
+        # as "III. Earnings … (EBITDA) (I-II)" and the roman numeral already opened its section.
+        if on_face and value_words and label_words and (_ROMAN_NUMBER.match(
+                min(label_words, key=lambda w: w.bbox.x0).text.strip())
+                or _SCHEDULE_III_ARITHMETIC_TAIL.search(label)) and not promoted:
             section = label
             group = ""
             open_breakdowns.clear()

@@ -778,7 +778,15 @@
     "Sale of goods",
     "Sale of manufactured goods",
     "Sales",
-    "Sale of products (including excise duty)"
+    "Sale of products (including excise duty)",
+    "Revenue from sale of products",
+    "Revenue from sale of goods",
+    "Sale of services",
+    "Revenue from sale of services",
+    "Sale of products and services",
+    "Sale of products & services",
+    "Revenue from sale of products and services",
+    "Revenue from sale of products & services"
    ],
    "aliases_i18n": {
     "en": [
@@ -791,16 +799,24 @@
      "Sale of goods",
      "Sale of manufactured goods",
      "Sales",
-     "Sale of products (including excise duty)"
+     "Sale of products (including excise duty)",
+     "Revenue from sale of products",
+     "Revenue from sale of goods",
+     "Sale of services",
+     "Revenue from sale of services",
+     "Sale of products and services",
+     "Sale of products & services",
+     "Revenue from sale of products and services",
+     "Revenue from sale of products & services"
     ]
    },
    "regex_hints": [
-    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+)?(?:sale\\s+of\\s+products\\s+including\\s+excise\\s+duty|sale\\s+of\\s+manufactured\\s+goods|sale\\s+of\\s+products\\s+gross|sale\\s+of\\s+products|gross\\s+turnover|turnover\\s+gross|sale\\s+of\\s+goods|gross\\s+sales|sales\\s+gross|sales)(?:\\s+(?:[ivxl]{1,5}|\\d{1,2}))*(?:\\s+(?:liabilities))?$"
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+)?(?:revenue\\s+from\\s+sale\\s+of\\s+products\\s+and\\s+services|revenue\\s+from\\s+sale\\s+of\\s+products\\s+services|sale\\s+of\\s+products\\s+including\\s+excise\\s+duty|revenue\\s+from\\s+sale\\s+of\\s+products|revenue\\s+from\\s+sale\\s+of\\s+services|sale\\s+of\\s+products\\s+and\\s+services|revenue\\s+from\\s+sale\\s+of\\s+goods|sale\\s+of\\s+manufactured\\s+goods|sale\\s+of\\s+products\\s+services|sale\\s+of\\s+products\\s+gross|sale\\s+of\\s+products|sale\\s+of\\s+services|gross\\s+turnover|turnover\\s+gross|sale\\s+of\\s+goods|gross\\s+sales|sales\\s+gross|sales)(?:\\s+(?:[ivxl]{1,5}|\\d{1,2}))*(?:\\s+(?:liabilities))?$"
    ],
    "exclude_hints": [
     "(?i)revenue\\s+from\\s+operations",
     "(?i)\\bnet\\b",
-    "(?i)scrap|services?\\b"
+    "(?i)scrap"
    ]
   },
   {
@@ -4342,7 +4358,9 @@
     "Property, plant and equipment written off",
     "Property, plant & equipment written off",
     "Share of loss of associates",
-    "Share of loss of joint ventures"
+    "Share of loss of joint ventures",
+    "Exceptional items",
+    "Exceptional item"
    ],
    "aliases_i18n": {
     "en": [
@@ -4365,11 +4383,13 @@
      "Property, plant and equipment written off",
      "Property, plant & equipment written off",
      "Share of loss of associates",
-     "Share of loss of joint ventures"
+     "Share of loss of joint ventures",
+     "Exceptional items",
+     "Exceptional item"
     ]
    },
    "regex_hints": [
-    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+)?(?:provision\\s+for\\s+diminution\\s+in\\s+the\\s+value\\s+of\\s+investments|fair\\s+value\\s+loss\\s+on\\s+financial\\s+instruments\\s+at\\s+fvtpl|provision\\s+for\\s+diminution\\s+in\\s+value\\s+of\\s+investments|impairment\\s+loss\\s+on\\s+property\\s+plant\\s+and\\s+equipment|net\\s+loss\\s+on\\s+financial\\s+assets\\s+measured\\s+at\\s+fvtpl|impairment\\s+loss\\s+on\\s+property\\s+plant\\s+equipment|impairment\\s+of\\s+property\\s+plant\\s+and\\s+equipment|deferred\\s+revenue\\s+expenditure\\s+written\\s+off|property\\s+plant\\s+and\\s+equipment\\s+written\\s+off|impairment\\s+of\\s+property\\s+plant\\s+equipment|miscellaneous\\s+expenditure\\s+written\\s+off|property\\s+plant\\s+equipment\\s+written\\s+off|preliminary\\s+expenses\\s+written\\s+off|share\\s+of\\s+loss\\s+of\\s+joint\\s+ventures|impairment\\s+loss\\s+on\\s+investments|net\\s+loss\\s+on\\s+fair\\s+value\\s+changes|share\\s+of\\s+loss\\s+of\\s+associates|impairment\\s+of\\s+fixed\\s+assets|impairment\\s+of\\s+investments|fixed\\s+assets\\s+written\\s+off)(?:\\s+(?:[ivxl]{1,5}|\\d{1,2}))*(?:\\s+(?:liabilities))?$"
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+)?(?:provision\\s+for\\s+diminution\\s+in\\s+the\\s+value\\s+of\\s+investments|fair\\s+value\\s+loss\\s+on\\s+financial\\s+instruments\\s+at\\s+fvtpl|provision\\s+for\\s+diminution\\s+in\\s+value\\s+of\\s+investments|impairment\\s+loss\\s+on\\s+property\\s+plant\\s+and\\s+equipment|net\\s+loss\\s+on\\s+financial\\s+assets\\s+measured\\s+at\\s+fvtpl|impairment\\s+loss\\s+on\\s+property\\s+plant\\s+equipment|impairment\\s+of\\s+property\\s+plant\\s+and\\s+equipment|deferred\\s+revenue\\s+expenditure\\s+written\\s+off|property\\s+plant\\s+and\\s+equipment\\s+written\\s+off|impairment\\s+of\\s+property\\s+plant\\s+equipment|miscellaneous\\s+expenditure\\s+written\\s+off|property\\s+plant\\s+equipment\\s+written\\s+off|preliminary\\s+expenses\\s+written\\s+off|share\\s+of\\s+loss\\s+of\\s+joint\\s+ventures|impairment\\s+loss\\s+on\\s+investments|net\\s+loss\\s+on\\s+fair\\s+value\\s+changes|share\\s+of\\s+loss\\s+of\\s+associates|impairment\\s+of\\s+fixed\\s+assets|impairment\\s+of\\s+investments|fixed\\s+assets\\s+written\\s+off|exceptional\\s+items|exceptional\\s+item)(?:\\s+(?:[ivxl]{1,5}|\\d{1,2}))*(?:\\s+(?:liabilities))?$"
    ],
    "exclude_hints": [
     "\\bgain",

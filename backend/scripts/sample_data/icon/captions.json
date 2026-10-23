@@ -73,16 +73,22 @@
    "Sale of goods",
    "Sale of manufactured goods",
    "Sales",
-   "Sale of products (including excise duty)"
+   "Sale of products (including excise duty)",
+   "Revenue from sale of products",
+   "Revenue from sale of goods",
+   "Sale of services",
+   "Revenue from sale of services",
+   "Sale of products and services",
+   "Revenue from sale of products and services"
   ],
   "exclude_hints": [
    "(?i)revenue\\s+from\\s+operations",
    "(?i)\\bnet\\b",
-   "(?i)scrap|services?\\b"
+   "(?i)scrap"
   ],
   "route": "face",
   "confidence": "medium",
-  "note": "Bare 'Sales' is the gross figure when excise is printed beneath it. When no excise line is printed, gross equals net, so it is still right. 'Sale of services' is not aliased (see unplaced). This is a calculated line: if the model fills only one of domestic/export, the partial sum replaces the printed figure (backend/app/services/rollups.py:342, 446-449)."
+  "note": "Bare 'Sales' is the gross figure when excise is printed beneath it. When no excise line is printed, gross equals net, so it is still right. Sale of services is the business's own revenue (domestic and export sales are 'sales of products and services'), so a face that splits Revenue from operations into 'Revenue from sale of products' and 'Revenue from sale of services' binds both rows here and the line is their sum; 'Other operating revenue' stays on pl_icon__other_recurring_operating_income. Asian Paints 2025-26 prints exactly that split (35,416.25 + 100.12 + 67.17) under a REVENUE FROM OPERATIONS heading with no total row, and with neither sales row bound the computed total operating income was the 67.17 of other operating revenue alone, so profit before tax was computed at -29,355.32 against a printed 6,003.44. This is a calculated line: if the model fills only one of domestic/export, the partial sum replaces the printed figure (backend/app/services/rollups.py:342, 446-449)."
  },
  "pl_icon__excise_duty": {
   "aliases": [
@@ -1612,7 +1618,7 @@
   ],
   "route": null,
   "confidence": "low",
-  "note": "Deliberately NOT taken: 'Exceptional items' (income or expense, cash such as VRS or non-cash such as impairment), 'Donations' and 'Corporate social responsibility expenditure'. Donations and CSR are contested with sga_others (34), and claiming them on both lines would be an unbreakable tie. Sign-ambiguous 'Prior period items (net)' is vetoed (unplaced).",
+  "note": "Deliberately NOT taken: 'Exceptional items' (they bind to pl_icon__non_operating_expense_non_cash_others), 'Donations' and 'Corporate social responsibility expenditure'. Donations and CSR are contested with sga_others (34), and claiming them on both lines would be an unbreakable tie. Sign-ambiguous 'Prior period items (net)' is vetoed (unplaced).",
   "note_terms": [
    "exceptional items",
    "other expenses",
@@ -1691,7 +1697,9 @@
    "Fixed assets written off",
    "Property, plant and equipment written off",
    "Share of loss of associates",
-   "Share of loss of joint ventures"
+   "Share of loss of joint ventures",
+   "Exceptional items",
+   "Exceptional item"
   ],
   "exclude_hints": [
    "\\bgain",
@@ -1703,7 +1711,7 @@
   ],
   "route": null,
   "confidence": "low",
-  "note": "If 58 becomes the is_pl catch-all, it is locked out of matching and these aliases die. I dropped bare 'Assets written off' because it could mean current assets.",
+  "note": "If 58 becomes the is_pl catch-all, it is locked out of matching and these aliases die. I dropped bare 'Assets written off' because it could mean current assets. A Schedule III / Revised Schedule VI 'Exceptional items' face row binds here: it is deducted between profit before exceptional items and tax and profit before tax, so it is a non-operating charge in the CMA statement, and what an Indian face reports there is overwhelmingly non-cash (impairment of investments, goodwill and intangibles, fair-value losses, provisions such as the 2025 labour-code gratuity charge). Asian Paints 2025-26 note 40 is exactly that (157.61 / 363.10 consolidated), and the f2 key files a fire loss printed as an exceptional item on this line. A net exceptional GAIN is printed negative in the same deducted position, so it reduces this expense line, which is the arithmetic the face itself uses.",
   "note_terms": [
    "exceptional items",
    "other expenses",
