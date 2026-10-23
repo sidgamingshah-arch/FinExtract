@@ -222,9 +222,10 @@ def test_a_citation_names_a_statement_row_by_the_section_it_is_under():
     face = face_context.face_index(_laurus())
 
     def cite(group=""):
+        # The row is shown by its own caption, "Borrowings", under its "Financial liabilities"
+        # heading (`face_context.shown_caption`); a citation copies what it was shown.
         resolved, unresolved = resolve_sources(
-            [SourceRef(statement=BS, caption="Financial liabilities Borrowings", group=group)],
-            [], face)
+            [SourceRef(statement=BS, caption="Borrowings", group=group)], [], face)
         assert not unresolved
         return resolved[0]["figures"]["current"]
 

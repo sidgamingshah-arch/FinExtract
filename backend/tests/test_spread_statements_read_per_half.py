@@ -319,6 +319,7 @@ def test_the_spread_s_bare_total_and_signing_date(spread_doc):
     from app.services.face_context import face_rows
 
     rows = [r for b in face_rows(spread_doc, {"balance_sheet"}) for r in b["rows"]]
-    assert any(r["caption"] == "Current Assets"
+    # A bare total is shown by the heading it totals, saying no caption is printed beside it.
+    assert any(r["caption"] == "Current Assets (total, printed without a caption)"
                and r["figures"] == {"current": "12442.25", "prior": "12060.19"} for r in rows)
     assert not any("Mumbai" in r["caption"] for r in rows)

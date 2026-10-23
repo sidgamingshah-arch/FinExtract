@@ -136,68 +136,26 @@ def face_rows(doc, statements) -> list[dict]:
     want.discard("")
     if not want:
         return []
-    stmt_of_page = {int(getattr(p, "index", -1)):
-                    normalize_statement(str(getattr(p, "statement", "") or ""))
-                    for p in (getattr(doc, "pages", None) or ())}
-    notes_pages = _notes_pages(doc)
-    supplement = supplement_pages(doc)
-    framework_of = {int(getattr(p, "index", -1)): str((getattr(p, "evidence", None) or {})
-                                                       .get("framework") or "")
-                    for p in (getattr(doc, "pages", None) or ())}
-    chrome = set(getattr(doc, "page_chrome", None) or ())
     doc_unit = getattr(doc, "unit_context", None)
-    # THE TOTAL EACH ATTRIBUTION ROW SPLITS, over the rows a citation is resolved against
-    # (`face_index`) — see `attribution_headings`.
-    headings = attribution_headings(
-        (st, _page_of(r), r) for st, _c, r in face_index(doc) if st in want)
-
-    # ONE BLOCK PER STATEMENT AND ENTITY. A mainland filing prints the group's statements and the
-    # parent company's own, and the two blocks were one: 000709's 货币资金 arrived twice — 31.8bn
-    # and 24.5bn — with nothing to say which was the group's. And an HKEX table printing Group and
-    # Company side by side was ONE row whose two `current` figures shared a key, so the company's
-    # overwrote the group's. Each figure now goes under its own entity.
-    by_block: dict[tuple[str, str, str, str], list[tuple[int, dict]]] = {}
-    legends: dict[tuple[str, str, str, str], dict[str, str]] = {}
-    for row in (getattr(doc, "line_items", None) or ()):
-        page = _page_of(row)
-        statement = _statement_of(row, stmt_of_page, page)
-        if statement not in want:
-            continue
-        if not _shown_on_face(row, page, notes_pages):
-            continue
-        caption = getattr(row, "source_label", "") or ""
-        unit = units.row_unit(row, doc_unit)
-        for entity, (figures, legend) in _figures_by_entity(row).items():
-            entry: dict = {"caption": caption, "figures": figures, "_unit": unit}
-            banner = (getattr(row, "section_hint", None) or "").strip()
-            if banner and not is_identity_line(banner, chrome):
-                entry["under"] = banner
-            if sub := (getattr(row, "group_hint", "") or "").strip():
+    by_block, legends = _face_blocks(doc, want)
+    context = _blocks_context(doc, by_block)
+    by_block_entries: dict[tuple[str, str, str, str], list[tuple[int, dict]]] = {}
+    for block_key, members in by_block.items():
+        for page, row, figures, unit in members:
+            entry: dict = {"caption": shown_caption(row), "figures": figures, "_unit": unit}
+            under, sub = context.get((block_key, id(row)), ("", ""))
+            if under:
+                entry["under"] = under
+            if sub:
                 entry["subheading"] = sub
-            # An owners' / non-controlling share names the total it splits, so the two pairs an
-            # income statement prints are told apart and a citation can name one by its `group`.
-            if id(row) in headings:
-                entry["subheading"] = headings[id(row)]
             # THE DETERMINISTIC ROUTE'S PROPOSAL. Omitted for a row the mapper could not place —
             # `stages.face_mapping_contract` keys those `engine_unclassified_face__…`, which names
             # no line and would read as one.
             key = str(getattr(row, "canonical_key", "") or "")
             if key and not key.startswith("engine_unclassified"):
                 entry["line"] = key
-            # THE CASH-FLOW SUPPLEMENT IS ITS OWN BLOCK. A mainland filing prints the indirect
-            # reconciliation (现金流量表补充资料) in the notes, and the reader reads it as the cash
-            # flow's — rightly, it is where the indirect lines' figures are. But sent inside the
-            # cash-flow block it read as the statement's own continuation: 净利润, 固定资产折旧,
-            # 财务费用 and 经营性应收项目的减少 appended to the face after 期末现金及现金等价物余额.
-            part = supplement.get(page, "") if statement == "cash_flow" else ""
-            # ONE BLOCK PER STATEMENT SET, too: see `stages.classify.statement_frameworks`.
-            block_key = (statement, entity, part, framework_of.get(page, "") if page is not None
-                         else "")
-            by_block.setdefault(block_key, []).append(
-                (page if page is not None else 0, entry))
-            seen = legends.setdefault(block_key, {})
-            for label, heading in legend.items():
-                seen.setdefault(label, heading)
+            by_block_entries.setdefault(block_key, []).append((page, entry))
+    by_block = by_block_entries
 
     # THE SET THIS TEMPLATE READS, when the filing prints two. The HK template is built on
     # HKFRS / IFRS, and an H-share filer's IFRS set is the one its lines are answered from: its
@@ -237,6 +195,281 @@ def face_rows(doc, statements) -> list[dict]:
         block["unit"] = units.block_units(rows, doc_unit)
         block["rows"] = rows
         out.append(block)
+    return out
+
+
+def _face_blocks(doc, want=None) -> tuple[dict, dict]:
+    """The face rows of each block — ``{(statement, entity, part, set): [(page, row, figures,
+    unit)]}`` in document order — and each block's column legend. `want` limits the statements;
+    None is every one. The one assembly `face_rows` sends and `face_index` resolves against."""
+    stmt_of_page = {int(getattr(p, "index", -1)):
+                    normalize_statement(str(getattr(p, "statement", "") or ""))
+                    for p in (getattr(doc, "pages", None) or ())}
+    notes_pages = _notes_pages(doc)
+    supplement = supplement_pages(doc)
+    framework_of = {int(getattr(p, "index", -1)): str((getattr(p, "evidence", None) or {})
+                                                       .get("framework") or "")
+                    for p in (getattr(doc, "pages", None) or ())}
+    doc_unit = getattr(doc, "unit_context", None)
+    # ONE BLOCK PER STATEMENT AND ENTITY. A mainland filing prints the group's statements and the
+    # parent company's own, and the two blocks were one: 000709's 货币资金 arrived twice — 31.8bn
+    # and 24.5bn — with nothing to say which was the group's. And an HKEX table printing Group and
+    # Company side by side was ONE row whose two `current` figures shared a key, so the company's
+    # overwrote the group's. Each figure now goes under its own entity.
+    by_block: dict[tuple[str, str, str, str], list[tuple[int, object, dict, object]]] = {}
+    legends: dict[tuple[str, str, str, str], dict[str, str]] = {}
+    for row in (getattr(doc, "line_items", None) or ()):
+        page = _page_of(row)
+        statement = _statement_of(row, stmt_of_page, page)
+        if want is not None and statement not in want:
+            continue
+        if not _shown_on_face(row, page, notes_pages):
+            continue
+        unit = units.row_unit(row, doc_unit)
+        for entity, (figures, legend) in _figures_by_entity(row).items():
+            # THE CASH-FLOW SUPPLEMENT IS ITS OWN BLOCK. A mainland filing prints the indirect
+            # reconciliation (现金流量表补充资料) in the notes, and the reader reads it as the cash
+            # flow's — rightly, it is where the indirect lines' figures are. But sent inside the
+            # cash-flow block it read as the statement's own continuation: 净利润, 固定资产折旧,
+            # 财务费用 and 经营性应收项目的减少 appended to the face after 期末现金及现金等价物余额.
+            part = supplement.get(page, "") if statement == "cash_flow" else ""
+            # ONE BLOCK PER STATEMENT SET, too: see `stages.classify.statement_frameworks`.
+            block_key = (statement, entity, part, framework_of.get(page, "") if page is not None
+                         else "")
+            by_block.setdefault(block_key, []).append(
+                (page if page is not None else 0, row, figures, unit))
+            seen = legends.setdefault(block_key, {})
+            for label, heading in legend.items():
+                seen.setdefault(label, heading)
+    return by_block, legends
+
+
+def _blocks_context(doc, by_block) -> dict[tuple[tuple, int], tuple[str, str]]:
+    """``{(block key, id(row)): (under, subheading)}`` — what each row of each block is shown
+    printed under (`block_context`), with the total an owners' / non-controlling row splits as its
+    sub-heading (`attribution_headings`, `named_total_headings`)."""
+    chrome = set(getattr(doc, "page_chrome", None) or ())
+    titles = {_fold_title(str((getattr(p, "evidence", None) or {}).get("matched_title") or ""))
+              for p in (getattr(doc, "pages", None) or ())}
+    titles.discard("")
+    printed = [(st, _page_of(r), r) for st, _c, r in _face_index_rows(doc)]
+    headings = attribution_headings(printed)
+    named = named_total_headings(printed)
+    out: dict[tuple[tuple, int], tuple[str, str]] = {}
+    for key, members in by_block.items():
+        ordered = [row for _p, row, _f, _u in sorted(members, key=lambda m: m[0])]
+        for row, (under, sub) in zip(ordered, block_context(ordered, key[0], chrome, titles)):
+            # An owners' / non-controlling share names the total it splits, so the two pairs an
+            # income statement prints are told apart and a citation can name one by its `group`.
+            if id(row) in headings:
+                sub = headings[id(row)]
+            elif id(row) in named and not sub:
+                sub = named[id(row)]
+            out[(key, id(row))] = (under, sub)
+    return out
+
+
+# ── WHAT A STATEMENT ROW IS SHOWN PRINTED UNDER ──────────────────────────────────────────────
+#
+# `section_hint` is the banner in force when the row was read, and it stays in force until the
+# next banner — the reader's right reading for MAPPING, which needs a section for every row, and
+# the wrong one to SHOW: a balance sheet's grand total was sent "under" the last section printed
+# before it (000883's 资产总计 under 非流动资产：, 负债合计 under 非流动负债：; Laurus's "Total assets"
+# under "Current assets"), the rows printed after a section's own total were still "in" it ("NET
+# CURRENT ASSETS" under CURRENT LIABILITIES, PetroChina's profit before tax under FINANCE COSTS),
+# and a statement's title or a units line was given as a section (Hon Kwok's every row "under"
+# CONSOLIDATED STATEMENT OF PROFIT OR LOSS; PetroChina's REVENUE under "RMB RMB"). What a row is
+# SHOWN under is the section it is printed in: a section ends at its own total, a statement's
+# grand and bottom-line totals are in no section, and a title or a unit is not a section. Request
+# text only — the reader's `section_hint`, which the mapper reads, is unchanged.
+
+# A statement's own title, as the reader may have taken it for a banner.
+_STATEMENT_TITLE = re.compile(
+    r"(?i)^\W*(?:(?:consolidated|company|standalone|parent)(?:\s+and\s+(?:consolidated|company|"
+    r"standalone|parent))?\s+)?(?:statements?\s+of\b|balance\s+sheets?\b|income\s+statements?\b"
+    r"|cash\s+flow\s+statements?\b)"
+    r"|^\W*(?:合并|合併|母公司|公司)?(?:资产负债表|資產負債表|利润表|利潤表|损益表|損益表|现金流量表|現金流量表"
+    r"|所有者权益变动表|股东权益变动表|综合收益表|綜合收益表|全面收益表|財務狀況表|财务状况表)\W*$")
+# A units line: currencies and scales and nothing else ("RMB RMB", "HK$'000", 人民币元).
+_UNITS_ONLY = re.compile(
+    r"(?i)^(?:[\s\W]|rmb|hk\$|hkd|us\$|usd|cny|inr|₹|'?000|’000|thousands?|millions?|crores?"
+    r"|lakhs?|人民币|人民幣|港元|港幣|港币|千元|万元|萬元|元)+$")
+# A BALANCE SHEET'S TOTALS THAT SPAN ITS SECTIONS — the grand totals, and the net lines struck
+# across two sections.
+_GRAND_TOTAL = re.compile(
+    r"(?i)^\W*(?:total\s+assets(?:\s+less\s+current\s+liabilities)?"
+    r"|total\s+liabilities(?:\s+and\s+(?:(?:share|stock)holders['’]?\s+)?(?:equity|net\s+worth))?"
+    r"|total\s*[-–—]?\s*(?:equity\s+and\s+liabilities|liabilities\s+and\s+equity)"
+    r"|net\s+current\s+\(?(?:assets|liabilities)\)?(?:\s*/\s*\(?(?:assets|liabilities)\)?)?"
+    r"|net\s+\(?(?:assets|liabilities)\)?(?:\s*/\s*\(?(?:assets|liabilities)\)?)?)"
+    r"(?![\w\s]*\b(?:held|classified|directly|attributable)\b)(?=\W*(?:$|[^\x00-\x7f]))"
+    r"|^\W*(?:资产总计|资产合计|资产总额|資產總值|資產總額|资产总值|负债合计|负债总计|负债总额|負債總額|負債總值"
+    r"|负债和所有者权益(?:（或股东权益）)?总计|负债和股东权益(?:（或所有者权益）)?总计|负债及所有者权益总计"
+    r"|負債及權益總額|权益及负债总额|流动资产净值|流動資產淨值|流动负债净额|流動負債淨額|资产净值|資產淨值"
+    r"|总资产减流动负债|總資產減流動負債)\W*$")
+# AN INCOME STATEMENT'S BOTTOM LINES, and a cash flow's, which close the section printed above
+# them. Each statement's own: a cash flow's operating section OPENS with profit before tax.
+_STATEMENT_TOTAL = {
+    "profit_and_loss": re.compile(
+        r"(?i)\b(?:profit|loss|earnings)(?:\s*/\s*\(?(?:loss|profit)\)?)?\s+(?:before|for\s+the\s+"
+        r"(?:year|period))\b|\btotal\s+comprehensive\b|^\W*other\s+comprehensive\s+(?:income|"
+        r"expense|loss)\S*(?:\s+\S+)?\s+for\s+the\s+(?:year|period)|^\W*gross\s+profit"
+        r"|^\W*operating\s+(?:profit|loss)|^\W*(?:profit|loss)\s+from\s+operati"),
+    "cash_flow": re.compile(
+        r"(?i)^\W*net\s+(?:\(?(?:increase|decrease)\)?\s*/?\s*)+in\s+cash"
+        r"|^\W*cash\s+and\s+cash\s+equivalents\s+at\s+(?:the\s+)?(?:end|beginning)"
+        r"|^\W*effects?\s+of\s+(?:foreign\s+)?exchange\s+rate"
+        r"|现金及现金等价物净增加额|現金及現金等價物淨增加額|期末现金及现金等价物余额|期初现金及现金等价物余额"
+        r"|汇率变动对现金及现金等价物的影响"),
+}
+# A total's own words: "Total …", "Net …", "… 合计".
+_TOTAL_WORDS = re.compile(r"(?i)^\W*(?:total|net)\b|(?:合计|合計|总计|總計|小计|小計|总额|總額|净额|淨額)\W*$"
+                          r"|\bfor\s+the\s+(?:year|period)\b|\bnet\s+of\s+tax\b")
+_STOP = frozenset({"of", "the", "and", "from", "in", "to", "used", "for", "a", "an", "by", "on"})
+
+
+def _fold_title(text: str) -> str:
+    return re.sub(r"[\W_]+", "", (text or "").casefold())
+
+
+def _words_of(text: str) -> tuple[frozenset[str], str]:
+    """A caption's Latin words less the connectives, and its Han text without numbering or
+    punctuation — the two halves a section and its total are compared on."""
+    t = (text or "").casefold()
+    latin = frozenset(w for w in re.findall(r"[a-z]+", t) if w not in _STOP)
+    han = re.sub(r"^[一二三四五六七八九十]+、|[^㐀-鿿]", "", text or "")
+    return latin, han
+
+
+def _totals_section(caption: str, section: str) -> bool:
+    """Whether `caption` is the total of the section `section` names: "Total current assets" of
+    CURRENT ASSETS, 非流动资产合计 of 非流动资产：, "Net cash flows used in investing activities" of
+    CASH FLOWS FROM INVESTING ACTIVITIES, "OTHER COMPREHENSIVE INCOME FOR THE YEAR" of OTHER
+    COMPREHENSIVE INCOME."""
+    if not caption or not section or not _TOTAL_WORDS.search(caption):
+        return False
+    c_latin, c_han = _words_of(caption)
+    s_latin, s_han = _words_of(section)
+    if s_latin and s_latin <= c_latin and c_latin != s_latin:
+        return True
+    return bool(s_han) and not s_latin and s_han in c_han and c_han != s_han
+
+
+def is_statement_title(text: str, titles=()) -> bool:
+    """Whether `text` is a statement's title — one the classifier matched on a page, or one by its
+    shape ("CONSOLIDATED STATEMENT OF PROFIT OR LOSS", 合并资产负债表)."""
+    return bool(_STATEMENT_TITLE.search(text or "")) or (
+        bool(titles) and _fold_title(text) in titles)
+
+
+def block_context(rows, statement: str = "", chrome=(), titles=()) -> list[tuple[str, str]]:
+    """``(under, subheading)`` for each row of one statement block, in the order given (printed
+    order) — see the comment above. `subheading` is the reader's `group_hint`, which a grand total
+    does not carry."""
+    closed: set[str] = set()
+    out: list[tuple[str, str]] = []
+    for row in rows:
+        caption = str(getattr(row, "source_label", "") or "")
+        section = str(getattr(row, "section_hint", None) or "").strip()
+        under = section
+        if under and (is_identity_line(under, chrome) or is_statement_title(under, titles)
+                      or _UNITS_ONLY.match(under)):
+            under = ""
+        if under in closed:
+            under = ""
+        sub = str(getattr(row, "group_hint", "") or "").strip()
+        grand = statement == "balance_sheet" and bool(_GRAND_TOTAL.search(caption))
+        bottom = statement in _STATEMENT_TOTAL and bool(_STATEMENT_TOTAL[statement].search(caption))
+        if section and section not in closed and not getattr(row, "caption_borrowed", False):
+            if _totals_section(caption, section):
+                # The section's own total: printed in it, and the last row that is.
+                closed.add(section)
+            elif grand or bottom:
+                closed.add(section)
+                under = ""
+        if grand:
+            under, sub = "", ""
+        heading = _joined_heading(caption)[0]
+        if heading and not sub:
+            sub = heading
+        out.append((under, sub))
+    return out
+
+
+#: Said of a row whose caption the reader took from the heading above it (`caption_borrowed`).
+BORROWED_CAPTION = "{heading} (total, printed without a caption)"
+
+
+# A SCHEDULE III HEADING THE READER LEFT JOINED TO THE CAPTION BENEATH IT: "Financial Assets
+# Investments", "Financial liabilities Borrowings". The reader keeps the joined caption, which the Ind
+# AS set's aliases are written against (`row_reconstruct._FACE_GROUP_HEADING` says why); the request
+# shows the row by its own caption, with the heading as its `subheading`.
+_JOINED_HEADING = re.compile(
+    r"^\W*((?i:financial\s+(?:assets|liabilities)))\s+(?=[A-Z])"
+    # …not a caption that merely begins with the words, in a title-case filing: "Financial Assets
+    # At Fair Value Through Profit Or Loss", "Financial Liabilities Measured At Amortised Cost".
+    r"(?!(?i:at|of|for|in|on|to|with|under|through|measured|designated|held|carried|other|and)\b)")
+
+
+def _joined_heading(caption: str) -> tuple[str, str]:
+    """``(heading, caption)`` for a caption opening with a joined Schedule III heading, else
+    ``("", caption)``."""
+    m = _JOINED_HEADING.match(caption or "")
+    if not m or not caption[m.end():].strip():
+        return "", caption
+    return m.group(1), caption[m.end():]
+
+
+def shown_caption(row) -> str:
+    """The caption a face row is SHOWN and cited by: its printed caption, or — for a bare total the
+    filing printed with no caption of its own, which the reader captioned with the heading over
+    the rows it totals ("CURRENT ASSETS", "EQUITY", "Attributable to:") — that heading, saying it
+    is not printed there. Sent as the heading alone it read as the heading, given figures: Lai
+    Sun's "CURRENT ASSETS" 13,991,585 beside its "Total current assets", its total equity
+    captioned "EQUITY"."""
+    caption = str(getattr(row, "source_label", "") or "")
+    if not getattr(row, "caption_borrowed", False) or not caption.strip():
+        return _joined_heading(caption)[1]
+    return BORROWED_CAPTION.format(heading=caption.strip().rstrip(":：").strip())
+
+
+def named_total_headings(rows) -> dict[int, str]:
+    """``{id(row): total}`` for an owners' / non-controlling row whose caption names which total
+    it is a share of — CAS 1.归属于母公司股东的净利润 and 2.少数股东损益 (of 五、净利润), 归属于母公司所有者的
+    综合收益总额 (of 七、综合收益总额) — giving the row printed above them that it splits. The caption
+    says which KIND of total; the request did not say which row, and the line's definition speaks
+    of the share "printed under the profit for the year". A share of other comprehensive income
+    (归属母公司所有者的其他综合收益的税后净额) is a part of that line, not a split of a total, and gets none.
+
+    Separate from `attribution_headings` on purpose: that one also scopes the MAPPING of the rows it
+    names (`stages.map_ontology`), and these captions map by their own words."""
+    by_statement: dict[str, list[tuple[int, int, object]]] = {}
+    for at, (statement, page, row) in enumerate(rows or ()):
+        if statement == "profit_and_loss" and (getattr(row, "source_label", "") or ""):
+            by_statement.setdefault(statement, []).append(
+                (page if page is not None else 0, at, row))
+    out: dict[int, str] = {}
+    for seq in by_statement.values():
+        ordered = [r for _p, _a, r in sorted(seq, key=lambda t: (t[0], t[1]))]
+        for i, row in enumerate(ordered):
+            caption = getattr(row, "source_label", "") or ""
+            if not _ATTRIBUTION_ROW.search(caption) or is_attribution_row(caption):
+                continue
+            if re.search(r"(?i)other\s+comprehensive|其他综合收益|其他綜合收益|其他全面收益|per\s+share"
+                         r"|每股", caption):
+                continue
+            kind = _total_kind(caption) or (
+                "profit" if re.search(r"(?i)\bprofit|\bloss|损益|損益|利润|利潤|溢利|虧損|亏损", caption)
+                else "")
+            if not kind:
+                continue
+            for j in range(i - 1, -1, -1):
+                prior = getattr(ordered[j], "source_label", "") or ""
+                if _ATTRIBUTION_ROW.search(prior):
+                    continue
+                if _total_kind(prior) == kind:
+                    out[id(row)] = prior.strip()
+                    break
     return out
 
 
@@ -512,8 +745,19 @@ def _figures_by_entity(row) -> dict[str, tuple[dict[str, str], dict[str, str]]]:
     return out
 
 
-def face_index(doc) -> list[tuple[str, str, object]]:
+class FaceIndex(list):
+    """`face_index`'s rows, carrying what each row is shown printed under (`headings`: ``{id(row):
+    [under, subheading, …]}``, over every block it is shown in) — the headings a citation's
+    `group` is read against, so the heading a model copies back is the one it was shown."""
+
+    headings: dict[int, list[str]]
+
+
+def face_index(doc) -> FaceIndex:
     """`(statement, caption, row)` for every printed face row, for resolving a citation against.
+
+    THE CAPTION IS THE ONE THE ROW IS SHOWN BY (`shown_caption`), and `headings` what it is shown
+    under (`block_context`): a citation copies back what the request carried.
 
     THE RESOLVER'S SIDE OF THE BLOCK ABOVE. `face_rows` builds what the model is SHOWN; this builds
     what a citation is looked up IN, and the two must agree about which rows exist or the model can
@@ -533,6 +777,21 @@ def face_index(doc) -> list[tuple[str, str, object]]:
     model was shown. Before, the lookup still held every row, and a citation of a caption the
     request never carried could resolve to a note row of the same wording.
     """
+    out = FaceIndex((st, shown_caption(row), row) for st, _caption, row in _face_index_rows(doc))
+    by_block, _legends = _face_blocks(doc)
+    headings: dict[int, list[str]] = {}
+    for (_key, rid), pair in _blocks_context(doc, by_block).items():
+        seen = headings.setdefault(rid, [])
+        for heading in pair:
+            if heading and heading not in seen:
+                seen.append(heading)
+    out.headings = headings
+    return out
+
+
+def _face_index_rows(doc) -> list[tuple[str, str, object]]:
+    """`(statement, printed caption, row)` for every printed face row — `face_index` before the
+    caption a row is shown by."""
     # FOLDED, for the reason `face_rows` gives at length: the two sides of this join spell the
     # equity statement differently, and a citation naming the spelling its own line declares must
     # resolve against the spelling the page carries.

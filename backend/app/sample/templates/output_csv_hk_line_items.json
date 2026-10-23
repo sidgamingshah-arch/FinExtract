@@ -2600,7 +2600,7 @@
   {
    "key": "bs_nca__total_non_current_assets",
    "label": "Total Non-Current Assets",
-   "definition": "The subtotal the filing PRINTS as 'Total Non-Current Assets', reported in the non-current assets section of the balance sheet. It is the sum of Net Fixed Assets, Net Intangibles, Investment Property(Net), Investment in Subsidiaries, Investments in Associates, Invest in JVs & Partnerships, Entrusted loan receivables- related parties(LTP), Due from directors and and 26 more. Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
+   "definition": "The subtotal the filing PRINTS as 'Total Non-Current Assets', reported in the non-current assets section of the balance sheet. It is the sum of the 34 lines this template's rollup adds up under it, among them Net Fixed Assets, Net Intangibles, Investment Property(Net), Investment in Subsidiaries, Investments in Associates, Invest in JVs & Partnerships, Entrusted loan receivables- related parties(LTP) and Due from directors. Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
    "extraction_mode": "extract_or_derive",
    "aliases": [
     "Total Non-Current Assets",
@@ -4420,7 +4420,7 @@
   {
    "key": "bs_ca__total_current_assets",
    "label": "Total Current Assets",
-   "definition": "The subtotal the filing PRINTS as 'Total Current Assets', reported in the current assets section of the balance sheet. It is the sum of Operating Lease Receivables, Inventories, Due from JVs & Partnerships, Entrusted loan receivables- related parties(CP), Due from Related Parties(CP), Entrusted loan receivables- shareholders(CP), Due from S'holder(CP), Short Term Securities and and 31 more. Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
+   "definition": "The subtotal the filing PRINTS as 'Total Current Assets', reported in the current assets section of the balance sheet. It is the sum of the 39 lines this template's rollup adds up under it, among them Operating Lease Receivables, Inventories, Due from JVs & Partnerships, Entrusted loan receivables- related parties(CP), Due from Related Parties(CP), Entrusted loan receivables- shareholders(CP), Due from S'holder(CP) and Short Term Securities. Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
    "extraction_mode": "extract_or_derive",
    "aliases": [
     "Total Current Assets",
@@ -4618,7 +4618,7 @@
   {
    "key": "bs_ca__total_assets",
    "label": "Total Assets",
-   "definition": "The subtotal the filing PRINTS as 'Total Assets', reported in the current assets section of the balance sheet. It is the sum of Total Non-Current Assets and Total Current Assets. Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
+   "definition": "The total of every asset the balance sheet reports, current and non-current together: the grand total printed below both asset sections — 资产总计 on a CAS balance sheet, 'Total assets' on an HKFRS statement of financial position. It belongs to neither the current nor the non-current section, and it is not 'Total assets less current liabilities' or net assets. It equals Total Non-Current Assets plus Total Current Assets. Read the printed total. Do not add it up yourself; the arithmetic is declared in this template's rollup. Where the filing prints no total of its assets — an HKFRS statement of financial position often prints only 'Total assets less current liabilities' and net assets — answer with an empty sources list and leave it to the rollup.",
    "extraction_mode": "extract_or_derive",
    "aliases": [
     "Total Assets"
@@ -6621,7 +6621,7 @@
   {
    "key": "bs_ncl__total_non_current_liabilities",
    "label": "Total Non-Current Liabilities",
-   "definition": "The subtotal the filing PRINTS as 'Total Non-Current Liabilities', reported in the non-current liabilities section of the balance sheet. It is the sum of LTD Bank, Entrusted loan payables- third parties(LTP), Perpetual Bond, Repo(LTP), LTD Other, LTD Convertible, LTD Subordinated, Finance Leases(LTP) and and 27 more. Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
+   "definition": "The subtotal the filing PRINTS as 'Total Non-Current Liabilities', reported in the non-current liabilities section of the balance sheet. It is the sum of the 35 lines this template's rollup adds up under it, among them LTD Bank, Entrusted loan payables- third parties(LTP), Perpetual Bond, Repo(LTP), LTD Other, LTD Convertible, LTD Subordinated and Finance Leases(LTP). Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
    "extraction_mode": "extract_or_derive",
    "aliases": [
     "Total Non-Current Liabilities"
@@ -8336,7 +8336,7 @@
   {
    "key": "bs_cl__total_current_liabilities",
    "label": "Total Current Liabilities",
-   "definition": "The subtotal the filing PRINTS as 'Total Current Liabilities', reported in the current liabilities section of the balance sheet. It is the sum of CPLTD Bank, Entrusted loan payables- third parties(CP), CPLTD Other, CPLTD Convertible, CPLTD Subordinated, Trade financing, ST Bank Loans Payable, IPO Loans (ST Bank Loans Pay) and and 42 more. Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
+   "definition": "The subtotal the filing PRINTS as 'Total Current Liabilities', reported in the current liabilities section of the balance sheet. It is the sum of the 50 lines this template's rollup adds up under it, among them CPLTD Bank, Entrusted loan payables- third parties(CP), CPLTD Other, CPLTD Convertible, CPLTD Subordinated, Trade financing, ST Bank Loans Payable and IPO Loans (ST Bank Loans Pay). Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
    "extraction_mode": "extract_or_derive",
    "aliases": [
     "Total Current Liabilities"
@@ -8571,7 +8571,7 @@
   {
    "key": "bs_cl__total_liabilities",
    "label": "Total Liabilities",
-   "definition": "The subtotal the filing PRINTS as 'Total Liabilities', reported in the current liabilities section of the balance sheet. It is the sum of Total Non-Current Liabilities and Total Current Liabilities. Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
+   "definition": "The total of every liability the balance sheet reports, current and non-current together: the total printed after both liability sections — 负债合计 on a CAS balance sheet, 'Total liabilities' on an HKFRS statement of financial position. It belongs to neither the current nor the non-current section, and it is not Total Current Liabilities, Total Non-Current Liabilities or the total of equity and liabilities. It equals Total Non-Current Liabilities plus Total Current Liabilities. Read the printed total. Do not add it up yourself; the arithmetic is declared in this template's rollup. Where the filing prints no total of its liabilities, as an HKFRS statement of financial position usually does not, answer with an empty sources list and leave it to the rollup.",
    "extraction_mode": "extract_or_derive",
    "aliases": [
     "Total Liabilities"
@@ -8620,7 +8620,7 @@
   {
    "key": "bs_cl__total_equity_and_liabilities",
    "label": "Total Equity and Liabilities",
-   "definition": "The subtotal the filing PRINTS as 'Total Equity and Liabilities', reported in the current liabilities section of the balance sheet. It is the sum of Total Equity & Reserves and Total Liabilities. Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
+   "definition": "The grand total of the balance sheet's equity-and-liabilities side: total equity, non-controlling interests included, plus total liabilities, printed at the foot of the statement — 负债和所有者权益（或股东权益）总计 on a CAS balance sheet, 'Total equity and liabilities' on an HKFRS or Ind AS one. It equals Total Assets. It belongs to no section, and it is not total liabilities or total equity alone. Read the printed total. Do not add it up yourself; the arithmetic is declared in this template's rollup. Where the filing prints no such total — an HKFRS statement of financial position that ends at total equity — answer with an empty sources list and leave it to the rollup.",
    "extraction_mode": "extract_or_derive",
    "aliases": [
     "Total Equity and Liabilities",
@@ -9413,7 +9413,7 @@
   {
    "key": "is_pl__personnel_and_benefit_expenses",
    "label": "Personnel & Benefit Expenses",
-   "definition": "Extract the reported value for 'Personnel & Benefit Expenses' from the stated section. Do not calculate it.",
+   "definition": "The cost of employee benefits the filing charges to profit or loss for the year: wages and salaries, bonuses and allowances, pension and other retirement scheme contributions, social security and housing fund contributions, staff welfare, and equity-settled share-based payments to employees. It is the employee benefit (staff costs) total the filing prints — 'Employee benefit expense' or 'Staff costs' in the profit-before-tax note of an HKFRS filing, 职工薪酬 or 员工成本 in a CAS one. Take that total as the note prints it: with the directors' and chief executive's remuneration where the note's total includes it, and without it where the note excludes it and states it in another note (do not add that note to it). Where the note deducts amounts capitalised (into properties under development, construction in progress or inventories) or government grants released against the cost, the line is the figure after those deductions — the cost charged to profit or loss. Where the note prints no total, cite each of its components; the line is their sum. It is not employee benefits payable, and not the remuneration of directors or key management alone.",
    "aliases": [
     "Personnel & Benefit Expenses",
     "Salaries, commission",
@@ -10244,7 +10244,7 @@
   {
    "key": "is_pl__net_operating_profit",
    "label": "Net Operating Profit",
-   "definition": "The subtotal the filing PRINTS as 'Net Operating Profit', reported in the statement of profit and loss. It is the sum of Gross Profit, Rents & Royalty Income, Other Operating Income, Commission Income (Other Operating Inc), Commission Income (Sales), Grants & Subsidies, Selling & Marketing Expenses, General & Admin Expenses and and 22 more. Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
+   "definition": "The operating profit or loss the statement of profit and loss prints: the result of the year's operations before finance costs, the share of results of associates and joint ventures, and income tax — 'Operating profit', 'Profit from operations' or 'Loss from operating activities' on an HKFRS statement, 营业利润 (三、营业利润) on a CAS one. It is gross profit plus the other operating income, less the selling, administrative, research and other operating expenses, as this template's rollup adds them. It is not profit before tax and not gross profit. Read the printed subtotal. Do not add it up from its components yourself; the arithmetic is declared in this template's rollup. Where the filing prints no operating profit, answer with an empty sources list and leave it to the rollup.",
    "extraction_mode": "extract_or_derive",
    "aliases": [
     "Net Operating Profit",
@@ -10719,7 +10719,7 @@
   {
    "key": "is_pl__interest_expense_capitalised",
    "label": "Interest expense - capitalised",
-   "definition": "Extract the reported value for 'Interest expense - capitalised' from the stated section. Do not calculate it.",
+   "definition": "Borrowing costs capitalised in the year: the interest on borrowings the filing added to the cost of qualifying assets — construction in progress, properties under development, investment properties under construction — instead of charging it to profit or loss. An HKFRS filing prints it in the finance costs note, deducted from the total interest to arrive at the finance costs charged ('Less: Interest capitalised', 'Amount capitalised in properties under development'); where the note prints one such row per class of asset, cite each, and the line is their total. A CAS filing states it as 利息资本化金额 (本期利息资本化金额, 资本化利息) in the 财务费用 or 在建工程 note; it is not printed on the income statement. It is not the interest expense charged to profit or loss, and not the capitalisation rate. Where the filing states no interest capitalised, answer with an empty sources list.",
    "aliases": [
     "Interest expense - capitalised",
     "capitalised interest"
@@ -10907,7 +10907,7 @@
   {
    "key": "is_pl__net_interest_income_expense",
    "label": "Net Interest Income(Expense)",
-   "definition": "The subtotal the filing PRINTS as 'Net Interest Income(Expense)', reported in the statement of profit and loss. It is the sum of Interest income from derivatives, Interest income from wealth management products, Interest income from Entrusted loan receivables, Interest Income, Interest on lease liabilities, Interest on debt market instruments, Interest on capital market instruments, Interest on trade finance and and 7 more. Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
+   "definition": "The subtotal the filing PRINTS as 'Net Interest Income(Expense)', reported in the statement of profit and loss. It is the sum of the 15 lines this template's rollup adds up under it, among them Interest income from derivatives, Interest income from wealth management products, Interest income from Entrusted loan receivables, Interest Income, Interest on lease liabilities, Interest on debt market instruments, Interest on capital market instruments and Interest on trade finance. Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
    "extraction_mode": "extract_or_derive",
    "aliases": [
     "Net Interest Income(Expense)",
@@ -11408,7 +11408,7 @@
   {
    "key": "is_pl__net_other_financial_inc_exp",
    "label": "Net Other Financial Inc(Exp)",
-   "definition": "The subtotal the filing PRINTS as 'Net Other Financial Inc(Exp)', reported in the statement of profit and loss. It is the sum of Income(Loss) from Related Party, Income(Loss) from Joint Ventures, Fncl income from derivatives, Fncl income from wealth management products, Other Fncl Asset Income(Dvds), Gain(loss) on derivatives, Gain(loss) on wealth management products, Gain(Loss) on Fncl Assets and and 5 more. Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
+   "definition": "The subtotal the filing PRINTS as 'Net Other Financial Inc(Exp)', reported in the statement of profit and loss. It is the sum of the 13 lines this template's rollup adds up under it, among them Income(Loss) from Related Party, Income(Loss) from Joint Ventures, Fncl income from derivatives, Fncl income from wealth management products, Other Fncl Asset Income(Dvds), Gain(loss) on derivatives, Gain(loss) on wealth management products and Gain(Loss) on Fncl Assets. Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
    "extraction_mode": "extract_or_derive",
    "aliases": [
     "Net Other Financial Inc(Exp)"
@@ -11597,7 +11597,7 @@
   {
    "key": "is_pl__other_non_income_related_taxes",
    "label": "Other Non-Income Related Taxes",
-   "definition": "Extract the reported value for 'Other Non-Income Related Taxes' from the stated section. Do not calculate it.",
+   "definition": "Taxes and levies other than income tax that the statement of profit and loss charges on a line of their own: 税金及附加 (营业税金及附加) on a CAS income statement — city maintenance and construction tax, education surcharges, property tax, land use tax, stamp duty and land appreciation tax — and the same row where an HKFRS statement prints one ('Tax and surcharges', 'Taxes and surcharges', 'Business tax and surcharges'). Read it off the face of the statement. It is not income tax or deferred tax, and not a land appreciation tax the filing includes in its income tax expense. Where the statement prints no such row, answer with an empty sources list.",
    "aliases": [
     "Other Non-Income Related Taxes",
     "Taxes and surcharges",
@@ -13810,7 +13810,7 @@
   {
    "key": "cf_oper_indirect__cash_flows_oper_activ_indirect",
    "label": "Cash Flows Oper Activ(Indirect)",
-   "definition": "The subtotal the filing PRINTS as 'Cash Flows Oper Activ(Indirect)', reported in the operating section of the cash flow statement. It is the sum of Net Profit/(Loss), Other After Tax (Income)/Expense, Minority Interests(CF), Income Tax Expense, Depreciation, Amortization & Asset Impairment, Cash Flow from Hedging(Oper), Assoc Profit Share(Net of Dvds) and and 23 more. Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
+   "definition": "The subtotal the filing PRINTS as 'Cash Flows Oper Activ(Indirect)', reported in the operating section of the cash flow statement. It is the sum of the 31 lines this template's rollup adds up under it, among them Net Profit/(Loss), Other After Tax (Income)/Expense, Minority Interests(CF), Income Tax Expense, Depreciation, Amortization & Asset Impairment, Cash Flow from Hedging(Oper) and Assoc Profit Share(Net of Dvds). Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
    "extraction_mode": "extract_or_derive",
    "aliases": [
     "Cash Flows Oper Activ(Indirect)",
@@ -14819,7 +14819,7 @@
   {
    "key": "cf_investing__cash_flows_from_invest_activities",
    "label": "Cash Flows from Invest Activities",
-   "definition": "The subtotal the filing PRINTS as 'Cash Flows from Invest Activities', reported in the investing section of the cash flow statement. It is the sum of Purchase Intangible Assets, Proceeds Sale Intgbl Assets, Purchase PPE, Proceeds Sale PPE, Purchase Investment Property, Proceeds Sale Investment Prop, Purchase Financial Assets, Proceeds Sale Fncl Assets and and 12 more. Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
+   "definition": "The subtotal the filing PRINTS as 'Cash Flows from Invest Activities', reported in the investing section of the cash flow statement. It is the sum of the 20 lines this template's rollup adds up under it, among them Purchase Intangible Assets, Proceeds Sale Intgbl Assets, Purchase PPE, Proceeds Sale PPE, Purchase Investment Property, Proceeds Sale Investment Prop, Purchase Financial Assets and Proceeds Sale Fncl Assets. Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
    "extraction_mode": "extract_or_derive",
    "aliases": [
     "Cash Flows from Invest Activities",
@@ -15324,7 +15324,7 @@
   {
    "key": "cf_financing__cash_flows_from_finance_activities",
    "label": "Cash Flows from Finance Activities",
-   "definition": "The subtotal the filing PRINTS as 'Cash Flows from Finance Activities', reported in the financing section of the cash flow statement. It is the sum of Net Proceeds Issuance of Capital, Purchase(Sale) Treasury Stock, Proceeds Non-Cur Borrowings, Issue Costs Non-Cur Borrowings, Repayments Non-Cur Borrowings, Chg in Current Borrowings, Interest Paid(Fin), Translation Adj Relating to Cash and and 5 more. Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
+   "definition": "The subtotal the filing PRINTS as 'Cash Flows from Finance Activities', reported in the financing section of the cash flow statement. It is the sum of the 13 lines this template's rollup adds up under it, among them Net Proceeds Issuance of Capital, Purchase(Sale) Treasury Stock, Proceeds Non-Cur Borrowings, Issue Costs Non-Cur Borrowings, Repayments Non-Cur Borrowings, Chg in Current Borrowings, Interest Paid(Fin) and Translation Adj Relating to Cash. Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
    "extraction_mode": "extract_or_derive",
    "aliases": [
     "Cash Flows from Finance Activities",

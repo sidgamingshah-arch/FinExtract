@@ -1649,11 +1649,18 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
             # either. Narrowed only where it matches, as a note row's group is.
             want_group = norm(getattr(ref, "group", ""))
             if on_face is not None and want_group:
-                if face_headings is None:
+                # WHAT THE ROW WAS SHOWN UNDER, where the index says (`face_context.FaceIndex.
+                # headings`): the `under` and `subheading` the request carried, so the heading a
+                # model copies back is read against the one it was given. An index built some
+                # other way (a bare list) falls back to the reader's own section and group.
+                shown = getattr(face, "headings", None)
+                if face_headings is None and shown is None:
                     from app.services.face_context import _page_of, attribution_headings
                     face_headings = attribution_headings(
                         (f[0], _page_of(f[2]), f[2]) for f in face_rows)
                 def _headings(f):
+                    if shown is not None:
+                        return [norm(h) for h in shown.get(id(f[2]), ()) if h]
                     return [norm(h) for h in (
                         [face_headings[id(f[2])]] if id(f[2]) in face_headings
                         else [getattr(f[2], "section_hint", None) or "",

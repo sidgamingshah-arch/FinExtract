@@ -657,7 +657,12 @@ def _split_banner_prefix(label_words: list[Word], steps: tuple[tuple[str, object
     i = 0
     while i < len(lines) - 1:
         text = _join_words(_regroup_scripts(lines[i]))
-        if not _is_banner_line(text, steps):
+        # A ONE-WORD BANNER ("Equity") IS ONE WHERE THE NEXT LINE STARTS A CAPTION OF ITS OWN —
+        # "Equity" over "Equity share capital" (Laurus, Asian Paints), which was read as one
+        # caption, "Equity Equity share capital". Over "investments designated at FVOCI" it is the
+        # first word of that caption, and still not a banner (`_is_banner_line`).
+        if not (_is_banner_line(text, steps)
+                or (_is_one_word_banner(text, steps) and _opens_a_caption(lines[i + 1]))):
             break
         # A banner does not wrap into the line beneath it; a long caption does. Reuse the grammar
         # test that already tells those apart — without it "Equity" printed above "investments
@@ -1306,6 +1311,86 @@ def _is_wrapped_head(head: list[Word], cont: list[Word],
     return bool(_HEAD_INCOMPLETE.search(head_latin)) or bool(_CONT_STARTS.match(cont_text))
 
 
+# A HEADING A FACE PRINTS OVER THE ROWS BENEATH IT, with no colon and in sentence case, so neither
+# `_looks_like_header` nor the banner test sees it: Lai Sun's "Equity attributable to owners of the
+# Company" over "Share capital" and "Reserves". It names no section, and read as a wrapped caption it
+# was glued onto the first row under it — "Equity attributable to owners of the Company Share
+# capital" — which then mapped to nothing.
+#
+# NOT A SCHEDULE III "Financial assets" / "Financial liabilities" heading, though it is the same
+# shape: split off here, "Investments" under it reached no line of the Ind AS set's non-current
+# assets (Laurus and Asian Paints lost 309.27 and 119.82 crore of total assets), because that set's
+# aliases are written against the joined caption. The request shows those rows by their own caption
+# instead (`face_context.shown_caption`), and the reader's caption is left as it was.
+_FACE_GROUP_HEADING = re.compile(
+    r"(?i)^\W*(?:equity|capital\s+and\s+reserves)\s+attributable\s+to\s+(?:the\s+)?"
+    r"(?:owners|equity\s+holders|shareholders|holders|ordinary\s+shareholders)\b.*$")
+
+
+def _is_face_group_heading(text: str) -> bool:
+    """Whether a figure-less face line is a heading of the rows printed under it (see above).
+    Judged on its Latin words, so a bilingual heading's translation does not hide it."""
+    latin = re.sub(r"\s+", " ", _HAN.sub(" ", text or "")).strip()
+    return bool(latin) and bool(_FACE_GROUP_HEADING.match(latin)) and not latin.endswith(
+        (",", "-", "–"))
+
+
+def _opens_a_caption(words: list[Word]) -> bool:
+    """Whether a printed line starts a caption of its own: its first word opens with a capital
+    letter and is not a connective. "Share capital" under "Equity attributable to owners of the
+    Company" does; "investments designated at FVOCI" under "Equity" — the tail of one caption
+    wrapped after its first word — does not."""
+    if not words:
+        return False
+    first = min(words, key=lambda w: w.bbox.x0).text.strip()
+    text = " ".join(w.text for w in sorted(words, key=lambda w: w.bbox.x0))
+    return bool(first[:1]) and first[:1].isupper() and not _CONT_STARTS.match(text)
+
+
+def _is_one_word_banner(text: str, steps: tuple[tuple[str, object], ...]) -> bool:
+    """A single-word English section banner ("Equity") — the one shape `_is_banner_line` refuses
+    on its own, because it is also the first word of a wrapped caption."""
+    t = (text or "").strip()
+    return (len(t.split()) == 1 and not _HAN.search(t)
+            and section_of_banner_only(apply_pipeline(t, steps)) is not None)
+
+
+def _split_face_heading_prefix(label_words: list[Word]) -> tuple[str | None, list[Word]]:
+    """``(heading, caption words)`` when a valued face row's label opens with a heading printed
+    on its own line above the caption (`_is_face_group_heading`) and the next line starts a
+    caption of its own; ``(None, label_words)`` otherwise. Row clustering merges a heading printed
+    tight above its first row into that row, as it does a section banner (`_split_banner_prefix`)."""
+    lines = _label_sub_lines(label_words)
+    if len(lines) < 2:
+        return None, label_words
+    head = _join_words(_regroup_scripts(lines[0]))
+    if not _is_face_group_heading(head) or not _opens_a_caption(lines[1]):
+        return None, label_words
+    return head, [w for line in lines[1:] for w in line]
+
+
+def _continues_a_heading(held: tuple[str, list[Word]], label_words: list[Word], label: str,
+                         steps: tuple[tuple[str, object], ...]) -> bool:
+    """Whether a colon-ended heading line is the SECOND line of a heading whose first line was
+    printed, figure-less, directly above it: "Other comprehensive income/(expense) that may be
+    reclassified to" over "profit or loss in subsequent periods:". The first line names nothing
+    the tests here recognise, so it was dropped and the heading was the tail alone — the same tail
+    for "may be reclassified" and "will not be reclassified", so the two blocks of an OCI section
+    could not be told apart. Grammar, as `_is_wrapped_head` judges it: the head ends mid-phrase,
+    or the tail opens in lower case or with a connective."""
+    head, head_words = held
+    if not head or not label or _ends_with_colon(head, steps) or not head_words:
+        return False
+    if not _wrap_adjacent(_row_box(head_words), _row_box(label_words), label_words):
+        return False
+    head_latin = re.sub(r"\s+", " ", _HAN.sub(" ", head)).strip()
+    if not head_latin:
+        return False
+    tail = label.strip()
+    return (tail[:1].islower() or bool(_HEAD_INCOMPLETE.search(head_latin))
+            or bool(_CONT_STARTS.match(tail)))
+
+
 _ARABIC = re.compile(r"[؀-ۿݐ-ݿﭐ-﷿ﹰ-﻿]")
 _LATIN = re.compile(r"[A-Za-z]")
 
@@ -1858,6 +1943,10 @@ def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
             # ON A FACE, A NUMBERED HEADING OVER INDENTED ROWS — see `_heads_numbered_face_block`.
             and not (on_face and _heads_numbered_face_block(pending + label_words,
                                                             _scan_row(nxt, fmt)[0]))
+            # ON A FACE, A HEADING OF THE ROWS BENEATH IT — see `_is_face_group_heading`.
+            and not (on_face and not pending
+                     and _is_face_group_heading(_join_words(label_words))
+                     and _opens_a_caption(_scan_row(nxt, fmt)[0]))
             and (on_face or not (_heads_indented_rows(label_words, _scan_row(nxt, fmt)[0])
                                  or _titles_the_table(label_words, _scan_row(nxt, fmt)[0])
                                  or _heads_a_movement_block(label_words,
@@ -3013,6 +3102,14 @@ _AGE_BUCKET = re.compile(r"^\d{1,3}\s*(?:[-–—~至]\s*\d{1,3}\s*)?(?:年|个�
 # that ends this way and is a detail. Traditional forms included for a Hong Kong printing of the
 # same statement. ``on_face`` at the call site: inside a NOTE, 合计 is the note table's own total
 # and the note→face tie already reads it as one.
+# A FACE ROW THAT ENDS THE SUB-HEADING BLOCK ABOVE IT rather than belonging to it: a total and the
+# statement's own bottom lines (profit before tax, profit for the year, operating profit, gross
+# profit). Not a "Net …" line: "Net gain on disposal of …" is a row of an "Adjustments for:" block.
+# See "WHERE A FACE SUB-HEADING'S BLOCK ENDS" in `build_line_items`.
+_CLOSES_A_FACE_BLOCK = re.compile(
+    r"(?i)^\W*total\b|\bbefore\s+(?:income\s+)?tax(?:ation)?\b"
+    r"|\bfor\s+the\s+(?:year|period)\b|^\W*gross\s+profit|^\W*operating\s+(?:profit|loss)"
+    r"|^\W*(?:profit|loss)\s+from\s+operati|(?:合计|合計|总计|總計|小计|小計|总额|總額)\s*$")
 _CAS_TOTAL_LINE = re.compile(r"(合计|合計|总计|總計|小计|小計)\s*$")
 
 # A SCHEDULE III FACE PRINTS ITS TOTALS WITH THEIR ARITHMETIC: "III. Total income (I + II)",
@@ -7081,7 +7178,15 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
             if _heads_numbered_face_block(lw, nxt):
                 lead = min(lw, key=lambda w: w.bbox.x0).text.strip()
                 (face_sections if _ROMAN_NUMBER.match(lead) else sub_heads).add(id(row))
+    # THE FIGURE-LESS FACE LINE PRINTED DIRECTLY ABOVE, when nothing below took it for a heading —
+    # the first line of a heading that wraps onto a second, colon-ended one (`_continues_a_heading`).
+    held_head: tuple[str, list[Word]] | None = None
+    # The face sub-heading whose block the rows are being read in, and whether its first row was
+    # set inboard of it — see "WHERE A FACE SUB-HEADING'S BLOCK ENDS" below.
+    face_group_seen: tuple[str, float | None] | None = None
+    face_group_inset = False
     for row in rows:
+        held, held_head = held_head, None
         label_words, note_ref, value_words = _scan_row(
             row, number_format, extract_note_refs=on_face)
         if on_face:
@@ -7119,6 +7224,15 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                 section = merged_banner
                 group = ""
                 open_breakdowns.clear()     # a new section ends every breakdown above it
+            # …AND A HEADING OF THE ROWS BENEATH IT, merged the same way: it is their sub-heading,
+            # not the first words of this row's caption — see `_split_face_heading_prefix`.
+            if on_face:
+                whole = label_words
+                merged_head, label_words = _split_face_heading_prefix(label_words)
+                if merged_head:
+                    group = merged_head
+                    kept = {id(w) for w in label_words}
+                    group_x0 = min((w.bbox.x0 for w in whole if id(w) not in kept), default=None)
         # AFTER the banner split, so a banner just merged out of the label cannot be pulled back in
         # by rebuilding from the whole row; BEFORE the join, because it is the label's WORDS this
         # repairs. See `_label_keeping_its_date` for the measurement.
@@ -7379,6 +7493,14 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                 # sheet's five sections are closed, so anything else named on one is a caption.
                 banner = None
             sub_head = id(row) in sub_heads or id(row) in titles or id(row) in block_heads
+            # A HEADING WRAPPED ONTO A SECOND LINE is read as the whole of what it prints, the
+            # first line included; which kind of heading it is is still decided on the line that
+            # ends it, as before. See `_continues_a_heading`.
+            shown = label
+            if (on_face and held is not None and label and not value_words
+                    and _ends_with_colon(label, steps)
+                    and _continues_a_heading(held, label_words, label, steps)):
+                shown = f"{held[0].strip()} {label.strip()}"
             if label and caption and not value_words and (heading or banner is not None
                                                           or sub_head):
                 if _is_units_caption(label_words):
@@ -7395,11 +7517,11 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                     # reads as one on its own line — see ``_TAIL_CONTINUATION``.
                     continue
                 if banner is not None or (heading and not _ends_with_colon(label, steps)):
-                    section = label
+                    section = shown
                     group = ""          # a new section ends the sub-heading's scope
                     open_breakdowns.clear()     # …and every 其中 breakdown above it
                 else:
-                    group = label
+                    group = shown
                 if sub_head:
                     # A banner phrase heading an indented block in a note — "Other comprehensive
                     # income" over its own movement — still scopes as a banner, AND names the rows
@@ -7413,7 +7535,7 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                           else min(w.bbox.x0 for w in label_words))
                     while sub_stack and sub_stack[-1][0] >= x0 - _INDENT_MIN:
                         sub_stack.pop()
-                    sub_stack.append((x0, label))
+                    sub_stack.append((x0, shown))
                     group = heading_path(sub_stack)
                 else:
                     sub_stack.clear()
@@ -7424,7 +7546,16 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                 # starts with no rows behind it, no column edges, and this heading's geometry.
                 block_ordinals, block_value_x1s = [], []
                 group_label_bbox = _union([w.source_bbox for w in label_words])
+                group_x0 = min((w.bbox.x0 for w in (
+                    [*held[1], *label_words] if shown != label and held else label_words)),
+                    default=None)
+            elif on_face and label and not value_words and _is_face_group_heading(label):
+                # A FACE HEADING WITH NO COLON over the rows beneath it — see
+                # `_is_face_group_heading`. It heads them as a colon heading would.
+                group = label
                 group_x0 = min((w.bbox.x0 for w in label_words), default=None)
+            elif on_face and label and not value_words:
+                held_head = (label, label_words)
             continue
 
         # Drop running-header / statement-title / period-caption lines that leaked in as rows
@@ -7477,6 +7608,34 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
         statement_line = on_face and (bool(_CAS_STATEMENT_LINE.match(label))
                                      or bool(_CAS_TOTAL_LINE.search(label))
                                      or bool(_SCHEDULE_III_TOTAL_LINE.search(label)))
+        # WHERE A FACE SUB-HEADING'S BLOCK ENDS. On a face a colon heading ("Share of net profits
+        # of:", "Receivables financing:", "Cash flow hedges:") was the `group` of every row after
+        # it until the next section banner, so Far East Horizon's profit before tax, income tax and
+        # profit for the year were sent "under" the share of profits of associates, and BYD's total
+        # comprehensive income under "Receivables financing:". The block ends where the page says
+        # it does: at a row set back to the heading's own edge when the block's rows are indented
+        # beneath it, and at a total, which is the block's end and not one of its rows. A bare
+        # subtotal promoted under the heading totals the block: it keeps the heading, and ends it.
+        close_group_after = False
+        if on_face and group and not sub_stack:
+            x0 = min((w.bbox.x0 for w in label_words), default=None)
+            if face_group_seen != (group, group_x0):
+                face_group_seen = (group, group_x0)
+                face_group_inset = (x0 is not None and group_x0 is not None
+                                    and x0 > group_x0 + _INDENT_MIN)
+            elif (face_group_inset and x0 is not None and group_x0 is not None
+                  and x0 <= group_x0 + _INDENT_MIN):
+                group = ""
+            if group and not promoted and (statement_line or _CLOSES_A_FACE_BLOCK.search(label)):
+                group = ""
+            if group and promoted:
+                # It totals the rows of its SECTION since the last total; it is the heading's own
+                # subtotal only when every one of those rows was printed under the heading. BYD's
+                # bare operating total adds profit before tax to the adjustments, and is not "Fair
+                # value gains, net:", the last sub-heading above it.
+                if not face_captions or any(m.group_hint != group for m in face_captions):
+                    group = ""
+                close_group_after = True
         if sub_stack:
             group = _under_sub_heading(sub_stack, label_words, label, promoted)
             sub_open = True
@@ -7491,6 +7650,8 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
         if sub_open and not sub_stack:
             group = ""          # the last block a printed heading opened has ended
             sub_open = False
+        if close_group_after:
+            group = ""
         # THE HEADING'S BOX FOR A BORROWED CAPTION. A promoted row has no label words of its own, so
         # this was None — and `_prov_anchor` then falls back to the value box's vertical band alone,
         # which two sub-tables printed on one baseline share. The judgement layer refuses to attribute
