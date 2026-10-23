@@ -385,6 +385,14 @@ class NormalizeStage:
                 if m.unit_of_account:
                     unit_of_account[m.canonical_key] = m.unit_of_account
 
+        # THE ROWS PRINTED AS AN UNSIGNED EXPENSE, by their own caption's flip rule: a CAS 财务费用 is
+        # printed positive when it is a charge. A contra line printed as a 其中 breakdown of one of
+        # them (`LineItem.parent_id`) is printed in the SAME convention — positive is a charge, and a
+        # minus is a credit — so its printed sign is read, not discarded. See `contra` below.
+        unsigned_expense_rows = {
+            li.id for li in doc.line_items
+            if any(rx.search(li.source_label or "") for rx in sign_by_key.get(li.canonical_key or "", []))}
+
         changed = 0
         for li in doc.line_items:
             label = li.source_label or ""
@@ -425,7 +433,16 @@ class NormalizeStage:
                 if flip:
                     v = -v
                     rules.append("flip")
-                if contra:
+                if contra and getattr(li, "parent_id", None) in unsigned_expense_rows:
+                    # A BREAKDOWN OF AN UNSIGNED EXPENSE keeps its printed sign, negated: -|raw|
+                    # would read a printed credit as a charge. MEASURED on 301577 (美信科技): 财务费用
+                    # -8,093,311.01, 其中：利息费用 -9,816.85 — interest after capitalisation is a
+                    # net credit — and -|raw| charged it, profit before tax 19,633.70 short. A
+                    # printed charge (positive) comes out -raw = -|raw| exactly as before.
+                    v = -raw
+                    rules = (["natural_negative", "as_printed_under_unsigned_expense"]
+                             if raw < 0 else ["natural_negative"])
+                elif contra:
                     v = -abs(raw)
                     rules = ["natural_negative"]
                 elif magnitude:

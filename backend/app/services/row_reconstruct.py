@@ -6488,7 +6488,7 @@ def _fits_the_breakdown(open_breakdowns: list[_Breakdown], li: LineItem) -> bool
 
 
 def _breakdown_parent(open_breakdowns: list[_Breakdown], label_words: list[Word], label: str,
-                      above: LineItem | None) -> LineItem | None:
+                      above: LineItem | None, *, has_figures: bool = True) -> LineItem | None:
     """The row this printed line is a 其中 breakdown of, if any — and the bookkeeping for that.
 
     ``open_breakdowns`` is the stack of breakdowns still open on this page, innermost last (财务费用's
@@ -6499,9 +6499,15 @@ def _breakdown_parent(open_breakdowns: list[_Breakdown], label_words: list[Word]
     if not label_words:
         return None
     x0 = min(w.bbox.x0 for w in label_words)
-    # A line set outboard of the innermost breakdown's captions has left that breakdown.
+    # A line set outboard of the innermost breakdown's captions has left that breakdown — if it
+    # prints a figure. A FIGURE-LESS LINE CLOSES NOTHING: it becomes no row, and on a face it is
+    # most often the wrapped tail of the caption above, which a filing sets back at the margin.
+    # 600990 prints 其中：对联营企业和合营企业 / 的投资收益 over two lines, the tail at the statement's
+    # margin, and the tail closed the breakdown before its second line, 以摊余成本计量的金融资产终止
+    # 确认收益 -1,300,261.11, was read. A line that prints figures at the margin still ends it.
     closed: _Breakdown | None = None
-    while open_breakdowns and x0 < open_breakdowns[-1].body_x0 - _INDENT_MIN:
+    while (open_breakdowns and (has_figures or _BREAKDOWN_LINE.match(label))
+           and x0 < open_breakdowns[-1].body_x0 - _INDENT_MIN):
         closed = open_breakdowns.pop()
     if _BREAKDOWN_LINE.match(label):
         body = _breakdown_body_x0(label_words)
@@ -6766,6 +6772,11 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                      # from. See `_caption_continued_from_the_previous_page`.
                      carry_caption: str | None = None,
                      spliced_out: list[str] | None = None,
+                     # THE PREVIOUS PAGE'S LAST ROW, for a 其中 breakdown that opens this page: the
+                     # row it breaks down was printed on the page before. Passed under the same
+                     # conditions as `carry_caption` (same statement, the page immediately before).
+                     # See `_breakdown_parent`.
+                     carry_above: LineItem | None = None,
                      known_captions: frozenset[str] | None = None,
                      # THE PAGE'S FOLD, for a caller handing over PART of a page — see
                      # `_group_rows`. Left to detect, it is decided from ``words`` as before.
@@ -7162,6 +7173,17 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
     # line breaks down the row printed DIRECTLY above it and nothing further up.
     open_breakdowns: list[_Breakdown] = []
     above_emitted = False
+    # A 其中 BREAKDOWN ACROSS THE PAGE BREAK. 600990 (四创电子) ends page index 73 with
+    # 投资收益（损失以“-”号填列） 6,592,631.61 and opens page index 74 with its breakdown:
+    #
+    #     其中：对联营企业和合营企业的投资收益
+    #         以摊余成本计量的金融资产终止确认收益                     -1,300,261.11
+    #
+    # The 其中： line had nothing above it on THIS page, so the breakdown was never opened, the
+    # second line got no `parent_id`, and the residual sweep put the -1,300,261.11 — already inside
+    # 投资收益 — into Other Operating Expenses: prior-year profit before tax 1,300,261.11 off. The
+    # previous page's last row stands directly above a 其中： line that is this page's first body line.
+    carry_open = carry_above is not None and on_face
     # Rows whose figures took their periods from the order they are printed in — said once per
     # page, after the rows are read.
     rows_by_order = 0
@@ -7302,10 +7324,18 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                 value_words = [w for w in value_words if id(w) not in in_label]
         # WHICH ROW THIS LINE IS A 其中 BREAKDOWN OF, read before any branch below can drop the line:
         # the 其中：优先股 line that opens 永续债's breakdown has no figure and is dropped as a row.
-        breakdown_of = (_breakdown_parent(open_breakdowns, label_words, label,
-                                          items[-1] if above_emitted and items else None)
+        above_row = items[-1] if above_emitted and items else None
+        if (above_row is None and carry_open and not items
+                and _BREAKDOWN_LINE.match(label)):
+            above_row = carry_above
+        breakdown_of = (_breakdown_parent(open_breakdowns, label_words, label, above_row,
+                                          has_figures=bool(value_words))
                         if on_face else None)
         above_emitted = False
+        if carry_open and label and not _is_noise_row(
+                label, [d for d in (_num(w.text, number_format) for w in value_words)
+                        if d is not None], steps, entity_signals, page_chrome):
+            carry_open = False          # the page's first body line has been read
 
         # A FIGURE WITH NO CAPTION, DIRECTLY UNDER A BLOCK IT TOTALS.
         #

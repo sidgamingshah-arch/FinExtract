@@ -931,6 +931,7 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
                 statement=statement, log=ctx.log, scope=scope, normalisation=normalisation,
                 page_scope=page_scope, page_title=page_title,
                 page_chrome=chrome, carry_caption=carry, spliced_out=spliced,
+                carry_above=carried[0] if carry is not None else None,
                 known_captions=captions, page_fold=fold, scope_out=reader_scopes)
             if spliced and carried is not None:
                 # WRITTEN BACK ONTO THE ROW THAT HOLDS THE FIGURES, on the page before. The

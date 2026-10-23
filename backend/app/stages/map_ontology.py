@@ -1082,6 +1082,7 @@ class MapOntologyStage:
         mapped += self._split_from_disclosure(doc, ontology, matcher, ctx)
         mapped += self._infer_sole_components(doc, ontology, ctx)
         self._adopt_template_roles(doc, ctx)
+        self._carve_breakdowns_beside_their_total(doc, ctx)
 
         # THE MAPPER MAKES NO CALLS, so there is nothing to roll up and `ctx.llm_calls` is left
         # exactly as this stage found it. Reported rather than dropped silently: this stage used to
@@ -1808,6 +1809,70 @@ class MapOntologyStage:
         if promoted:
             ctx.log(f"map_line_items:template_roles_adopted={promoted}")
         return promoted
+
+    @staticmethod
+    def _carve_breakdowns_beside_their_total(doc: DocumentModel, ctx: PipelineContext) -> int:
+        """A 其中 row filed BESIDE the row it breaks down is shown, not added again. Returns slots.
+
+        A mainland income statement prints
+
+            投资收益（损失以“－”号填列）                     649,740,308.49
+              其中：对联营企业和合营企业的投资收益          631,525,977.09
+
+        and the two captions reach two lines the template ADDS in one rollup: 投资收益 is
+        `is_pl__other_fncl_asset_income_dvds` (its aliases are 投资收益 / "Investment Income", the
+        whole line) and the 其中 row is `is_pl__income_loss_from_related_party` (对联营企业和合营企业的
+        投资收益, "Share of profits of associates"). Both readings follow the lines' definitions —
+        each says "extract the reported value; do not calculate it" — so neither figure is changed.
+        What is wrong is ADDING both: the 其中 amount is already inside 投资收益, and
+        `is_pl__net_other_financial_inc_exp` counted it twice. MEASURED: 000709 profit before tax
+        +631,525,977.09 current / +684,699,218.15 prior over print; 688411 +11,925,414.33 /
+        -3,858,610.01.
+
+        The 其中 row's figure is marked `CARVED_FROM_FACE` per (basis, period): shown on its line,
+        not added into a total again — the convention `rollups.evaluate` and the structural checks
+        already read. Only where the row it breaks down (`LineItem.parent_id`, read off the page by
+        `row_reconstruct._breakdown_parent`) is filed on a SIBLING of it in one template rollup, and
+        has a figure in the same column. A breakdown of the rollup's own target (财务费用's 其中：利息费用
+        under `is_pl__net_interest_income_expense`) is a component of that subtotal, and stays one.
+        Income statement only: that is where it was measured.
+        """
+        from app.services.rollups import CARVED_FROM_FACE, calculated_nodes
+
+        template = getattr(ctx, "template_def", None) or getattr(ctx, "template", None)
+        if hasattr(template, "model_dump"):
+            template = template.model_dump(mode="json")
+        siblings: dict[str, set[str]] = {}
+        for node in calculated_nodes(template or {}).values():
+            kids = set((node.get("rollup") or {}).get("children") or [])
+            for kid in kids:
+                siblings.setdefault(kid, set()).update(kids - {kid})
+        if not siblings:
+            return 0
+        by_id = {li.id: li for li in doc.line_items}
+        carved = 0
+        for li in doc.line_items:
+            parent = by_id.get(getattr(li, "parent_id", None))
+            key = li.canonical_key
+            if (parent is None or not key or not parent.canonical_key
+                    or not key.startswith("is_pl__")
+                    or parent.canonical_key not in siblings.get(key, ())):
+                continue
+            columns = {(ev.basis, ev.period_label) for ev in parent.values.values()
+                       if ev.value is not None or ev.value_raw is not None}
+            here = 0
+            for ev in li.values.values():
+                if ((ev.basis, ev.period_label) in columns
+                        and (ev.value is not None or ev.value_raw is not None)
+                        and CARVED_FROM_FACE not in ev.confidence.flags):
+                    ev.confidence.flags.append(CARVED_FROM_FACE)
+                    here += 1
+            carved += here
+            if here and f"breakdown_of:{parent.canonical_key}" not in li.confidence.flags:
+                li.confidence.flags.append(f"breakdown_of:{parent.canonical_key}")
+                ctx.log(f"map_line_items:breakdown_beside_its_total:{key}"
+                        f" in {parent.canonical_key} ({li.source_label!r})")
+        return carved
 
     @staticmethod
     def _infer_sole_components(doc: DocumentModel, ontology, ctx: PipelineContext) -> int:

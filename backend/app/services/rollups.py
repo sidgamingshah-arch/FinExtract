@@ -25,12 +25,27 @@ is reported rather than recursed into.
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 #: A figure read out of captions the face already carries — shown on its line, not added into its
 #: section. Written by a `carved_from_face` cascade rung (`stages.note_sourced`); read here and by
 #: the structural checks.
 CARVED_FROM_FACE = "carved_from_face"
+
+#: A CAS face caption's own sign note SAYING A LOSS IS PRINTED WITH A MINUS: 信用减值损失（损失以“-”号填列）,
+#: 资产减值损失（损失以“-” 号填列）. Such a line is printed SIGNED — a loss negative, a reversal positive —
+#: and the rollup follows the printed sign instead of spending the figure as a cost magnitude. See
+#: `prints_loss_with_minus` and ``signed`` in :func:`evaluate`.
+_LOSS_PRINTED_WITH_MINUS = re.compile(
+    r"[（(][^（()）]{0,8}(?:损失|亏损|損失|虧損)[^（()）]{0,6}以\s*[\"“”'‘’「」]?\s*[-－−—–]\s*"
+    r"[\"“”'‘’「」]?\s*[号號]\s*填\s*列")
+
+
+def prints_loss_with_minus(label: str | None) -> bool:
+    """Whether a printed caption says its own losses are printed with a minus sign (CAS)."""
+    return bool(_LOSS_PRINTED_WITH_MINUS.search(label or ""))
+
 
 #: How far a printed line may differ from its disclosed parts and still be taken to contain them.
 _PARTS_TOLERANCE = 1.0
@@ -298,7 +313,18 @@ def _readers(rows: list[dict], basis: str, period: str, netted: dict[str, float]
         return (bool(figured) and not overridden(key)
                 and all(x.get("mapping_method") == "residual" for x in figured))
 
-    return groups, reported, overridden, carved, swept
+    def signed(key: str) -> bool:
+        """The figure is printed SIGNED by the filing's own caption: every row that gives it in this
+        column is a face row whose caption says a loss is printed with a minus
+        (`prints_loss_with_minus`). An analyst's answer is a figure, not a printing, and is not."""
+        figured = [x for x in groups.get(key, [])
+                   if any(v.get("basis") == basis and v.get("period_label") == period
+                          and v.get("value") is not None for v in x.get("values") or ())]
+        return (bool(figured) and not overridden(key)
+                and all(x.get("printed_in") == "face"
+                        and prints_loss_with_minus(x.get("source_label")) for x in figured))
+
+    return groups, reported, overridden, carved, swept, signed
 
 
 def evaluate_rows(template_def: dict | None, rows: list[dict], basis: str, period: str,
@@ -311,9 +337,9 @@ def evaluate_rows(template_def: dict | None, rows: list[dict], basis: str, perio
     ``periods.concept_value``, which means a component's manual correction flows straight into
     every subtotal above it.
     """
-    _, reported, overridden, carved, swept = _readers(rows, basis, period, netted)
+    _, reported, overridden, carved, swept, signed = _readers(rows, basis, period, netted)
     return evaluate(template_def, reported, labels=node_labels(template_def, locale),
-                    overridden=overridden, carved=carved, swept=swept)
+                    overridden=overridden, carved=carved, swept=swept, signed=signed)
 
 
 def figures_as_shown(template_def: dict | None, rows: list[dict], basis: str, period: str,
@@ -338,9 +364,9 @@ def figures_as_shown(template_def: dict | None, rows: list[dict], basis: str, pe
     year, and a period whose components were not extracted is not made computable by the other
     period's being so.
     """
-    groups, reported, overridden, carved, swept = _readers(rows, basis, period, netted)
+    groups, reported, overridden, carved, swept, signed = _readers(rows, basis, period, netted)
     calc = evaluate(template_def, reported, labels=node_labels(template_def, locale),
-                    overridden=overridden, carved=carved, swept=swept)
+                    overridden=overridden, carved=carved, swept=swept, signed=signed)
     out: dict[str, float] = {}
     for key in groups:
         value = reported(key)
@@ -383,7 +409,7 @@ def _order(nodes: dict[str, dict]) -> tuple[list[str], set[str]]:
 
 def evaluate(template_def: dict | None, reported, *, labels: dict[str, str] | None = None,
              prefer_calculated: bool = True, overridden=None,
-             carved=None, swept=None) -> dict[str, Calculated]:
+             carved=None, swept=None, signed=None) -> dict[str, Calculated]:
     """Evaluate every calculated line for one (basis, period).
 
     ``reported(key)`` returns the figure the DOCUMENT gives for a canonical key — the extracted
@@ -447,6 +473,16 @@ def evaluate(template_def: dict | None, reported, *, labels: dict[str, str] | No
             claimed = [v for v in claimed if v]
             if claimed and all(v < 0 for v in claimed):
                 magnitude = {c for c in magnitude if not swept(c)}
+        # A LINE THE FILING PRINTS SIGNED IS NOT A MAGNITUDE. A CAS face prints its costs unsigned
+        # (销售费用 106,148,504.70), and for those spending the magnitude is right. But it prints its
+        # impairment lines SIGNED and says so in the caption — 信用减值损失（损失以“-”号填列）: a loss is
+        # negative and a REVERSAL is positive. Spent as a magnitude, a reversal was charged as a
+        # loss, moving the total by twice the figure. MEASURED: 688008 prior 信用减值损失 +143,860.44
+        # (profit before tax 287,720.88 short), 000709 current +27,075,719.69 (54,151,439.38), 301577
+        # prior +2,593,872.42 (5,187,744.84). A printed loss enters at its printed (negative) sign,
+        # which is what the magnitude rule gave it too, so only the reversal moves.
+        if signed is not None and magnitude:
+            magnitude = {c for c in magnitude if not signed(c)}
         for i, child in enumerate(children):
             # A FIGURE ALREADY INSIDE ITS SIBLINGS is not added again — in a sum or in a residual's
             # deductions alike. See ``CascadeRung.carved_from_face``.

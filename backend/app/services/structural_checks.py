@@ -49,7 +49,7 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field, replace
 from decimal import Decimal
 
-from app.services.rollups import CARVED_FROM_FACE
+from app.services.rollups import CARVED_FROM_FACE, prints_loss_with_minus
 from app.core.models import LineItem, RuleResult, StructuralReport
 from app.core.models.enums import LineRole
 from app.schemas.template import TemplateDefinition
@@ -181,6 +181,10 @@ class MappedValues:
     # (key, slot) whose figure was read out of captions the face already carries — counted on its
     # own line, never again inside a relation. See ``rollups.CARVED_FROM_FACE``.
     carved: set = field(default_factory=set)
+    # (key, slot) whose every row is a face row printed SIGNED by its own caption — a CAS
+    # 信用减值损失（损失以“-”号填列）. A magnitude relation follows the printed sign for it, as the
+    # template rollup does. See ``rollups.prints_loss_with_minus``.
+    signed: set = field(default_factory=set)
 
     def get(self, key: str, slot: Slot) -> Decimal | None:
         return self.values.get(key, {}).get(slot)
@@ -232,10 +236,13 @@ def collect_values(items: Iterable[LineItem]) -> MappedValues:
                      for ev in li.values.values()
                      if _printed(ev) is not None and not _is_restatement(ev)}
     out = MappedValues()
+    unsigned_slots: set = set()
     for li in items:
         key = li.canonical_key
         if not key:
             continue
+        printed_signed = (getattr(li.printed_in, "value", li.printed_in) == "face"
+                          and prints_loss_with_minus(li.source_label))
         for ev in li.values.values():
             val = _printed(ev)
             if val is None:
@@ -245,6 +252,7 @@ def collect_values(items: Iterable[LineItem]) -> MappedValues:
                 continue
             if CARVED_FROM_FACE in (ev.confidence.flags or ()):
                 out.carved.add((key, slot))
+            (out.signed if printed_signed else unsigned_slots).add((key, slot))
             seen = out.values.setdefault(key, {})
             seen[slot] = val if slot not in seen else seen[slot] + val
             out.contributors.setdefault(key, {})[slot] = out.sources(key, slot) + 1
@@ -256,6 +264,7 @@ def collect_values(items: Iterable[LineItem]) -> MappedValues:
             out.derived[key] = li.confidence.method or ""
         elif li.is_computed:
             out.derived.setdefault(key, "computed")
+    out.signed -= unsigned_slots
     return out
 
 
@@ -1006,7 +1015,8 @@ def cross_concept_guards(ontology) -> list[Guard]:
 SUPPORTED_OPS = ("sum", "diff", "signed_sum")
 
 
-def _contributions(rel: Relation, parts: dict[str, Decimal]) -> dict[str, Decimal]:
+def _contributions(rel: Relation, parts: dict[str, Decimal],
+                   signed: frozenset[str] | set[str] = frozenset()) -> dict[str, Decimal]:
     """Each component's SIGNED contribution to the expected figure.
 
     Kept separate from the raw values because the sign-suspect hypothesis needs it: flipping a
@@ -1022,7 +1032,9 @@ def _contributions(rel: Relation, parts: dict[str, Decimal]) -> dict[str, Decima
         out = dict(parts)
     # A magnitude component is spent, whatever sign it arrived with and wherever the expression
     # puts it: the absolute amount first, then the deduction. See ``Relation.magnitudes``.
-    return {k: (-abs(v) if k in rel.magnitudes else v) for k, v in out.items()}
+    # A component the filing PRINTS signed (``MappedValues.signed``) keeps its printed sign.
+    return {k: (-abs(v) if k in rel.magnitudes and k not in signed else v)
+            for k, v in out.items()}
 
 
 def _sign_suspect(target: str, actual: Decimal, expected: Decimal,
@@ -1337,7 +1349,8 @@ def _check(rel: Relation, slot: Slot, vals: MappedValues,
     zeroed = set(assumed_zero)
     parts = {c: (Decimal(0) if c in zeroed or (c, slot) in vals.carved else vals.get(c, slot))
              for c in rel.components}
-    contributions = _contributions(rel, parts)
+    contributions = _contributions(rel, parts,
+                                   {c for c in rel.components if (c, slot) in vals.signed})
     actual = vals.get(rel.target, slot)
     expected = sum(contributions.values(), Decimal(0))
     diff = actual - expected
