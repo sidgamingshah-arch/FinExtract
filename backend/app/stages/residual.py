@@ -712,7 +712,7 @@ def _vetoed_by_never_sweep(res: _Residual, label: str) -> str | None:
     # EACH SCRIPT'S HALF IS A CAPTION TOO. A bilingual HKEX caption prints the English and the
     # Chinese on one row, so a pattern anchored at both ends ("^(?:profit|loss) for the year$", the
     # OCI residual's own refusal of the income statement's bottom line) never matched "Loss for the
-    # year 年內虧損": 嘉民 swept its loss for the year into the OCI's Others. The halves are the ones
+    # year 年內虧損": 佳明 swept its loss for the year into the OCI's Others. The halves are the ones
     # the mapper already matches aliases against (`mapping.label_segments`), Han folded to Simplified
     # so a pattern written once covers both scripts.
     spellings = list(dict.fromkeys(
@@ -925,7 +925,7 @@ def _by_canonical_key(doc: DocumentModel) -> tuple[dict[str, dict[str, float]],
 
     PUBLISHES, so a RESTATEMENT does not add to a column the statements already fill — the rule
     `periods.summable` applies for the grid. An equity-matrix closing balance of a line the balance
-    sheet also prints is that line printed a second time; adding it doubled 嘉民's share capital
+    sheet also prints is that line printed a second time; adding it doubled 佳明's share capital
     and China SCE 1966's non-controlling interests inside the equity section's reconciliation.
     """
     from app.services.equity_matrix import TRANSPOSED_FLAG

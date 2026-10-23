@@ -877,7 +877,7 @@ def _scan_row(row: list[Word], fmt=None, *, extract_note_refs: bool = True) -> t
             label_words.append(row[i]); i += 1; continue
         # A STANDARD'S NUMBER IS PART OF ITS NAME. "Revenue from contract with customers within
         # the scope of HKFRS 15" is a HEADING with no figures, and read as a figure its 15 became
-        # the row's current amount — 嘉民's revenue note published a revenue of 15.
+        # the row's current amount — 佳明's revenue note published a revenue of 15.
         if (not value_words and label_words and _STANDARD_NUMBER.match(tok)
                 and _names_a_standard(label_words)):
             label_words.append(row[i]); i += 1; continue
@@ -4061,7 +4061,7 @@ def _period_measure_grid(rows: list[list[Word]], value_bands: list[float],
 # order, and never attached to one column it does not name. Units ("RMB'000", "人民幣千元") are not
 # a heading. Display only: nothing keys on it.
 _HEADING_UNIT = re.compile(
-    # A BARE "$’000" IS A UNIT TOO: 嘉民 kaming prints its fair-value hierarchy in "$’000 千元",
+    # A BARE "$’000" IS A UNIT TOO: 佳明 kaming prints its fair-value hierarchy in "$’000 千元",
     # and without the bare dollar the units line was read as a heading over every column.
     r"^(?:(?:RMB|HK\$|US\$|USD|HKD|EUR|S\$|NT\$|MOP|\$)?\s*[’'‘]?000|'000|"
     r"千份|千股|"
@@ -5914,7 +5914,7 @@ def _detect_matrix(rows: list[list[Word]], fmt=None) -> _Matrix | None:
 
         TWO CONDITIONS, because either alone admits something. FULL SUPPORT — a figure on every
         data row — is what a component column has and a stray does not: measured across the
-        corpus, every genuine stray this trim drops is PARTIAL (1966 page 266 at 4/7, 嘉民 page
+        corpus, every genuine stray this trim drops is PARTIAL (1966 page 266 at 4/7, 佳明 page
         115 at 5/14, pages 151 and 152 at 8/12, 688008 page 100 at 4/6), and the two clusters
         that should survive are 3/3 and 4/4. But support alone keeps a YEAR: 1966's senior-notes
         note prints one at the end of all ten of its captions — see `_amount_shaped`, which is

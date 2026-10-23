@@ -1,6 +1,6 @@
 """A model citation of a DERIVATIVE is refused on a line that excludes derivatives.
 
-Measured on 嘉民 (kaming): the model cited note 22 "Derivative financial instruments", row
+Measured on 佳明 (kaming): the model cited note 22 "Derivative financial instruments", row
 "Interest rate swaps (note 30(c)(i))" — the swaps' NOTIONAL amount, 950,000 — for a current
 securities part whose label and definition both say "excluding derivatives", and Securities (CP)
 published 950,000. The line's own derivative veto (`row_caption_none`) now binds model answers too.
@@ -86,7 +86,7 @@ def _stage_run():
 
     key = "sub__fa_cp_investment_and_money_market_securities_note_total"
     st = load_line_item_set(json.loads(SEED.read_text(encoding="utf-8")), resolve=True)
-    # THE REQUEST SUPPLIES NOTE 22 TO THIS LINE, as it did on 嘉民: a citation of a note the line
+    # THE REQUEST SUPPLIES NOTE 22 TO THIS LINE, as it did on 佳明: a citation of a note the line
     # was never given is refused before the derivative rule is reached.
     next(i for i in st.items if i.key == key).note_source.note_title_any = [
         r"^DERIVATIVE FINANCIAL INSTRUMENTS"]

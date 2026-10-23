@@ -1,4 +1,4 @@
-"""Two ways a note table's text was mis-read, both measured on 嘉民 (kaming) note 7, revenue.
+"""Two ways a note table's text was mis-read, both measured on 佳明 (kaming) note 7, revenue.
 
 1. "Revenue from contract with customers within the scope of HKFRS 15" is a HEADING with no
    figures. `_scan_row` reads a number as a figure, so its 15 became the row's current amount, and

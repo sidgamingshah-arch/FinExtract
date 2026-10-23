@@ -83,7 +83,7 @@ def _key(matcher, caption, section=None):
     ("Tax and surcharges", "is_pl__other_non_income_related_taxes"),
     ("Other income and gains", "is_pl__other_operating_income"),
     ("Selling and distribution costs", "is_pl__selling_and_marketing_expenses"),
-    # 嘉民 Kaming (hkex_kaming).
+    # 佳明 Grand Ming (hkex_kaming).
     ("Income tax credit/(expenses) 所得稅收益／ （支出）", "is_pl__total_income_tax"),
     ("Other income and gains/(losses), net 其他收入及收益╱ （虧損） 淨額",
      "is_pl__other_operating_income"),
@@ -188,7 +188,7 @@ def test_a_subtotal_caption_is_never_swept_into_other_operating_expenses(shipped
 
 
 def test_the_residuals_vetoes_read_each_half_of_a_bilingual_caption(shipped):
-    """嘉民 opens its statement of comprehensive income with "Loss for the year 年內虧損". The OCI
+    """佳明 opens its statement of comprehensive income with "Loss for the year 年內虧損". The OCI
     residual refuses "^(?:profit|loss) for the year$" — anchored, so the bilingual caption slipped
     past it and the loss for the year was swept into the OCI's Others."""
     rows = [_row("Revenue 收益", "868375"),

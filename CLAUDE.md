@@ -49,7 +49,7 @@ HKEX figure has not been measured until the HKEX figure is explained:
 - `000709_hesteel_2024_prc` — 河钢股份, CAS
 - `300319_maijie_2024_prc` — CAS
 - `hkex_1966_ar` — China SCE, HKFRS, thousands
-- `hkex_kaming_2025_26` — 嘉民, HKFRS, thousands
+- `hkex_kaming_2025_26` — 佳明集團 (Grand Ming), HKFRS, thousands
 
 Report the movement per filing against the figures the filing PRINTS, and say which structural
 relations changed status. "No test failed" is not the same as "no figure moved": most of these

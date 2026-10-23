@@ -463,7 +463,7 @@ def select_rows(item, notes, periods: set[str] | None = None,
             # movement table reads its columns as periods and adds the year's movements together;
             # a column-selected part reads one column BY ITS PRINTED HEADING and files each figure
             # under the period the filing prints for it (the row's block, for a table that prints
-            # its years as blocks of rows — 1966's and 嘉民's fair-value hierarchies), so neither
+            # its years as blocks of rows — 1966's and 佳明's fair-value hierarchies), so neither
             # half of that hazard is reachable.
             if sums_items and block_periods and not by_column:
                 continue
@@ -1887,7 +1887,7 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
             # A SENTENCE CITED AS IF IT WERE A ROW. The model found the right place — a covenant, a
             # footnote — but named the sentence in `caption` (or `quote`) without giving the
             # amount. Refusing it lost figures the filing plainly states: "consolidated tangible net
-            # worth shall not be less than $1,…" was refused on 嘉民's note 29 for exactly this.
+            # worth shall not be less than $1,…" was refused on 佳明's note 29 for exactly this.
             # The amount is taken from the NOTE'S OWN TEXT, never from the model's: see
             # `_amount_from_cited_sentence`, which accepts only one unambiguous amount.
             if fragments:

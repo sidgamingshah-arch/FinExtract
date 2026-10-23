@@ -8,7 +8,7 @@ Measured on the two HKEX reference filings (RMB'000 / HK$'000):
   "Reserves 儲備" line and breaks it down in the statement of changes in equity, whose closing
   balances the filing itself says "comprise the consolidated reserves of RMB9,358,611,000". The
   face line bound to `bs_equity__other_reserves` (alias 储备) BESIDE those components, so every
-  reserve was counted twice: China SCE 1966 published Equity & Reserves 42,335,984 and 嘉民
+  reserve was counted twice: China SCE 1966 published Equity & Reserves 42,335,984 and 佳明
   4,529,714, against 12,605,743 and 2,191,372 by the template's own definition. The face line is
   now its own part, `sub__equity_reserves`, and `global_rules.mutually_exclusive_groups` keeps it
   apart from its components — the rule the legacy hkfrs rulebook declared and the shipped set did
@@ -18,13 +18,13 @@ Measured on the two HKEX reference filings (RMB'000 / HK$'000):
   Profits deducted Other Reserves, so `rollups.evaluate` marked both cyclic and ran neither — and
   Total Equity & Reserves reached Revaluation, Hedging and Other Reserves only THROUGH that
   never-run Retained Profits residual, so published total equity was 148,757 short on 1966 and
-  15,056 short on 嘉民. Total Equity & Reserves now names them itself (the extraction logic's
+  15,056 short on 佳明. Total Equity & Reserves now names them itself (the extraction logic's
   "C9 + C22 + C23": permanent equity, Equity & Reserves' components, minority interest), and
   Retained Profits deducts none of them.
 
 * NET ASSETS SWEPT INTO A RESIDUAL. "Net assets 資產淨值" is the same fact as total equity
   (20,482,326 = 20,482,326; 2,376,067 = 2,376,067). Nothing claimed it, so the sweep filed it on
-  `bs_equity__other_reserves` (1966) and `bs_ncl__other_non_current_liabilities` (嘉民, 2,386,207
+  `bs_equity__other_reserves` (1966) and `bs_ncl__other_non_current_liabilities` (佳明, 2,386,207
   published for a printed 10,140). Both residuals now refuse it, as they already refuse the
   layout's other subtotals.
 
@@ -137,7 +137,7 @@ def _rows(figures: dict[str, list[float]]) -> list[dict]:
 
 
 # The closing balances of each filing's statement of changes in equity, as filed on their keys,
-# and the totals the filing prints. China SCE 1966 p107 / p105; 嘉民 p65 / p64.
+# and the totals the filing prints. China SCE 1966 p107 / p105; 佳明 p65 / p64.
 CHINA_SCE_1966 = {
     "bs_equity__common_share_capital": [365_138],
     "bs_equity__capital_and_restricted_reserves": [-5_130_954, 1_883_822],
@@ -265,7 +265,7 @@ def test_net_assets_is_never_swept_into_a_residual(shipped, residual, caption):
                                      "Net current liabilities 流動淨負債"])
 def test_the_net_asset_layouts_subtotals_are_never_swept(shipped, residual, caption):
     """The same layout prints these between the current and non-current liabilities, and which of
-    the two residuals a row reaches depends on where its banner resolved. 嘉民's "Total assets less
+    the two residuals a row reaches depends on where its banner resolved. 佳明's "Total assets less
     current liabilities 3,078,784" reached the CURRENT one, which had no hint for it, and published
     3,092,261 for a printed 13,477 — total current liabilities 8,972,667 for a printed 5,893,883."""
     hints = next(i for i in shipped.items if i.key == residual).exclude_hints
@@ -308,7 +308,7 @@ def test_a_restated_balance_is_not_counted_twice_by_the_checks():
 def test_retained_profits_is_a_member_of_the_equity_reconciliation(view):
     """Both readers of the equity section's identity — the residual stage's and the structural
     checks' — count Retained Profits as a member and reconcile against Total Equity & Reserves.
-    Excluded as a subtotal, it left the section 13,517,775 (1966) and 2,182,599 (嘉民) short."""
+    Excluded as a subtotal, it left the section 13,517,775 (1966) and 2,182,599 (佳明) short."""
     members = rollups.section_members(view)["bs_equity"]
     assert RETAINED in members.dedicated and RETAINED not in members.subtotals
 

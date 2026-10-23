@@ -417,7 +417,7 @@ class LineItemLlmStage(Stage):
                     # ONE EXCEPTION, decided after a measured failure: the DERIVATIVE veto binds model
                 # answers (`_refuse_derivative_citations`, applied right after `resolve` below),
                 # because "excluding derivatives" is in those lines' label and definition — the
-                # model is told it — and on 嘉民 the swaps' notional was published as securities.
+                # model is told it — and on 佳明 the swaps' notional was published as securities.
                 #
                 # `extraction.llm_vetoes_bind_model_answers` is consequently unread. It is left in
                     # the settings schema rather than deleted: it is the switch this behaviour comes
@@ -1703,7 +1703,7 @@ def _refuse_derivative_citations(item, resolved: list[dict]) -> tuple[list[dict]
     deterministic-route bookkeeping (totals, the current/non-current split) that the request never
     carries, and grading the model against it would be unfair — see the note above
     `combine_terms`. "Excluding derivatives" is different: it is in the line's LABEL and its
-    DEFINITION, so the model was told, and measured on 嘉民 (kaming) it cited the interest rate
+    DEFINITION, so the model was told, and measured on 佳明 (kaming) it cited the interest rate
     swaps' notional amount (950,000, note 22 "Derivative financial instruments") for a current
     securities part anyway, and Securities (CP) published it.
 

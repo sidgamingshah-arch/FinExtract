@@ -123,7 +123,7 @@ def period_of(value, row=None) -> tuple[str | None, str]:
     1. ``column`` — the period the printed header states over the figure's column
        (``value.column_period``: 期末公允价值 → current);
     2. ``row_block`` — the period of the row's block (``row.period_hint``), for a table that prints
-       its years as blocks of rows (1966's and 嘉民's fair-value hierarchies);
+       its years as blocks of rows (1966's and 佳明's fair-value hierarchies);
     3. ``grid`` — the base of a key read from a two-level period × measure header, which only a
        GRID-flagged value carries ('current:allowance' → current).
 

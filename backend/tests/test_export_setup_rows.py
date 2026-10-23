@@ -2,7 +2,7 @@
 
 Three defects, found by reading the rows the export writes for the five reference filings:
 * Source Currency read `UnitContext.source_currency`, a field that does not exist — blank on every
-  export, although the currency was detected (CNY on the three CAS filings and on 1966, HKD on 嘉民).
+  export, although the currency was detected (CNY on the three CAS filings and on 1966, HKD on 佳明).
 * Rounding showed the requested TARGET units, or nothing — not the scale the statements are printed
   in (units on the CAS filings, thousands on both HKEX filings).
 * The control totals named only the HKFRS template's keys (bs_total_assets, …), so on the output_csv
@@ -46,7 +46,7 @@ def _value(row):
 @pytest.mark.parametrize("unit, currency, rounding", [
     (UnitContext(currency="CNY", scale_factor=Decimal(1)), "CNY", "units"),          # 单位：元
     (UnitContext(currency="CNY", scale_factor=Decimal(1000)), "CNY", "thousands"),   # 1966 RMB'000
-    (UnitContext(currency="HKD", scale_factor=Decimal(1000)), "HKD", "thousands"),   # 嘉民 $'000
+    (UnitContext(currency="HKD", scale_factor=Decimal(1000)), "HKD", "thousands"),   # 佳明 $'000
 ])
 def test_source_currency_and_rounding_are_the_filings_own(unit, currency, rounding):
     rows = _setup(unit)

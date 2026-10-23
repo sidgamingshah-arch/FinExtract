@@ -147,7 +147,7 @@ def test_one_heading_over_two_periods_is_taken_once_in_each():
 
 
 def test_a_column_nothing_dates_is_filed_this_year_and_says_it_was_assumed():
-    """嘉民's fair-value table read without its block: Level 2's year is printed nowhere."""
+    """佳明's fair-value table read without its block: Level 2's year is printed nowhere."""
     row = _note_row(_ev("current", "9956", "Fair value 公平值"), _ev("prior", "9956", "Level 2 第二級"),
                     printed=("Fair value 公平值", "Level 1 第一級", "Level 2 第二級", "Level 3 第三級"))
     got = note_columns.pick(row, "Level 2 第二級")

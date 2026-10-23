@@ -123,7 +123,7 @@ def test_the_residual_gives_up_what_a_line_read_from_its_note():
 
 
 def test_a_printed_leaf_keeps_its_money_and_the_line_calculates_without_it():
-    """嘉民 kaming prints "Trade and other receivables" 126,739 as its own column; the 4,444 of
+    """佳明 kaming prints "Trade and other receivables" 126,739 as its own column; the 4,444 of
     other receivables its note breaks out are inside it. The line still publishes — what its
     calculation comes to once that money is taken out — with the deduction in its trail."""
     note_18 = _note("18", [("Trade receivables", "122295", 0.40, L),

@@ -1,6 +1,6 @@
 """A model that cites a SENTENCE as if it were a row — no `amount` given — is now read off the note.
 
-Measured on 嘉民 (kaming): the model found the covenant in note 29 and cited "– consolidated
+Measured on 佳明 (kaming): the model found the covenant in note 29 and cited "– consolidated
 tangible net worth shall not be less than $1,…" as a caption. No extracted row matches a sentence,
 no amount was given, and the citation was refused although the filing states the figure.
 

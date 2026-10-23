@@ -231,7 +231,7 @@ OPER, FIN = "cf_oper_indirect__interest_paid_oper", "cf_financing__interest_paid
 
 
 def test_a_row_printed_under_financing_goes_to_the_financing_line(shipped):
-    """MEASURED ON 嘉民 (kaming): "Interest and other borrowing costs paid" is printed once, under
+    """MEASURED ON 佳明 (kaming): "Interest and other borrowing costs paid" is printed once, under
     Financing activities, and the model cited it for the operating AND the financing interest-paid
     lines — so the cash flow counted it twice. The row goes to the line of the section it is
     printed under, whichever the model named first."""

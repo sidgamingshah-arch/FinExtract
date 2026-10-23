@@ -24,7 +24,7 @@ as well.
 
 WHAT SEPARATES THE TWO CASES, measured over every page of the corpus that reaches the matrix
 reader. SUPPORT: a component column carries a figure on every data row, and every genuine stray
-the trim drops is partial — 1966 page 266 at 4/7, 嘉民 pages 115/151/152 at 5/14 and 8/12, 688008
+the trim drops is partial — 1966 page 266 at 4/7, 佳明 pages 115/151/152 at 5/14 and 8/12, 688008
 page 100 at 4/6 — while the two clusters that should survive are 3/3 and 4/4. Support alone is not
 enough, because a YEAR can be on every row: 1966's senior-notes note (page index 220) ends all ten
 of its captions with one, and that cluster is 10/10. So the second condition is that the cluster's

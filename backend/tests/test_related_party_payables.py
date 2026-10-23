@@ -136,7 +136,7 @@ def test_the_parent_is_a_derived_parent_whose_note_rung_computes_one_required_te
     cascade. `mapping._computed_parent` forbids a `derived` column from matching a caption, so
     these two columns could not read their own printed row: measured, China SCE 1966's
     "Due to related parties 應付關聯方款項" 2,588,416 / 2,583,308 was swept to
-    `bs_cl__other_current_liabilities` and 嘉民's "Loan from ultimate holding company" 36,800 plus
+    `bs_cl__other_current_liabilities` and 佳明's "Loan from ultimate holding company" 36,800 plus
     "Loans from controlling shareholder" 544,254 / 544,665 to
     `bs_ncl__other_non_current_liabilities` — each filing's only related-party balance, in the
     wrong column. The aliases therefore live on FACE parts and the cascade falls back to them, in

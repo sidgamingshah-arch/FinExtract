@@ -385,7 +385,7 @@ def test_a_row_printed_above_the_next_statements_title_is_its_own_statements(run
 
 
 def test_a_caption_and_figure_printed_on_two_statements_is_sourced_from_the_blocks(run_dir: Path):
-    """嘉民 prints "Loss before taxation" on the income statement and atop its indirect cash flow."""
+    """佳明 prints "Loss before taxation" on the income statement and atop its indirect cash flow."""
     run = run_dir / "run"
     pages = json.loads((run / "pages.json").read_text())
     pages += [{"index": 7, "kind": "FACE", "statement": "profit_and_loss", "scope": "company"}]

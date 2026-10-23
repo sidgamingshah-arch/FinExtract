@@ -366,7 +366,7 @@ def test_every_reported_line_resolves_a_gate_and_parts_deliberately_do_not():
     # a balance sheet is being read. They exist because their PARENTS are `derived` and
     # `mapping._computed_parent` therefore forbids a caption from reaching them at all — measured,
     # China SCE 1966's printed "Due to related parties" 2,588,416 was swept to
-    # `bs_cl__other_current_liabilities` and 嘉民's two shareholder loans (36,800 + 544,254) to
+    # `bs_cl__other_current_liabilities` and 佳明's two shareholder loans (36,800 + 544,254) to
     # `bs_ncl__other_non_current_liabilities`, each filing's only related-party balance.
     # THE THREE ASSET FACE PARTS are named on the same condition as every entry above: each
     # declares `statement: balance_sheet` AND a `section_scope` (bs_ca for the two current parts,
@@ -384,7 +384,7 @@ def test_every_reported_line_resolves_a_gate_and_parts_deliberately_do_not():
     # equity banner. It exists because the caption used to bind to `bs_equity__other_reserves`
     # (alias 储备) BESIDE the equity-statement components it totals — every reserve counted twice:
     # China SCE 1966 published Equity & Reserves 42,335,984 for 12,605,743 by the template's own
-    # definition, 嘉民 4,529,714 for 2,191,372. It carries NO keyword hint: "reserves" as a keyword
+    # definition, 佳明 4,529,714 for 2,191,372. It carries NO keyword hint: "reserves" as a keyword
     # would claim every reserve caption the alias tier missed.
     _FACE_PARTS_WITH_ALIASES = {"sub__rp_bs_face_receivables", "sub__face_principal_revenue",
                                 "sub__cfo_depreciation",

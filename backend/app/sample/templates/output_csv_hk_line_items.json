@@ -642,7 +642,7 @@
      "bs_equity__accum_oth_eqty_rsrv_inc"
     ],
     "rule": "Populate the aggregate only when the face prints a single undifferentiated 'Reserves' line and no component of it is printed. If any component is printed — on the face or as a closing balance of the statement of changes in equity — populate the components and leave the aggregate null.",
-    "note": "China SCE 1966 and 嘉民 print 'Reserves 儲備' on the face and break it down in the statement of changes in equity, whose closing balances sum to it exactly (9,358,611 and 2,361,865). Filing both counted every reserve twice: published Equity & Reserves was 42,335,984 and 4,529,714 against 12,605,743 and 2,191,372 by the template's own definition."
+    "note": "China SCE 1966 and 佳明 print 'Reserves 儲備' on the face and break it down in the statement of changes in equity, whose closing balances sum to it exactly (9,358,611 and 2,361,865). Filing both counted every reserve twice: published Equity & Reserves was 42,335,984 and 4,529,714 against 12,605,743 and 2,191,372 by the template's own definition."
    }
   ]
  },

@@ -397,7 +397,7 @@ HK_ALIASES_THAT_FOLLOW_HK_DEFINITIONS = {
 }
 
 # ADDED TO THE HK SET FOR THE HKEX FACES THAT PRINT THEM, AND NOT CARRIED ACROSS EITHER: the
-# spellings PetroChina, Far East Horizon and 嘉民 print for these lines, which their rows missed
+# spellings PetroChina, Far East Horizon and 佳明 print for these lines, which their rows missed
 # (`tests/test_hk_pl_face_rows_reach_their_lines.py`). Whether an Ind AS face needs them is the Ind
 # AS set's own question, for the same reason as above.
 HK_FACE_SPELLINGS_NOT_CARRIED = {

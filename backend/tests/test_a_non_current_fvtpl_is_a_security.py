@@ -1,7 +1,7 @@
 """An HKFRS balance sheet's non-current FVTPL and FVOCI rows are Securities (LTP), not the residual.
 
 `bs_nca__secur_and_other_fincl_assets_ltp` is `derived`, so a printed row reaches it only through its
-face part, and that part named the CAS caption 其他非流动金融资产 alone. 嘉民 kaming prints
+face part, and that part named the CAS caption 其他非流动金融资产 alone. 佳明 kaming prints
 "Financial assets at fair value through profit or loss 按公平值計入損益之金融資產" (9,956) and the FVOCI
 row (9,935) under Non-current assets, so both were swept into Other Non-current Assets.
 """

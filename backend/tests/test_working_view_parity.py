@@ -196,15 +196,15 @@ _CONFUSABLE_CONVERTED = frozenset({
 
 # THE TWO RESIDUALS THAT REFUSE "NET ASSETS". A Hong Kong statement of financial position prints
 # "Net assets 資產淨值" between the non-current liabilities and the equity section, and it is the SAME
-# FACT as total equity (2,376,067 = 2,376,067 on 嘉民, 20,482,326 = 20,482,326 on China SCE 1966).
+# FACT as total equity (2,376,067 = 2,376,067 on 佳明, 20,482,326 = 20,482,326 on China SCE 1966).
 # Nothing claimed it, so the sweep filed it into whichever residual its banner resolved to:
-# `bs_ncl__other_non_current_liabilities` on 嘉民 (2,386,207 published for a printed 10,140) and
+# `bs_ncl__other_non_current_liabilities` on 佳明 (2,386,207 published for a printed 10,140) and
 # `bs_equity__other_reserves` on 1966. Both gained the `exclude_hints` that already refuse the
 # layout's other subtotals ("Net current assets", "Total assets less current liabilities"), so the
 # seed leads the rulebook on these two. Other Reserves also refuses the CAS "其中：优先股 / 永续债"
 # breakdown of 其他权益工具, which 河钢 000709 had swept into it beside Other Equity's own 7.0B. And
 # the current-liabilities residual gained the two layout hints the non-current one already had:
-# 嘉民 prints "Total assets less current liabilities 3,078,784" under its current liabilities, and
+# 佳明 prints "Total assets less current liabilities 3,078,784" under its current liabilities, and
 # the sweep filed it on `bs_cl__other_current_liabilities`, which published 3,092,261 for a printed
 # 13,477 — total current liabilities 8,972,667 for a printed 5,893,883.
 _NET_ASSETS_VETOED = frozenset({
@@ -507,7 +507,7 @@ def test_shipped_set_projects_every_definition_including_the_parts():
         # their PARENTS are `derived` and `mapping._computed_parent` therefore forbids a caption
         # from reaching them, so a column with a note cascade had no way to read its own printed
         # row — measured, China SCE 1966's "Due to related parties" 2,588,416 went to
-        # `bs_cl__other_current_liabilities` and 嘉民's two shareholder loans to
+        # `bs_cl__other_current_liabilities` and 佳明's two shareholder loans to
         # `bs_ncl__other_non_current_liabilities`.
         "sub__rp_face_due_to_cp", "sub__rp_face_loan_from_holding_co", "sub__rp_face_due_from_cp",
         "sub__rp_face_loan_from_shareholder",
@@ -569,7 +569,7 @@ def test_shipped_set_diverges_only_in_the_known_classes():
         # …and `unit_of_account` on Retained Profits ALONE, which the seed declares `balance`
         # where the rulebook derives `subtotal` from its `calculated` type. It is one reserve of the
         # equity section, not a subtotal over it: read as a subtotal it was left out of the
-        # section's own identity, which then reported China SCE 1966 13,517,775 short and 嘉民
+        # section's own identity, which then reported China SCE 1966 13,517,775 short and 佳明
         # 2,182,599 short — each filing's printed retained profits — while the section tied.
         if field == "unit_of_account" and set(keys) <= {"bs_equity__retained_profits"}:
             continue

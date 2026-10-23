@@ -210,7 +210,7 @@ def test_reviewer_corrected_extracted_roles_and_equity_formulas():
     # Hedging and Other Reserves as well, while Other Reserves (the section residual) deducted
     # Retained Profits — a rollup cycle, so `rollups.evaluate` ran neither — and the three reserve
     # lines reached Total Equity & Reserves only through that never-run residual: published total
-    # equity was 148,757 short on China SCE 1966 and 15,056 short on 嘉民. They are Total Equity's
+    # equity was 148,757 short on China SCE 1966 and 15,056 short on 佳明. They are Total Equity's
     # own children now (C9 + C22 + C23 of the extraction logic), so Retained Profits is the
     # retained earnings the filing prints, with nothing of theirs inside it.
     retained = nodes["bs_equity__retained_profits"]["rollup"]["children"]

@@ -353,7 +353,7 @@ def test_1966_fair_value_level_1_and_level_3_bands_and_the_block_periods():
 
 
 def test_kaming_fair_value_then_its_three_levels():
-    """嘉民 page 147, note 30(e)(i): Fair value | Level 1 | Level 2 | Level 3, the group over the
+    """佳明 page 147, note 30(e)(i): Fair value | Level 1 | Level 2 | Level 3, the group over the
     last three, figures under Fair value and Level 2; units "$’000 千元" are not a heading."""
     items = _build(_real("kaming_fv"))
     li = _row(items, "Financial assets at FVTPL")
