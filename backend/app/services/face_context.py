@@ -314,7 +314,10 @@ _STATEMENT_TOTAL = {
         r"(?i)\b(?:profit|loss|earnings)(?:\s*/\s*\(?(?:loss|profit)\)?)?\s+(?:before|for\s+the\s+"
         r"(?:year|period))\b|\btotal\s+comprehensive\b|^\W*other\s+comprehensive\s+(?:income|"
         r"expense|loss)\S*(?:\s+\S+)?\s+for\s+the\s+(?:year|period)|^\W*gross\s+profit"
-        r"|^\W*operating\s+(?:profit|loss)|^\W*(?:profit|loss)\s+from\s+operati"),
+        r"|^\W*operating\s+(?:profit|loss)|^\W*(?:profit|loss)\s+from\s+operati"
+        # A CAS statement's numbered bottom lines: 三、营业利润, 四、利润总额, 五、净利润, 七、综合收益总额.
+        r"|^\W*[一二三四五六七八九十]+\s*[、.．]\s*(?:营业利润|營業利潤|利润总额|利潤總額|净利润|淨利潤"
+        r"|综合收益总额|綜合收益總額)"),
     "cash_flow": re.compile(
         r"(?i)^\W*net\s+(?:\(?(?:increase|decrease)\)?\s*/?\s*)+in\s+cash"
         r"|^\W*cash\s+and\s+cash\s+equivalents\s+at\s+(?:the\s+)?(?:end|beginning)"
@@ -365,31 +368,93 @@ def is_statement_title(text: str, titles=()) -> bool:
 def block_context(rows, statement: str = "", chrome=(), titles=()) -> list[tuple[str, str]]:
     """``(under, subheading)`` for each row of one statement block, in the order given (printed
     order) — see the comment above. `subheading` is the reader's `group_hint`, which a grand total
-    does not carry."""
-    closed: set[str] = set()
-    out: list[tuple[str, str]] = []
+    does not carry.
+
+    A SECTION RUNS ON ACROSS A PAGE until its own total. The reader names a row's banner from the
+    page it is read on, and a page that continues a section prints no banner over its first rows
+    — or only the statement's title again. 000883's 流动资产： is printed on page 107 over 货币资金
+    and 交易性金融资产, and 应收票据 … 流动资产合计 on page 108 came with no section at all; Far East
+    Horizon's operating rows after the page break came "under" CONSOLIDATED STATEMENT OF CASH FLOWS,
+    which is no section, and so under none. A row read under no section, or under only a title, a
+    units line or the entity, is in the section in force. A section is in force from its first row
+    to its own total, and a grand total or bottom line ends it. A subtotal does not end it: a total
+    of the section followed, before the next banner, by another whose words are a part of its own —
+    "… before tax and interest" above "Net cash flows from operating activities", 归属于母公司所有者
+    权益合计 above 所有者权益合计. Not on a statement of changes in equity, whose rows are a matrix's,
+    not a section's.
+
+    A banner the reader carries on past the section's total is stale ("NET CURRENT ASSETS" read
+    under CURRENT LIABILITIES), and a row under it is in no section. The same banner read AFRESH —
+    after rows read under none, or under another — is a new section of that name: China SCE's
+    operating and investing sections both read as "ACTIVITIES", the second line of each wrapped
+    heading."""
+    rows = list(rows)
+    captions = [str(getattr(r, "source_label", "") or "") for r in rows]
+    own: list[str] = []
     for row in rows:
-        caption = str(getattr(row, "source_label", "") or "")
         section = str(getattr(row, "section_hint", None) or "").strip()
-        under = section
-        if under and (is_identity_line(under, chrome) or is_statement_title(under, titles)
-                      or _UNITS_ONLY.match(under)):
-            under = ""
-        if under in closed:
-            under = ""
+        if section and (is_identity_line(section, chrome) or is_statement_title(section, titles)
+                        or _UNITS_ONLY.match(section)):
+            section = ""
+        own.append(section)
+    grand = [statement == "balance_sheet" and bool(_GRAND_TOTAL.search(c)) for c in captions]
+    borrowed = [bool(getattr(r, "caption_borrowed", False)) for r in rows]
+    # A bare total captioned with the heading over it is not a bottom line by that heading's words.
+    bottom = [statement in _STATEMENT_TOTAL and not b and bool(_STATEMENT_TOTAL[statement].search(c))
+              for c, b in zip(captions, borrowed)]
+    carry = statement != "changes_in_equity"
+
+    def _banner_read(j: int) -> bool:
+        """Row `j` is read under a banner the row before it was not read under."""
+        return bool(own[j]) and (j == 0 or own[j - 1] != own[j])
+
+    def _part_of(j: int, i: int) -> bool:
+        """Row `j`'s caption is row `i`'s less some words: "Net cash flows from operating
+        activities" of "… before tax and interest", 所有者权益合计 of 归属于母公司所有者权益合计."""
+        j_latin, j_han = _words_of(captions[j])
+        i_latin, i_han = _words_of(captions[i])
+        if j_latin or i_latin:
+            return j_latin < i_latin
+        return bool(j_han) and j_han != i_han and j_han in i_han
+
+    def _closes(i: int, section: str) -> bool:
+        """Row `i` totals `section`, and is not a subtotal of it (`_part_of`) a later total of the
+        section follows before its run ends."""
+        if borrowed[i] or not _totals_section(captions[i], section):
+            return False
+        for j in range(i + 1, len(rows)):
+            if (own[j] and own[j] != section) or _banner_read(j) or grand[j] or bottom[j]:
+                return True
+            if not borrowed[j] and _totals_section(captions[j], section) and _part_of(j, i):
+                return False
+        return True
+
+    closed: set[str] = set()
+    in_force = ""
+    out: list[tuple[str, str]] = []
+    for i, row in enumerate(rows):
+        section = own[i]
+        if section:
+            if section in closed and _banner_read(i):
+                closed.discard(section)
+            in_force = "" if section in closed else section
+        elif not carry:
+            in_force = ""
+        under = in_force
         sub = str(getattr(row, "group_hint", "") or "").strip()
-        grand = statement == "balance_sheet" and bool(_GRAND_TOTAL.search(caption))
-        bottom = statement in _STATEMENT_TOTAL and bool(_STATEMENT_TOTAL[statement].search(caption))
-        if section and section not in closed and not getattr(row, "caption_borrowed", False):
-            if _totals_section(caption, section):
-                # The section's own total: printed in it, and the last row that is.
-                closed.add(section)
-            elif grand or bottom:
-                closed.add(section)
-                under = ""
-        if grand:
-            under, sub = "", ""
-        heading = _joined_heading(caption)[0]
+        if grand[i]:
+            if under:
+                closed.add(under)
+            under, in_force, sub = "", "", ""
+        elif under and _closes(i, under):
+            # The section's own total: printed in it, and the last row that is.
+            closed.add(under)
+            in_force = ""
+        elif bottom[i]:
+            if under:
+                closed.add(under)
+            under, in_force = "", ""
+        heading = _joined_heading(captions[i])[0]
         if heading and not sub:
             sub = heading
         out.append((under, sub))
