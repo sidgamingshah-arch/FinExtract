@@ -49,7 +49,10 @@ def unread_set_pages(doc, statements=ONE_SET_STATEMENTS) -> dict[int, str]:
     taxation and revenue went into Other Operating Expenses. The balance sheet and the cash flow
     statement were summed the same way (CAS page index 125-126 and 128 beside IFRS 227 and 228-229), so
     every balance-sheet total came out at about twice the printed figure. Rows on these pages are left unbound
-    and unswept (`SET_NOT_READ_FLAG`); they are still extracted and still shown to the model, apart.
+    and unswept (`SET_NOT_READ_FLAG`); they are still extracted. THE MODEL ROUTE FOLLOWS THE SAME
+    RULE: `face_context._shown_on_face` leaves these pages out of the statement blocks a request
+    sends and out of the face index a citation resolves against, so a citation cannot land on the
+    other set's row of a caption both sets print.
     """
     read = read_framework(doc)
     if read is None:

@@ -47,6 +47,7 @@ from app.services import units
 from app.services.gap_explanation import _BOILERPLATE
 from app.services.mapping import normalize_statement
 from app.services.statement_sets import PREFERRED_FRAMEWORK as _PREFERRED
+from app.services.statement_sets import unread_set_pages
 
 
 def _figures(row) -> dict[str, str]:
@@ -163,7 +164,10 @@ def face_rows(doc, statements) -> list[dict]:
     # own block after them, named by its standards, with no row proposed for a line, and saying
     # it is there only for a figure the IFRS statements do not print on their face (PetroChina's
     # CAS balance sheet prints short-term borrowings without the current portion of long-term
-    # borrowings, which its IFRS face includes and its IFRS note 29 splits out).
+    # borrowings, which its IFRS face includes and its IFRS note 29 splits out). ON A STATEMENT IN
+    # `statement_sets.ONE_SET_STATEMENTS` — the income statement, the balance sheet and the cash
+    # flow — the other set is not sent at all (`_shown_on_face`), so this keeps apart only the
+    # other set of any other statement.
     frameworks = {k[3] for k in by_block if k[3]}
     read = (PREFERRED_FRAMEWORK if PREFERRED_FRAMEWORK in frameworks
             else sorted(frameworks)[0]) if len(frameworks) > 1 else None
@@ -206,6 +210,7 @@ def _face_blocks(doc, want=None) -> tuple[dict, dict]:
                     normalize_statement(str(getattr(p, "statement", "") or ""))
                     for p in (getattr(doc, "pages", None) or ())}
     notes_pages = _notes_pages(doc)
+    unread = unread_set_pages(doc)
     supplement = supplement_pages(doc)
     framework_of = {int(getattr(p, "index", -1)): str((getattr(p, "evidence", None) or {})
                                                        .get("framework") or "")
@@ -223,7 +228,7 @@ def _face_blocks(doc, want=None) -> tuple[dict, dict]:
         statement = _statement_of(row, stmt_of_page, page)
         if want is not None and statement not in want:
             continue
-        if not _shown_on_face(row, page, notes_pages):
+        if not _shown_on_face(row, page, notes_pages, unread):
             continue
         unit = units.row_unit(row, doc_unit)
         for entity, (figures, legend) in _figures_by_entity(row).items():
@@ -738,8 +743,21 @@ def is_column_heading_row(row) -> bool:
                                  for f in figures)
 
 
-def _shown_on_face(row, page, notes_pages) -> bool:
+def _shown_on_face(row, page, notes_pages, unread=()) -> bool:
     """Whether a statement block may carry `row` — the one rule `face_rows` and `face_index` share.
+
+    THE STATEMENT SET THIS TEMPLATE DOES NOT READ IS NOT SENT AND NOT CITED: `unread` is
+    `statement_sets.unread_set_pages(doc)`, the face pages of the other set on the statements the
+    deterministic route reads one set of (`ONE_SET_STATEMENTS`). PetroChina prints its CAS balance
+    sheet (page index 125-126) beside its IFRS one (227-228), and both went out as consolidated
+    `balance_sheet` blocks, the CAS one marked `kept_apart`. A citation names a statement, an
+    entity and a caption, never a set, and the captions differ only by case ("TOTAL NON-CURRENT
+    ASSETS" / "Total non-current assets"), which the gateway folds: a blind answer citing the IFRS
+    2,161,907 resolved to the CAS row 2,162,163, printed first. Measured on the 17 face citations
+    recorded for that filing, none cited a row only the CAS block printed and 10 named a caption
+    both blocks print, so the block informed no answer and could only misplace one. Leaving it out
+    of both the request and the lookup is one rule on both sides; the CAS rows are still extracted
+    (flagged `statement_set_not_read`), and the notes are unchanged.
 
     WHAT THE RUN ITSELF MARKS AS A NOTE STAYS OUT of a statement block: a row read off a page the
     classifier called notes, or one `buckets` placed as printed in the notes. The statement block
@@ -753,6 +771,8 @@ def _shown_on_face(row, page, notes_pages) -> bool:
     A LINE OF THE COLUMN HEADING read as a row is not one either (`is_column_heading_row`).
     """
     if page in notes_pages or _printed_in_notes(row):
+        return False
+    if page in unread:
         return False
     if _BOILERPLATE.search(getattr(row, "source_label", "") or ""):
         return False
@@ -866,13 +886,14 @@ def _face_index_rows(doc) -> list[tuple[str, str, object]]:
                     normalize_statement(str(getattr(p, "statement", "") or ""))
                     for p in (getattr(doc, "pages", None) or ())}
     notes_pages = _notes_pages(doc)
+    unread = unread_set_pages(doc)
     out: list[tuple[str, str, object]] = []
     for row in (getattr(doc, "line_items", None) or ()):
         caption = getattr(row, "source_label", "") or ""
         if not caption:
             continue
         page = _page_of(row)
-        if not _shown_on_face(row, page, notes_pages):
+        if not _shown_on_face(row, page, notes_pages, unread):
             continue
         out.append((_statement_of(row, stmt_of_page, page), caption, row))
     return out

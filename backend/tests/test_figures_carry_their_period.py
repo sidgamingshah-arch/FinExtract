@@ -211,17 +211,26 @@ def _li(caption, page, value, key=None):
 
 
 def test_statement_lines_read_the_ifrs_set_and_the_cas_set_is_kept_apart():
+    # A statement outside `statement_sets.ONE_SET_STATEMENTS` (the equity statement): its CAS set
+    # is still sent, apart. The balance sheet's is not sent at all — see
+    # `test_one_statement_set_in_requests`.
     doc = DocumentModel(filename="ar.pdf")
-    doc.pages = [_face(10, "balance_sheet"), _face(20, "balance_sheet")]
+    doc.pages = [_face(10, "changes_in_equity"), _face(20, "changes_in_equity")]
     doc.pages[0].evidence["framework"] = "CAS"
     doc.pages[1].evidence["framework"] = "IFRS"
-    doc.line_items = [_li("Short-term borrowings", 10, "45955", "bs_cl__st_bank_loans_payable"),
-                      _li("Short-term borrowings", 20, "138783", "bs_cl__st_bank_loans_payable")]
-    blocks = face_context.face_rows(doc, {"balance_sheet"})
+    doc.line_items = [_li("Share capital", 10, "183021", "bs_equity__common_share_capital"),
+                      _li("Share capital", 20, "183021", "bs_equity__common_share_capital")]
+    blocks = face_context.face_rows(doc, {"changes_in_equity"})
     assert [(b["set"], "kept_apart" in b) for b in blocks] == [("IFRS", False), ("CAS", True)]
-    assert blocks[0]["rows"][0]["line"] == "bs_cl__st_bank_loans_payable"
+    assert blocks[0]["rows"][0]["line"] == "bs_equity__common_share_capital"
     assert "line" not in blocks[1]["rows"][0]             # no CAS row is proposed for a line
     assert "IFRS" in blocks[1]["kept_apart"]
+    # On the balance sheet the CAS set is not sent.
+    for page in doc.pages:
+        page.statement = "balance_sheet"
+    blocks = face_context.face_rows(doc, {"balance_sheet"})
+    assert len(blocks) == 1 and "kept_apart" not in blocks[0]
+    assert [r["figures"] for r in blocks[0]["rows"]] == [{"current": "183021"}]
 
 
 # ── lint calibration ────────────────────────────────────────────────────────────────────────
