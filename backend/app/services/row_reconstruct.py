@@ -1422,7 +1422,50 @@ def _continues_a_heading(held: tuple[str, list[Word]], label_words: list[Word], 
             or bool(_CONT_STARTS.match(tail)))
 
 
-_ARABIC = re.compile(r"[؀-ۿݐ-ݿﭐ-﷿ﹰ-﻿]")
+def _continues_a_banner(held: tuple[str, list[Word]] | None, label_words: list[Word], label: str,
+                        steps: tuple[tuple[str, object], ...]) -> str | None:
+    """The whole banner, as printed, when this figure-less face line is the SECOND line of a
+    section banner whose first line was printed, figure-less, directly above it; None otherwise.
+
+    China SCE sets every cash flow banner in a narrow caption column, so each wraps:
+
+        CASH FLOWS FROM FINANCING   融資活動現金流量
+          ACTIVITIES
+
+    Each line was read as a banner of its own, the second replacing the first, so all three
+    sections were named "ACTIVITIES" — which names no section. The mapper had no section to gate
+    on (the investing rows were swept into other financing cash flows), and the request text could
+    not tell the three apart: the investing total closed "ACTIVITIES", and the financing rows after
+    it, read under the same name, were sent under no section at all.
+
+    The vocabulary decides it, not the case: the two lines TOGETHER name a section, while neither
+    line's English names one on its own. A tail that is a banner itself ("ASSETS" over "NON-CURRENT
+    ASSETS") opens a section of its own, and a head that already names its section is complete, so
+    neither is joined. A colon-ended head introduces what follows and is never continued, and the
+    tail must be set tight beneath the head in the label column (`_wrap_adjacent`). Judged on the
+    Latin words, because the head carries the whole Chinese banner on its own line."""
+    if not held or not label or not label_words:
+        return None
+    head, head_words = held
+    if not head or not head_words or _ends_with_colon(head, steps):
+        return None
+    if not _wrap_adjacent(_row_box(head_words), _row_box(label_words), label_words):
+        return None
+
+    def latin(text: str) -> str:
+        return re.sub(r"\s+", " ", _HAN.sub(" ", text)).strip()
+
+    head_latin, tail_latin = latin(head), latin(label)
+    if not head_latin or not tail_latin:
+        return None
+    if section_of_banner(tail_latin) is not None or section_of_banner(head_latin) is not None:
+        return None
+    if section_of_banner(f"{head_latin} {tail_latin}") is None:
+        return None
+    return _join_words(_regroup_scripts([*head_words, *label_words]))
+
+
+_ARABIC =re.compile(r"[؀-ۿݐ-ݿﭐ-﷿ﹰ-﻿]")
 _LATIN = re.compile(r"[A-Za-z]")
 
 
@@ -7285,12 +7328,16 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
     # THE FIGURE-LESS FACE LINE PRINTED DIRECTLY ABOVE, when nothing below took it for a heading —
     # the first line of a heading that wraps onto a second, colon-ended one (`_continues_a_heading`).
     held_head: tuple[str, list[Word]] | None = None
+    # THE FIGURE-LESS FACE LINE PRINTED DIRECTLY ABOVE, whatever was made of it — the first line of
+    # a section banner that wraps onto a second (`_continues_a_banner`).
+    held_line: tuple[str, list[Word]] | None = None
     # The face sub-heading whose block the rows are being read in, and whether its first row was
     # set inboard of it — see "WHERE A FACE SUB-HEADING'S BLOCK ENDS" below.
     face_group_seen: tuple[str, float | None] | None = None
     face_group_inset = False
     for row in rows:
         held, held_head = held_head, None
+        above, held_line = held_line, None
         label_words, note_ref, value_words = _scan_row(
             row, number_format, extract_note_refs=on_face)
         if on_face:
@@ -7613,6 +7660,19 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                     and _ends_with_colon(label, steps)
                     and _continues_a_heading(held, label_words, label, steps)):
                 shown = f"{held[0].strip()} {label.strip()}"
+            # A SECTION BANNER WRAPPED ONTO A SECOND LINE is the banner both lines print, and it is
+            # a banner however its tail alone reads. See `_continues_a_banner`.
+            wrapped_banner = (_continues_a_banner(above, label_words, label, steps)
+                              if on_face and label and not value_words else None)
+            wrapped_section = section_of_banner(wrapped_banner) if wrapped_banner else None
+            if statement == "balance_sheet" and wrapped_section not in _BALANCE_SHEET_SECTIONS:
+                wrapped_banner = None       # as for a one-line banner, above
+            if wrapped_banner is not None:
+                shown, banner = wrapped_banner, wrapped_section
+                if log:
+                    log(f"extract:page={page_index}:wrapped_banner({shown[:60]!r})")
+            if on_face and label and not value_words and label_words:
+                held_line = (label, label_words)
             if label and caption and not value_words and (heading or banner is not None
                                                           or sub_head):
                 if _is_units_caption(label_words):
@@ -7624,7 +7684,7 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                     # with no colon and would be read as a banner. This is the backstop for that,
                     # and it is about the TOKENS rather than about the rulebook's vocabulary.
                     continue
-                if _looks_like_wrapped_tail(caption):
+                if _looks_like_wrapped_tail(caption) and wrapped_banner is None:
                     # The leftovers of a caption that wrapped, which is not a section even when it
                     # reads as one on its own line — see ``_TAIL_CONTINUATION``.
                     continue
@@ -7659,8 +7719,9 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                 block_ordinals, block_value_x1s = [], []
                 group_label_bbox = _union([w.source_bbox for w in label_words])
                 group_x0 = min((w.bbox.x0 for w in (
-                    [*held[1], *label_words] if shown != label and held else label_words)),
-                    default=None)
+                    [*above[1], *label_words] if wrapped_banner is not None and above
+                    else [*held[1], *label_words] if shown != label and held
+                    else label_words)), default=None)
             elif on_face and label and not value_words and _is_face_group_heading(label):
                 # A FACE HEADING WITH NO COLON over the rows beneath it — see
                 # `_is_face_group_heading`. It heads them as a colon heading would.
