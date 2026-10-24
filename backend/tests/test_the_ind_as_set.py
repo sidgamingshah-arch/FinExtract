@@ -427,6 +427,13 @@ HK_FACE_SPELLINGS_NOT_CARRIED = {
     "cf_investing__investment_assoc_and_affiliates": {
         "purchase of shareholdings for associates", "purchase of shareholdings for joint ventures",
         "purchase of a shareholding in a joint venture", "advances of loans to a joint venture"},
+    # HKEX combined payables captions the HK definition of Trade and other payables(CP) names,
+    # added to the HK set as aliases for the user's r9 decision (trade payables split from the
+    # note): PetroChina, Lai Sun and Hon Kwok print them and they were swept into a residual.
+    "bs_cl__trade_and_other_payables_cp": {
+        "accounts payable and accrued liabilities", "creditors, other payables and accruals",
+        "trade payables, other payables and accrued liabilities",
+        "trade payables, other payables and accruals"},
 }
 
 

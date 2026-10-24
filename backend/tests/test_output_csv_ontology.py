@@ -74,8 +74,15 @@ def test_every_arithmetic_workbook_rule_is_compiled_or_explicitly_excluded():
     # these ids are not a template rollup, and are no longer computed by anything either — the
     # figure has to come from configuration, and the cell is blank until it does.
     # Retired pins for the removed services are recorded in test_retired_derivations.py.
+    # NCL_004 (LTD Bank), Cash Flow_038 (Cash Paid to Employees) and Cash Flow_073 (Dividends
+    # Paid(Fin)) compiled to a residual on the line itself — the printed row less its siblings.
+    # THE USER'S DECISION (r9): "Each line becomes the printed row, and the rollup no longer
+    # subtracts siblings." Those rollups are removed from the template, so the rules are excluded
+    # here as they are in scripts/build_output_csv_template.py's ARITHMETIC_RULE_EXCLUSIONS. The
+    # decision's two cash residuals (CA_046, CA_047) are held back and still compiled.
     excluded = {"P&L_091", "Others_011", "Notes_013", "NCA_010", "NCA_022", "NCA_023", "CA_038",
-                "P&L_014", "NCA_037", "CA_016", "NCA_032", "CA_044"}
+                "P&L_014", "NCA_037", "CA_016", "NCA_032", "CA_044",
+                "NCL_004", "Cash Flow_038", "Cash Flow_073"}
     calculated = set(calculated_nodes(TEMPLATE_DEF))
     compiled = {
         field_id for field_id in arithmetic

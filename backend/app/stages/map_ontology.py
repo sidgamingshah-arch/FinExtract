@@ -1564,9 +1564,26 @@ class MapOntologyStage:
         # column) are the whole of the protection — do not read the opt-in as a second one.
         dynamic: set[str] = set()
         by_key = {m.canonical_key: m for m in ontology.mappings}
+        # A LINE THAT DECLARES HOW ITS OWN PRINTED ROW SPLITS is not itemised a second way here.
+        # Trade and other payables(CP) takes the trade part its note prints out of the combined row
+        # (`CascadeRung.deducts_from_printed`, the user's r9 decision: "the combined line takes the
+        # printed combined row LESS that part"). Measured on PetroChina once 'Accounts payable and
+        # accrued liabilities' bound the line: this arm also split 'Dividends payable' 265 / 470 out
+        # of note 27, so the line published the printed row less TWO parts, and the split rows came
+        # out in scale 1 beside the statement's RMB millions — bs_cl's reconciliation was skipped as
+        # `mixed_scale`. One declared split per row; the rest of the row stays the line's.
+        declared_splits = {
+            item.key for item in (getattr(getattr(ctx, "line_items", None), "items", None) or ())
+            if any(getattr(rung, "deducts_from_printed", False)
+                   for rung in (getattr(item, "cascade", None) or ()))}
         for parent in doc.line_items:
             key = parent.canonical_key or ""
             mapping = by_key.get(key)
+            if key in declared_splits and key not in seen and _cited_notes([parent]):
+                ctx.log(f"map_line_items:split_declined({key}): its cascade declares the part its "
+                        f"printed row gives up, so its note does not itemise it a second way")
+                seen.add(key)
+                continue
             # `mapping.note_use != "decomposition_allowed"` WAS A TERM OF THIS CONDITION. Removed
             # with the question: decomposition is always allowed, so it refused nothing that the
             # three surviving terms do not already refuse — a single home section, and the row

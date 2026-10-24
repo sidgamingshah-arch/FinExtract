@@ -5468,7 +5468,7 @@
   {
    "key": "bs_ncl__ltd_bank",
    "label": "LTD Bank",
-   "definition": "Long-term bank borrowings: loans from banks repayable after more than one year — term, syndicated and mortgage loans, secured and unsecured together — reported in the non-current liabilities section of the balance sheet. On a CAS statement this line is 长期借款 as printed, whatever kinds of loan its breakdown lists (信用借款, 保证借款, 抵押借款, 质押借款). On an HKFRS statement it is the non-current 'Bank borrowings', 'Bank loans', 'Interest-bearing bank borrowings' or 'Long-term borrowings' row. Where one non-current row prints bank and other loans together ('Interest-bearing bank and other borrowings', 'Bank and other loans'), or long-term borrowings that include debentures or notes, cite that row as printed: the other loans and the bonds in it are 'LTD Other', and this template's rollup takes the debt lines that have a figure of their own out of this line, so do not split the row or deduct them yourself. The part due within one year is 'CPLTD Bank'. Not this line: bonds, guaranteed or senior notes, debentures and other non-bank loans ('LTD Other'); convertible, subordinated or perpetual instruments ('LTD Convertible', 'LTD Subordinated', 'Perpetual Bond'); repurchase agreements ('Repo(LTP)'); lease liabilities ('Lease liabilities(LTP)'); finance lease payables ('Finance Leases(LTP)'); entrusted loans (the 'Entrusted loan payables' lines); amounts due to related parties, directors, shareholders or subsidiaries (the 'Due to' lines). Where the balance sheet prints no such row, answer with an empty sources list. It is one of the lines this template's rollup adds into Total Non-Current Liabilities.",
+   "definition": "Long-term bank borrowings: loans from banks repayable after more than one year — term, syndicated and mortgage loans, secured and unsecured together — reported in the non-current liabilities section of the balance sheet. On a CAS statement this line is 长期借款 as printed, whatever kinds of loan its breakdown lists (信用借款, 保证借款, 抵押借款, 质押借款). On an HKFRS statement it is the non-current 'Bank borrowings', 'Bank loans', 'Interest-bearing bank borrowings' or 'Long-term borrowings' row. The line is the row as printed, and nothing is taken off it. Where one non-current row prints bank and other loans together ('Interest-bearing bank and other borrowings', 'Bank and other loans'), or long-term borrowings that include debentures or notes, cite that row as printed: the whole row is this line, the other loans and the bonds in it included, and 'LTD Other' and the other debt lines take only rows of their own printed beside it, never a part split out of this row. The part due within one year is 'CPLTD Bank'. Not this line: bonds, guaranteed or senior notes, debentures and other non-bank loans printed as rows of their own ('LTD Other'); convertible, subordinated or perpetual instruments ('LTD Convertible', 'LTD Subordinated', 'Perpetual Bond'); repurchase agreements ('Repo(LTP)'); lease liabilities ('Lease liabilities(LTP)'); finance lease payables ('Finance Leases(LTP)'); entrusted loans (the 'Entrusted loan payables' lines); amounts due to related parties, directors, shareholders or subsidiaries (the 'Due to' lines). Where the balance sheet prints no such row, answer with an empty sources list. It is one of the lines this template's rollup adds into Total Non-Current Liabilities.",
    "aliases": [
     "LTD Bank",
     "Long term debt",
@@ -5525,7 +5525,7 @@
   {
    "key": "bs_ncl__entrusted_loan_payables_third_parties_ltp",
    "label": "Entrusted loan payables- third parties(LTP)",
-   "definition": "Non-current entrusted loans payable to lenders that are not related parties or shareholders, and entrusted loans whose lender the balance sheet does not identify ('Entrusted loans', 'Entrusted loan payables'). An entrusted loan (委托贷款) is a loan the entity receives through a bank or other financial institution acting as the lender's agent. Only where the balance sheet prints them as a row of their own among the non-current liabilities. The part due within one year is a current-liabilities line, not this one. Its peers by label: 'Entrusted loan payables- related parties(LTP)' and 'Entrusted loan payables- shareholders(LTP)', which take the row where its caption names related parties or shareholders as the lender. Not this line: bank loans ('LTD Bank'); other loans ('LTD Other'). Where the amount is only part of a larger row the balance sheet prints, it has no row of its own: answer with an empty sources list and do not split it out of that row.",
+   "definition": "Non-current entrusted loans payable to lenders that are not related parties or shareholders, and entrusted loans whose lender the balance sheet does not identify ('Entrusted loans', 'Entrusted loan payables'). An entrusted loan (委托贷款) is a loan the entity receives through a bank or other financial institution acting as the lender's agent. Only where the balance sheet prints them as a row of their own among the non-current liabilities. The part due within one year is a current-liabilities line, not this one. Its peers by label: 'Entrusted loan payables- related parties(LTP)' and 'Entrusted loan payables- shareholders(LTP)', which take the row where its caption names related parties or shareholders as the lender. Not this line: bank loans ('LTD Bank'); other loans ('LTD Other'). Where the amount is only part of a larger row the balance sheet prints, it has no row of its own: answer with an empty sources list and do not split it out of that row. It is one of the lines this template's rollup adds into Total Non-Current Liabilities.",
    "aliases": [
     "Entrusted loan payables- third parties(LTP)",
     "Entrusted loan payables",
@@ -5587,7 +5587,7 @@
   {
    "key": "bs_ncl__repo_ltp",
    "label": "Repo(LTP)",
-   "definition": "Financial assets sold under agreements to repurchase (repurchase agreements) where the repurchase falls after more than one year, as a row of their own among the non-current liabilities ('Financial assets sold under repurchase agreements'; 卖出回购金融资产款 where printed as non-current). Not this line: the current portion ('Repo(CP)'); assets bought under resale agreements, which are an asset ('Reverse repo(LTP)'); bank loans secured on securities ('LTD Bank'). Where the balance sheet prints no such row, answer with an empty sources list.",
+   "definition": "Financial assets sold under agreements to repurchase (repurchase agreements) where the repurchase falls after more than one year, as a row of their own among the non-current liabilities ('Financial assets sold under repurchase agreements'; 卖出回购金融资产款 where printed as non-current). Not this line: the current portion ('Repo(CP)'); assets bought under resale agreements, which are an asset ('Reverse repo(LTP)'); bank loans secured on securities ('LTD Bank'). Where the balance sheet prints no such row, answer with an empty sources list. It is one of the lines this template's rollup adds into Total Non-Current Liabilities.",
    "aliases": [
     "Repo(LTP)",
     "Repurchase agreement",
@@ -5612,7 +5612,7 @@
   {
    "key": "bs_ncl__ltd_other",
    "label": "LTD Other",
-   "definition": "Long-term debt other than bank loans, repayable after more than one year and reported in the non-current liabilities section of the balance sheet: bonds, guaranteed notes, senior notes, domestic bonds, debentures, sukuk, and loans from third parties, other financial institutions and government ('Guaranteed notes', 'Senior notes and domestic bonds', 'Other borrowings'; 应付债券, 优先票据, 境内债券). On a CAS statement it is 应付债券 as printed, even where its breakdown lists convertible bonds. Where a combined bank-and-other borrowings row is printed, this line is the other loans part of it, as the filing's breakdown splits it (the bank part is 'LTD Bank'). Where the face prints the same instrument under both current and non-current liabilities, this line is the non-current row; the current row is 'CPLTD Other'. Not this line: bank loans ('LTD Bank'); convertible bonds printed as their own row ('LTD Convertible'); subordinated debt ('LTD Subordinated'); perpetual instruments ('Perpetual Bond'); bills and notes payable due within one year ('Notes Payable(CP)'); lease liabilities ('Lease liabilities(LTP)'); finance lease payables ('Finance Leases(LTP)'); entrusted loans (the 'Entrusted loan payables' lines); amounts due to related parties, directors, shareholders or subsidiaries (the 'Due to' lines). Where the balance sheet prints no such row, answer with an empty sources list.",
+   "definition": "Long-term debt other than bank loans, repayable after more than one year and reported in the non-current liabilities section of the balance sheet: bonds, guaranteed notes, senior notes, domestic bonds, debentures, sukuk, and loans from third parties, other financial institutions and government ('Guaranteed notes', 'Senior notes and domestic bonds', 'Other borrowings'; 应付债券, 优先票据, 境内债券). On a CAS statement it is 应付债券 as printed, even where its breakdown lists convertible bonds. It is a row of its own: where one row prints bank and other borrowings together, that whole row is 'LTD Bank' as printed, the other loans in it included, and this line takes nothing out of it. Where the face prints the same instrument under both current and non-current liabilities, this line is the non-current row; the current row is 'CPLTD Other'. Not this line: bank loans ('LTD Bank'); convertible bonds printed as their own row ('LTD Convertible'); subordinated debt ('LTD Subordinated'); perpetual instruments ('Perpetual Bond'); bills and notes payable due within one year ('Notes Payable(CP)'); lease liabilities ('Lease liabilities(LTP)'); finance lease payables ('Finance Leases(LTP)'); entrusted loans (the 'Entrusted loan payables' lines); amounts due to related parties, directors, shareholders or subsidiaries (the 'Due to' lines). Where the balance sheet prints no such row, answer with an empty sources list. It is one of the lines this template's rollup adds into Total Non-Current Liabilities.",
    "aliases": [
     "LTD Other",
     "Bonds",
@@ -8242,15 +8242,23 @@
   {
    "key": "bs_cl__trade_and_other_payables_cp",
    "label": "Trade and other payables(CP)",
-   "definition": "Current payables that the balance sheet prints in ONE row together with trade payables, and the other-payables and accruals rows this template files here: HKFRS 'Trade and other payables' (應付賬款及其他應付款項, 貿易及其他應付款項), 'Creditors, other payables and accruals', 'Trade payables, other payables and accruals' (貿易應付款、其他應付款及應計費用), 'Accounts payable and accrued liabilities', and 'Other payables and accruals' (其他應付款項及應計費用), 'Other payables' (其他應付款項) or 'Accruals' (應計費用) printed on their own. Read the printed row. Where trade payables are printed in a row of their own, that row is 'Trade Payables(CP)', and related-party balances printed apart are 'Trade and other payables- related parties'. Not this line: on a CAS balance sheet 其他应付款, which this template files in 'Other Current Liabilities'; a trade payables or trade and bills payables row alone (应付账款, 'Trade payables', 'Trade and bills payables': 'Trade Payables(CP)'); bills payable ('Notes Payable(CP)'); contract liabilities and receipts in advance ('Customer Advances(CP)'); amounts due to related parties printed on their own ('Due to Related Parties(CP)'); the non-current balance ('Trade and other payables(LTP)').",
+   "definition": "Current payables that the balance sheet prints in ONE row together with trade payables, and the other-payables and accruals rows this template files here: HKFRS 'Trade and other payables' (應付賬款及其他應付款項, 貿易及其他應付款項), 'Creditors, other payables and accruals', 'Trade payables, other payables and accruals' (貿易應付款、其他應付款及應計費用), 'Accounts payable and accrued liabilities', and 'Other payables and accruals' (其他應付款項及應計費用), 'Other payables' (其他應付款項) or 'Accruals' (應計費用) printed on their own. Read the printed row and cite it as printed. Where the filing's breakdown of a combined row prints the trade payables inside it and the balance sheet prints no trade payables row of its own, those trade payables are 'Trade Payables(CP)': the template takes that figure out of the printed combined row, so this line is the combined row less the trade payables — a remainder the template computes and flags as one, not a figure the filing prints. Do not take the trade payables out yourself. Where trade payables are printed in a row of their own, that row is 'Trade Payables(CP)', and related-party balances printed apart are 'Trade and other payables- related parties'. Not this line: on a CAS balance sheet 其他应付款, which this template files in 'Other Current Liabilities'; a trade payables or trade and bills payables row alone (应付账款, 'Trade payables', 'Trade and bills payables': 'Trade Payables(CP)'); bills payable ('Notes Payable(CP)'); contract liabilities and receipts in advance ('Customer Advances(CP)'); amounts due to related parties printed on their own ('Due to Related Parties(CP)'); the non-current balance ('Trade and other payables(LTP)'). It is one of the lines this template's rollup adds into Total Current Liabilities.",
    "aliases": [
     "Trade and other payables(CP)",
-    "Trade and other payables"
+    "Trade and other payables",
+    "Accounts payable and accrued liabilities",
+    "Creditors, other payables and accruals",
+    "Trade payables, other payables and accrued liabilities",
+    "Trade payables, other payables and accruals"
    ],
    "aliases_i18n": {
     "en": [
      "Trade and other payables(CP)",
-     "Trade and other payables"
+     "Trade and other payables",
+     "Accounts payable and accrued liabilities",
+     "Creditors, other payables and accruals",
+     "Trade payables, other payables and accrued liabilities",
+     "Trade payables, other payables and accruals"
     ],
     "zh": [
      "其他应付款及应计费用",
@@ -8270,12 +8278,42 @@
    "inherits": "bs_cl",
    "face_only": false,
    "namespace": "template",
-   "route": "face"
+   "route": "face",
+   "cascade": [
+    {
+     "id": "LESS_THE_TRADE_PART",
+     "terms_op": "sum",
+     "refuse_negative": true,
+     "deducts_from_printed": true,
+     "terms": [
+      {
+       "ref": "sub__tp_note_trade_payables",
+       "role": "required",
+       "sign": 1
+      }
+     ],
+     "note": "THE USER'S DECISION (r9): the combined line takes the printed combined row LESS the trade part the note prints in it — a derived remainder, flagged remainder_of_printed so a reviewer sees it is not a printing (佳明 462,962 - 272,534 = 190,428; PetroChina 338,513 - 160,002 = 178,511). The part is Trade Payables(CP)'s, which takes it by TRADE_PART_OF_THE_COMBINED_ROW. Not applied where Trade Payables(CP) prints a row of its own in the column, or where the remainder would be negative — and then Trade Payables(CP) does not take the part either."
+    },
+    {
+     "id": "LESS_THE_TRADE_PART_BY_ITS_AGEING",
+     "terms_op": "sum",
+     "refuse_negative": true,
+     "deducts_from_printed": true,
+     "terms": [
+      {
+       "ref": "sub__tp_note_trade_payables_ageing",
+       "role": "required",
+       "sign": 1
+      }
+     ],
+     "note": "The same remainder where the note prints the trade payables only as their ageing analysis; paired with Trade Payables(CP)'s TRADE_PART_BY_ITS_AGEING."
+    }
+   ]
   },
   {
    "key": "bs_cl__trade_payables_cp",
    "label": "Trade Payables(CP)",
-   "definition": "Amounts owed to suppliers for goods and services bought in the ordinary course of business, held as a current liability: CAS 应付账款 as printed; HKFRS 'Trade payables' (貿易應付款項, 應付貿易款項), 'Accounts payable', 'Creditors', 'Trade creditors', a 'Creditors and accruals' row where this template's aliases place it, and 'Trade and bills payables' (貿易應付款項及票據, 應付賬款及票據) — where trade and bills payables are printed in one row, the whole row is this line. Read the printed row. Not this line: bills payable printed in a row of their own (应付票据, 'Notes Payable(CP)'); a row combining trade payables with other payables ('Trade and other payables(CP)'); trade payables to related parties printed apart ('Trade payables- related parties'); contract liabilities and receipts in advance ('Customer Advances(CP)'); the non-current balance ('Trade Payables(LTP)'). It is one of the lines this template's rollup adds into Total Current Liabilities.",
+   "definition": "Amounts owed to suppliers for goods and services bought in the ordinary course of business, held as a current liability: CAS 应付账款 as printed; HKFRS 'Trade payables' (貿易應付款項, 應付貿易款項), 'Accounts payable', 'Creditors', 'Trade creditors', a 'Creditors and accruals' row where this template's aliases place it, and 'Trade and bills payables' (貿易應付款項及票據, 應付賬款及票據) — where trade and bills payables are printed in one row, the whole row is this line. Read the printed row. Where the balance sheet prints no trade payables row of its own but only a row combining them with other payables ('Trade and other payables', 'Accounts payable and accrued liabilities', 'Creditors, other payables and accruals'), and the filing's breakdown of that combined row prints the trade payables inside it, this line is that trade payables figure as the breakdown prints it, and the template takes the same figure out of 'Trade and other payables(CP)', which keeps the rest of the combined row. Not this line: bills payable printed in a row of their own (应付票据, 'Notes Payable(CP)'); the other payables and accruals of a combined row ('Trade and other payables(CP)'); trade payables to related parties printed apart ('Trade payables- related parties'); contract liabilities and receipts in advance ('Customer Advances(CP)'); the non-current balance ('Trade Payables(LTP)'). It is one of the lines this template's rollup adds into Total Current Liabilities.",
    "aliases": [
     "Trade Payables(CP)",
     "Creditors",
@@ -8306,7 +8344,156 @@
    "sign_rule": {},
    "inherits": "bs_cl",
    "face_only": false,
-   "namespace": "template"
+   "namespace": "template",
+   "cascade": [
+    {
+     "id": "TRADE_PART_OF_THE_COMBINED_ROW",
+     "terms_op": "first",
+     "refuse_negative": true,
+     "outranks_printed": false,
+     "terms": [
+      {
+       "ref": "sub__tp_note_trade_payables",
+       "role": "required",
+       "sign": 1
+      },
+      {
+       "ref": "bs_cl__trade_and_other_payables_cp",
+       "role": "required",
+       "sign": 1
+      }
+     ],
+     "note": "THE USER'S DECISION (r9): trade payables split from the note. The face prints only a combined trade and other payables row and the note prints the trade payables inside it (佳明 note 20 'Trade payables' 272,534 / 157,164 inside 'Trade and other payables' 462,962 / 412,613; PetroChina note 27 'Trade payable' 160,002 / 170,441 inside 'Accounts payable and accrued liabilities' 338,513 / 363,650). This line is the note's printed trade row. `first` over two REQUIRED terms: it resolves only where the face's combined row is this column's figure of Trade and other payables(CP), whose LESS_THE_TRADE_PART rung takes the same part out of that row — so the two lines move together and Total Current Liabilities does not. Not `outranks_printed`: a trade payables row the face prints of its own stands, and then the combined row keeps its money too."
+    },
+    {
+     "id": "TRADE_PART_BY_ITS_AGEING",
+     "terms_op": "first",
+     "refuse_negative": true,
+     "outranks_printed": false,
+     "terms": [
+      {
+       "ref": "sub__tp_note_trade_payables_ageing",
+       "role": "required",
+       "sign": 1
+      },
+      {
+       "ref": "bs_cl__trade_and_other_payables_cp",
+       "role": "required",
+       "sign": 1
+      }
+     ],
+     "note": "The same split where the note prints the trade payables only as their ageing analysis (Hon Kwok note 24: 'Within 30 days' 8,852 / 7,492, the trade payables its sentence states inside 'Trade payables, other payables and accrued liabilities'). Reached only where the note prints no trade payables row, and paired with Trade and other payables(CP)'s LESS_THE_TRADE_PART_BY_ITS_AGEING the same way."
+    }
+   ]
+  },
+  {
+   "key": "sub__tp_note_trade_payables",
+   "label": "Trade payables inside a combined trade and other payables row (payables note)",
+   "in_output": false,
+   "parent": "bs_cl__trade_payables_cp",
+   "order": 1,
+   "namespace": "internal",
+   "inherits": "notes",
+   "note_source": {
+    "note_title_any": [
+     "^\\s*trade\\s+and\\s+other\\s+payables\\b",
+     "^\\s*trade\\s+payables?\\s*,\\s*other\\s+payables\\s+and\\s+accru(?:als|ed\\s+(?:charges|liabilities|expenses))\\b",
+     "^\\s*accounts\\s+payable\\s+and\\s+accrued\\s+(?:liabilities|charges|expenses)\\b",
+     "^\\s*creditors\\s*,\\s*other\\s+payables\\s+and\\s+accruals\\b"
+    ],
+    "row_caption_any": [
+     "^\\s*trade\\s+(?:payables?|creditors)\\s*$",
+     "^\\s*creditors\\s*$"
+    ],
+    "row_caption_none": [
+     "^\\s*(?:total|subtotal|合计|合計|小计|小計|总计|總計)",
+     "related|關聯|关联|bills|票據|票据|non-trade"
+    ],
+    "prose_any": [],
+    "prose_subject": "",
+    "prose_landed_in": [],
+    "note_terms": [
+     "trade and other payables",
+     "accounts payable and accrued liabilities",
+     "creditors, other payables and accruals",
+     "trade payables, other payables and accrued liabilities",
+     "trade payables"
+    ],
+    "row_terms": [
+     "trade payables",
+     "trade payable",
+     "trade creditors",
+     "creditors",
+     "應付賬款",
+     "貿易應付款項",
+     "应付账款",
+     "贸易应付款项"
+    ],
+    "row_terms_none": []
+   },
+   "statement": "notes",
+   "section_scope": [],
+   "definition": "The trade payables a combined payables note prints inside the face row it explains ('Trade and other payables', 'Accounts payable and accrued liabilities', 'Creditors, other payables and accruals'): its 'Trade payables', 'Trade payable' or 'Creditors' row, as printed. Read only where the face prints the combined row and no trade payables row of its own; the same figure is taken out of the combined row.",
+   "route": "note_tables",
+   "rollup": "sum"
+  },
+  {
+   "key": "sub__tp_note_trade_payables_ageing",
+   "label": "Ageing analysis of the trade payables inside a combined payables row (payables note)",
+   "in_output": false,
+   "parent": "bs_cl__trade_payables_cp",
+   "order": 2,
+   "namespace": "internal",
+   "inherits": "notes",
+   "note_source": {
+    "note_title_any": [
+     "^\\s*trade\\s+and\\s+other\\s+payables\\b",
+     "^\\s*trade\\s+payables?\\s*,\\s*other\\s+payables\\s+and\\s+accru(?:als|ed\\s+(?:charges|liabilities|expenses))\\b",
+     "^\\s*accounts\\s+payable\\s+and\\s+accrued\\s+(?:liabilities|charges|expenses)\\b",
+     "^\\s*creditors\\s*,\\s*other\\s+payables\\s+and\\s+accruals\\b"
+    ],
+    "row_caption_any": [
+     "^\\s*(?:within|less\\s+than|not\\s+yet\\s+due|over|more\\s+than|between|after|up\\s+to)\\b.*\\b(?:days?|months?|years?)\\b",
+     "^\\s*\\d+\\s*(?:-|–|—|to)\\s*\\d+\\s*(?:days?|months?|years?)\\b"
+    ],
+    "row_caption_none": [
+     "^\\s*(?:total|subtotal|合计|合計|小计|小計|总计|總計)",
+     "related|關聯|关联|bills|票據|票据"
+    ],
+    "prose_any": [],
+    "prose_subject": "",
+    "prose_landed_in": [],
+    "note_terms": [
+     "trade and other payables",
+     "accounts payable and accrued liabilities",
+     "creditors, other payables and accruals",
+     "trade payables, other payables and accrued liabilities",
+     "trade payables"
+    ],
+    "row_terms": [
+     "within days",
+     "less than months",
+     "more than months",
+     "over years",
+     "between years",
+     "past due days",
+     "not yet due",
+     "賬齡",
+     "账龄",
+     "以內",
+     "以内",
+     "超過",
+     "超过",
+     "少於",
+     "少于"
+    ],
+    "row_terms_none": []
+   },
+   "statement": "notes",
+   "section_scope": [],
+   "definition": "The ageing analysis of the trade payables a combined payables note prints ('Within 30 days', 'Less than 1 month', 'Over 3 years', ...), its buckets summed: the trade payables inside the combined face row where the note prints no trade payables row of its own. Read only where the face prints the combined row and no trade payables row of its own; the same figure is taken out of the combined row.",
+   "route": "note_tables",
+   "rollup": "sum"
   },
   {
    "key": "bs_cl__decomm_and_envir_costs_cp",
@@ -14230,7 +14417,7 @@
   {
    "key": "cf_oper_direct__cash_paid_to_suppliers",
    "label": "Cash Paid to Suppliers",
-   "definition": "Cash paid to suppliers for goods and services in a direct-method operating section: 'Cash paid to suppliers', 'Payments to suppliers', 'Cash paid for goods and services'. On a CAS statement it is 购买商品、接受劳务支付的现金, as printed, including the input VAT paid with the purchase. CAS prints the row as an unsigned positive figure that its own 经营活动现金流出小计 deducts; the set's sign rule negates that caption, so cite the figure as printed. Not this line: cash paid to and on behalf of employees ('Cash Paid to Employees'); 支付的各项税费 (taxes paid, part of 'Income Taxes Paid(Direct)'); 支付其他与经营活动有关的现金 (other operating cash paid); the subtotal 经营活动现金流出小计. It is a printed row; where the statement uses the indirect method and prints no such row, answer with an empty sources list.",
+   "definition": "Cash paid to suppliers for goods and services in a direct-method operating section: 'Cash paid to suppliers', 'Payments to suppliers', 'Cash paid for goods and services'. On a CAS statement it is 购买商品、接受劳务支付的现金, as printed, including the input VAT paid with the purchase. CAS prints the row as an unsigned positive figure that its own 经营活动现金流出小计 deducts; the set's sign rule negates that caption, so cite the figure as printed. Not this line: cash paid to and on behalf of employees ('Cash Paid to Employees'); 支付的各项税费 (taxes paid, part of 'Income Taxes Paid(Direct)'); 支付其他与经营活动有关的现金 (other operating cash paid); the subtotal 经营活动现金流出小计. It is a printed row; where the statement uses the indirect method and prints no such row, answer with an empty sources list. It is one of the lines this template's rollup adds into Cash Flows Oper Activ(Direct).",
    "aliases": [
     "Cash Paid to Suppliers",
     "Cash paid for goods and services",
@@ -14265,7 +14452,7 @@
   {
    "key": "cf_oper_direct__cash_paid_to_employees",
    "label": "Cash Paid to Employees",
-   "definition": "Cash paid to and on behalf of employees in a direct-method operating section — wages, salaries, bonuses, social insurance, housing fund and other benefits paid: 'Cash paid to and on behalf of employees', 'Payments to employees'. On a CAS statement it is 支付给职工以及为职工支付的现金, as printed. CAS prints the row as an unsigned positive figure that its own 经营活动现金流出小计 deducts; the set's sign rule negates that caption, so cite the figure as printed. Not this line: cash paid to suppliers for goods and services ('Cash Paid to Suppliers'); taxes paid ('Income Taxes Paid(Direct)'); 支付其他与经营活动有关的现金. Cite the printed row only; whatever adjustment this template's rollup declares for this line is made there, not by you. Where the statement uses the indirect method and prints no such row, answer with an empty sources list. It is one of the lines this template's rollup adds into Cash Flows Oper Activ(Direct).",
+   "definition": "Cash paid to and on behalf of employees in a direct-method operating section — wages, salaries, bonuses, social insurance, housing fund and other benefits paid: 'Cash paid to and on behalf of employees', 'Payments to employees'. On a CAS statement it is 支付给职工以及为职工支付的现金, as printed. CAS prints the row as an unsigned positive figure that its own 经营活动现金流出小计 deducts; the set's sign rule negates that caption, so cite the figure as printed. Not this line: cash paid to suppliers for goods and services ('Cash Paid to Suppliers'); taxes paid ('Income Taxes Paid(Direct)'); 支付其他与经营活动有关的现金. Cite the printed row only: the line is that row as printed, and the template takes nothing off it — it is not what is left of the operating total once the other direct-method rows are taken out. Where the statement uses the indirect method and prints no such row, answer with an empty sources list. It is one of the lines this template's rollup adds into Cash Flows Oper Activ(Direct).",
    "aliases": [
     "Cash Paid to Employees",
     "Cash paid to and on behalf of employees",
@@ -15473,7 +15660,7 @@
   {
    "key": "cf_financing__dividends_paid_fin",
    "label": "Dividends Paid(Fin)",
-   "definition": "Cash paid as dividends, reported in the financing activities section of the cash flow statement. Where the statement prints dividends and interest paid as one row — on a CAS statement '分配股利、利润或偿付利息支付的现金' (cash paid for distributing dividends or profits, or for paying interest) — that combined row is this line's figure, interest included, and it is not split. Otherwise this line is the row the statement prints for dividends paid. An 'of which' row printed under the combined row for dividends paid by subsidiaries to non-controlling shareholders (其中：子公司支付给少数股东的股利、利润) is part of that figure, not this line's.",
+   "definition": "Cash paid as dividends, reported in the financing activities section of the cash flow statement: the row the statement prints, as printed. Where the statement prints dividends and interest paid as one row — on a CAS statement '分配股利、利润或偿付利息支付的现金' (cash paid for distributing dividends or profits, or for paying interest) — that combined row is this line's figure, interest included, and it is not split. Otherwise this line is the row the statement prints for dividends paid. Nothing is taken off it: an 'of which' row printed under the combined row for dividends paid by subsidiaries to non-controlling shareholders (其中：子公司支付给少数股东的股利、利润) is inside that figure and stays there, and no other line takes it. Where the statement prints dividends paid to non-controlling shareholders as a row of its own beside the dividends paid row, that row is 'Dvds Paid(Minority S'holders)' and is added beside this line, not taken out of it. Where the statement prints no dividends paid row, this line has no figure: it is never made up from the non-controlling dividends. It is one of the lines this template's rollup adds into Cash Flows from Finance Activities.",
    "aliases": [
     "Dividends Paid(Fin)",
     "Dividends Paid",
@@ -15507,13 +15694,14 @@
   {
    "key": "cf_financing__dvds_paid_minority_sholders",
    "label": "Dvds Paid(Minority S'holders)",
-   "definition": "Dividends paid by subsidiaries to their non-controlling (minority) shareholders, printed in the financing activities section of the cash flow statement: 'Dividends paid to non-controlling interests', 'Dividends paid to non-controlling shareholders of subsidiaries', 'Dividends paid to minority interest' (支付附屬公司非控股股東的股息). On a CAS statement it is the 其中：子公司支付给少数股东的股利、利润 row printed under 分配股利、利润或偿付利息支付的现金. This template's rollup deducts this line from 'Dividends Paid(Fin)', which takes the dividends paid row of the statement, so cite the row as printed and do not adjust either figure yourself. Not this line: dividends paid to the company's own shareholders ('Dividends Paid(Fin)'); distributions to holders of perpetual capital securities and capital returned to non-controlling shareholders ('Other Financing Cash Flows'); the non-controlling interests' share of profit ('Minority Interests(CF)'). Where no such row is printed, answer with an empty sources list.",
+   "definition": "Dividends paid by subsidiaries to their non-controlling (minority) shareholders, printed in the financing activities section of the cash flow statement as a row of its own: 'Dividends paid to non-controlling interests', 'Dividends paid to non-controlling shareholders of subsidiaries', 'Dividends paid to minority interest' (支付附屬公司非控股股東的股息). Cite the row as printed. It is added beside 'Dividends Paid(Fin)', which keeps the dividends paid row of the statement as printed, into Cash Flows from Finance Activities; neither line is taken off the other. An 'of which' row is not a row of its own: on a CAS statement the 其中：子公司支付给少数股东的股利、利润 row printed under 分配股利、利润或偿付利息支付的现金 is part of that combined row, which is 'Dividends Paid(Fin)', and is not this line's figure. Not this line: dividends paid to the company's own shareholders ('Dividends Paid(Fin)'); distributions to holders of perpetual capital securities and capital returned to non-controlling shareholders ('Other Financing Cash Flows'); the non-controlling interests' share of profit ('Minority Interests(CF)'). Where no such row is printed, answer with an empty sources list.",
    "aliases": [
     "Dvds Paid(Minority S'holders)",
     "Dividends Paid(Minority S'holders)",
     "Dividends paid to non-controlling interest",
     "Dividends paid to minority interest",
-    "Dividends paid to non-controlling interests of subsidiaries"
+    "Dividends paid to non-controlling interests of subsidiaries",
+    "Dividends paid to non-controlling interests"
    ],
    "aliases_i18n": {
     "en": [
@@ -15521,7 +15709,8 @@
      "Dividends Paid(Minority S'holders)",
      "Dividends paid to non-controlling interest",
      "Dividends paid to minority interest",
-     "Dividends paid to non-controlling interests of subsidiaries"
+     "Dividends paid to non-controlling interests of subsidiaries",
+     "Dividends paid to non-controlling interests"
     ]
    },
    "keyword_hints": [

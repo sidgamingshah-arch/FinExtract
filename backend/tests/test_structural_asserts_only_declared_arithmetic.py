@@ -5,9 +5,10 @@ every filing in the corpus and none of them a defect in the filing:
 
 * a rollup that names a ``reported_total_key`` is a RESIDUAL — "my printed total less the children
   that found a more specific home" — and reading it as ``target == sum(children)`` asserts the
-  remainder is always zero. 30 of the output-CSV template's 61 rollups are shaped that way,
-  including the section sweep buckets, and the one on ``bs_ca__trade_and_other_receivables``
-  reported 1,525% on 000709;
+  remainder is always zero. 27 of the output-CSV template's 58 rollups are shaped that way
+  (30 of 61 until the user's r9 decision removed three — see the measurement below), including the
+  section sweep buckets, and the one on ``bs_ca__trade_and_other_receivables`` reported 1,525% on
+  000709;
 * a plain ``sum`` needs its components' SIGNS, and on a statement that nets they are not
   established: the rulebook says expenses are stored negative, a CAS filing prints them unsigned,
   and the output-CSV rulebook declares ``negative_expected`` on none of its 462 concepts. So
@@ -138,13 +139,20 @@ def test_a_rollup_that_names_a_reported_total_declares_no_equality():
     assert residual == [], "a residual bucket declares no equation to check"
 
 
-def test_the_shipped_template_has_thirty_residual_rollups_and_none_of_them_is_asserted(shipped):
+def test_the_shipped_template_has_twenty_seven_residual_rollups_and_none_of_them_is_asserted(
+        shipped):
     """THE MEASUREMENT, so a template revision that turns a residual into a real sum is visible.
 
     `tests/test_formula_in_config.test_no_residual_bucket_was_turned_into_a_sum` forbids the same
     mistake on the configuration side, where writing `terms` for a residual "would turn the
     unexplained remainder into the sum of the parts, which is a different figure and a
     plausible-looking one". This is that rule on the relation side.
+
+    30 UNTIL THE USER'S DECISION (r9): "Each line becomes the printed row, and the rollup no longer
+    subtracts siblings." Dividends Paid(Fin), LTD Bank and Cash Paid to Employees lost their
+    residual on themselves; none of them became a sum, so they are in neither list now. The same
+    decision's two cash residuals (Cash in Hand and at Banks, Cash Equivalents) are held back: they
+    are still here.
     """
     residual, plain = [], []
     for st in shipped.statements:
@@ -154,8 +162,11 @@ def test_the_shipped_template_has_thirty_residual_rollups_and_none_of_them_is_as
                 continue
             (residual if rollup.reported_total_key else plain).append(node.canonical_key)
 
-    assert len(residual) == 30 and len(plain) == 31
-    # Every one of the 30 points at ITSELF: the figure is its own printed total less the breakouts.
+    assert len(residual) == 27 and len(plain) == 31
+    assert not set(residual) & {
+        "cf_financing__dividends_paid_fin", "bs_ncl__ltd_bank",
+        "cf_oper_direct__cash_paid_to_employees"}
+    # Every one of the 27 points at ITSELF: the figure is its own printed total less the breakouts.
     asserted = {r.target for r in relations(shipped) if r.kind == "rollup"}
     assert asserted & set(residual) == set()
     assert "bs_ca__other_current_assets" in residual and "bs_cl__other_current_liabilities" in residual

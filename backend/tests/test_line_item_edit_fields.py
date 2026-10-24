@@ -296,7 +296,10 @@ _ROUND_TRIP: dict[str, tuple[str, object]] = {
          "carved_from_face": False,
          # …and whether its figure arrives BESIDE the printed row rather than contesting it — a
          # part of the line the face prints inside another caption (CAS other-business revenue).
-         "adds_to_printed": False}]),
+         "adds_to_printed": False,
+         # …and whether it takes its part OUT of the printed row — the user's r9 decision on trade
+         # payables: the combined payables line is the printed combined row less the trade part.
+         "deducts_from_printed": False}]),
     "implemented_by": ("implemented_by", "probe_service"),
     # prose
     "decomposition_rule": ("decomposition_rule", "= total cash − other"),

@@ -137,17 +137,26 @@ def test_every_term_names_a_line_that_exists(seed, template) -> None:
 
 
 def test_no_residual_bucket_was_turned_into_a_sum() -> None:
-    """THE MIGRATION'S ONE REAL HAZARD. 32 template rollups are NOT calculated lines and all 32
+    """THE MIGRATION'S ONE REAL HAZARD. 29 template rollups are NOT calculated lines and all 29
     declare `reported_total_key` — they are residuals, computed as a reported total less what was
     broken out of it. Eleven of them are the `exclusive_residual` buckets. Writing `terms` for one
     would turn "the unexplained remainder" into "the sum of the parts", which is a different figure
     and a plausible-looking one.
+
+    32 UNTIL THE USER'S DECISION (r9): "Each line becomes the printed row, and the rollup no longer
+    subtracts siblings." Dividends Paid(Fin), LTD Bank and Cash Paid to Employees lost their residual
+    on themselves and are now plain extracted lines with no rollup — not sums, so the hazard above
+    does not arise for them; the decision's two cash residuals are held back and still here.
     """
     lines, rollups = _resolved(), _template_rollups()
     residual = [k for k, d in lines.items()
                 if str(getattr(d.value_scope, "value", d.value_scope)) == "exclusive_residual"]
 
     assert len(residual) == 11, len(residual)
+    no_longer = {"cf_financing__dividends_paid_fin", "bs_ncl__ltd_bank",
+                 "cf_oper_direct__cash_paid_to_employees"}
+    assert not no_longer & set(rollups), no_longer & set(rollups)
+    assert not [k for k in no_longer if lines[k].terms]
     assert all(k in rollups for k in residual), "a residual with no template rollup to sweep it"
     assert not [k for k in residual if lines[k].terms], (
         [k for k in residual if lines[k].terms])

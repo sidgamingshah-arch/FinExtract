@@ -727,6 +727,22 @@ ARITHMETIC_RULE_EXCLUSIONS = {
     # operating share COS_P2 had already netted out was subtracted a SECOND time.
     "P&L_014": "COS depreciation is the COS_P1/COS_P2 cascade declared in the line-item set; "
                "a template residual re-subtracts what COS_P2 already netted",
+    # THE USER'S DECISION (r9): "Each line becomes the printed row, and the rollup no longer
+    # subtracts siblings." These workbook rules compiled to a residual on the line ITSELF
+    # (`reported_total_key` naming the line, `reported_total_op: diff`), so the published figure
+    # was the printed row less its siblings — or, where the row was not printed, the siblings'
+    # sum, which the section total then added beside them. They are excluded so a rebuild does
+    # not bring the residuals back; each line is now the row the statement prints.
+    #
+    # CA_046 (Cash Equivalents) and CA_047 (Cash in Hand and at Banks) are under the same decision
+    # and are NOT excluded yet: removing those two residuals moved Total Current Assets further
+    # from print on China SCE and on Far East Horizon (current year), so that half of the decision
+    # is held back with its figures in the r9 commit body.
+    "NCL_004": "user decision: LTD Bank is the printed row; no residual on the other debt lines",
+    "Cash Flow_038": "user decision: Cash Paid to Employees is the printed row; no "
+                     "direct-method residual",
+    "Cash Flow_073": "user decision: Dividends Paid(Fin) is the printed row; no residual on "
+                     "dividends paid to non-controlling shareholders",
 }
 # Curated nodes that must stay plain extracted lines even if an older base carried a rollup.
 EXTRACTED_NOT_COMPUTED_KEYS = {

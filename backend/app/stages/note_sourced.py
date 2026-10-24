@@ -998,7 +998,8 @@ def _fill_parents(children_of: dict[str, list], by_key: dict, doc: DocumentModel
         # ITS PARENT, AND EVERY LINE THAT RECEIVES IT (`Term.received`): the related-party part of
         # other receivables is computed in this pass and is Due from Related Parties (CP)'s input too.
         owners = [str(getattr(definition, "parent", "") or "")] + [
-            receiver for receiver, ref in _received_terms(defs.values()) if ref == key]
+            receiver for receiver, ref in _received_terms(defs.values()) + _deducted_terms(
+                defs.values()) if ref == key]
         if definition is None:
             return
         row = next((r for r in doc.line_items if r.canonical_key == key), None)
@@ -1482,6 +1483,26 @@ def _fill_by_cascade(parent_def, kids: list, by_key: dict, doc: DocumentModel,
         # applies to it. It is written on a carrier of its own, `_arrival_row`.
         rung_def = next((r for r in parent_def.cascade or () if r.id == got.rung_used), None)
         beside = rung_def is not None and getattr(rung_def, "adds_to_printed", False)
+        # A RUNG THAT TAKES A PART OUT OF THE LINE'S OWN PRINTED ROW (`CascadeRung.
+        # deducts_from_printed`) is not a contest either, and not the model's to overrule: whatever
+        # holds the printed row — the face's figure or the model's reading of it — is what the part
+        # comes out of, so it is computed from those carriers and written into the first of them.
+        if rung_def is not None and getattr(rung_def, "deducts_from_printed", False):
+            if _deduct_from_printed(parent_def, rung_def, got, carriers, by_key, defs or {}, doc,
+                                    ctx, basis, period, bases, sources.get((basis, period)),
+                                    cells.get((basis, period))):
+                filled += 1
+            continue
+        # …AND WHERE THAT LINE COULD NOT TAKE THE PART OUT, the part's own line does not take it
+        # either: the part is still inside the other line's printed row, and taking it here as well
+        # would count it twice in the section.
+        unmoved = [str(entry.get("ref")) for entry in got.inputs
+                   if entry.get("ref") and _part_not_deducted(doc, str(entry["ref"]), basis, period)]
+        if unmoved:
+            ctx.log(f"note_sourced:{parent_def.key}[{basis}:{period}]: rung {got.rung_used} NOT "
+                    f"applied — {', '.join(unmoved)} could not be taken out of the printed row "
+                    f"it is inside")
+            continue
         llm_answered = [li for li in carriers
                         if str(getattr(li.confidence, "method", "") or "").lower().endswith("llm")
                         and (ev := _slot(li, basis, period)) is not None and ev.value is not None]
@@ -1849,7 +1870,7 @@ def _children_by_parent(all_items) -> dict[str, list[str]]:
         parent = str(getattr(item, "parent", "") or "")
         if parent:
             out.setdefault(parent, []).append(item.key)
-    for receiver, ref in _received_terms(all_items):
+    for receiver, ref in _received_terms(all_items) + _deducted_terms(all_items):
         if ref not in out.setdefault(receiver, []):
             out[receiver].append(ref)
     return out
@@ -1864,6 +1885,188 @@ def _received_terms(all_items) -> list[tuple[str, str]]:
                 if getattr(term, "received", False) and term.ref:
                     out.append((item.key, term.ref))
     return out
+
+
+def _deducted_terms(all_items) -> list[tuple[str, str]]:
+    """(deducting line, part key) for every term of a `deducts_from_printed` rung in the set.
+
+    The part's configured parent is the line it MOVES TO (Trade Payables(CP)); the line it leaves
+    (Trade and other payables(CP)) has no child of its own, so without this its cascade would be
+    evaluated in no column at all — the same gap `Term.received` closes for the receiving side."""
+    out = []
+    for item in all_items or ():
+        for rung in getattr(item, "cascade", None) or ():
+            if not getattr(rung, "deducts_from_printed", False):
+                continue
+            for term in getattr(rung, "terms", None) or ():
+                if term.ref:
+                    out.append((item.key, term.ref))
+    return out
+
+
+#: Raised on the slot (and, with the arithmetic, on the row) of a line whose figure is its printed
+#: row LESS a part another line takes — see `CascadeRung.deducts_from_printed`. The figure is a
+#: derived remainder, not a printing, and this is what tells a reviewer so.
+REMAINDER_OF_PRINTED = "remainder_of_printed"
+#: Raised on a part's slot where a line could not take that part out of its printed row, so the
+#: part's own line does not take it either and the section total cannot move.
+NOT_DEDUCTED_FROM_PRINTED = "not_deducted_from_printed"
+
+
+def _prints_own_face_row(doc: DocumentModel, key: str, basis: str, period: str) -> bool:
+    """Whether a row the face PRINTS gives ``key`` a figure in this column — not a figure a stage
+    computed (a derivation, a computed carrier), a part read from a note, or the model's answer
+    (which `_model_figures` asks about separately)."""
+    from app.stages.prune_notes import _is_face_item
+
+    for li in doc.line_items:
+        if li.canonical_key != key or li.derivation or li.is_computed:
+            continue
+        if str(getattr(li.confidence, "method", "") or "").lower().endswith("llm"):
+            continue
+        ev = _slot(li, basis, period)
+        if (ev is not None and ev.value is not None and ev.provenance is not None
+                and _is_face_item(li, doc)):
+            return True
+    return False
+
+
+def _deduct_from_printed(parent_def, rung, got, carriers: list, by_key: dict, defs: dict,
+                         doc: DocumentModel, ctx: PipelineContext, basis: str, period: str,
+                         bases, sources, cells) -> bool:
+    """Write the line's printed figure LESS the part its rung reads — `CascadeRung.deducts_from_printed`.
+
+    Returns whether the slot was written. Refused, with the reason logged, where the line prints
+    nothing in the column, where the part's own line prints a row of its own (the part did not move
+    off this row), or where the remainder would fall below zero; a refusal on the last two marks the
+    part's slot `NOT_DEDUCTED_FROM_PRINTED`, so the part's own line leaves it too.
+    """
+    where = f"note_sourced:{parent_def.key}[{basis}:{period}]"
+    part_refs = [t.ref for t in rung.terms if t.ref]
+
+    def refuse_part(why: str) -> None:
+        for ref in part_refs:
+            for li in doc.line_items:
+                if li.canonical_key != ref:
+                    continue
+                slot = _slot(li, basis, period)
+                if slot is not None and NOT_DEDUCTED_FROM_PRINTED not in slot.confidence.flags:
+                    slot.confidence.flags.append(NOT_DEDUCTED_FROM_PRINTED)
+        ctx.log(f"{where}: rung {got.rung_used} NOT applied — {why}; the part stays in the "
+                f"printed row and its own line does not take it")
+
+    held = [(li, ev) for li in carriers
+            if (ev := _slot(li, basis, period)) is not None and ev.value is not None]
+    if not held:
+        ctx.log(f"{where}: rung {got.rung_used} takes {got.value} out of the printed row, and the "
+                f"line prints none in this column — not applied")
+        return False
+    owners = sorted({str(getattr(defs.get(ref), "parent", "") or "") for ref in part_refs} - {""})
+    for owner in owners:
+        if _prints_own_face_row(doc, owner, basis, period):
+            ctx.log(f"{where}: rung {got.rung_used} NOT applied — {owner} prints a row of its own "
+                    f"in this column, so the part did not move off this line's row")
+            return False
+        # THE MODEL ANSWERED THE PART'S OWN LINE WITH ANOTHER FIGURE: its own cascade then defers to
+        # that answer and does not take the part, so this line must not give it up either.
+        answered = _model_figures(doc, owner, basis, period)
+        if answered and Decimal(str(got.value)) not in answered:
+            ctx.log(f"{where}: rung {got.rung_used} NOT applied — the model answered {owner} with "
+                    f"{', '.join(str(a) for a in sorted(answered))}, not the part {got.value}")
+            return False
+    printed = sum((Decimal(str(ev.value)) for _li, ev in held), Decimal(0))
+    remainder = printed - Decimal(str(got.value))
+    if getattr(rung, "refuse_negative", True) and remainder < 0:
+        refuse_part(f"the printed {printed} less the part {got.value} would be {remainder}")
+        return False
+    target_row, existing = held[0]
+    if refuse_unprinted(doc, target_row, parent_def.key, basis, period, remainder,
+                        by="note_sourced", log=ctx.log, bases=bases):
+        refuse_part("the column is not one the statements print")
+        return False
+    # ONE CARRIER HOLDS THE REMAINDER; every other one stops contributing, as an outranking rung's
+    # do — `concept_value` sums the carriers, and the remainder is of all of them together.
+    for other, ev in held[1:]:
+        if ev.value_raw is None:
+            ev.value_raw = ev.value
+        other.confidence.flags.append(f"superseded_by_cascade:{parent_def.key}:{ev.value}")
+        ev.value = None
+    caption = str(target_row.source_label or parent_def.label or parent_def.key)
+    printed_prov = note_sourced.derivation._json_safe_provenance(
+        getattr(existing, "provenance", None))
+    # The slot keeps the face row's provenance: the remainder IS that row's figure less a part, so
+    # clicking it lands on the row it was computed from.
+    _write(target_row, basis, period, remainder, by=REMAINDER_OF_PRINTED,
+           provenance=getattr(existing, "provenance", None))
+    slot = _slot(target_row, basis, period)
+    if slot is not None and REMAINDER_OF_PRINTED not in slot.confidence.flags:
+        slot.confidence.flags.append(REMAINDER_OF_PRINTED)
+    target_row.confidence.flags.append(
+        f"{REMAINDER_OF_PRINTED}:{basis}:{period}:{printed}-{got.value}={remainder}")
+    target_row.confidence.flags.append(f"cascade_rung:{got.rung_used}")
+    display = _cascade_display(got, parent_def, defs)
+    parts = _cascade_inputs(got, display["op"], by_key, defs, sources, cells)
+    for inp in parts:
+        # THE PART LEAVES THIS LINE: it is entered as the deduction it is here, at its own figure.
+        used = _dec_or_none(inp.get("used"))
+        if used is not None and inp.get("status") != "not_used":
+            inp["used"] = str(-used)
+            inp["deducted"] = True
+            inp["status"] = "deducted"
+            inp["sign"] = -1
+            inp["reason"] = "taken_by_its_own_line"
+    printed_input = {
+        "label": f"Printed “{caption[:120]}”", "value": str(printed), "counted": True,
+        "deducted": False, "sign": 1, "role": "required", "used": str(printed), "status": "used",
+        "excerpt": "the row as the statement prints it, before the part another line takes",
+        **({"provenance": printed_prov} if printed_prov else {})}
+    target_row.derivation = note_sourced.derivation.record(
+        target_row.derivation, basis=basis, period_label=period,
+        derivation=note_sourced.derivation.build(
+            method=f"cascade:{got.rung_used}",
+            formula=f"{parent_def.key} (printed) - "
+                    + " - ".join(i["ref"] for i in got.inputs if i.get("ref")),
+            inputs=[printed_input] + parts, result=remainder,
+            flags=[f"rung:{got.rung_used}", REMAINDER_OF_PRINTED,
+                   f"printed:{printed}"],
+            display={**display, "op": "sum"}))
+    ctx.log(f"{where}: rung {got.rung_used} — printed {printed} less {got.value} "
+            f"({', '.join(part_refs)}) = {remainder}, a remainder of the printed row")
+    return True
+
+
+def _model_figures(doc: DocumentModel, key: str, basis: str, period: str) -> set[Decimal]:
+    """The figures the MODEL gave ``key`` in this column — the same test `_fill_by_cascade` uses to
+    defer a cascade to the model's answer (`confidence.method` ending in ``llm``)."""
+    out: set[Decimal] = set()
+    for li in doc.line_items:
+        if li.canonical_key != key:
+            continue
+        if not str(getattr(li.confidence, "method", "") or "").lower().endswith("llm"):
+            continue
+        ev = _slot(li, basis, period)
+        if ev is not None and ev.value is not None:
+            out.add(Decimal(str(ev.value)))
+    return out
+
+
+def _part_not_deducted(doc: DocumentModel, ref: str, basis: str, period: str) -> bool:
+    """Whether a `deducts_from_printed` rung refused to take ``ref`` out of its printed row in this
+    column (`NOT_DEDUCTED_FROM_PRINTED` on the part's slot)."""
+    for li in doc.line_items:
+        if li.canonical_key != ref:
+            continue
+        slot = _slot(li, basis, period)
+        if slot is not None and NOT_DEDUCTED_FROM_PRINTED in slot.confidence.flags:
+            return True
+    return False
+
+
+def _dec_or_none(value) -> Decimal | None:
+    try:
+        return None if value is None else Decimal(str(value))
+    except (InvalidOperation, ValueError, TypeError):
+        return None
 
 
 # ── A NOTE'S MONEY IS ON THE FACE ONCE ─────────────────────────────────────────────────────────

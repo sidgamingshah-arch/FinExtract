@@ -19,9 +19,12 @@ properties rather than figures:
     company's face;
   * a line the template's rollup adds into a total names that total (or the parent it is a part
     of), and a line that is itself a rollup or residual says that the arithmetic is the template's;
-  * LTD Bank's rollup is a residual (its printed figure less the debt lines with a figure of their
-    own), so where one row prints bank and other borrowings together the line cites that row as
-    printed; citing only the bank part would have the rollup take LTD Other out a second time.
+  * LTD Bank is the row the balance sheet prints. Until the user's r9 decision ("Each line becomes
+    the printed row, and the rollup no longer subtracts siblings") its rollup was a residual — the
+    printed figure less the debt lines with a figure of their own. Now nothing is taken off it: where
+    one row prints bank and other borrowings together, the line cites that row as printed and is
+    the whole of it, and LTD Other takes only a row of its own, never the other loans split out of
+    that row — which would count them twice in Total Non-Current Liabilities.
 """
 from __future__ import annotations
 
@@ -274,18 +277,66 @@ def test_a_total_says_its_arithmetic_is_the_templates(key):
         assert "rollup" in text, key
 
 
-def test_ltd_bank_cites_a_combined_row_as_printed_because_its_rollup_takes_the_other_debt_out():
+def test_ltd_bank_is_a_combined_row_as_printed_and_ltd_other_takes_only_a_row_of_its_own():
+    """THE USER'S DECISION (r9): "Each line becomes the printed row, and the rollup no longer
+    subtracts siblings." LTD Bank is no longer a residual of the other debt lines, so a combined
+    bank-and-other borrowings row is LTD Bank WHOLE — and LTD Other must not also take the other
+    loans out of it, or Total Non-Current Liabilities counts them twice."""
     key = "bs_ncl__ltd_bank"
-    assert _residual(key)
-    assert "bs_ncl__ltd_other" in ROLLUPS[key]["children"]
+    assert key not in ROLLUPS and not _residual(key)
     text = ITEMS[key]["definition"]
     assert "Interest-bearing bank and other borrowings" in text
-    assert "cite that row as printed" in text and "rollup" in text
+    assert "cite that row as printed" in text and "nothing is taken off it" in text
+    assert "the whole row is this line" in text and "never a part split out of" in text
+    assert "takes the debt lines that have a figure of their own out of this line" not in text
     assert "bank loans part only" not in text
     assert "'长期借款' as printed" in text or "长期借款 as printed" in text
     for peer in ("bs_ncl__ltd_other", "bs_ncl__ltd_convertible", "bs_ncl__ltd_subordinated",
                  "bs_ncl__perpetual_bond", "bs_cl__cpltd_bank"):
         assert ITEMS[peer]["label"] in text, peer
+    other = ITEMS["bs_ncl__ltd_other"]["definition"]
+    assert "this line is the other loans part of it" not in other
+    assert "takes nothing out of it" in other and ITEMS[key]["label"] in other
+    # Both parts now name the total they are added into, beside each other.
+    for k in (key, "bs_ncl__ltd_other"):
+        assert "Total Non-Current Liabilities" in ITEMS[k]["definition"], k
+        assert CONCEPTS[k]["definition"] == ITEMS[k]["definition"], k
+
+
+#: The lines whose figure the template's own residual used to reduce or make up, and which the
+#: user's r9 decision makes the printed row (`reported_total_key` naming themselves, op `diff`).
+_NO_LONGER_RESIDUAL = ("cf_financing__dividends_paid_fin", "bs_ncl__ltd_bank",
+                       "cf_oper_direct__cash_paid_to_employees")
+
+
+@pytest.mark.parametrize("key", _NO_LONGER_RESIDUAL)
+def test_a_line_that_is_no_longer_a_residual_says_it_is_the_printed_row(key):
+    """THE USER'S DECISION (r9): the line is its printed row; its definition no longer says the
+    template's rollup adjusts it, and the ontology carries the same text."""
+    assert key not in ROLLUPS
+    text = ITEMS[key]["definition"]
+    assert "as printed" in text
+    for gone in ("rollup takes the debt lines", "whatever adjustment this template's rollup",
+                 "rollup deducts"):
+        assert gone not in text, (key, gone)
+    assert CONCEPTS[key]["definition"] == text
+
+
+def test_minority_dividends_are_a_row_of_their_own_added_beside_dividends_paid():
+    """THE USER'S DECISION (r9). Dividends Paid(Fin) no longer deducts Dvds Paid(Minority S'holders),
+    so a minority-dividends figure taken from an 'of which' row inside the combined CAS row would be
+    counted twice in the financing total. The line takes only a row of its own."""
+    key = "cf_financing__dvds_paid_minority_sholders"
+    text = ITEMS[key]["definition"]
+    assert "rollup deducts" not in text and "This template's rollup" not in text
+    assert "as a row of its own" in text and "is not this line's figure" in text
+    assert "其中：子公司支付给少数股东的股利、利润" in text
+    assert ITEMS["cf_financing__dividends_paid_fin"]["label"] in text
+    assert "Cash Flows from Finance Activities" in text
+    dividends = ITEMS["cf_financing__dividends_paid_fin"]["definition"]
+    assert "never made up from the non-controlling dividends" in dividends
+    assert ITEMS[key]["label"] in dividends
+    assert CONCEPTS[key]["definition"] == text
 
 
 def test_the_operating_residual_names_where_taxes_and_surcharges_go_not_a_reader_defect():

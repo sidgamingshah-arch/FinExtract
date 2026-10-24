@@ -325,6 +325,38 @@ class CascadeRung(BaseModel):
     # A model's answer for the line is the printed figure's equal here, not a competitor: it reads
     # the face, and the part it does not print still arrives beside it.
     adds_to_printed: bool = False
+    # THE FIGURE THIS RUNG READS IS INSIDE THE LINE'S OWN PRINTED ROW, AND IT IS ANOTHER LINE'S. The
+    # mirror of `adds_to_printed`: there a part the printed row leaves out arrives beside it; here a
+    # part the printed row takes in leaves it, for the line the part belongs to (its `parent`).
+    #
+    # THE CASE — the user's r9 decision: "Trade payables split from the note". An HKFRS statement of
+    # financial position that prints only a COMBINED row ('Trade and other payables', 'Accounts
+    # payable and accrued liabilities', 'Creditors, other payables and accruals') while its note
+    # prints the trade payables inside it. Trade Payables(CP) takes the note's trade part, and Trade
+    # and other payables(CP) takes the printed combined row LESS that same part — a derived
+    # remainder, accepted as such. Measured: 佳明 face 462,962 / 412,613, note 20 trade payables
+    # 272,534 / 157,164; PetroChina face 338,513 / 363,650, note 27 160,002 / 170,441.
+    #
+    # The rung's terms are the part; `stages.note_sourced` writes the printed figure less it into
+    # the printed row's slot, keeps the printed amount in `value_raw`, and flags the slot and the row
+    # `remainder_of_printed` so a reviewer sees the figure is a remainder and not a printing. It is
+    # not made where the line prints nothing in the column (there is no row to take the part out
+    # of), where the line the part belongs to prints a row of its own there (the part did not
+    # move), or where the remainder would fall below zero under `refuse_negative` — and then the
+    # part's own line does not take it either, so the section total cannot move.
+    deducts_from_printed: bool = False
+
+    @model_validator(mode="after")
+    def _one_relation_to_the_printed_row(self):
+        """A rung that takes its part OUT of the printed row cannot also displace that row, stand
+        beside it, or be carved out of another one: each of those says something else about where
+        the money is printed."""
+        if self.deducts_from_printed and (self.outranks_printed or self.adds_to_printed
+                                          or self.carved_from_face):
+            raise ValueError("a `deducts_from_printed` rung takes its part out of the line's own "
+                             "printed row; it cannot also be `outranks_printed`, "
+                             "`adds_to_printed` or `carved_from_face`")
+        return self
 
 
 class NoteSource(BaseModel):

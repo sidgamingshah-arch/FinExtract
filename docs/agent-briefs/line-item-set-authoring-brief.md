@@ -212,6 +212,15 @@ set's `terms` must mirror that rollup exactly (§6.3).
 - **A printed face figure is kept** unless the winning rung has `outranks_printed: true`.
 - `carved_from_face: true` means the figure is already inside other face captions. It is shown
   on its own line but not added to the section total again.
+- `adds_to_printed: true` writes the rung's figure beside the line's printed row; the line is
+  their sum.
+- `deducts_from_printed: true` is the mirror: the rung's terms are a part printed inside the
+  line's own row that another line (the part's `parent`) takes, so the line is its printed row
+  LESS the part — a remainder, flagged `remainder_of_printed`. It is not made where the line prints
+  nothing in the column, where the part's own line prints a row of its own there, or where the
+  remainder would be negative (and then the part's own line does not take the part either).
+  Trade and other payables(CP) uses it for the trade payables its note prints inside a combined
+  face row.
 
 **Parents without a cascade** combine their children by `rollup`:
 - `sum`;

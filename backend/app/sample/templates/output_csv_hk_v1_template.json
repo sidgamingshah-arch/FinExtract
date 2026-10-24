@@ -1709,28 +1709,7 @@
               "label_i18n": {
                 "en": "LTD Bank"
               },
-              "role": "line",
-              "rollup": {
-                "op": "sum",
-                "children": [
-                  "bs_ncl__entrusted_loan_payables_third_parties_ltp",
-                  "bs_ncl__perpetual_bond",
-                  "bs_ncl__repo_ltp",
-                  "bs_ncl__ltd_other",
-                  "bs_ncl__ltd_convertible",
-                  "bs_ncl__ltd_subordinated",
-                  "bs_ncl__finance_leases_ltp",
-                  "bs_ncl__entrusted_loan_payables_related_parties_ltp",
-                  "bs_ncl__due_to_directors_ltp",
-                  "bs_ncl__due_to_subsidiaries_ltp",
-                  "bs_ncl__due_to_related_parties_ltp",
-                  "bs_ncl__entrusted_loan_payables_shareholders_ltp",
-                  "bs_ncl__due_to_mi_ltp",
-                  "bs_ncl__due_to_sholder_ltp"
-                ],
-                "reported_total_key": "bs_ncl__ltd_bank",
-                "reported_total_op": "diff"
-              }
+              "role": "line"
             },
             {
               "node_id": "bs_ncl__entrusted_loan_payables_third_parties_ltp",
@@ -4531,18 +4510,7 @@
               "label_i18n": {
                 "en": "Cash Paid to Employees"
               },
-              "role": "line",
-              "rollup": {
-                "op": "sum",
-                "children": [
-                  "cf_oper_direct__cash_receipts_from_customers",
-                  "cf_oper_direct__cash_paid_to_suppliers",
-                  "cf_oper_direct__income_taxes_paid_direct",
-                  "cf_oper_direct__borrowing_costs_paid"
-                ],
-                "reported_total_key": "cf_oper_direct__cash_paid_to_employees",
-                "reported_total_op": "diff"
-              }
+              "role": "line"
             },
             {
               "node_id": "cf_oper_direct__income_taxes_paid_direct",
@@ -4919,15 +4887,7 @@
               "label_i18n": {
                 "en": "Dividends Paid(Fin)"
               },
-              "role": "line",
-              "rollup": {
-                "op": "sum",
-                "children": [
-                  "cf_financing__dvds_paid_minority_sholders"
-                ],
-                "reported_total_key": "cf_financing__dividends_paid_fin",
-                "reported_total_op": "diff"
-              }
+              "role": "line"
             },
             {
               "node_id": "cf_financing__dvds_paid_minority_sholders",
