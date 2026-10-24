@@ -294,3 +294,42 @@ def test_the_operating_residual_names_where_taxes_and_surcharges_go_not_a_reader
     assert ITEMS["is_pl__other_non_income_related_taxes"]["label"] in text
     # The glued-caption defect on two CAS faces is the face reader's to fix, not this line's text.
     assert "blank captions" not in text and "分保费用" not in text
+
+
+#: The face lines whose "beside ..." sentence listed their own label among their peers at c2e2daf:
+#: the eight fixed-asset classes, the seven intangible kinds and the ten non-current derivative
+#: lines ("It is one of the lines this template's rollup adds into Gross Fixed Assets, beside Land,
+#: Buildings, ..." on the definition of Land itself).
+_BESIDE_THEMSELVES = """
+    bs_nca__land bs_nca__buildings bs_nca__leasehold_improvements bs_nca__plant_and_equipment
+    bs_nca__furniture_and_fixtures bs_nca__vehicles_and_transport_equipment
+    bs_nca__other_fixed_assets bs_nca__construction_in_progress bs_nca__goodwill
+    bs_nca__land_use_rights bs_nca__concessions_licenses_and_trdmrks bs_nca__patents
+    bs_nca__start_up_capitalized_expenses bs_nca__r_and_d_capitalized_expenses
+    bs_nca__other_intangible_assets bs_nca__futures_nca bs_nca__options_nca bs_nca__forwards_nca
+    bs_nca__commodities_nca bs_nca__swaps_nca bs_ncl__futures_ncl bs_ncl__options_ncl
+    bs_ncl__forwards_ncl bs_ncl__commodities_ncl bs_ncl__swaps_ncl""".split()
+
+
+def _beside_itself(item: dict) -> list[str]:
+    hits = []
+    for beside in re.findall(r"\bbeside ([^.;:]*)", item.get("definition") or ""):
+        if re.search(r"(?:^|, | and )" + re.escape(item["label"]) + r"(?=,| and |$)", beside):
+            hits.append(beside)
+    return hits
+
+
+def test_no_hk_line_is_beside_itself():
+    """A line is one of a total's parts BESIDE its peers; listing its own label among them reads as
+    a second line of the same name."""
+    offenders = {i["key"]: _beside_itself(i) for i in SET["items"] if _beside_itself(i)}
+    assert not offenders, offenders
+
+
+@pytest.mark.parametrize("key", _BESIDE_THEMSELVES)
+def test_a_part_that_was_beside_itself_still_names_its_total_and_its_peers(key):
+    text = ITEMS[key]["definition"]
+    assert CONCEPTS[key]["definition"] == text
+    assert re.search(r"\bbeside [^.]*\b(?:and)\b", text), key
+    summing, every = _parents(key)
+    assert any(ITEMS[p]["label"] in text for p in every), key

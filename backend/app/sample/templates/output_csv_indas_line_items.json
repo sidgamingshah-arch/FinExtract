@@ -708,7 +708,7 @@
   {
    "key": "bs_nca__land",
    "label": "Land",
-   "definition": "Extract the reported value for 'Land' from the stated section. Do not calculate it.",
+   "definition": "Freehold land the entity owns and holds for its own use, where the balance sheet prints it as a row of its own among the non-current assets ('Land', 'Freehold land'). It is one of the lines this template's rollup adds into Gross Fixed Assets, beside Buildings, Leasehold Improvements, Plant & Equipment, Furniture & Fixtures, Vehicles & Transport Equipment, Other Fixed Assets and Construction in Progress. Take the class at the amount the balance sheet carries it: net of accumulated depreciation and impairment, as an Ind AS balance sheet prints property, plant and equipment; at cost only where the face itself prints the class at cost with the accumulated depreciation as a separate deduction row, which is then 'Accum Deprec & Impairment(-)'. Not this line: leasehold land and other land held under a lease, which Ind AS 116 carries in right-of-use assets (the Schedule III row 'Right-of-use assets', which this template places on 'Land use rights'); land and buildings printed together ('Buildings'); land held as investment property ('Investment Property(Net)'); land held for development or sale, which is inventory. Schedule III prints 'Property, Plant and Equipment' as one row: that row is 'Plant & Equipment' as printed and is not split into classes from the reconciliation of its carrying amount by class, so this line then has no row of its own. Where the balance sheet prints no such row, answer with an empty sources list.",
    "aliases": [
     "Land",
     "Freehold land"
@@ -731,7 +731,7 @@
   {
    "key": "bs_nca__buildings",
    "label": "Buildings",
-   "definition": "Extract the reported value for 'Buildings' from the stated section. Do not calculate it.",
+   "definition": "Buildings held for the entity's own use — offices, factories, warehouses — including land and buildings printed together, where the balance sheet prints them as a row of their own among the non-current assets ('Buildings', 'Land and buildings', 'Leasehold land and buildings'). It is one of the lines this template's rollup adds into Gross Fixed Assets, beside Land, Leasehold Improvements, Plant & Equipment, Furniture & Fixtures, Vehicles & Transport Equipment, Other Fixed Assets and Construction in Progress. Take the class at the amount the balance sheet carries it: net of accumulated depreciation and impairment, as an Ind AS balance sheet prints property, plant and equipment; at cost only where the face itself prints the class at cost with the accumulated depreciation as a separate deduction row, which is then 'Accum Deprec & Impairment(-)'. Not this line: buildings held to earn rentals or for capital appreciation ('Investment Property(Net)'); buildings under construction, which Schedule III prints as 'Capital work-in-progress' ('Construction in Progress'); leased premises carried as right-of-use assets ('Land use rights', where this template places the 'Right-of-use assets' row); properties held for sale, which are inventory or 'Assets Related to Disc Ops'. Schedule III prints 'Property, Plant and Equipment' as one row: that row is 'Plant & Equipment' as printed and is not split into classes from the reconciliation of its carrying amount by class, so this line then has no row of its own. Where the balance sheet prints no such row, answer with an empty sources list.",
    "aliases": [
     "Buildings",
     "Land and buildings",
@@ -761,7 +761,7 @@
   {
    "key": "bs_nca__leasehold_improvements",
    "label": "Leasehold Improvements",
-   "definition": "Extract the reported value for 'Leasehold Improvements' from the stated section. Do not calculate it.",
+   "definition": "Improvements, fit-out and renovation the entity has made to premises it leases, and land improvements, carried as a class of fixed assets in a row of its own among the non-current assets of the balance sheet ('Leasehold improvements', 'Improvements to leasehold premises', 'Land improvements'). It is one of the lines this template's rollup adds into Gross Fixed Assets, beside Land, Buildings, Plant & Equipment, Furniture & Fixtures, Vehicles & Transport Equipment, Other Fixed Assets and Construction in Progress. Take the class at the amount the balance sheet carries it: net of accumulated depreciation and impairment, as an Ind AS balance sheet prints property, plant and equipment; at cost only where the face itself prints the class at cost with the accumulated depreciation as a separate deduction row, which is then 'Accum Deprec & Impairment(-)'. Not this line: buildings ('Buildings'); the leased premises themselves, carried as right-of-use assets ('Land use rights', where this template places the 'Right-of-use assets' row); capital advances paid for such work ('Other Non-Current Assets'). Schedule III prints 'Property, Plant and Equipment' as one row: that row is 'Plant & Equipment' as printed and is not split into classes from the reconciliation of its carrying amount by class, so this line then has no row of its own. Where the balance sheet prints no such row, answer with an empty sources list.",
    "aliases": [
     "Leasehold Improvements",
     "Decoration",
@@ -786,7 +786,7 @@
   {
    "key": "bs_nca__plant_and_equipment",
    "label": "Plant & Equipment",
-   "definition": "Extract the reported value for 'Plant & Equipment' from the stated section. Do not calculate it.",
+   "definition": "Plant, machinery and equipment held for use in production, supply or administration — plant and machinery, computers, office and electrical equipment — and, because Schedule III prints property, plant and equipment as a single row among the non-current assets, that whole row as printed ('Property, Plant and Equipment', 'Property, plant and equipment', 'Tangible assets'). That single row is cited as it stands and not split into Land, Buildings, Furniture & Fixtures or the other classes from the reconciliation of its carrying amount by class; those lines then answer empty. It is one of the lines this template's rollup adds into Gross Fixed Assets, beside Land, Buildings, Leasehold Improvements, Furniture & Fixtures, Vehicles & Transport Equipment, Other Fixed Assets and Construction in Progress. Take the row at the amount the balance sheet carries it: net of accumulated depreciation and impairment, as an Ind AS balance sheet prints it; at cost only where the face itself prints it at cost with the accumulated depreciation as a separate deduction row, which is then 'Accum Deprec & Impairment(-)'. Not this line: 'Capital work-in-progress' ('Construction in Progress'); 'Right-of-use assets' (placed by this template on 'Land use rights'); 'Investment Property' ('Investment Property(Net)'); bearer plants and biological assets other than bearer plants printed as rows of their own ('Other Fixed Assets'); intangible assets. Where the balance sheet prints no such row, answer with an empty sources list.",
    "aliases": [
     "Plant & Equipment",
     "Plant and machineries",
@@ -825,7 +825,7 @@
   {
    "key": "bs_nca__furniture_and_fixtures",
    "label": "Furniture & Fixtures",
-   "definition": "Extract the reported value for 'Furniture & Fixtures' from the stated section. Do not calculate it.",
+   "definition": "Furniture, fixtures and fittings held for the entity's own use, as a class of fixed assets printed in a row of its own among the non-current assets of the balance sheet ('Furniture and fixtures', 'Furniture and fittings', 'Fixtures'). It is one of the lines this template's rollup adds into Gross Fixed Assets, beside Land, Buildings, Leasehold Improvements, Plant & Equipment, Vehicles & Transport Equipment, Other Fixed Assets and Construction in Progress. Take the class at the amount the balance sheet carries it: net of accumulated depreciation and impairment, as an Ind AS balance sheet prints property, plant and equipment; at cost only where the face itself prints the class at cost with the accumulated depreciation as a separate deduction row, which is then 'Accum Deprec & Impairment(-)'. Not this line: office equipment and computers ('Plant & Equipment'); leasehold improvements ('Leasehold Improvements'). Schedule III prints 'Property, Plant and Equipment' as one row: that row is 'Plant & Equipment' as printed and is not split into classes from the reconciliation of its carrying amount by class, so this line then has no row of its own. Where the balance sheet prints no such row, answer with an empty sources list.",
    "aliases": [
     "Furniture & Fixtures",
     "furniture and equipments",
@@ -850,7 +850,7 @@
   {
    "key": "bs_nca__vehicles_and_transport_equipment",
    "label": "Vehicles & Transport Equipment",
-   "definition": "Extract the reported value for 'Vehicles & Transport Equipment' from the stated section. Do not calculate it.",
+   "definition": "Motor vehicles and other transport equipment the entity holds for its own use — vehicles, vessels, aircraft, containers — as a class of fixed assets printed in a row of its own among the non-current assets of the balance sheet ('Vehicles', 'Motor vehicles', 'Vessels', 'Aircraft'). It is one of the lines this template's rollup adds into Gross Fixed Assets, beside Land, Buildings, Leasehold Improvements, Plant & Equipment, Furniture & Fixtures, Other Fixed Assets and Construction in Progress. Take the class at the amount the balance sheet carries it: net of accumulated depreciation and impairment, as an Ind AS balance sheet prints property, plant and equipment; at cost only where the face itself prints the class at cost with the accumulated depreciation as a separate deduction row, which is then 'Accum Deprec & Impairment(-)'. Not this line: vehicles held under leases and carried as right-of-use assets ('Land use rights', where this template places the 'Right-of-use assets' row); vessels or aircraft under construction ('Construction in Progress'). Schedule III prints 'Property, Plant and Equipment' as one row: that row is 'Plant & Equipment' as printed and is not split into classes from the reconciliation of its carrying amount by class, so this line then has no row of its own. Where the balance sheet prints no such row, answer with an empty sources list.",
    "aliases": [
     "Vehicles & Transport Equipment",
     "Vehicles",
@@ -885,7 +885,7 @@
   {
    "key": "bs_nca__other_fixed_assets",
    "label": "Other Fixed Assets",
-   "definition": "Extract the reported value for 'Other Fixed Assets' from the stated section. Do not calculate it.",
+   "definition": "Tangible fixed assets other than the named classes, where the balance sheet prints them as rows of their own among the non-current assets: bearer plants, 'Biological assets other than bearer plants', assets held under finance leases printed under that name, and other tangible assets printed apart from property, plant and equipment. Where the balance sheet prints more than one of these rows, cite each; the line is their total. It is one of the lines this template's rollup adds into Gross Fixed Assets, beside Land, Buildings, Leasehold Improvements, Plant & Equipment, Furniture & Fixtures, Vehicles & Transport Equipment and Construction in Progress. Take the class at the amount the balance sheet carries it: net of accumulated depreciation and impairment, as an Ind AS balance sheet prints property, plant and equipment; at cost only where the face itself prints the class at cost with the accumulated depreciation as a separate deduction row, which is then 'Accum Deprec & Impairment(-)'. Not this line: the single Schedule III row 'Property, Plant and Equipment' ('Plant & Equipment'); the Schedule III row 'Right-of-use assets', which this template places on 'Land use rights'; 'Capital work-in-progress' ('Construction in Progress'); 'Investment Property' ('Investment Property(Net)'); intangible assets and 'Intangible assets under development' ('Other Intangible Assets'). An asset class inside the property, plant and equipment row is not split out of it. Where the balance sheet prints no such row, answer with an empty sources list.",
    "aliases": [
     "Other Fixed Assets",
     "Property, plant and equipments",
@@ -917,7 +917,7 @@
   {
    "key": "bs_nca__construction_in_progress",
    "label": "Construction in Progress",
-   "definition": "Extract the reported value for 'Construction in Progress' from the stated section. Do not calculate it.",
+   "definition": "Fixed assets still being built or installed and not yet ready for use, as the balance sheet prints them among the non-current assets: the Schedule III row 'Capital work-in-progress' as printed ('Capital work in progress', 'Construction in progress'), including the machinery under installation and project materials its breakdown lists. It is one of the lines this template's rollup adds into Gross Fixed Assets, beside Land, Buildings, Leasehold Improvements, Plant & Equipment, Furniture & Fixtures, Vehicles & Transport Equipment and Other Fixed Assets. It is a printed row; read it as it stands. Not this line: 'Intangible assets under development' ('Other Intangible Assets'); investment property under construction ('Investment Property(Net)'); capital advances paid to suppliers of fixed assets, which Schedule III prints within other non-current assets ('Other Non-Current Assets'); contract assets and work in progress for customers, which are not the entity's own fixed assets; a real estate developer's projects under construction for sale, which are inventory ('WIP'). Where the balance sheet prints no such row, answer with an empty sources list.",
    "aliases": [
     "Construction in Progress",
     "Capital work-in-progress",
@@ -1032,7 +1032,7 @@
   {
    "key": "bs_nca__accum_deprec_and_impairment",
    "label": "Accum Deprec & Impairment(-)",
-   "definition": "Extract the reported value for 'Accum Deprec & Impairment(-)' from the Balance Sheet. Do not calculate or replace it from Gross Fixed Assets or any other row.",
+   "definition": "The accumulated depreciation and accumulated impairment losses on the fixed assets this template counts in Gross Fixed Assets, where the balance sheet itself prints them as a deduction row beneath fixed assets carried at cost ('Less: accumulated depreciation', 'Accumulated depreciation and impairment'). Net Fixed Assets is Gross Fixed Assets plus this line, so the template carries it as a negative figure, a deduction. An Ind AS balance sheet prints property, plant and equipment net, and the fixed asset lines then already carry net amounts: answer with an empty sources list, and do not take the accumulated depreciation from the reconciliation of the carrying amount, which would deduct it a second time. Not this line: accumulated amortisation of intangible assets ('Accum Intgbl Assets Amort(-)') or of goodwill ('Accum Goodwill Amortized(-)'); the depreciation charge for the year ('Depreciation and amortisation expense'). It is one of the lines this template's rollup adds into Net Fixed Assets.",
    "aliases": [
     "Accum Deprec & Impairment(-)"
    ],
@@ -1113,7 +1113,7 @@
   {
    "key": "bs_nca__goodwill",
    "label": "Goodwill",
-   "definition": "Extract the reported value for 'Goodwill' from the stated section. Do not calculate it.",
+   "definition": "Goodwill arising on business combinations, as the balance sheet prints it among the non-current assets ('Goodwill', 'Goodwill on consolidation'), carried net of accumulated impairment as printed. It is one of the lines this template's rollup adds into Net Intangibles, beside Land use rights, Concessions, Licenses & Trdmrks, Patents, Start-Up Capitalized Expenses, R&D Capitalized Expenses and Other Intangible Assets. It is a printed row; read it as it stands. Not this line: goodwill included in the carrying amount of an investment in an associate or joint venture ('Investments in Associates', 'Invest in JVs & Partnerships'); other intangible assets ('Other Intangible Assets'); capital reserve arising on a bargain purchase, which is equity. Accumulated amortisation of goodwill printed as its own deduction row is 'Accum Goodwill Amortized(-)'. Where the balance sheet prints no such row, answer with an empty sources list.",
    "aliases": [
     "Goodwill",
     "Goodwill on consolidation"
@@ -1136,7 +1136,7 @@
   {
    "key": "bs_nca__accum_goodwill_amortized",
    "label": "Accum Goodwill Amortized(-)",
-   "definition": "Extract the reported value for 'Accum Goodwill Amortized(-)' from the stated section. Do not calculate it.",
+   "definition": "Accumulated amortisation (and accumulated impairment) of goodwill, where the balance sheet prints goodwill at cost with this amount as a separate deduction row beneath it. Ind AS does not amortise goodwill and an Ind AS balance sheet prints goodwill net, so this line is almost always empty. It is one of the lines this template's rollup adds into Net Intangibles, and it is carried as a negative figure, a deduction from Goodwill. Where the balance sheet prints goodwill net, answer with an empty sources list and do not take an accumulated impairment figure from the breakdown of the goodwill row. Not this line: accumulated amortisation of other intangible assets ('Accum Intgbl Assets Amort(-)'), accumulated depreciation of fixed assets ('Accum Deprec & Impairment(-)'), or the impairment charge for the year.",
    "aliases": [
     "Accum Goodwill Amortized(-)",
     "accumulated amortisation"
@@ -1159,7 +1159,7 @@
   {
    "key": "bs_nca__land_use_rights",
    "label": "Land use rights",
-   "definition": "Extract the reported value for 'Land use rights' from the stated section. Do not calculate it.",
+   "definition": "The right to use land for a fixed term, and — in this template — the Ind AS 116 row 'Right-of-use assets' as the balance sheet prints it among the non-current assets ('Right-of-use assets', 'Right of use assets', 'Land use rights'): leasehold land, buildings, plant and vehicles the entity uses under leases, carried at cost less accumulated depreciation. Read the printed row as it stands and do not split it into its classes of leased asset. It is one of the lines this template's rollup adds into Net Intangibles, beside Goodwill, Concessions, Licenses & Trdmrks, Patents, Start-Up Capitalized Expenses, R&D Capitalized Expenses and Other Intangible Assets. Not this line: freehold land ('Land'); land and buildings the entity owns ('Buildings'); leasehold improvements made to leased premises ('Leasehold Improvements'); the lease liabilities that go with these assets ('Lease liabilities(LTP)', 'Lease liabilities(CP)'); land held as investment property ('Investment Property(Net)'). Where the balance sheet prints no such row, answer with an empty sources list.",
    "aliases": [
     "Land use rights",
     "Right-of-use assets",
@@ -1194,7 +1194,7 @@
   {
    "key": "bs_nca__concessions_licenses_and_trdmrks",
    "label": "Concessions, Licenses & Trdmrks",
-   "definition": "Extract the reported value for 'Concessions, Licenses & Trdmrks' from the stated section. Do not calculate it.",
+   "definition": "Service concession rights, licences, franchises, permits, brands and trademarks carried as intangible assets, where the balance sheet prints them as a row of their own among the non-current assets ('Concession rights', 'Licences', 'Brands and trademarks', 'Franchise rights'). It is one of the lines this template's rollup adds into Net Intangibles, beside Goodwill, Land use rights, Patents, Start-Up Capitalized Expenses, R&D Capitalized Expenses and Other Intangible Assets. Schedule III prints 'Other Intangible assets' as one row (with 'Goodwill' and 'Intangible assets under development' beside it): that row is 'Other Intangible Assets' as printed and is not split into its kinds from its breakdown. Not this line: patents and technical know-how ('Patents'); computer software and other intangible assets ('Other Intangible Assets'); right-of-use assets ('Land use rights'); goodwill ('Goodwill'). Where the amount is only part of a larger row the balance sheet prints, it has no row of its own: answer with an empty sources list and do not split it out of that row.",
    "aliases": [
     "Concessions, Licenses & Trdmrks",
     "Concessions",
@@ -1234,7 +1234,7 @@
   {
    "key": "bs_nca__patents",
    "label": "Patents",
-   "definition": "Extract the reported value for 'Patents' from the stated section. Do not calculate it.",
+   "definition": "Patents and technical know-how carried as intangible assets, where the balance sheet prints them as a row of their own among the non-current assets ('Patents', 'Technical know-how'). It is one of the lines this template's rollup adds into Net Intangibles, beside Goodwill, Land use rights, Concessions, Licenses & Trdmrks, Start-Up Capitalized Expenses, R&D Capitalized Expenses and Other Intangible Assets. Schedule III prints 'Other Intangible assets' as one row (with 'Goodwill' and 'Intangible assets under development' beside it): that row is 'Other Intangible Assets' as printed and is not split into its kinds from its breakdown. Not this line: development costs capitalised and not yet complete ('R&D Capitalized Expenses'); licences and trademarks ('Concessions, Licenses & Trdmrks'); computer software ('Other Intangible Assets'). Where the amount is only part of a larger row the balance sheet prints, it has no row of its own: answer with an empty sources list and do not split it out of that row.",
    "aliases": [
     "Patents",
     "Technical knowhow"
@@ -1257,7 +1257,7 @@
   {
    "key": "bs_nca__start_up_capitalized_expenses",
    "label": "Start-Up Capitalized Expenses",
-   "definition": "Extract the reported value for 'Start-Up Capitalized Expenses' from the stated section. Do not calculate it.",
+   "definition": "Pre-operative and start-up costs that the entity has capitalised and carries as an asset, where the balance sheet prints them as a row of their own among the non-current assets ('Start-up costs', 'Preliminary expenses', 'Pre-operative expenses'). Ind AS does not permit capitalising them as an asset of their own, so the row is rare. It is one of the lines this template's rollup adds into Net Intangibles, beside Goodwill, Land use rights, Concessions, Licenses & Trdmrks, Patents, R&D Capitalized Expenses and Other Intangible Assets. Not this line: pre-operative expenses pending allocation that a filing carries within 'Capital work-in-progress' ('Construction in Progress'); capitalised development costs ('R&D Capitalized Expenses'); prepaid expenses ('Other Non-Current Assets'); start-up costs charged to profit or loss. Where the amount is only part of a larger row the balance sheet prints, it has no row of its own: answer with an empty sources list and do not split it out of that row.",
    "aliases": [
     "Start-Up Capitalized Expenses",
     "start-up cost",
@@ -1282,7 +1282,7 @@
   {
    "key": "bs_nca__r_and_d_capitalized_expenses",
    "label": "R&D Capitalized Expenses",
-   "definition": "Extract the reported value for 'R&D Capitalized Expenses' from the stated section. Do not calculate it.",
+   "definition": "Development expenditure the entity has capitalised as an asset, where the balance sheet prints it as a row of its own among the non-current assets ('Development costs', 'Deferred development costs', 'Product development'). It is one of the lines this template's rollup adds into Net Intangibles, beside Goodwill, Land use rights, Concessions, Licenses & Trdmrks, Patents, Start-Up Capitalized Expenses and Other Intangible Assets. It is a printed row; read it as it stands. Not this line: the Schedule III row 'Intangible assets under development', which this template places on 'Other Intangible Assets' as printed; completed development carried within 'Other Intangible assets' ('Other Intangible Assets'); research and development expense charged to profit or loss; patents ('Patents'). Where the amount is only part of a larger row the balance sheet prints, it has no row of its own: answer with an empty sources list and do not split it out of that row.",
    "aliases": [
     "R&D Capitalized Expenses",
     "Research and development",
@@ -1309,7 +1309,7 @@
   {
    "key": "bs_nca__other_intangible_assets",
    "label": "Other Intangible Assets",
-   "definition": "Extract the reported value for 'Other Intangible Assets' from the stated section. Do not calculate it.",
+   "definition": "Intangible assets other than goodwill, as the balance sheet prints them among the non-current assets: the Schedule III row 'Other Intangible assets' as printed (with the software, licences, brands and other rights it contains), and the row 'Intangible assets under development' printed beside it. Where both rows are printed, cite each; the line is their total. Read each row as it stands and do not split its kinds out of it. It is one of the lines this template's rollup adds into Net Intangibles, beside Goodwill, Land use rights, Concessions, Licenses & Trdmrks, Patents, Start-Up Capitalized Expenses and R&D Capitalized Expenses. Not this line: goodwill ('Goodwill'); the Schedule III row 'Right-of-use assets' ('Land use rights'); 'Capital work-in-progress' on tangible assets ('Construction in Progress'); capital advances ('Other Non-Current Assets'). Where the balance sheet prints no such row, answer with an empty sources list.",
    "aliases": [
     "Other Intangible Assets",
     "Intangible assets",
@@ -1447,7 +1447,7 @@
   {
    "key": "bs_nca__investment_property_net",
    "label": "Investment Property(Net)",
-   "definition": "Extract the reported value for 'Investment Property(Net)' from the stated section. Do not calculate it.",
+   "definition": "Land and buildings held to earn rentals or for capital appreciation rather than for own use or sale, as the balance sheet prints them among the non-current assets: the Schedule III row 'Investment Property' ('Investment properties'), carried at cost less accumulated depreciation as Ind AS requires, and investment property under construction where printed with it. It is a printed row; read it as it stands. Not this line: owner-occupied property ('Buildings', 'Plant & Equipment'); land and buildings held for development and sale, which are inventory; right-of-use assets ('Land use rights'); investment property classified as held for sale ('Assets Related to Disc Ops'). Where the balance sheet prints no such row, answer with an empty sources list. It is one of the lines this template's rollup adds into Total Non-Current Assets.",
    "aliases": [
     "Investment Property(Net)",
     "Investment properties",
@@ -1478,7 +1478,7 @@
   {
    "key": "bs_nca__investment_in_subsidiaries",
    "label": "Investment in Subsidiaries",
-   "definition": "Extract the reported value for 'Investment in Subsidiaries' from the stated section. Do not calculate it.",
+   "definition": "The cost (or carrying amount) of the entity's investments in its subsidiaries, which appears only on the standalone balance sheet, since consolidation eliminates it: 'Investments in subsidiaries', the subsidiaries' part where printed as a row of its own under the non-current financial assets 'Investments'. It is a printed row; read it as it stands. Not this line: loans to and amounts due from subsidiaries ('Due from subsidiaries'); investments in associates and joint ventures ('Investments in Associates', 'Invest in JVs & Partnerships'); other equity and debt investments held as financial assets ('Secur & Other Fincl Assets(LTP)'). Where one 'Investments' row carries subsidiaries together with other investments, it is not split here. A consolidated balance sheet prints no such row: answer with an empty sources list. It is one of the lines this template's rollup adds into Total Non-Current Assets.",
    "aliases": [
     "Investment in Subsidiaries",
     "Investment/Interest in Subsidiaries",
@@ -1509,7 +1509,7 @@
   {
    "key": "bs_nca__investments_in_associates",
    "label": "Investments in Associates",
-   "definition": "Extract the reported value for 'Investments in Associates' from the stated section. Do not calculate it.",
+   "definition": "The entity's interests in associates, as the balance sheet prints them among the non-current assets ('Investments in associates', 'Investment in associate companies'), accounted for using the equity method in the consolidated balance sheet and at cost in the standalone one. Where one row prints associates and joint ventures together ('Investments in associates and joint ventures', 'Investments accounted for using the equity method'), that row is this line as printed and is not split. It is a printed row; read it as it stands. Not this line: investments in joint ventures printed as their own row ('Invest in JVs & Partnerships'); investments in subsidiaries ('Investment in Subsidiaries'); equity instruments measured at fair value through other comprehensive income or profit or loss ('Secur & Other Fincl Assets(LTP)'); loans to and amounts due from associates; cash paid to acquire an associate in the cash flow statement. Where the balance sheet prints no such row, answer with an empty sources list. It is one of the lines this template's rollup adds into Total Non-Current Assets.",
    "aliases": [
     "Investments in Associates",
     "Investment/Interest in Associates",
@@ -1542,7 +1542,7 @@
   {
    "key": "bs_nca__invest_in_jvs_and_partnerships",
    "label": "Invest in JVs & Partnerships",
-   "definition": "Extract the reported value for 'Invest in JVs & Partnerships' from the stated section. Do not calculate it.",
+   "definition": "The entity's interests in joint ventures and partnership firms, where the balance sheet prints them as a row of their own among the non-current assets ('Investments in joint ventures', 'Investment in partnership firms'). It is a printed row; read it as it stands. Not this line: a row that prints associates and joint ventures together, or 'Investments accounted for using the equity method', which are 'Investments in Associates' as printed; loans and advances to joint ventures; joint operations accounted for line by line. Where the amount is only part of a larger row the balance sheet prints, it has no row of its own: answer with an empty sources list and do not split it out of that row. It is one of the lines this template's rollup adds into Total Non-Current Assets.",
    "aliases": [
     "Invest in JVs & Partnerships",
     "Investment/Interest in JV",
@@ -1567,7 +1567,7 @@
   {
    "key": "bs_nca__due_from_directors",
    "label": "Due from directors",
-   "definition": "Extract the reported value for 'Due from directors' from the stated section. Do not calculate it.",
+   "definition": "Non-current amounts receivable from the entity's directors — loans to directors and directors' current accounts — where the balance sheet prints them as a row of their own among the non-current assets ('Loans to directors', 'Amounts due from directors'). The part receivable within one year is a current-assets line, not this one. Its peers by label: 'Due from S'holder(LTP)' for shareholders and holding companies, 'Due from Related Parties(LTP)' for other related parties, 'Due from MI' for non-controlling shareholders. Not this line: loans to employees and other key managerial personnel printed within non-current 'Loans' ('Other Receivables(LTP)'). Where the amount is only part of a larger row the balance sheet prints, it has no row of its own: answer with an empty sources list and do not split it out of that row. It is one of the lines this template's rollup adds into Total Non-Current Assets.",
    "aliases": [
     "Due from directors",
     "Directors current account",
@@ -1594,7 +1594,7 @@
   {
    "key": "bs_nca__due_from_subsidiaries",
    "label": "Due from subsidiaries",
-   "definition": "Extract the reported value for 'Due from subsidiaries' from the stated section. Do not calculate it.",
+   "definition": "Non-current amounts receivable from subsidiaries — loans to subsidiaries and their current accounts — which appear only on the standalone balance sheet, since consolidation eliminates them ('Loans to subsidiaries', 'Amounts due from subsidiaries'). The part receivable within one year is a current-assets line, not this one. Not this line: the investment in subsidiaries itself ('Investment in Subsidiaries'). Its peers by label: 'Due from Related Parties(LTP)', 'Due from S'holder(LTP)'. A non-current 'Loans' row that carries loans to subsidiaries together with other loans is not split here. A consolidated balance sheet prints no such row: answer with an empty sources list. It is one of the lines this template's rollup adds into Total Non-Current Assets.",
    "aliases": [
     "Due from subsidiaries",
     "Subsidiaries current account",
@@ -1661,7 +1661,7 @@
   {
    "key": "bs_nca__due_from_mi",
    "label": "Due from MI",
-   "definition": "Extract the reported value for 'Due from MI' from the stated section. Do not calculate it.",
+   "definition": "Non-current amounts receivable from non-controlling shareholders of the entity's subsidiaries — loans to them and their current accounts — where the balance sheet prints them as a row of their own among the non-current assets ('Amounts due from non-controlling interests', 'Loans to non-controlling shareholders'). The part receivable within one year is a current-assets line, not this one. Not this line: loans to third parties, employees and other counterparties ('Other Receivables(LTP)'); the non-controlling interests in equity ('Minority Interest Equity'). Its peers by label: 'Due from S'holder(LTP)', 'Due from Related Parties(LTP)'. Where the amount is only part of a larger row the balance sheet prints, it has no row of its own: answer with an empty sources list and do not split it out of that row. It is one of the lines this template's rollup adds into Total Non-Current Assets.",
    "aliases": [
     "Due from MI",
     "Due from minority interest",
@@ -1700,7 +1700,7 @@
   {
    "key": "bs_nca__due_from_sholder_ltp",
    "label": "Due from S'holder(LTP)",
-   "definition": "Extract the reported value for 'Due from S'holder(LTP)' from the stated section. Do not calculate it.",
+   "definition": "Non-current amounts receivable from the entity's shareholders and holding companies — the parent, intermediate or ultimate holding company, or a promoter shareholder — including their current accounts, where the balance sheet prints them as a row of their own among the non-current assets ('Loans to holding company', 'Amount due from the holding company'). The part receivable within one year is a current-assets line, not this one. Not this line: amounts due from fellow subsidiaries and other related parties ('Due from Related Parties(LTP)'); unpaid calls on share capital; investments in the holding company's shares. Where the amount is only part of a larger row the balance sheet prints, it has no row of its own: answer with an empty sources list and do not split it out of that row. It is one of the lines this template's rollup adds into Total Non-Current Assets.",
    "aliases": [
     "Due from S'holder(LTP)",
     "Due from Shareholders/ holding companies/ ultimate holding company/intermediate holding company/Parent company",
@@ -1870,7 +1870,7 @@
   {
    "key": "bs_nca__other_non_current_assets",
    "label": "Other Non-Current Assets",
-   "definition": "Extract the reported value for 'Other Non-Current Assets' from the stated section. Do not calculate it.",
+   "definition": "The non-current assets the balance sheet prints that have no more specific line in this template, as printed: the Schedule III row 'Other non-current assets' (capital advances, prepaid expenses, balances with government authorities, deposits paid under protest and the like, each read as the row prints them and not split into their breakdown), and other rows of the non-current assets section that no other line names. Where the balance sheet prints more than one such row, cite each; the line is their total. It is the residual line of the section: where a part with a line of its own is inside a row you cite, the template's rollup takes it out — do not deduct it yourself. Not this line: the total of non-current assets ('Total Non-Current Assets') or total assets; any row printed among current assets, liabilities or equity; a row that has its own line here, such as non-current 'Investments' and 'Other financial assets' ('Secur & Other Fincl Assets(LTP)'), non-current 'Loans' ('Other Receivables(LTP)'), 'Deferred tax assets (net)' ('Deferred Tax Assets'), investments in joint ventures ('Invest in JVs & Partnerships') or in subsidiaries ('Investment in Subsidiaries'). Where the balance sheet prints no such row, answer with an empty sources list. It is one of the lines this template's rollup adds into Total Non-Current Assets.",
    "aliases": [
     "Other Non-Current Assets",
     "Total Non-current asset",
@@ -1910,7 +1910,7 @@
   {
    "key": "bs_nca__deferred_tax_assets",
    "label": "Deferred Tax Assets",
-   "definition": "Extract the reported value for 'Deferred Tax Assets' from the stated section. Do not calculate it.",
+   "definition": "Deferred tax assets recognised for deductible temporary differences, unused tax losses and unused tax credits (including MAT credit entitlement where the filing carries it here), as the balance sheet prints them among the non-current assets ('Deferred tax assets (net)', 'Deferred tax assets'), after any offset against deferred tax liabilities that the balance sheet itself makes. It is a printed row; read it as it stands. Do not gross it up from the breakdown of deferred tax before offset. Not this line: the deferred tax charge or credit for the year in profit or loss; advance income tax net of provisions ('Income tax assets (net)', 'Current Tax Assets (Net)'); deferred tax liabilities ('Deferred Tax Liability'). Where the balance sheet prints no such row, answer with an empty sources list. It is one of the lines this template's rollup adds into Total Non-Current Assets.",
    "aliases": [
     "Deferred Tax Assets",
     "Deferred tax",
@@ -1937,7 +1937,7 @@
   {
    "key": "bs_nca__other_receivables_ltp",
    "label": "Other Receivables(LTP)",
-   "definition": "Extract the reported value for 'Other Receivables(LTP)' from the stated section. Do not calculate it.",
+   "definition": "Non-current receivables that have no more specific line: the Schedule III non-current financial asset 'Loans' as printed (security deposits, loans to employees and other loans and advances considered good), and non-current rows such as 'Security deposits', 'Loans and advances', 'Other receivables' or 'Lease receivables' printed apart from the other financial assets. Read the printed row. Not this line: amounts due from related parties, directors, shareholders, subsidiaries or non-controlling interests printed on their own rows (the 'Due from' lines); non-current 'Investments' and 'Other financial assets' ('Secur & Other Fincl Assets(LTP)'); capital advances and prepaid expenses within 'Other non-current assets' ('Other Non-Current Assets'); trade receivables due after more than one year printed as their own row; the portion of a loan due within one year, which is a current-assets line. Where the balance sheet prints no such row, answer with an empty sources list. It is one of the lines this template's rollup adds into Total Non-Current Assets.",
    "aliases": [
     "Other Receivables(LTP)",
     "Other receivables",
@@ -2131,7 +2131,7 @@
   {
    "key": "bs_ca__raw_materials",
    "label": "Raw materials",
-   "definition": "Extract the reported value for 'Raw materials' from the stated section. Do not calculate it.",
+   "definition": "Inventory of raw materials and the other materials held for use in production — components, packing materials, stores and spares, consumables — as a row the balance sheet prints in the current assets section ('Raw materials', 'Raw materials and components', 'Stores and spares', 'Packing materials'). It is a part of Inventories. Schedule III prints 'Inventories' as one row on the face and gives raw materials, work-in-progress, finished goods, stock-in-trade, stores and spares and goods in transit in its breakdown: that face row is 'Inventories', and this line has no figure of its own unless the face itself prints the class as a row; do not split the total yourself. Its peers inside Inventories are 'WIP' (work-in-progress) and 'Finished goods' (finished goods, stock-in-trade, goods in transit). Not this line: spares capitalised as property, plant and equipment; advances paid to suppliers for materials not yet received ('Prepayments(CP)', or 'Other Current Assets' where they sit inside 'Other current assets').",
    "aliases": [
     "Raw materials",
     "direct materials",
@@ -2158,7 +2158,7 @@
   {
    "key": "bs_ca__wip",
    "label": "WIP",
-   "definition": "Extract the reported value for 'WIP' from the stated section. Do not calculate it.",
+   "definition": "Inventory in the course of production — 'Work-in-progress', 'Work in progress', semi-finished goods — and, for a real estate developer, projects under development held for sale in the ordinary course of business ('Construction work-in-progress' of projects for sale, 'Properties under development'), printed as a row in the current assets section. It is a part of Inventories. Schedule III prints 'Inventories' as one row on the face and gives raw materials, work-in-progress, finished goods, stock-in-trade, stores and spares and goods in transit in its breakdown: that face row is 'Inventories', and this line has no figure of its own unless the face itself prints the class as a row; do not split the total yourself. Its peers are 'Raw materials' and 'Finished goods'. Not this line: 'Capital work-in-progress' on the entity's own fixed assets ('Construction in Progress'); investment property under construction ('Investment Property(Net)'); contract assets and unbilled revenue on construction contracts ('Other Current Assets').",
    "aliases": [
     "WIP",
     "work in progress",
@@ -2183,7 +2183,7 @@
   {
    "key": "bs_ca__finished_goods",
    "label": "Finished goods",
-   "definition": "Extract the reported value for 'Finished goods' from the stated section. Do not calculate it.",
+   "definition": "Inventory ready for sale — finished goods, 'Stock-in-trade' (goods bought for resale), goods in transit and, for a real estate developer, completed units held for sale — printed as a row in the current assets section ('Finished goods', 'Stock-in-trade', 'Traded goods'). It is a part of Inventories. Schedule III prints 'Inventories' as one row on the face and gives raw materials, work-in-progress, finished goods, stock-in-trade, stores and spares and goods in transit in its breakdown: that face row is 'Inventories', and this line has no figure of its own unless the face itself prints the class as a row; do not split the total yourself. Its peers are 'Raw materials' and 'WIP'. Not this line: investment property ('Investment Property(Net)'); assets classified as held for sale under Ind AS 105 ('Assets Related to Disc Ops'), even where the caption says 'held for sale'.",
    "aliases": [
     "Finished goods",
     "goods in transit",
@@ -2331,7 +2331,7 @@
   {
    "key": "bs_ca__short_term_securities",
    "label": "Short Term Securities",
-   "definition": "Extract the reported value for 'Short Term Securities' from the stated section. Do not calculate it.",
+   "definition": "Marketable securities held as a current asset, where the balance sheet prints them in a row captioned as short-term securities or short-term investments ('Short-term investments', 'Marketable securities') apart from the Schedule III current financial asset 'Investments'. Read the printed row. The Schedule III current 'Investments' row — mutual fund units, bonds, debentures and other investments at fair value through profit or loss or at amortised cost — is 'Secur & Other Fincl Assets(CP)', not this line. Not this line: derivative assets; deposits with banks ('Pledged Deposits', 'Cash Equivalents'); current 'Loans' and 'Other financial assets' ('Other Receivables(CP)'). Where the balance sheet prints no such row, answer with an empty sources list. It is one of the lines this template's rollup adds into Total Current Assets.",
    "aliases": [
     "Short Term Securities"
    ],
@@ -2442,7 +2442,7 @@
   {
    "key": "bs_ca__current_tax_receivables",
    "label": "Current Tax Receivables",
-   "definition": "Extract the reported value for 'Current Tax Receivables' from the stated section. Do not calculate it.",
+   "definition": "Income tax the entity has paid in advance or is owed by the tax authorities, net of the provision for tax, and expects to recover within one year: the Schedule III row 'Current Tax Assets (Net)' printed in the current assets section ('Current tax assets (net)', 'Income tax assets (net)', 'Advance income tax (net of provisions)'). Read the printed row. Not this line: a non-current tax asset printed among the non-current assets ('Income tax assets (net)' or 'Non-current tax assets (net)' under that heading), which is 'Other Non-Current Assets' as printed; deferred tax assets ('Deferred Tax Assets'); balances with government authorities for GST and other indirect taxes inside 'Other current assets' ('Other Current Assets'); a row captioned only as prepaid tax ('Prepayments(CP)'); current tax liabilities ('Current Tax Payable'). It is one of the lines this template's rollup adds into Total Current Assets.",
    "aliases": [
     "Current Tax Receivables",
     "Profit tax receivables",
@@ -2473,7 +2473,7 @@
   {
    "key": "bs_ca__prepayments_cp",
    "label": "Prepayments(CP)",
-   "definition": "Extract the reported value for 'Prepayments(CP)' from the stated section. Do not calculate it.",
+   "definition": "Amounts paid in advance for goods, services and assets not yet received, held as a current asset, where the balance sheet prints them as a row of their own: 'Prepayments', 'Prepaid expenses', 'Advances to suppliers', 'Advance to vendors', purchase and trade deposits paid, and a row captioned as prepaid tax. Read the printed row. On an Ind AS balance sheet these advances usually sit inside the Schedule III row 'Other current assets', which is 'Other Current Assets' as printed: this line then has no row of its own, and the advances are not split out of that row. Not this line: 'Current Tax Assets (Net)' ('Current Tax Receivables'); capital advances and other non-current prepayments ('Other Non-Current Assets'); security deposits and other current financial assets ('Other Receivables(CP)'). It is one of the lines this template's rollup adds into Total Current Assets.",
    "aliases": [
     "Prepayments(CP)",
     "Prepayment",
@@ -2516,7 +2516,7 @@
   {
    "key": "bs_ca__assets_related_to_disc_ops",
    "label": "Assets Related to Disc Ops",
-   "definition": "Extract the reported value for 'Assets Related to Disc Ops' from the stated section. Do not calculate it.",
+   "definition": "Non-current assets and disposal groups classified as held for sale under Ind AS 105, and the assets of discontinued operations, printed as a row of their own at the foot of the current assets section: 'Assets classified as held for sale', 'Assets held for sale', 'Non-current assets held for sale'. Read the printed row. Not this line: inventories held for sale in the ordinary course of business ('Finished goods'); the 'Liabilities directly associated with assets classified as held for sale', which are a liability; investment property and other non-current assets not classified as held for sale. It is one of the lines this template's rollup adds into Total Current Assets.",
    "aliases": [
     "Assets Related to Disc Ops",
     "Assets classified as held for sale",
@@ -2541,7 +2541,7 @@
   {
    "key": "bs_ca__pledged_deposits",
    "label": "Pledged Deposits",
-   "definition": "Extract the reported value for 'Pledged Deposits' from the stated section. Do not calculate it.",
+   "definition": "Bank balances that are pledged, earmarked or otherwise not available as cash, held as a CURRENT asset: the Schedule III current financial asset 'Bank balances other than cash and cash equivalents' as printed ('Other bank balances', 'Bank balances other than (iii) above'), which carries deposits with original maturity of more than three months, margin money and deposits held as security, and earmarked balances such as unpaid dividend accounts; and rows such as 'Pledged deposits', 'Restricted deposits' or 'Margin money deposits' printed on their own. Read the printed current row. Non-current bank deposits printed within non-current 'Other financial assets' are 'Secur & Other Fincl Assets(LTP)', not this line. The arithmetic between this line and 'Cash Equivalents' and 'Cash in Hand and at Banks' is declared in this template's rollup, so do not split a row yourself. Not this line: the Schedule III row 'Cash and cash equivalents' ('Cash in Hand and at Banks'); current 'Investments' ('Secur & Other Fincl Assets(CP)'). It is one of the lines this template's rollup adds into Total Current Assets.",
    "aliases": [
     "Pledged Deposits",
     "Pledged fixed deposits",
@@ -2591,7 +2591,7 @@
   {
    "key": "bs_ca__other_current_assets",
    "label": "Other Current Assets",
-   "definition": "Extract the reported value for 'Other Current Assets' from the stated section. Do not calculate it.",
+   "definition": "The current assets the balance sheet prints that no more specific current-asset line of this template takes: the Schedule III row 'Other current assets' as printed (advances other than capital advances, prepaid expenses, balances with government authorities, export incentives receivable and the like, read as one row and not split into its breakdown), 'Contract assets' and 'Unbilled revenue' printed as rows of their own, and other rows of the current assets section that no other line names. Read each such row as printed. The current-asset lines this template breaks out — inventories and their parts, receivables, prepayments, investments, tax assets, bank balances and cash among them — are their own lines, and the arithmetic that keeps them out of this line is declared in this template's rollup; do not net them off yourself. Not this line: the current assets total ('Total Current Assets'), total assets, any row printed under non-current assets, equity or liabilities; current 'Loans' and 'Other financial assets' ('Other Receivables(CP)'); 'Assets classified as held for sale' ('Assets Related to Disc Ops'). It is one of the lines this template's rollup adds into Total Current Assets.",
    "aliases": [
     "Other Current Assets",
     "Total Current asset",
@@ -2632,7 +2632,7 @@
   {
    "key": "bs_ca__trade_and_other_receivables",
    "label": "Trade and other receivables",
-   "definition": "Extract the reported value for 'Trade and other receivables' from the stated section. Do not calculate it.",
+   "definition": "Current receivables that the balance sheet prints in ONE row together with trade receivables: 'Trade and other receivables', 'Debtors and other receivables', 'Trade receivables and other financial assets'. Schedule III presents trade receivables as a row of their own, so on an Ind AS balance sheet this row is uncommon. Read the printed row. Where trade receivables are printed in a row of their own, that row is 'Net Trade Receivables' and its gross amount 'Trade Receivables(Gross)'; the arithmetic between this line and 'Trade Receivables(Gross)' is declared in this template's rollup, so do not split the combined row yourself. Not this line: the Schedule III row 'Trade receivables' alone ('Net Trade Receivables'); current 'Loans' and 'Other financial assets' printed on their own ('Other Receivables(CP)'); prepayments printed alone ('Prepayments(CP)'); amounts due from related parties printed alone ('Due from Related Parties(CP)'); any non-current receivable. It is one of the lines this template's rollup adds into Total Current Assets.",
    "aliases": [
     "Trade and other receivables",
     "Accounts and other receivables",
@@ -2666,7 +2666,7 @@
   {
    "key": "bs_ca__trade_receivables_gross",
    "label": "Trade Receivables(Gross)",
-   "definition": "Extract the reported value for 'Trade Receivables(Gross)' from the stated section. Do not calculate it.",
+   "definition": "Trade receivables at their gross carrying amount, before the allowance for expected credit loss: amounts due from customers for goods sold and services rendered, held as a current asset. An Ind AS balance sheet prints the Schedule III row 'Trade receivables' net of the allowance, and that net row is 'Net Trade Receivables', not this line. This line is the gross amount the breakdown of trade receivables prints before the allowance — the total of the classes 'Considered good – Secured', 'Considered good – Unsecured', 'Significant increase in credit risk' and 'Credit impaired', before 'Less: Allowance for expected credit loss' or 'Less: Allowance for doubtful debts'. Where the balance sheet itself prints the gross amount and the allowance as rows of their own, this line is the gross row. Where the filing states no allowance on trade receivables, the gross and the net amount are the same figure. The allowance is 'Allow for Doubtful Accounts(-)', carried as a negative figure, and this template's rollup adds the two lines into Net Trade Receivables, which is therefore the gross amount less the allowance. Not this line: a row that prints trade and other receivables together ('Trade and other receivables'); unbilled revenue and contract assets ('Other Current Assets'); current 'Loans' and 'Other financial assets' ('Other Receivables(CP)'); non-current trade receivables.",
    "aliases": [
     "Trade Receivables(Gross)",
     "Trade receivables",
@@ -2872,7 +2872,7 @@
   {
    "key": "bs_ca__cash_equivalents",
    "label": "Cash Equivalents",
-   "definition": "Extract the reported value for 'Cash Equivalents' from the stated section. Do not calculate it.",
+   "definition": "Short-term, highly liquid deposits and investments that the balance sheet prints in the current assets section as a row of their own, separate from the cash row: deposits with original maturity of three months or less, or a row captioned cash equivalents. Read the printed row. Schedule III prints one row 'Cash and cash equivalents' that already takes these deposits in, with balances with banks, cheques on hand and cash on hand in its breakdown: that row is 'Cash in Hand and at Banks', and this line then has no figure of its own; do not split the cash row yourself. Where pledged deposits are inside the row you cite, this template's rollup takes them out of this line; do not deduct them yourself. Not this line: 'Bank balances other than cash and cash equivalents' and other pledged, earmarked or margin money deposits ('Pledged Deposits'); deposits with original maturity over three months; current 'Investments' such as liquid mutual fund units ('Secur & Other Fincl Assets(CP)'). It is one of the lines this template's rollup adds into Total Current Assets, and its parts are kept apart from Cash in Hand and at Banks by that rollup.",
    "aliases": [
     "Cash Equivalents",
     "Fixed deposits",
@@ -2904,7 +2904,7 @@
   {
    "key": "bs_ca__cash_in_hand_and_at_banks",
    "label": "Cash in Hand and at Banks",
-   "definition": "Extract the reported value for 'Cash in Hand and at Banks' from the stated section. Do not calculate it.",
+   "definition": "Cash on hand and balances with banks held as a current asset: the Schedule III current financial asset 'Cash and cash equivalents' as printed (balances with banks in current accounts, deposits with original maturity of three months or less, cheques and drafts on hand, cash on hand together), or a row 'Cash and bank balances'. Read the printed row. Where the filing prints pledged or earmarked balances, or deposits, as rows of their own beside the cash row, those rows are 'Pledged Deposits' and 'Cash Equivalents', not this line; the arithmetic between the three lines is declared in this template's rollup, so do not take anything off the printed cash row yourself. Not this line: 'Bank balances other than cash and cash equivalents' ('Pledged Deposits'); non-current bank deposits within 'Other financial assets'; current 'Investments' ('Secur & Other Fincl Assets(CP)'); bank overdrafts and cash credit, which are borrowings. It is one of the lines this template's rollup adds into Total Current Assets.",
    "aliases": [
     "Cash in Hand and at Banks",
     "Cash",
@@ -3154,7 +3154,7 @@
   {
    "key": "bs_equity__common_share_capital",
    "label": "Common Share Capital",
-   "definition": "Extract the reported value for 'Common Share Capital' from the stated section. Do not calculate it.",
+   "definition": "The issued, subscribed and paid-up equity share capital of the company at its face value, printed in the equity section: the Schedule III row 'Equity Share capital' ('Equity share capital', 'Share capital', 'Issued, subscribed and paid-up capital'). Read the printed row; where the face prints it net of shares held by an employee welfare trust or of calls unpaid, it is the figure as printed. Not this line: preference share capital classified as equity ('Pref Share Capital'); securities premium ('Share Premium'); 'Other Equity' and its components; share application money pending allotment ('Other Equity'); treasury shares printed as their own deduction ('Treasury Shares(-)'); preference shares classified as borrowings; the equity attributable to owners of the company or total equity. It is one of the lines this template's rollup adds into Permanent Equity.",
    "aliases": [
     "Common Share Capital",
     "Share Capital",
@@ -3197,7 +3197,7 @@
   {
    "key": "bs_equity__pref_share_capital",
    "label": "Pref Share Capital",
-   "definition": "Extract the reported value for 'Pref Share Capital' from the stated section. Do not calculate it.",
+   "definition": "Preference share capital classified as equity, printed in the equity section as a row of its own: 'Preference share capital', 'Preference shares', and compulsorily convertible preference shares presented as 'Instruments entirely equity in nature'. Read the printed row. Not this line: redeemable preference shares classified as financial liabilities under Ind AS 32, which are borrowings ('LTD Other'); equity share capital ('Common Share Capital'); the equity component of compound financial instruments ('Other Equity'); dividends on preference shares ('Cash Div Pref Shares(-)'). It is one of the lines this template's rollup adds into Permanent Equity.",
    "aliases": [
     "Pref Share Capital",
     "Preference shares capital",
@@ -3224,7 +3224,7 @@
   {
    "key": "bs_equity__share_premium",
    "label": "Share Premium",
-   "definition": "Extract the reported value for 'Share Premium' from the stated section. Do not calculate it.",
+   "definition": "The amount received on the issue of shares in excess of their face value: the 'Securities premium' ('Securities premium account', 'Securities Premium Reserve', 'Share premium') reserve within other equity. Schedule III prints the reserves as one face row, 'Other Equity', and gives them by component in the statement of changes in equity and its breakdown of other equity: this line is the closing balance of its own component there, not a share of the face row. Read the printed amount. Not this line: equity share capital ('Common Share Capital'); capital reserve and capital redemption reserve ('Capital & Restricted Reserves'); share options outstanding ('Other Reserves'); retained earnings ('Retained Profits'). It is one of the lines this template's rollup adds into Permanent Equity.",
    "aliases": [
     "Share Premium",
     "Addition paid-up capital",
@@ -3253,7 +3253,7 @@
   {
    "key": "bs_equity__capital_and_restricted_reserves",
    "label": "Capital & Restricted Reserves",
-   "definition": "Extract the reported value for 'Capital & Restricted Reserves' from the stated section. Do not calculate it.",
+   "definition": "Capital reserves and reserves restricted by law, regulation or the entity's own appropriation, within other equity: 'Capital reserve' (including capital reserve on consolidation or on a bargain purchase), 'Capital redemption reserve', 'Debenture redemption reserve', 'General reserve', 'Statutory reserve' and 'Special reserve' created under a statute, and other non-distributable reserves. Where the filing prints several of these, the line is their total. Schedule III prints the reserves as one face row, 'Other Equity', and gives them by component in the statement of changes in equity and its breakdown of other equity: this line is the closing balance of its own component there, not a share of the face row. Not this line: securities premium ('Share Premium'); share options outstanding and other reserves this template places elsewhere ('Other Reserves'); revaluation surplus, the effective portion of cash flow hedges, foreign currency translation and equity instruments through other comprehensive income (their own lines); retained earnings ('Retained Profits'). It is one of the lines this template's rollup adds into Permanent Equity.",
    "aliases": [
     "Capital & Restricted Reserves",
     "Capital reserve",
@@ -3377,7 +3377,7 @@
   {
    "key": "bs_equity__revaluation_reserves",
    "label": "Revaluation Reserves",
-   "definition": "Extract the reported value for 'Revaluation Reserves' from the stated section. Do not calculate it.",
+   "definition": "The reserve that holds revaluation surpluses on property, plant and equipment and intangible assets carried under the revaluation model: 'Revaluation surplus', 'Revaluation reserve', 'Asset revaluation reserve', within other equity (an item of other comprehensive income). Schedule III prints the reserves as one face row, 'Other Equity', and gives them by component in the statement of changes in equity and its breakdown of other equity: this line is the closing balance of its own component there, not a share of the face row. Read the printed amount. Not this line: the reserve for equity or debt instruments through other comprehensive income ('Accum Oth Eqty Rsrv Inc'); the effective portion of cash flow hedges ('Hedging Reserves'); foreign currency translation ('Forex Translation Equity'); the year's revaluation movement in other comprehensive income ('Unreal Gain(Loss) Fixed Assets'). It is one of the lines this template's rollup adds into Equity & Reserves.",
    "aliases": [
     "Revaluation Reserves",
     "Revaluation reserve",
@@ -3410,7 +3410,7 @@
   {
    "key": "bs_equity__hedging_reserves",
    "label": "Hedging Reserves",
-   "definition": "Extract the reported value for 'Hedging Reserves' from the stated section. Do not calculate it.",
+   "definition": "The reserve that holds the effective portion of gains and losses on hedging instruments in cash flow hedges, and the cost-of-hedging reserve where the filing prints it with it: 'Effective portion of cash flow hedges', 'Cash flow hedging reserve', 'Hedging reserve', within other equity. Schedule III prints the reserves as one face row, 'Other Equity', and gives them by component in the statement of changes in equity and its breakdown of other equity: this line is the closing balance of its own component there, not a share of the face row. Read the printed amount. Not this line: the year's movement on cash flow hedges in other comprehensive income ('Deferred Hedging Gain(Loss)'); derivative assets and liabilities themselves; foreign currency translation ('Forex Translation Equity'); the reserve for instruments through other comprehensive income ('Accum Oth Eqty Rsrv Inc'). It is one of the lines this template's rollup adds into Equity & Reserves.",
    "aliases": [
     "Hedging Reserves",
     "Hedging reserve",
@@ -3437,7 +3437,7 @@
   {
    "key": "bs_equity__other_reserves",
    "label": "Other Reserves",
-   "definition": "Extract the reported value for 'Other Reserves' from the stated section. Do not calculate it.",
+   "definition": "The reserves within other equity that no more specific equity line of this template takes: 'Share options outstanding account', 'Share based payment reserve', 'Employee stock options outstanding', an amalgamation or merger adjustment reserve printed as a reserve, and other named reserves. Where the statement of changes in equity gives the reserves by column, each column goes to its own line and only the columns no other line takes are this line. Read the printed amounts. The equity lines this template breaks out are their own lines, and the arithmetic that keeps them out of this line is declared in this template's rollup; do not net them off yourself. Not this line: the undivided Schedule III face row 'Other Equity' ('Other Equity'); retained earnings ('Retained Profits'); securities premium ('Share Premium'); capital, capital redemption, debenture redemption and general reserves ('Capital & Restricted Reserves'); equity attributable to owners or total equity; non-controlling interests; any row printed in the assets or liabilities sections; any movement of the year in retained earnings. It is one of the lines this template's rollup adds into Equity & Reserves.",
    "aliases": [
     "Other Reserves",
     "Other reserves"
@@ -3543,7 +3543,7 @@
   {
    "key": "bs_equity__treasury_shares",
    "label": "Treasury Shares(-)",
-   "definition": "Extract the reported value for 'Treasury Shares(-)' from the stated section. Do not calculate it.",
+   "definition": "The company's own equity shares it has bought back and holds, or that an employee welfare or ESOP trust it consolidates holds, deducted from equity: 'Treasury shares', 'Own shares held by the ESOP trust'. Read the printed amount; it reduces equity. Not this line: a row captioned as shares held for a share award scheme, which this template files on 'Other Equity'; the cash paid in the year to buy back shares, which is a cash flow; equity share capital reduced on a buy-back and cancellation ('Common Share Capital'). It is one of the lines this template's rollup adds into Equity & Reserves.",
    "aliases": [
     "Treasury Shares(-)"
    ],
@@ -3564,7 +3564,7 @@
   {
    "key": "bs_equity__forex_translation_equity",
    "label": "Forex Translation Equity",
-   "definition": "Extract the reported value for 'Forex Translation Equity' from the stated section. Do not calculate it.",
+   "definition": "The cumulative exchange differences on translating the financial statements of foreign operations into the presentation currency, held in other equity: 'Foreign currency translation reserve', 'Exchange differences on translating the financial statements of a foreign operation', 'Translation reserve'. Schedule III prints the reserves as one face row, 'Other Equity', and gives them by component in the statement of changes in equity and its breakdown of other equity: this line is the closing balance of its own component there, not a share of the face row. Read the printed amount. Not this line: the year's translation differences in other comprehensive income ('Other Equity & Reserves Adj'); exchange gains and losses in profit or loss; the foreign currency monetary item translation difference account, which is 'Other Reserves'; hedging and revaluation reserves. It is one of the lines this template's rollup adds into Equity & Reserves.",
    "aliases": [
     "Forex Translation Equity",
     "Exchange difference reserve",
@@ -3603,7 +3603,7 @@
   {
    "key": "bs_equity__other_equity",
    "label": "Other Equity",
-   "definition": "Extract the reported value for 'Other Equity' from the stated section. Do not calculate it.",
+   "definition": "Equity items that are neither share capital nor a reserve this template names: the equity component of compound financial instruments, share application money pending allotment, money received against share warrants, shares held for a share award scheme, perpetual instruments classified as equity, and a merger reserve or deficit printed under that name. This template also places the undivided Schedule III face row 'Other Equity' here, as printed, where the filing gives no breakdown of it. Where the statement of changes in equity gives that row by component, each component goes to its own line — 'Share Premium', 'Capital & Restricted Reserves', 'Retained Profits', 'Other Reserves' and the reserves of other comprehensive income — and this line takes only the components no other line takes, not the face total. Not this line: share capital ('Common Share Capital', 'Pref Share Capital'); non-controlling interests ('Minority Interest Equity'); 'Treasury shares' ('Treasury Shares(-)'). It is one of the lines this template's rollup adds into Equity & Reserves.",
    "aliases": [
     "Other Equity",
     "Merger deficit",
@@ -3638,7 +3638,7 @@
   {
    "key": "bs_equity__accum_oth_eqty_rsrv_inc",
    "label": "Accum Oth Eqty Rsrv Inc",
-   "definition": "Extract the reported value for 'Accum Oth Eqty Rsrv Inc' from the stated section. Do not calculate it.",
+   "definition": "Accumulated other comprehensive income held in other equity for financial instruments and similar items: 'Equity instruments through other comprehensive income', 'Debt instruments through other comprehensive income', 'FVOCI reserve', 'Fair value reserve', a reserve for remeasurements of defined benefit plans where the filing keeps it apart from retained earnings, or a row 'Other comprehensive income' printed as a component of other equity. Schedule III prints the reserves as one face row, 'Other Equity', and gives them by component in the statement of changes in equity and its breakdown of other equity: this line is the closing balance of its own component there, not a share of the face row. Not this line: the revaluation surplus ('Revaluation Reserves'); the effective portion of cash flow hedges ('Hedging Reserves'); the foreign currency translation reserve ('Forex Translation Equity'); the year's other comprehensive income ('Total Other Comprehensive Income'). It is one of the lines this template's rollup adds into Equity & Reserves.",
    "aliases": [
     "Accum Oth Eqty Rsrv Inc",
     "Accumulated other reserve",
@@ -3673,7 +3673,7 @@
   {
    "key": "bs_equity__minority_interest_equity",
    "label": "Minority Interest Equity",
-   "definition": "Extract the reported value for 'Minority Interest Equity' from the stated section. Do not calculate it.",
+   "definition": "Non-controlling interests: the equity in subsidiaries not attributable to the owners of the parent, printed in the equity section of the consolidated balance sheet ('Non-controlling interests', 'Non-controlling interest', 'Minority interest'). Read the printed row of the balance sheet, or the closing balance of the non-controlling interests column of the statement of changes in equity. Not this line: the non-controlling interests' share of the year's profit ('Minority Interests(PL)') or of total comprehensive income; the equity attributable to owners of the company; amounts due to non-controlling shareholders; a standalone balance sheet, which prints no such row. It is one of the lines this template's rollup adds into Total Equity & Reserves.",
    "aliases": [
     "Minority Interest Equity",
     "Minority interest",
@@ -3812,7 +3812,7 @@
   {
    "key": "bs_ncl__ltd_bank",
    "label": "LTD Bank",
-   "definition": "Extract the reported value for 'LTD Bank' from the stated section. Do not calculate it.",
+   "definition": "Long-term borrowings repayable after more than one year, reported among the non-current financial liabilities of the balance sheet: the Schedule III non-current row 'Borrowings' as printed ('Long-term borrowings', 'Term loans from banks'), secured and unsecured together. Where that row carries debentures, bonds, loans from financial institutions or other lenders beside the bank term loans, cite the row as printed: the other debt in it is 'LTD Other', and this template's rollup takes the debt lines that have a figure of their own out of this line, so do not split the row or deduct them yourself. The current maturities of these borrowings are printed within the current 'Borrowings' ('ST Bank Loans Payable') or as a row of their own ('CPLTD Bank'). Not this line: debentures, bonds and other non-bank loans printed as their own row ('LTD Other'); convertible instruments ('LTD Convertible'); 'Lease liabilities' ('Lease liabilities(LTP)'); finance lease obligations printed under that name ('Finance Leases(LTP)'); loans from related parties ('Due to Related Parties(LTP)'); non-current 'Other financial liabilities' ('Other Non-Current Liabilities'). Where the balance sheet prints no such row, answer with an empty sources list. It is one of the lines this template's rollup adds into Total Non-Current Liabilities.",
    "aliases": [
     "LTD Bank",
     "Long term debt",
@@ -3858,7 +3858,7 @@
   {
    "key": "bs_ncl__ltd_other",
    "label": "LTD Other",
-   "definition": "Extract the reported value for 'LTD Other' from the stated section. Do not calculate it.",
+   "definition": "Long-term debt other than bank loans, repayable after more than one year: non-convertible debentures, bonds and notes, loans from financial institutions and other non-bank lenders, deferred payment liabilities, loans from government, and redeemable preference shares classified as financial liabilities. Where the balance sheet prints such debt as a row of its own among the non-current liabilities ('Debentures', 'Bonds', 'Other borrowings'), read that row. Where it prints only the combined Schedule III 'Borrowings' row, this line is the non-bank part of it as the breakdown of that row splits it (the row itself is 'LTD Bank', whose rollup takes this part out). Where the face prints the same instrument under both current and non-current liabilities, this line is the non-current row; the current row is 'CPLTD Other'. Not this line: term loans from banks ('LTD Bank'); convertible bonds and debentures ('LTD Convertible'); 'Lease liabilities' ('Lease liabilities(LTP)'); finance lease obligations ('Finance Leases(LTP)'); loans from related parties ('Due to Related Parties(LTP)'). It is one of the debt lines this template's rollup takes out of LTD Bank and adds into Total Non-Current Liabilities.",
    "aliases": [
     "LTD Other",
     "Bonds",
@@ -3897,7 +3897,7 @@
   {
    "key": "bs_ncl__ltd_convertible",
    "label": "LTD Convertible",
-   "definition": "Extract the reported value for 'LTD Convertible' from the stated section. Do not calculate it.",
+   "definition": "The liability component of convertible bonds and debentures issued by the entity — foreign currency convertible bonds, optionally convertible debentures — repayable after more than one year, where the balance sheet prints it as a row of its own among the non-current liabilities ('Convertible bonds', 'Foreign currency convertible bonds', 'Convertible debentures'), or as the breakdown of the non-current 'Borrowings' row splits it out. Not this line: the equity component of compound financial instruments, which is equity ('Other Equity'); a conversion option carried at fair value as a derivative; compulsorily convertible instruments classified as equity; the current maturities ('CPLTD Other'). It is one of the debt lines this template's rollup takes out of LTD Bank and adds into Total Non-Current Liabilities.",
    "aliases": [
     "LTD Convertible",
     "Convertible bonds",
@@ -3922,7 +3922,7 @@
   {
    "key": "bs_ncl__finance_leases_ltp",
    "label": "Finance Leases(LTP)",
-   "definition": "Extract the reported value for 'Finance Leases(LTP)' from the stated section. Do not calculate it.",
+   "definition": "Obligations under finance leases and hire purchase contracts repayable after more than one year, where the balance sheet prints them under that name among the non-current liabilities ('Finance lease obligations', 'Long-term maturities of finance lease obligations', 'Hire purchase loans'), as filings presenting leases before Ind AS 116 print them, or as the breakdown of the non-current 'Borrowings' row splits them out. Not this line: the Schedule III row 'Lease liabilities' under Ind AS 116 ('Lease liabilities(LTP)'); the current maturities ('Finance Leases(CP)'). It is one of the debt lines this template's rollup takes out of LTD Bank and adds into Total Non-Current Liabilities.",
    "aliases": [
     "Finance Leases(LTP)",
     "Finance lease payables",
@@ -3951,7 +3951,7 @@
   {
    "key": "bs_ncl__due_to_related_parties_ltp",
    "label": "Due to Related Parties(LTP)",
-   "definition": "Extract the reported value for 'Due to Related Parties(LTP)' from the stated section. Do not calculate it.",
+   "definition": "NON-CURRENT amounts payable to related parties — holding companies, promoters and shareholders, fellow subsidiaries, associates, joint ventures and other related parties — as long-term payables and loans, without any portion due within one year (that is the current line's). It excludes trade and other payables, guarantees, transaction amounts for the year and totals. The template derives it in declared steps: first the non-current payables the related party disclosure gives for its outstanding balances; failing that, the loans from the holding company and from a shareholder that the balance sheet prints as their own non-current rows, summed. Do not add it up yourself; this template derives the figure from those parts. Not this line: borrowings from banks and other lenders ('LTD Bank', 'LTD Other'); non-current trade payables ('Trade Payables(LTP)'); the current balance ('Due to Related Parties(CP)'). It is one of the lines this template's rollup adds into Total Non-Current Liabilities, and one of the debt lines its rollup takes out of LTD Bank.",
    "sign_rule": {},
    "inherits": "bs_ncl",
    "face_only": false,
@@ -4067,7 +4067,7 @@
   {
    "key": "bs_ncl__lease_liabilities_ltp",
    "label": "Lease liabilities(LTP)",
-   "definition": "Extract the reported value for 'Lease liabilities(LTP)' from the stated section. Do not calculate it.",
+   "definition": "The NON-CURRENT portion of lease liabilities recognised under Ind AS 116 — the present value of the lease payments due after more than one year — as the balance sheet prints it among the non-current financial liabilities: the Schedule III row 'Lease liabilities' under non-current liabilities. It is a printed row; read it as it stands. Not this line: 'Lease liabilities' under current liabilities ('Lease liabilities(CP)'); finance lease obligations printed under that older name ('Finance Leases(LTP)'); right-of-use assets ('Land use rights'). Where the balance sheet prints no such row, answer with an empty sources list. It is one of the lines this template's rollup adds into Total Non-Current Liabilities.",
    "aliases": [
     "Lease liabilities(LTP)",
     "Lease liabilities",
@@ -4092,7 +4092,7 @@
   {
    "key": "bs_ncl__other_non_current_liabilities",
    "label": "Other Non-Current Liabilities",
-   "definition": "Extract the reported value for 'Other Non-Current Liabilities' from the stated section. Do not calculate it.",
+   "definition": "The non-current liabilities the balance sheet prints that have no more specific line in this template, as printed: the Schedule III row 'Other non-current liabilities' (deferred government grants, advances and income received in advance and the like where the face combines them, cited as printed and not split into its breakdown), the non-current 'Other financial liabilities' row (security deposits received, retention money, payables for capital goods), and other rows of the non-current liabilities section that no other line names. Where the balance sheet prints more than one such row, cite each; the line is their total. It is the residual line of the section: where a part with a line of its own is inside a row you cite, the template's rollup takes it out — do not deduct it yourself. Not this line: the total of non-current liabilities or total liabilities; a row that has its own line here, such as 'Borrowings' ('LTD Bank'), 'Lease liabilities' ('Lease liabilities(LTP)'), non-current 'Trade payables' ('Trade Payables(LTP)'), 'Provisions' ('Other Provisions(LTP)'), 'Deferred tax liabilities (net)' ('Deferred Tax Liability') or non-current 'Contract liabilities' ('Customer Advances(LTP)'). Where the balance sheet prints no such row, answer with an empty sources list. It is one of the lines this template's rollup adds into Total Non-Current Liabilities.",
    "aliases": [
     "Other Non-Current Liabilities",
     "Perpetual securities",
@@ -4130,7 +4130,7 @@
   {
    "key": "bs_ncl__customer_advances_ltp",
    "label": "Customer Advances(LTP)",
-   "definition": "Extract the reported value for 'Customer Advances(LTP)' from the stated section. Do not calculate it.",
+   "definition": "Amounts received from customers in advance for goods or services the entity will deliver after more than one year, printed as a row of their own among the non-current liabilities: non-current 'Contract liabilities', 'Advances from customers', 'Income received in advance'. The part due within one year is a current-liabilities line, not this one. Where such advances sit inside 'Other non-current liabilities', that row is 'Other Non-Current Liabilities' as printed and they are not split out. Not this line: deferred government grants ('Deferred Income(LTP)'); security deposits received from customers, dealers or tenants, which are financial liabilities ('Other Non-Current Liabilities'). Where the balance sheet prints no such row, answer with an empty sources list. It is one of the lines this template's rollup adds into Total Non-Current Liabilities.",
    "aliases": [
     "Customer Advances(LTP)",
     "Customer advance",
@@ -4157,7 +4157,7 @@
   {
    "key": "bs_ncl__deferred_income_ltp",
    "label": "Deferred Income(LTP)",
-   "definition": "Extract the reported value for 'Deferred Income(LTP)' from the stated section. Do not calculate it.",
+   "definition": "Deferred income classified as non-current — mainly government grants to be released to profit or loss over the lives of the related assets — where the balance sheet prints it as a row of its own among the non-current liabilities ('Deferred government grants', 'Deferred income', 'Deferred revenue'). Where the grants sit inside 'Other non-current liabilities', that row is 'Other Non-Current Liabilities' as printed and they are not split out. Not this line: deferred income under current liabilities ('Deferred Income(CP)'); contract liabilities and customer advances ('Customer Advances(LTP)'); deferred tax liabilities ('Deferred Tax Liability'). Where the balance sheet prints no such row, answer with an empty sources list. It is one of the lines this template's rollup adds into Total Non-Current Liabilities.",
    "aliases": [
     "Deferred Income(LTP)",
     "Deferred income",
@@ -4184,7 +4184,7 @@
   {
    "key": "bs_ncl__trade_payables_ltp",
    "label": "Trade Payables(LTP)",
-   "definition": "Extract the reported value for 'Trade Payables(LTP)' from the stated section. Do not calculate it.",
+   "definition": "Trade payables (amounts owed to suppliers for goods and services) due after more than one year, where the balance sheet prints them as a row of their own among the non-current financial liabilities ('Trade payables' under non-current liabilities, with its split between micro and small enterprises and other creditors where printed). Not this line: trade payables under current liabilities ('Trade Payables(CP)'); retention money and payables for capital goods within non-current 'Other financial liabilities' ('Other Non-Current Liabilities'). Where the balance sheet prints no such row, answer with an empty sources list. It is one of the lines this template's rollup adds into Total Non-Current Liabilities.",
    "aliases": [
     "Trade Payables(LTP)",
     "Trade payables",
@@ -4211,7 +4211,7 @@
   {
    "key": "bs_ncl__retirement_benefits_ltp",
    "label": "Retirement Benefits(LTP)",
-   "definition": "Extract the reported value for 'Retirement Benefits(LTP)' from the stated section. Do not calculate it.",
+   "definition": "Post-employment and other long-term employee benefit obligations due after more than one year — gratuity, compensated absences, pension and post-retirement medical obligations — where the balance sheet prints them as a row of their own among the non-current liabilities ('Employee benefit obligations', 'Provision for employee benefits', 'Provision for gratuity'). Schedule III usually prints them inside the non-current 'Provisions' row: that row is 'Other Provisions(LTP)' as printed, and the employee benefits are not split out of it to this line. Not this line: salaries and wages payable and other current employee dues; a defined benefit surplus recognised as an asset; the current obligation ('Retirement Benefits(CP)'). Where the balance sheet prints no such row, answer with an empty sources list. It is one of the lines this template's rollup adds into Total Non-Current Liabilities.",
    "aliases": [
     "Retirement Benefits(LTP)",
     "Retirement Benefits",
@@ -4248,7 +4248,7 @@
   {
    "key": "bs_ncl__deferred_tax_liability",
    "label": "Deferred Tax Liability",
-   "definition": "Extract the reported value for 'Deferred Tax Liability' from the stated section. Do not calculate it.",
+   "definition": "Deferred tax liabilities recognised for taxable temporary differences, as the balance sheet prints them among the non-current liabilities ('Deferred tax liabilities (net)', 'Deferred tax liabilities'), after any offset against deferred tax assets that the balance sheet itself makes. It is a printed row; read it as it stands. Do not gross it up from the breakdown of deferred tax before offset. Not this line: the deferred tax charge for the year in profit or loss; 'Current Tax Liabilities (Net)' ('Current Tax Payable'); deferred tax assets ('Deferred Tax Assets'); deferred government grants ('Deferred Income(LTP)'). Where the balance sheet prints no such row, answer with an empty sources list. It is one of the lines this template's rollup adds into Total Non-Current Liabilities.",
    "aliases": [
     "Deferred Tax Liability",
     "Deferred tax payables",
@@ -4277,7 +4277,7 @@
   {
    "key": "bs_ncl__other_provisions_ltp",
    "label": "Other Provisions(LTP)",
-   "definition": "Extract the reported value for 'Other Provisions(LTP)' from the stated section. Do not calculate it.",
+   "definition": "Provisions classified as non-current: the Schedule III non-current row 'Provisions' as printed ('Long-term provisions'), with whatever its breakdown lists — employee benefits, decommissioning and site restoration, warranties, litigation and the like — read as one row and not split; and other non-current provision rows the face prints on their own. Where the balance sheet prints more than one such row, cite each; the line is their total. Not this line: employee benefit obligations printed as a row of their own ('Retirement Benefits(LTP)'); provisions under current liabilities ('Other Provisions(CP)'); impairment allowances against assets; deferred tax liabilities ('Deferred Tax Liability'). Where the balance sheet prints no such row, answer with an empty sources list. It is one of the lines this template's rollup adds into Total Non-Current Liabilities.",
    "aliases": [
     "Other Provisions(LTP)",
     "Other provisions",
@@ -4422,7 +4422,7 @@
   {
    "key": "bs_cl__cpltd_bank",
    "label": "CPLTD Bank",
-   "definition": "Extract the reported value for 'CPLTD Bank' from the stated section. Do not calculate it.",
+   "definition": "The current maturities of long-term borrowings — the part of term loans and other long-term debt that falls due within one year — where the balance sheet prints it as a row of its own in the current liabilities section ('Current maturities of long-term borrowings', 'Current maturities of long-term debt'). Where the filing prints that portion in several rows, this line is their total, and where a row you cite takes in debt this template carries on lines of its own, its rollup takes that debt out: do not deduct it yourself. Schedule III includes the current maturities within the current 'Borrowings' row, and that row is 'ST Bank Loans Payable' as printed: where the current maturities are only part of it, this line has no row of its own; do not split them out of it. Not this line: the current 'Borrowings' row ('ST Bank Loans Payable'); current 'Lease liabilities' ('Lease liabilities(CP)'); interest accrued on borrowings ('Interest Payable', or 'Other Current Liabilities' where it sits inside 'Other financial liabilities'). The part due after one year is 'LTD Bank'. It is one of the lines this template's rollup adds into Total Current Liabilities.",
    "aliases": [
     "CPLTD Bank",
     "Current portion of Long term debt",
@@ -4462,7 +4462,7 @@
   {
    "key": "bs_cl__cpltd_other",
    "label": "CPLTD Other",
-   "definition": "Extract the reported value for 'CPLTD Other' from the stated section. Do not calculate it.",
+   "definition": "The current maturities of long-term debt other than bank loans — debentures, bonds and notes, and loans from financial institutions and other lenders falling due within one year — where the balance sheet prints them as a row of their own in the current liabilities section ('Current maturities of debentures', 'Current maturities of non-convertible debentures'). Where the face prints the same instrument under both current and non-current liabilities, this line is the current row; the non-current row is 'LTD Other'. Where the current maturities are only part of the Schedule III current 'Borrowings' row, that row is 'ST Bank Loans Payable' as printed and they are not split out to this line. Not this line: current maturities of bank term loans ('CPLTD Bank'); short-term loans ('ST Bank Loans Payable', 'ST Other Loans Payable'); current 'Lease liabilities' ('Lease liabilities(CP)'). It is one of the debt lines this template's rollup takes out of CPLTD Bank and adds into Total Current Liabilities.",
    "aliases": [
     "CPLTD Other",
     "Bonds",
@@ -4499,7 +4499,7 @@
   {
    "key": "bs_cl__st_bank_loans_payable",
    "label": "ST Bank Loans Payable",
-   "definition": "Extract the reported value for 'ST Bank Loans Payable' from the stated section. Do not calculate it.",
+   "definition": "Short-term borrowings repayable within one year, reported among the current financial liabilities of the balance sheet: the Schedule III current row 'Borrowings' as printed ('Short-term borrowings', 'Working capital loans from banks'), whatever its breakdown lists — loans repayable on demand, cash credit and overdrafts, working capital demand loans, packing credit, commercial paper and the current maturities of long-term borrowings, secured and unsecured together. Read the printed row and do not split it into its breakdown. Not this line: current maturities of long-term debt printed as a row of their own ('CPLTD Bank', 'CPLTD Other'); short-term loans from lenders other than banks printed as a row of their own ('ST Other Loans Payable'); current 'Lease liabilities' ('Lease liabilities(CP)'); trade payables including acceptances ('Trade Payables(CP)'); the non-current 'Borrowings' row ('LTD Bank'). It is one of the debt lines this template's rollup takes out of CPLTD Bank and adds into Total Current Liabilities.",
    "aliases": [
     "ST Bank Loans Payable",
     "Short term bank loan",
@@ -4530,7 +4530,7 @@
   {
    "key": "bs_cl__st_other_loans_payable",
    "label": "ST Other Loans Payable",
-   "definition": "Extract the reported value for 'ST Other Loans Payable' from the stated section. Do not calculate it.",
+   "definition": "Short-term loans from lenders other than banks — commercial paper, inter-corporate deposits, loans from financial institutions, other parties and government — repayable within one year, where the balance sheet prints them as a row of their own in the current liabilities section ('Commercial paper', 'Inter-corporate deposits', 'Short-term loans from others'). Where they are only part of the Schedule III current 'Borrowings' row, that row is 'ST Bank Loans Payable' as printed and this line has no row of its own; do not split them out of it. Not this line: bank loans ('ST Bank Loans Payable', 'CPLTD Bank'); current maturities of debentures and bonds ('CPLTD Other'); amounts due to related parties ('Due to Related Parties(CP)'). It is one of the debt lines this template's rollup takes out of CPLTD Bank and adds into Total Current Liabilities.",
    "aliases": [
     "ST Other Loans Payable",
     "Short term loan from third parties",
@@ -4557,7 +4557,7 @@
   {
    "key": "bs_cl__finance_leases_cp",
    "label": "Finance Leases(CP)",
-   "definition": "Extract the reported value for 'Finance Leases(CP)' from the stated section. Do not calculate it.",
+   "definition": "Obligations under finance leases and hire purchase contracts falling due within one year, where the balance sheet prints them under that name in the current liabilities section ('Current maturities of finance lease obligations', 'Finance lease obligations', 'Hire purchase loans'), as filings presenting leases before Ind AS 116 print them. Read the printed row. Under Ind AS 116 a lessee prints 'Lease liabilities' instead; that row is 'Lease liabilities(CP)', not this line. Not this line: bank and other loans ('ST Bank Loans Payable', 'ST Other Loans Payable'); the part due after one year ('Finance Leases(LTP)'). It is one of the lines this template's rollup adds into Total Current Liabilities.",
    "aliases": [
     "Finance Leases(CP)",
     "Finance lease payables",
@@ -4586,7 +4586,7 @@
   {
    "key": "bs_cl__due_to_related_parties_cp",
    "label": "Due to Related Parties(CP)",
-   "definition": "Extract the reported value for 'Due to Related Parties(CP)' from the stated section. Do not calculate it.",
+   "definition": "Current amounts the company owes to related parties other than for goods and services bought — to the holding company, fellow subsidiaries, associates, joint ventures and other related companies — such as non-trade payables, advances, current accounts, and interest and dividends payable to them. The figure comes first from the related party disclosure of outstanding balances, its amounts payable under a 'Due to related parties' or similar heading; where that disclosure gives none, it is the current-liabilities row the balance sheet prints as 'Due to related parties' or 'Amounts due to related parties'. This template derives the figure from those parts; do not assemble it yourself. Not this line: trade payables to related parties ('Trade payables- related parties'); borrowings from related parties within current 'Borrowings' ('ST Bank Loans Payable'); contract liabilities ('Customer Advances(CP)'); the non-current balance ('Due to Related Parties(LTP)'). It is one of the lines this template's rollup adds into Total Current Liabilities.",
    "sign_rule": {},
    "inherits": "bs_cl",
    "face_only": false,
@@ -4658,7 +4658,7 @@
   {
    "key": "bs_cl__lease_liabilities_cp",
    "label": "Lease liabilities(CP)",
-   "definition": "Extract the reported value for 'Lease liabilities(CP)' from the stated section. Do not calculate it.",
+   "definition": "The current portion of a lessee's lease liabilities under Ind AS 116 — the present value of the lease payments due within one year — printed among the current financial liabilities of the balance sheet: the Schedule III row 'Lease liabilities' under current liabilities. Read the printed row. Not this line: obligations printed under the older finance lease or hire purchase captions ('Finance Leases(CP)'); the part due after one year, printed under non-current liabilities ('Lease liabilities(LTP)'); right-of-use assets ('Land use rights'). It is one of the lines this template's rollup adds into Total Current Liabilities.",
    "aliases": [
     "Lease liabilities(CP)",
     "Lease liabilities",
@@ -4683,7 +4683,7 @@
   {
    "key": "bs_cl__other_current_liabilities",
    "label": "Other Current Liabilities",
-   "definition": "Extract the reported value for 'Other Current Liabilities' from the stated section. Do not calculate it.",
+   "definition": "The current liabilities the balance sheet prints that no more specific current-liability line of this template takes: the Schedule III rows 'Other current liabilities' (statutory dues, advances and other non-financial liabilities, read as one row and not split into its breakdown) and current 'Other financial liabilities' (interest accrued, unpaid dividends, payables for capital goods, security deposits received, employee dues and the like), 'Liabilities directly associated with assets classified as held for sale', and the 'Total outstanding dues of micro enterprises and small enterprises' row where the face prints trade payables only as its two rows. Read each such row as printed. The current-liability lines this template breaks out — borrowings, lease liabilities, trade payables, contract liabilities, tax, provisions and the related-party balances among them — are their own lines, and the arithmetic that keeps them out of this line is declared in this template's rollup; do not net them off yourself. Not this line: the current liabilities total ('Total Current Liabilities'), total liabilities, total equity and liabilities, and any row printed under non-current liabilities, equity or assets.",
    "aliases": [
     "Other Current Liabilities",
     "Other current liabilities"
@@ -4719,7 +4719,7 @@
   {
    "key": "bs_cl__customer_advances_cp",
    "label": "Customer Advances(CP)",
-   "definition": "Extract the reported value for 'Customer Advances(CP)' from the stated section. Do not calculate it.",
+   "definition": "Consideration the company has received, or is owed, from customers before it has transferred the goods or services it relates to, held as a current liability: 'Contract liabilities', 'Advances from customers', 'Income received in advance', 'Unearned revenue', 'Customer deposits' received in advance of a sale, where the balance sheet prints them as a row of their own. Where the face prints contract liabilities and advances from customers as two rows, this line is their total. Read the printed rows. Where such advances sit inside 'Other current liabilities', that row is 'Other Current Liabilities' as printed and they are not split out. Not this line: security deposits received from dealers, customers or tenants, which are financial liabilities ('Other Current Liabilities'); deferred government grants ('Deferred Income(CP)'); trade payables ('Trade Payables(CP)'). The part expected to be settled after one year is 'Customer Advances(LTP)'. It is one of the lines this template's rollup adds into Total Current Liabilities.",
    "aliases": [
     "Customer Advances(CP)",
     "Customer advance",
@@ -4760,7 +4760,7 @@
   {
    "key": "bs_cl__deferred_income_cp",
    "label": "Deferred Income(CP)",
-   "definition": "Extract the reported value for 'Deferred Income(CP)' from the stated section. Do not calculate it.",
+   "definition": "Income received or receivable that will be recognised in profit or loss within the next year, held as a current liability, where the balance sheet prints it as a row of its own: the current part of government grants not yet recognised ('Deferred government grants') and other deferred income or deferred revenue ('Deferred income', 'Deferred revenue'). Read the printed row. Where it sits inside 'Other current liabilities', that row is 'Other Current Liabilities' as printed and it is not split out. Not this line: contract liabilities, income received in advance and advances from customers ('Customer Advances(CP)'); deferred tax liabilities ('Deferred Tax Liability'); the non-current part ('Deferred Income(LTP)'). It is one of the lines this template's rollup adds into Total Current Liabilities.",
    "aliases": [
     "Deferred Income(CP)",
     "Deferred income",
@@ -4785,7 +4785,7 @@
   {
    "key": "bs_cl__current_tax_payable",
    "label": "Current Tax Payable",
-   "definition": "Extract the reported value for 'Current Tax Payable' from the stated section. Do not calculate it.",
+   "definition": "Income tax the company owes on its profits, net of advance tax paid, and expects to settle within one year: the Schedule III row 'Current Tax Liabilities (Net)' printed in the current liabilities section ('Current tax liabilities (net)', 'Income tax liabilities (net)', 'Income tax payable'). Read the printed row. A row captioned as a provision for taxation ('Provision for tax', 'Provision for taxation') is 'Tax Provision(CP)'. Not this line: GST, TDS and other statutory dues payable within 'Other current liabilities' ('Other Current Liabilities'); deferred tax liabilities ('Deferred Tax Liability'); 'Current Tax Assets (Net)', which is an asset ('Current Tax Receivables'). It is one of the lines this template's rollup adds into Total Current Liabilities.",
    "aliases": [
     "Current Tax Payable",
     "Profit tax payables",
@@ -4820,7 +4820,7 @@
   {
    "key": "bs_cl__interest_payable",
    "label": "Interest Payable",
-   "definition": "Extract the reported value for 'Interest Payable' from the stated section. Do not calculate it.",
+   "definition": "Interest accrued on borrowings, debentures and other interest-bearing liabilities and not yet paid at the balance sheet date, where the balance sheet prints it as a row of its own in the current liabilities section ('Interest accrued', 'Interest accrued but not due on borrowings', 'Interest payable'). Read the printed row. Schedule III places interest accrued within the current 'Other financial liabilities', which is 'Other Current Liabilities' as printed: where it is only part of that row, this line has no row of its own; do not split it out. Not this line: dividends payable ('Dividends Payable'); interest expense for the year ('Interest Expense(-)'); the borrowings themselves. It is one of the lines this template's rollup adds into Total Current Liabilities.",
    "aliases": [
     "Interest Payable",
     "Interest payables",
@@ -4845,7 +4845,7 @@
   {
    "key": "bs_cl__dividends_payable",
    "label": "Dividends Payable",
-   "definition": "Extract the reported value for 'Dividends Payable' from the stated section. Do not calculate it.",
+   "definition": "Dividends the company has declared to its shareholders that remain unpaid at the balance sheet date, and unclaimed dividends, where the balance sheet prints them as a row of their own in the current liabilities section ('Dividend payable', 'Unpaid dividends', 'Unclaimed dividends'). Read the printed row. Schedule III places unpaid dividends within the current 'Other financial liabilities', which is 'Other Current Liabilities' as printed: where they are only part of that row, this line has no row of its own; do not split them out. Not this line: a dividend proposed after the year end and not yet approved, which is not a liability ('Proposed Cash Dividends'); dividends paid or declared during the year; interest payable ('Interest Payable'). It is one of the lines this template's rollup adds into Total Current Liabilities.",
    "aliases": [
     "Dividends Payable",
     "Dividend payables"
@@ -4868,7 +4868,7 @@
   {
    "key": "bs_cl__trade_payables_related_parties",
    "label": "Trade payables- related parties",
-   "definition": "Extract the reported value for 'Trade payables- related parties' from the stated section. Do not calculate it.",
+   "definition": "Trade payables owed to related parties — the holding company, fellow subsidiaries, associates, joint ventures and other related companies — for goods and services bought, held as a current liability, where the balance sheet prints them as a row of their own ('Trade payables- related parties', 'Trade payables to related parties'). Read the printed row. Where they are only part of the Schedule III 'Trade payables' rows, those rows are 'Trade Payables(CP)' as printed and the related-party part is not split out. Not this line: non-trade amounts due to related parties ('Due to Related Parties(CP)'); borrowings from related parties; trade payables to third parties ('Trade Payables(CP)'); amounts receivable from related parties. It is one of the lines this template's rollup adds into Total Current Liabilities.",
    "aliases": [
     "Trade payables- related parties",
     "Trade payables to related parties"
@@ -4891,7 +4891,7 @@
   {
    "key": "bs_cl__trade_and_other_payables_cp",
    "label": "Trade and other payables(CP)",
-   "definition": "Extract the reported value for 'Trade and other payables(CP)' from the stated section. Do not calculate it.",
+   "definition": "Current payables that the balance sheet prints in ONE row together with trade payables: 'Trade and other payables', 'Creditors and other payables', 'Trade payables and other financial liabilities'. Schedule III presents trade payables as rows of their own, so on an Ind AS balance sheet this row is uncommon. Read the printed row. Where trade payables are printed in rows of their own, those rows are 'Trade Payables(CP)', and related-party trade payables printed apart are 'Trade payables- related parties'. Not this line: the Schedule III 'Trade payables' rows alone ('Trade Payables(CP)'); current 'Other financial liabilities' and 'Other current liabilities' printed on their own ('Other Current Liabilities'); contract liabilities and advances from customers ('Customer Advances(CP)'); amounts due to related parties printed on their own ('Due to Related Parties(CP)'). It is one of the lines this template's rollup adds into Total Current Liabilities.",
    "aliases": [
     "Trade and other payables(CP)",
     "Trade and other payables"
@@ -4914,7 +4914,7 @@
   {
    "key": "bs_cl__trade_payables_cp",
    "label": "Trade Payables(CP)",
-   "definition": "Extract the reported value for 'Trade Payables(CP)' from the stated section. Do not calculate it.",
+   "definition": "Amounts owed to suppliers for goods and services bought in the ordinary course of business, held as a current liability: the Schedule III current financial liability 'Trade payables' ('Trade Payables', 'Creditors', 'Sundry creditors', acceptances where the face includes them). Read the printed row. Schedule III splits trade payables between 'Total outstanding dues of micro enterprises and small enterprises' and 'Total outstanding dues of creditors other than micro enterprises and small enterprises'. Where the face prints a trade payables total over the two, that total is this line as printed and the two rows are its parts, not added to it. Where it prints only the two rows, this line is the 'creditors other than micro enterprises and small enterprises' row; the micro and small enterprises row is left to 'Other Current Liabilities', where this template reviews it. Not this line: a row combining trade payables with other payables ('Trade and other payables(CP)'); trade payables to related parties printed apart ('Trade payables- related parties'); payables for capital goods and employee dues within 'Other financial liabilities' ('Other Current Liabilities'); contract liabilities and advances from customers ('Customer Advances(CP)'); the non-current balance ('Trade Payables(LTP)'). It is one of the lines this template's rollup adds into Total Current Liabilities.",
    "aliases": [
     "Trade Payables(CP)",
     "Creditors",
@@ -4947,7 +4947,7 @@
   {
    "key": "bs_cl__retirement_benefits_cp",
    "label": "Retirement Benefits(CP)",
-   "definition": "Extract the reported value for 'Retirement Benefits(CP)' from the stated section. Do not calculate it.",
+   "definition": "Obligations for gratuity, compensated absences, pension and other post-employment and long-term employee benefits payable within one year, and contributions owed to provident and superannuation funds, where the balance sheet prints them as a current row of their own ('Employee benefit obligations', 'Provision for employee benefits', 'Provision for gratuity'). Schedule III usually prints them inside the current 'Provisions' row: that row is 'Other Provisions(CP)' as printed, and the employee benefits are not split out of it to this line. Not this line: salaries, wages and bonus payable and other employee dues within 'Other financial liabilities' ('Other Current Liabilities'); the non-current obligation ('Retirement Benefits(LTP)'). It is one of the lines this template's rollup adds into Total Current Liabilities.",
    "aliases": [
     "Retirement Benefits(CP)",
     "Retirement Benefits",
@@ -4980,7 +4980,7 @@
   {
    "key": "bs_cl__tax_provision_cp",
    "label": "Tax Provision(CP)",
-   "definition": "Extract the reported value for 'Tax Provision(CP)' from the stated section. Do not calculate it.",
+   "definition": "Income tax that the balance sheet presents as a provision — the estimated tax on the year's profits not yet assessed or settled — printed as a current row of its own ('Provision for tax', 'Provision for taxation', 'Provision for income tax (net of advance tax)'). Read the printed row. The Schedule III row 'Current Tax Liabilities (Net)' is 'Current Tax Payable', not this line. Not this line: GST and other statutory dues ('Other Current Liabilities'); deferred tax liabilities ('Deferred Tax Liability'); advance tax and tax refunds receivable, which are assets ('Current Tax Receivables'). It is one of the lines this template's rollup adds into Total Current Liabilities.",
    "aliases": [
     "Tax Provision(CP)",
     "Profit tax provision",
@@ -5005,7 +5005,7 @@
   {
    "key": "bs_cl__other_provisions_cp",
    "label": "Other Provisions(CP)",
-   "definition": "Extract the reported value for 'Other Provisions(CP)' from the stated section. Do not calculate it.",
+   "definition": "Provisions — liabilities of uncertain timing or amount — expected to be settled within one year: the Schedule III current row 'Provisions' as printed ('Short-term provisions'), with whatever its breakdown lists — employee benefits, warranties, litigation and claims, onerous contracts, restoration — read as one row and not split; and other current provision rows the face prints on their own. Not this line: employee benefit obligations printed as a row of their own ('Retirement Benefits(CP)'); a provision for taxation ('Tax Provision(CP)'); 'Current Tax Liabilities (Net)' ('Current Tax Payable'); loss allowances, which are deducted from assets. The part expected to be settled after one year, printed under non-current liabilities, is 'Other Provisions(LTP)'. It is one of the lines this template's rollup adds into Total Current Liabilities.",
    "aliases": [
     "Other Provisions(CP)",
     "Other provisions",
@@ -5391,7 +5391,7 @@
   {
    "key": "is_pl__changes_in_inventories_incr_dcr",
    "label": "Changes in Inventories Incr/(Dcr)",
-   "definition": "Extract the reported value for 'Changes in Inventories Incr/(Dcr)' from the stated section. Do not calculate it.",
+   "definition": "The change in inventories of finished goods, work-in-progress and stock-in-trade that a statement of profit and loss presented by nature of expense prints as a row of its own, adjusting the year's production costs and purchases to the cost of what was sold: the Schedule III row 'Changes in inventories of finished goods, work-in-progress and stock-in-trade'. Schedule III presents expenses by nature, so an Ind AS statement of profit and loss normally prints this row. Cite the printed row as it stands. The template's label reads it as an increase/(decrease); Schedule III prints the row among the expenses, where a decrease in inventories is an expense and an increase is shown in brackets. It is one of the lines this template's rollup adds into Gross Profit. It is not the movement in inventories in the cash flow statement ('Chg in Inventories'), not the 'Cost of materials consumed' ('Material Expenses'), and not an inventory write-down. Where the statement prints no such row, answer with an empty sources list.",
    "aliases": [
     "Changes in Inventories Incr/(Dcr)",
     "Changes in inventories of finished goods, work-in-progress and stock-in-trade",
@@ -5417,7 +5417,7 @@
   {
    "key": "is_pl__cost_of_sales",
    "label": "Cost of Sales",
-   "definition": "Extract the reported value for 'Cost of Sales' from the stated section. Do not calculate it.",
+   "definition": "The cost of the goods sold and services rendered that produced the year's revenue, as the statement of profit and loss prints it: on a statement presented by nature, the Schedule III row 'Purchases of stock-in-trade' (goods bought for resale); on a statement presented by function, 'Cost of sales', 'Cost of goods sold' or 'Cost of revenue', and a row of direct or operating costs of a service business ('Direct costs', 'Operating costs'). Cite the printed row whole. Where this template carries part of it on a line of its own (depreciation charged to cost of sales), its rollup takes that part out: do not deduct it yourself. Not this line: 'Cost of materials consumed' ('Material Expenses'); 'Changes in inventories of finished goods, work-in-progress and stock-in-trade' ('Changes in Inventories Incr/(Dcr)'); 'Employee benefits expense' ('Personnel & Benefit Expenses'); 'Other expenses' ('Other Operating Expenses'); 'Total expenses' or 'Total Cost of Sales'. Where the statement prints no such row, answer with an empty sources list. It is one of the lines this template's rollup adds into Total Cost of Sales.",
    "aliases": [
     "Cost of Sales",
     "Cost of goods sold",
@@ -5449,7 +5449,7 @@
   {
    "key": "is_pl__material_expenses",
    "label": "Material Expenses",
-   "definition": "Extract the reported value for 'Material Expenses' from the stated section. Do not calculate it.",
+   "definition": "Raw materials and components consumed in the year, as a statement of profit and loss presented by nature of expense prints it on a row of its own: the Schedule III row 'Cost of materials consumed' ('Raw materials and packing materials consumed', 'Materials consumed'). Schedule III presents expenses by nature, so an Ind AS statement of profit and loss normally prints this row. It is one of the cost rows this template's rollup adds into Total Cost of Sales, beside Cost of Sales and Deprec & Impairment(COS). It is not 'Purchases of stock-in-trade' ('Cost of Sales'), not the change in inventories ('Changes in Inventories Incr/(Dcr)'), not power, fuel, stores and spares within 'Other expenses' ('Other Operating Expenses'), and not cost of sales printed by function. Where the statement prints no such row, answer with an empty sources list.",
    "aliases": [
     "Material Expenses",
     "Cost of Materials Consumed"
@@ -5675,7 +5675,7 @@
   {
    "key": "is_pl__other_operating_income",
    "label": "Other Operating Income",
-   "definition": "Extract the reported value for 'Other Operating Income' from the stated section. Do not calculate it.",
+   "definition": "Income and gains from the year's operations that the statement of profit and loss prints outside 'Revenue from operations' and outside the Schedule III row 'Other income': rows such as 'Other operating income', 'Other gains and losses (net)', 'Net gain on financial assets measured at fair value through profit or loss' or a reversal of an impairment loss printed on a row of its own. Cite the printed row whole. The Schedule III row 'Other income' — interest, dividend and rental income, gains on investments and the like — is 'Other Income(Expense)' as printed in this template, not this line. Other operating revenue such as export incentives and scrap sales, which Schedule III includes in 'Revenue from operations', is part of revenue ('Sales(Revenues)'). Where this template carries part of the row on a line of its own (interest income, the share of profit of associates and joint ventures), its rollup takes that part out: do not deduct it yourself. Where the statement prints no such row, answer with an empty sources list. It is one of the lines this template's rollup adds into Net Operating Profit.",
    "aliases": [
     "Other Operating Income",
     "Other income",
@@ -5729,7 +5729,7 @@
   {
    "key": "is_pl__personnel_and_benefit_expenses",
    "label": "Personnel & Benefit Expenses",
-   "definition": "Extract the reported value for 'Personnel & Benefit Expenses' from the stated section. Do not calculate it.",
+   "definition": "The cost of employee benefits charged to profit or loss for the year: the Schedule III row 'Employee benefits expense' as the statement of profit and loss prints it — salaries, wages and bonus, contribution to provident and other funds, gratuity, share-based payment expense and staff welfare together. Read the printed row; where the filing deducts amounts capitalised into fixed assets or inventories, the line is the figure after those deductions, as printed. Where the statement prints no such row, cite the components the face prints for it; the line is their sum. It is not employee benefits payable or employee benefit obligations, not the remuneration of directors or key managerial personnel alone, and not contract labour charges inside 'Other expenses' ('Other Operating Expenses'). It is one of the lines this template's rollup adds into Net Operating Profit.",
    "aliases": [
     "Personnel & Benefit Expenses",
     "Salaries, commission",
@@ -5775,7 +5775,7 @@
   {
    "key": "is_pl__other_operating_expenses",
    "label": "Other Operating Expenses",
-   "definition": "Extract the reported value for 'Other Operating Expenses' from the stated section. Do not calculate it.",
+   "definition": "The operating expenses and losses the statement of profit and loss prints that no other line of this template claims: the Schedule III row 'Other expenses' as printed, and other expense rows of the income-and-expenses section that no other line names (such as power and fuel, or a corporate social responsibility expenditure row, where printed on the face). It is the template's residual for the income-and-expenses section: each unclaimed row printed in that section is kept under its own caption and the line is their sum — never the 'Total expenses' subtotal less the named lines. Where this template carries part of such a row on a line of its own (depreciation, amortisation of intangible assets), its rollup takes that part out. Not this line: a subtotal or total ('Total income', 'Total expenses', profit before exceptional items and tax, profit before tax, profit for the year); 'Cost of materials consumed', 'Purchases of stock-in-trade', the change in inventories and 'Employee benefits expense' (their own lines); 'Finance costs' ('Interest Expense(-)'); 'Depreciation and amortisation expense' ('Deprec & Impairment(Oper Exp)'); 'Exceptional items' ('Extraordinary Income(Exp)'); a row of the other comprehensive income or the attribution. It is one of the lines this template's rollup adds into Net Operating Profit.",
    "aliases": [
     "Other Operating Expenses",
     "Listing expenses",
@@ -5939,7 +5939,7 @@
   {
    "key": "is_pl__amort_and_impairment_intgbl",
    "label": "Amort & Impairment(Intgbl)",
-   "definition": "Extract the reported value for 'Amort & Impairment(Intgbl)' from the stated section. Do not calculate it.",
+   "definition": "The amortisation of intangible assets (other than goodwill) charged to profit or loss for the year, where the statement of profit and loss prints it as a row of its own ('Amortisation of intangible assets', 'Amortization of intangible assets'). It is a cost that this template deducts in Net Operating Profit. Schedule III prints one row 'Depreciation and amortisation expense': that combined row reaches 'Deprec & Impairment(Oper Exp)' and is not split here, so this line then has no row of its own. It is not depreciation of property, plant and equipment or of right-of-use assets, and not impairment of goodwill. Where the amount is only part of a larger row the statement prints, it has no row of its own: answer with an empty sources list and do not split it out of that row.",
    "aliases": [
     "Amort & Impairment(Intgbl)",
     "Amortisation of intangible assets",
@@ -6074,7 +6074,7 @@
   {
    "key": "is_pl__interest_income",
    "label": "Interest Income",
-   "definition": "Extract the reported value for 'Interest Income' from the stated section. Do not calculate it.",
+   "definition": "Interest income for the year on bank deposits, loans, investments and other financial assets, where the statement of profit and loss prints it on a row of its own ('Interest income', 'Finance income' where it is interest). It is one of the lines this template's rollup adds into Net Interest Income(Expense). On an Ind AS statement interest income normally sits inside the Schedule III row 'Other income', which is 'Other Income(Expense)' as printed: where interest income is only part of that row, this line has no row of its own; answer with an empty sources list and do not split it out. It is not interest income that is the entity's revenue (a lender's interest income printed within 'Revenue from operations', which is 'Sales(Revenues)'), and not interest received in the cash flow statement.",
    "aliases": [
     "Interest Income",
     "Bank interest income",
@@ -6106,7 +6106,7 @@
   {
    "key": "is_pl__interest_expense",
    "label": "Interest Expense(-)",
-   "definition": "Extract the reported value for 'Interest Expense(-)' from the stated section. Do not calculate it.",
+   "definition": "The finance costs charged to profit or loss for the year as the statement of profit and loss prints them: the Schedule III row 'Finance costs' (interest on borrowings, interest on lease liabilities, other borrowing costs and the exchange differences regarded as an adjustment to interest costs), or a row 'Interest expense'. It is one of the lines this template's rollup adds into Net Interest Income(Expense). Cite the printed row as it stands; do not deduct from it yourself the components its breakdown lists. It is not interest paid in the cash flow statement ('Interest Paid(Fin)', 'Interest Paid(Oper)'), and not bank charges inside 'Other expenses'. Where the statement prints no such row, answer with an empty sources list.",
    "aliases": [
     "Interest Expense(-)",
     "Finance costs"
@@ -6197,7 +6197,7 @@
   {
    "key": "is_pl__income_loss_from_joint_ventures",
    "label": "Income(Loss) from Joint Ventures",
-   "definition": "Extract the reported value for 'Income(Loss) from Joint Ventures' from the stated section. Do not calculate it.",
+   "definition": "The share of profits and losses of joint ventures and associates for the year under the equity method, as the consolidated statement of profit and loss prints it on a row of its own: 'Share of profit of associates and joint ventures', 'Share of profit/(loss) of associates and joint ventures', 'Share of net profit of joint ventures accounted for using the equity method', 'Share of profit of equity accounted investees'. A row printed for associates and joint ventures together is this line as printed and is not split. Not the share of other comprehensive income of associates and joint ventures ('Other Equity & Reserves Adj'), and not dividend income from them inside 'Other income'. A standalone statement prints no such row. Where the statement prints no such row, answer with an empty sources list. It is one of the lines this template's rollup adds into Net Other Financial Inc(Exp).",
    "aliases": [
     "Income(Loss) from Joint Ventures",
     "Share of results of Jointly controlled entities",
@@ -6430,7 +6430,7 @@
   {
    "key": "is_pl__current_income_taxes",
    "label": "Current Income Taxes",
-   "definition": "Extract the reported value for 'Current Income Taxes' from the stated section. Do not calculate it.",
+   "definition": "The current income tax charged for the year on the year's taxable profit, where the statement of profit and loss prints it as a row of its own under 'Tax expense' beside deferred tax: the Schedule III row 'Current tax', and the tax relating to earlier years ('Short/(excess) provision for tax relating to earlier years', 'Tax relating to earlier years') where the statement prints it as a row of its own beside it. It is one of the lines this template's rollup adds into Total Income Tax, beside Deferred Income Taxes(NC). Where the statement prints a single undivided 'Tax expense' or 'Income tax expense' row, that row is the total charge and is Total Income Tax's printed figure: answer this line with an empty sources list rather than citing it here. It is not income taxes paid in the cash flow statement ('Income Taxes Paid(Indirect)'), not 'Current Tax Liabilities (Net)', and not taxes other than income tax.",
    "aliases": [
     "Current Income Taxes",
     "Taxation",
@@ -6466,7 +6466,7 @@
   {
    "key": "is_pl__deferred_income_taxes_nc",
    "label": "Deferred Income Taxes(NC)",
-   "definition": "Extract the reported value for 'Deferred Income Taxes(NC)' from the stated section. Do not calculate it.",
+   "definition": "The deferred tax charge or credit for the year — the movement in deferred tax assets and liabilities recognised in profit or loss, a non-cash item — where the statement of profit and loss prints it as a row of its own under 'Tax expense' beside current tax: the Schedule III row 'Deferred tax' ('Deferred tax charge/(credit)'), with a MAT credit entitlement row printed beside it where the filing presents one. It is one of the lines this template's rollup adds into Total Income Tax. It is not the income tax relating to items of other comprehensive income, not the deferred tax balances on the balance sheet, and not a movement in the cash flow statement. Where the statement prints a single undivided income tax row, answer with an empty sources list.",
    "aliases": [
     "Deferred Income Taxes(NC)",
     "Deferred tax"
@@ -6622,7 +6622,7 @@
   {
    "key": "is_pl__extraordinary_income_exp",
    "label": "Extraordinary Income(Exp)",
-   "definition": "Extract the reported value for 'Extraordinary Income(Exp)' from the stated section. Do not calculate it.",
+   "definition": "Items the filing itself sets apart as exceptional or extraordinary on a row of their own: on an Ind AS statement the Schedule III row 'Exceptional items' as printed, with its sign — items of income or expense of such size, nature or incidence that the filing presents them separately, such as a voluntary retirement scheme, an impairment or a gain on a business disposal. Schedule III prints the row between 'Profit before exceptional items and tax' and 'Profit before tax'. Ind AS permits no extraordinary items, so the exceptional items row is the only face row this line takes. It is not 'Other income' ('Other Income(Expense)'), not 'Other expenses' ('Other Operating Expenses'), not the profit or loss from discontinued operations, and not the share of profit attributable to non-controlling interests ('Minority Interests(PL)'). Where the statement prints no such row, answer with an empty sources list. It is one of the lines this template's rollup adds into Profit for the year.",
    "aliases": [
     "Extraordinary Income(Exp)",
     "Exceptional items"
@@ -6646,7 +6646,7 @@
   {
    "key": "is_pl__minority_interests_pl",
    "label": "Minority Interests(PL)",
-   "definition": "Extract the reported value for 'Minority Interests(PL)' from the stated section. Do not calculate it.",
+   "definition": "The share of the profit or loss for the year attributable to non-controlling interests, as printed in the attribution beneath the profit for the year on a consolidated statement of profit and loss: the row 'Non-controlling interests' under 'Profit for the year attributable to:'. Cite the row as printed. It is not the non-controlling share of other comprehensive income or of total comprehensive income (the 'Non-controlling interests' rows under 'Other comprehensive income attributable to:' and 'Total comprehensive income attributable to:'), not the owners' share, and not the non-controlling interests in equity on the balance sheet ('Minority Interest Equity'). A standalone statement prints no such row. Where the statement prints no such row, answer with an empty sources list. It is one of the lines this template's rollup adds into Profit for the year.",
    "aliases": [
     "Minority Interests(PL)",
     "Non-controlling interests",
@@ -6749,7 +6749,7 @@
   {
    "key": "is_oci__unreal_gain_loss_fixed_assets",
    "label": "Unreal Gain(Loss) Fixed Assets",
-   "definition": "Extract the reported value for 'Unreal Gain(Loss) Fixed Assets' from the stated section. Do not calculate it.",
+   "definition": "The revaluation surplus or deficit on property, plant and equipment and intangible assets carried under the revaluation model, recognised in other comprehensive income for the year among the items that will not be reclassified to profit or loss: 'Changes in revaluation surplus', 'Gain on revaluation of land', 'Revaluation of property, plant and equipment'. It is the year's movement, printed in the other comprehensive income section of the statement of profit and loss (or in the statement of changes in equity), net of tax where the filing prints it net. The 'Income tax relating to items that will not be reclassified' and 'that will be reclassified' rows, printed once for each group, are left to 'Other Equity & Reserves Adj'. Read the printed row. Not this line: impairment of fixed assets; the revaluation surplus balance ('Revaluation Reserves'); remeasurements of defined benefit plans ('Minimum Pension Liability Adj'). It is one of the lines this template's rollup adds into Total Other Comprehensive Income.",
    "aliases": [
     "Unreal Gain(Loss) Fixed Assets",
     "Revaluation of Fixed assets",
@@ -6780,7 +6780,7 @@
   {
    "key": "is_oci__unreal_gain_loss_invest_prpty",
    "label": "Unreal Gain(Loss) Invest Prpty",
-   "definition": "Extract the reported value for 'Unreal Gain(Loss) Invest Prpty' from the stated section. Do not calculate it.",
+   "definition": "The revaluation gain or loss relating to investment property that a filing recognises in other comprehensive income for the year, where it prints one as a row of its own ('Investment properties revaluation', 'Gain on revaluation of property transferred to investment property'). Ind AS 40 measures investment property at cost, so an Ind AS statement normally prints no such row and this line is empty: answer with an empty sources list. It is the year's movement, printed in the other comprehensive income section of the statement of profit and loss (or in the statement of changes in equity), net of tax where the filing prints it net. The 'Income tax relating to items that will not be reclassified' and 'that will be reclassified' rows, printed once for each group, are left to 'Other Equity & Reserves Adj'. Not this line: revaluation of property held for own use ('Unreal Gain(Loss) Fixed Assets'); gains on disposal of investment property in profit or loss. It is one of the lines this template's rollup adds into Total Other Comprehensive Income.",
    "aliases": [
     "Unreal Gain(Loss) Invest Prpty",
     "Investment properties revaluation"
@@ -6807,7 +6807,7 @@
   {
    "key": "is_oci__unreal_gain_loss_investments",
    "label": "Unreal Gain(Loss) Investments",
-   "definition": "Extract the reported value for 'Unreal Gain(Loss) Investments' from the stated section. Do not calculate it.",
+   "definition": "Fair value gains and losses for the year on financial assets measured at fair value through other comprehensive income, recognised in other comprehensive income: 'Equity instruments through other comprehensive income' (an item that will not be reclassified) and 'Debt instruments through other comprehensive income' (an item that will be reclassified), 'Net fair value gain/(loss) on investments in equity instruments through other comprehensive income'. Where both are printed, the line is their total. It is the year's movement, printed in the other comprehensive income section of the statement of profit and loss (or in the statement of changes in equity), net of tax where the filing prints it net. The 'Income tax relating to items that will not be reclassified' and 'that will be reclassified' rows, printed once for each group, are left to 'Other Equity & Reserves Adj'. Not this line: fair value changes through profit or loss; the share of other comprehensive income of associates and joint ventures ('Other Equity & Reserves Adj'); cash flow hedges ('Deferred Hedging Gain(Loss)'); the reserve balance ('Accum Oth Eqty Rsrv Inc'). It is one of the lines this template's rollup adds into Total Other Comprehensive Income.",
    "aliases": [
     "Unreal Gain(Loss) Investments",
     "Gain/ Loss on Financial assets at fair value through other comprehensive income",
@@ -6846,7 +6846,7 @@
   {
    "key": "is_oci__deferred_hedging_gain_loss",
    "label": "Deferred Hedging Gain(Loss)",
-   "definition": "Extract the reported value for 'Deferred Hedging Gain(Loss)' from the stated section. Do not calculate it.",
+   "definition": "The year's net movement on cash flow hedges recognised in other comprehensive income among the items that will be reclassified to profit or loss: 'Effective portion of gains and loss on designated portion of hedging instruments in a cash flow hedge', 'Effective portion of cash flow hedges', 'Net gain/(loss) on cash flow hedges', and the amount reclassified to profit or loss where the filing prints it beside them. Where the filing prints those rows under a cash flow hedges heading, the line is their net, or the subtotal the filing prints over them. It is the year's movement, printed in the other comprehensive income section of the statement of profit and loss (or in the statement of changes in equity), net of tax where the filing prints it net. The 'Income tax relating to items that will not be reclassified' and 'that will be reclassified' rows, printed once for each group, are left to 'Other Equity & Reserves Adj'. Not this line: the cost of hedging reserve movement printed on its own ('Derivatives FMV Adjustment'); fair value changes on derivatives in profit or loss; the hedging reserve balance ('Hedging Reserves'). It is one of the lines this template's rollup adds into Total Other Comprehensive Income.",
    "aliases": [
     "Deferred Hedging Gain(Loss)",
     "Reserve for hedging instruments",
@@ -6879,7 +6879,7 @@
   {
    "key": "is_oci__derivatives_fmv_adjustment",
    "label": "Derivatives FMV Adjustment",
-   "definition": "Extract the reported value for 'Derivatives FMV Adjustment' from the stated section. Do not calculate it.",
+   "definition": "Fair value changes for the year on derivative instruments that the filing recognises in other comprehensive income OTHER than as a cash flow hedge — the cost-of-hedging movement (time value of options, forward elements) or a hedge of a net investment in a foreign operation — where the filing prints it as a row of its own ('Cost of hedging reserve', 'Net investment hedge'). It is the year's movement, printed in the other comprehensive income section of the statement of profit and loss (or in the statement of changes in equity), net of tax where the filing prints it net. The 'Income tax relating to items that will not be reclassified' and 'that will be reclassified' rows, printed once for each group, are left to 'Other Equity & Reserves Adj'. Read the printed row. Not this line: the cash flow hedge movement ('Deferred Hedging Gain(Loss)'); fair value changes of derivatives in profit or loss; derivative assets and liabilities themselves. It is one of the lines this template's rollup adds into Total Other Comprehensive Income.",
    "aliases": [
     "Derivatives FMV Adjustment",
     "Reserve for Derivatives"
@@ -6906,7 +6906,7 @@
   {
    "key": "is_oci__minimum_pension_liability_adj",
    "label": "Minimum Pension Liability Adj",
-   "definition": "Extract the reported value for 'Minimum Pension Liability Adj' from the stated section. Do not calculate it.",
+   "definition": "Remeasurement gains and losses on defined benefit plans recognised in other comprehensive income for the year among the items that will not be reclassified to profit or loss — actuarial gains and losses and the return on plan assets excluding interest: 'Remeasurements of the defined benefit plans', 'Remeasurement gains/(losses) on defined benefit plans', 'Re-measurement gains (losses) on defined benefit plans'. It is the year's movement, printed in the other comprehensive income section of the statement of profit and loss (or in the statement of changes in equity), net of tax where the filing prints it net. The 'Income tax relating to items that will not be reclassified' and 'that will be reclassified' rows, printed once for each group, are left to 'Other Equity & Reserves Adj'. Not this line: gratuity and other employee benefit costs charged to profit or loss ('Personnel & Benefit Expenses'); the employee benefit obligation itself ('Retirement Benefits(LTP)'). It is one of the lines this template's rollup adds into Total Other Comprehensive Income.",
    "aliases": [
     "Minimum Pension Liability Adj",
     "Reserve for retirement benefit funds",
@@ -6941,7 +6941,7 @@
   {
    "key": "is_oci__other_equity_and_reserves_adj",
    "label": "Other Equity & Reserves Adj",
-   "definition": "Extract the reported value for 'Other Equity & Reserves Adj' from the stated section. Do not calculate it.",
+   "definition": "The other comprehensive income for the year that the other lines of this section do not take: 'Exchange differences in translating the financial statements of a foreign operation', the share of other comprehensive income of associates and joint ventures accounted for using the equity method, the 'Income tax relating to items that will not be reclassified to profit or loss' and 'that will be reclassified' rows, and any other item of other comprehensive income. This template's rollup arrives at it from the printed total other comprehensive income less Unreal Gain(Loss) Fixed Assets, Unreal Gain(Loss) Invest Prpty, Unreal Gain(Loss) Investments, Deferred Hedging Gain(Loss), Derivatives FMV Adjustment and Minimum Pension Liability Adj; do not compute it yourself. Not this line: the profit for the year; 'Total comprehensive income for the year'; the total other comprehensive income itself ('Total Other Comprehensive Income'); the owners' and non-controlling interests' shares of comprehensive income; any row of the profit or loss section.",
    "aliases": [
     "Other Equity & Reserves Adj",
     "Share of other comprehensive income of joint ventures"
@@ -7065,7 +7065,7 @@
   {
    "key": "is_retained__cash_div_pref_shares",
    "label": "Cash Div Pref Shares(-)",
-   "definition": "Extract the reported value for 'Cash Div Pref Shares(-)' from the stated section. Do not calculate it.",
+   "definition": "Dividends on preference shares classified as equity charged to retained earnings in the year: 'Dividend on preference shares', 'Preference dividend'. It is a movement of the year in retained earnings, read from the retained earnings column of the statement of changes in equity. Read the printed row; it reduces retained earnings. Not this line: dividends to equity shareholders ('Cash Div Common Shares(-)'); dividends on redeemable preference shares classified as liabilities, which are a finance cost ('Interest Expense(-)'). It is one of the movements this template's rollup takes out of Other Adj to Retained Profits.",
    "aliases": [
     "Cash Div Pref Shares(-)"
    ],
@@ -7090,7 +7090,7 @@
   {
    "key": "is_retained__proposed_cash_dividends",
    "label": "Proposed Cash Dividends",
-   "definition": "Extract the reported value for 'Proposed Cash Dividends' from the stated section. Do not calculate it.",
+   "definition": "The cash dividend the board of directors proposes after the end of the reporting period in respect of the year, which is subject to the shareholders' approval and is not recognised as a liability or as a movement in retained earnings of the year: 'Proposed dividend', 'Proposed final dividend', 'Dividends proposed but not recognised', 'Final dividend recommended by the board'. Where the statements print it — as a row of the statement of profit and loss, or as a proposed dividend shown in the statement of changes in equity or in the disclosure of dividends — read that amount; where they do not, answer with an empty sources list. Not this line: dividends recognised in the year ('Cash Div Common Shares(-)'); a dividend declared and unpaid at the year end ('Dividends Payable'); the dividend per share.",
    "aliases": [
     "Proposed Cash Dividends",
     "Proposed dividends",
@@ -7125,7 +7125,7 @@
   {
    "key": "is_retained__cash_div_common_shares",
    "label": "Cash Div Common Shares(-)",
-   "definition": "Extract the reported value for 'Cash Div Common Shares(-)' from the stated section. Do not calculate it.",
+   "definition": "Dividends to equity shareholders charged to retained earnings in the year: final and interim dividends declared and recognised, and special dividends — rows such as 'Final dividend', 'Interim dividend', 'Dividends paid', 'Dividend on equity shares', with the dividend distribution tax on them where the filing prints it beside them. It is a movement of the year in retained earnings, read from the retained earnings column of the statement of changes in equity. Read the printed row; it reduces retained earnings. Not this line: the cash paid for dividends ('Dividends Paid(Fin)'); a final dividend proposed after the year end and not recognised in it ('Proposed Cash Dividends'); dividends on preference shares ('Cash Div Pref Shares(-)'); bonus shares ('Stock Dividends(NC)(-)'); dividends paid by subsidiaries to non-controlling shareholders. It is one of the movements this template's rollup takes out of Other Adj to Retained Profits.",
    "aliases": [
     "Cash Div Common Shares(-)",
     "Common share dividends",
@@ -7164,7 +7164,7 @@
   {
    "key": "is_retained__stock_dividends_nc",
    "label": "Stock Dividends(NC)(-)",
-   "definition": "Extract the reported value for 'Stock Dividends(NC)(-)' from the stated section. Do not calculate it.",
+   "definition": "Capitalisation of retained earnings into share capital: bonus shares issued out of retained earnings ('Issue of bonus shares', 'Bonus issue', 'Capitalised for issue of bonus shares'), and any dividend settled in shares rather than cash, as the retained earnings column prints it. It is a movement of the year in retained earnings, read from the retained earnings column of the statement of changes in equity. Read the printed row; it reduces retained earnings. Not this line: bonus shares issued out of securities premium or general reserve, which do not move retained earnings; cash dividends ('Cash Div Common Shares(-)'); shares issued for cash or on the exercise of options; transfers to reserves ('Transfer to Reserves(-)'). It is one of the movements this template's rollup takes out of Other Adj to Retained Profits.",
    "aliases": [
     "Stock Dividends(NC)(-)",
     "stock dividends",
@@ -7203,7 +7203,7 @@
   {
    "key": "is_retained__transfer_to_reserves",
    "label": "Transfer to Reserves(-)",
-   "definition": "Extract the reported value for 'Transfer to Reserves(-)' from the stated section. Do not calculate it.",
+   "definition": "Appropriations from retained earnings to other reserves in the year, and transfers back from those reserves to retained earnings: 'Transfer to general reserve', 'Transfer to debenture redemption reserve', 'Transfer to capital redemption reserve', 'Transfer to statutory reserve', 'Transfer from debenture redemption reserve'. It is a movement of the year in retained earnings, read from the retained earnings column of the statement of changes in equity. Read the printed row: a transfer to reserves reduces retained earnings and a transfer from reserves adds to them. Not this line: dividends; bonus shares ('Stock Dividends(NC)(-)'); the reserve balances themselves ('Capital & Restricted Reserves'); remeasurements of defined benefit plans transferred to retained earnings ('Other Adj to Retained Profits'). It is one of the movements this template's rollup takes out of Other Adj to Retained Profits.",
    "aliases": [
     "Transfer to Reserves(-)",
     "Transfer of reserves",
@@ -7240,7 +7240,7 @@
   {
    "key": "is_retained__prior_period_adjustments",
    "label": "Prior Period Adjustments",
-   "definition": "Extract the reported value for 'Prior Period Adjustments' from the stated section. Do not calculate it.",
+   "definition": "Adjustments to the opening retained earnings for the correction of prior-period errors and for changes in accounting policy applied retrospectively under Ind AS 8, and the transition adjustment on adopting a new or amended Ind AS: 'Prior period errors', 'Restatement', 'Effect of change in accounting policy', 'Impact of adoption of' a new standard, 'Opening adjustments'. It is a movement of the year in retained earnings, read from the retained earnings column of the statement of changes in equity. Read the printed row. Not this line: the profit for the year; the restated prior-year figures elsewhere in the statements; the restated balance at the beginning of the year itself. It is one of the movements this template's rollup takes out of Other Adj to Retained Profits.",
    "aliases": [
     "Prior Period Adjustments",
     "Prior year adjustments",
@@ -7271,7 +7271,7 @@
   {
    "key": "is_retained__other_adj_to_retained_profits",
    "label": "Other Adj to Retained Profits",
-   "definition": "Extract the reported value for 'Other Adj to Retained Profits' from the stated section. Do not calculate it.",
+   "definition": "The movements of the year in retained earnings that no other line of this section takes: remeasurements of defined benefit plans and other items of other comprehensive income taken to retained earnings, transfers of the gain or loss on equity instruments through other comprehensive income on their disposal, the premium on a buy-back of shares, transactions with non-controlling interests, and other movements the retained earnings column prints. Read each such row as printed. The profit for the year, dividends ('Cash Div Pref Shares(-)', 'Cash Div Common Shares(-)'), 'Stock Dividends(NC)(-)', 'Transfer to Reserves(-)' and 'Prior Period Adjustments' are their own lines, and the arithmetic that keeps them out of this line is declared in this template's rollup; do not net them off yourself. Not this line: the opening or closing retained earnings ('Retained Profits'), any row printed on the face of the statement of profit and loss, and movements in the other columns of other equity.",
    "aliases": [
     "Other Adj to Retained Profits"
    ],
@@ -7308,7 +7308,7 @@
   {
    "key": "cf_oper_indirect__net_profit_loss",
    "label": "Net Profit/(Loss)",
-   "definition": "Extract the reported value for 'Net Profit/(Loss)' from the stated section. Do not calculate it.",
+   "definition": "The profit or loss the indirect-method operating section starts from: the first row of the operating activities section of the cash flow statement, before any adjustment. An Ind AS cash flow statement usually starts from the profit before tax ('Profit before tax', 'Profit before tax from continuing operations', 'Profit/(loss) before tax'); some start from the profit for the year after tax, and either is this line as printed. Where the statement starts from profit before tax for continuing and for discontinued operations in two rows, this line is their total. Take the figure as the statement prints it for the whole group, not the profit attributable to owners of the company. Not this line: the income tax added back below a profit-after-tax starting row ('Income Tax Expense'); 'Operating profit before working capital changes', a subtotal printed further down. It is a printed row; where the section prints no starting profit, answer with an empty sources list. It is one of the lines this template's rollup adds into Cash Flows Oper Activ(Indirect).",
    "aliases": [
     "Net Profit/(Loss)",
     "Profit(loss) before tax",
@@ -7337,7 +7337,7 @@
   {
    "key": "cf_oper_indirect__income_tax_expense",
    "label": "Income Tax Expense",
-   "definition": "Extract the reported value for 'Income Tax Expense' from the stated section. Do not calculate it.",
+   "definition": "The income tax expense added back in the indirect-method operating section, where the reconciliation starts from the profit for the year after tax: a row such as 'Tax expense', 'Income tax expense' or 'Current and deferred tax' printed among the adjustments to that profit. It is the charge the statement of profit and loss recognised, current and deferred together, not the tax paid in cash. Where the reconciliation starts from the profit before tax — usual on an Ind AS statement — there is no tax add-back and this line is empty. Not this line: 'Income taxes paid (net of refunds)' ('Income Taxes Paid(Indirect)'). It is a printed row; where the section prints none, answer with an empty sources list. It is one of the lines this template's rollup adds into Cash Flows Oper Activ(Indirect).",
    "aliases": [
     "Income Tax Expense",
     "Income Tax Expenses"
@@ -7360,7 +7360,7 @@
   {
    "key": "cf_oper_indirect__depreciation",
    "label": "Depreciation",
-   "definition": "Extract the reported value for 'Depreciation' from the stated section. Do not calculate it.",
+   "definition": "Depreciation added back to profit in the indirect-method operating section: depreciation of property, plant and equipment, of right-of-use assets and of investment property — 'Depreciation', 'Depreciation of property, plant and equipment', 'Depreciation of right-of-use assets'. Where the filing prints depreciation in several rows (by class of asset), this line is their total; where it prints one combined row for depreciation and amortisation, as an Ind AS statement usually does ('Depreciation and amortisation expense', 'Depreciation, amortisation and impairment expense'), that row is this line as printed and is not split. Not this line: amortisation of intangible assets and impairment losses printed on rows of their own ('Amortization & Asset Impairment'); the profit or loss on sale of property, plant and equipment ('Other Non-Cash Adjs(Oper)'). It is one of the lines this template's rollup adds into Cash Flows Oper Activ(Indirect).",
    "aliases": [
     "Depreciation",
     "Amortization of land use rights",
@@ -7389,7 +7389,7 @@
   {
    "key": "cf_oper_indirect__amortization_and_asset_impairment",
    "label": "Amortization & Asset Impairment",
-   "definition": "Extract the reported value for 'Amortization & Asset Impairment' from the stated section. Do not calculate it.",
+   "definition": "Amortisation of intangible assets and the impairment of assets added back to profit in the indirect-method operating section, where printed on rows of their own: 'Amortisation of intangible assets', 'Impairment of property, plant and equipment', 'Impairment of goodwill', 'Allowance for expected credit loss', 'Bad debts and advances written off', 'Provision for doubtful debts', and write-downs of inventories. Reversals are negative figures. Where several such rows are printed this line is their total. Not this line: a combined 'Depreciation and amortisation expense' row ('Depreciation'); fair value changes on financial assets or investment property, which are not impairment ('Other Non-Cash Adjs(Oper)'); the profit or loss on disposal of assets ('Other Non-Cash Adjs(Oper)'). It is one of the lines this template's rollup adds into Cash Flows Oper Activ(Indirect).",
    "aliases": [
     "Amortization & Asset Impairment",
     "Accumulated amortization",
@@ -7424,7 +7424,7 @@
   {
    "key": "cf_oper_indirect__interest_inc_received_oper",
    "label": "Interest Inc Received(Oper)",
-   "definition": "Extract the reported value for 'Interest Inc Received(Oper)' from the stated section. Do not calculate it.",
+   "definition": "Interest received in cash that the cash flow statement prints within its operating activities section, as a financial-services entity classifies it — a row 'Interest received' below 'Cash generated from operations' or within the operating receipts. The 'Interest income' deducted among the adjustments to profit is the reversal of a credit in profit or loss, not cash received, and is not this line (it falls to 'Other Non-Cash Adjs(Oper)'). Interest received printed under investing activities, as most Ind AS statements print it, is 'Interest Income Rcvd(Invest)'. Where the operating section prints no interest received row, answer with an empty sources list. It is one of the lines this template's rollup adds into Cash Flows Oper Activ(Indirect).",
    "aliases": [
     "Interest Inc Received(Oper)",
     "Interest Income Received",
@@ -7449,7 +7449,7 @@
   {
    "key": "cf_oper_indirect__interest_expense",
    "label": "Interest Expense",
-   "definition": "Extract the reported value for 'Interest Expense' from the stated section. Do not calculate it.",
+   "definition": "The finance costs added back to profit among the adjustments of the indirect-method operating section: 'Finance costs', 'Interest expense', 'Interest expense on lease liabilities'. Where several such rows are printed this line is their total. It is the charge recognised in profit, not cash paid: interest paid in cash is 'Interest Paid(Fin)' when printed in the financing section, as Ind AS statements usually print it, and 'Interest Paid(Oper)' when printed in the operating section. Not this line: 'Interest income' deducted among the adjustments, which falls to 'Other Non-Cash Adjs(Oper)'; unrealised exchange differences printed on a row of their own. It is one of the lines this template's rollup adds into Cash Flows Oper Activ(Indirect).",
    "aliases": [
     "Interest Expense",
     "Finance costs"
@@ -7472,7 +7472,7 @@
   {
    "key": "cf_oper_indirect__chg_in_trade_receivables",
    "label": "Chg in Trade Receivables",
-   "definition": "Extract the reported value for 'Chg in Trade Receivables' from the stated section. Do not calculate it.",
+   "definition": "The (increase)/decrease in trade receivables: a movement in working capital printed in the indirect-method operating section, between the 'Operating profit before working capital changes' and 'Cash generated from operations' — '(Increase)/decrease in trade receivables', 'Decrease in trade receivables'. Where the filing prints one row for trade and other receivables together ('(Increase)/decrease in trade and other receivables'), that row is this line as printed and is not split. Not this line: other financial assets, loans and other assets printed on their own rows ('Chg in Other Current Assets'); the allowance for expected credit loss, which is an adjustment to profit ('Amortization & Asset Impairment'). It is one of the lines this template's rollup adds into Cash Flows Oper Activ(Indirect).",
    "aliases": [
     "Chg in Trade Receivables",
     "Increase/Decrease/Change in Trade Receivables",
@@ -7499,7 +7499,7 @@
   {
    "key": "cf_oper_indirect__chg_in_inventories",
    "label": "Chg in Inventories",
-   "definition": "Extract the reported value for 'Chg in Inventories' from the stated section. Do not calculate it.",
+   "definition": "The (increase)/decrease in inventories: a movement in working capital printed in the indirect-method operating section, between the 'Operating profit before working capital changes' and 'Cash generated from operations' — '(Increase)/decrease in inventories', 'Decrease in inventories'. For a real estate developer the projects it builds for sale are its inventories, so a movement in them printed on its own row is this line too; where several such rows are printed this line is their total. Not this line: a write-down of inventories to net realisable value, which is an adjustment to profit ('Amortization & Asset Impairment'); additions to investment property, which are investing cash flows ('Purchase Investment Property'). It is one of the lines this template's rollup adds into Cash Flows Oper Activ(Indirect).",
    "aliases": [
     "Chg in Inventories",
     "Increase/Decrease/Change in Inventories"
@@ -7522,7 +7522,7 @@
   {
    "key": "cf_oper_indirect__chg_in_other_current_assets",
    "label": "Chg in Other Current Assets",
-   "definition": "Extract the reported value for 'Chg in Other Current Assets' from the stated section. Do not calculate it.",
+   "definition": "The (increase)/decrease in assets other than trade receivables and inventories: a movement in working capital printed in the indirect-method operating section, between the 'Operating profit before working capital changes' and 'Cash generated from operations' — '(Increase)/decrease in other financial assets', '(Increase)/decrease in other assets', '(Increase)/decrease in loans', '(Increase)/decrease in other current assets', and a movement in contract assets. Where such a row takes in non-current balances too, it is this line as printed and is not split. Where several such rows are printed this line is their total. Not this line: trade receivables ('Chg in Trade Receivables'); inventories ('Chg in Inventories'); movements in bank balances other than cash and cash equivalents printed under investing activities ('Other Invest Cash Flows'). It is one of the lines this template's rollup adds into Cash Flows Oper Activ(Indirect).",
    "aliases": [
     "Chg in Other Current Assets",
     "Increase/Decrease/Change in Other Current Assets",
@@ -7547,7 +7547,7 @@
   {
    "key": "cf_oper_indirect__chg_in_trade_payables",
    "label": "Chg in Trade Payables",
-   "definition": "Extract the reported value for 'Chg in Trade Payables' from the stated section. Do not calculate it.",
+   "definition": "The increase/(decrease) in trade payables: a movement in working capital printed in the indirect-method operating section, between the 'Operating profit before working capital changes' and 'Cash generated from operations' — 'Increase/(decrease) in trade payables', including acceptances. Where the filing prints one row for trade and other payables together ('Increase/(decrease) in trade and other payables'), that row is this line as printed and is not split. Not this line: other financial liabilities, other liabilities and contract liabilities printed on their own rows ('Chg in Other Current Liab'); provisions ('Chg in Provisions'). It is one of the lines this template's rollup adds into Cash Flows Oper Activ(Indirect).",
    "aliases": [
     "Chg in Trade Payables",
     "Increase/Decrease/Change in Trade Payables",
@@ -7572,7 +7572,7 @@
   {
    "key": "cf_oper_indirect__chg_in_provisions",
    "label": "Chg in Provisions",
-   "definition": "Extract the reported value for 'Chg in Provisions' from the stated section. Do not calculate it.",
+   "definition": "The increase/(decrease) in provisions: a movement in working capital printed in the indirect-method operating section, between the 'Operating profit before working capital changes' and 'Cash generated from operations' — 'Increase/(decrease) in provisions', including the provisions for employee benefits (gratuity, compensated absences) where the statement prints them in that row or on rows of their own. Where several such rows are printed this line is their total. Not this line: impairment allowances against assets, which are adjustments to profit ('Amortization & Asset Impairment'); other financial liabilities and other liabilities ('Chg in Other Current Liab'). It is one of the lines this template's rollup adds into Cash Flows Oper Activ(Indirect).",
    "aliases": [
     "Chg in Provisions",
     "Increase/Decrease/Change in Provisions"
@@ -7595,7 +7595,7 @@
   {
    "key": "cf_oper_indirect__chg_in_other_current_liab",
    "label": "Chg in Other Current Liab",
-   "definition": "Extract the reported value for 'Chg in Other Current Liab' from the stated section. Do not calculate it.",
+   "definition": "The increase/(decrease) in liabilities other than trade payables and provisions: a movement in working capital printed in the indirect-method operating section, between the 'Operating profit before working capital changes' and 'Cash generated from operations' — 'Increase/(decrease) in other financial liabilities', 'Increase/(decrease) in other liabilities', 'Increase/(decrease) in other current liabilities', and a movement in contract liabilities or advances from customers. Where such a row takes in non-current balances too, it is this line as printed and is not split. Where several such rows are printed this line is their total. Not this line: trade payables, or trade and other payables printed as one row ('Chg in Trade Payables'); provisions ('Chg in Provisions'); borrowings, which are financing cash flows. It is one of the lines this template's rollup adds into Cash Flows Oper Activ(Indirect).",
    "aliases": [
     "Chg in Other Current Liab",
     "Increase/Decrease/Change in Other Current Liabilities",
@@ -7630,7 +7630,7 @@
   {
    "key": "cf_oper_indirect__income_taxes_paid_indirect",
    "label": "Income Taxes Paid(Indirect)",
-   "definition": "Extract the reported value for 'Income Taxes Paid(Indirect)' from the stated section. Do not calculate it.",
+   "definition": "Income taxes paid in cash, net of refunds, printed in the operating activities section of an indirect-method cash flow statement, usually below 'Cash generated from operations': 'Income taxes paid (net of refunds)', 'Direct taxes paid (net)', 'Income tax paid'. Where the statement prints taxes paid and refunds received in separate rows, this line is their total. It is cash paid, not the charge: the tax expense added back is 'Income Tax Expense'. It is one of the lines this template's rollup adds into Cash Flows Oper Activ(Indirect).",
    "aliases": [
     "Income Taxes Paid(Indirect)",
     "Hong Kong profits tax paid, net",
@@ -7666,7 +7666,7 @@
   {
    "key": "cf_oper_indirect__interest_paid_oper",
    "label": "Interest Paid(Oper)",
-   "definition": "Extract the reported value for 'Interest Paid(Oper)' from the stated section. Do not calculate it.",
+   "definition": "Interest paid in cash that the cash flow statement prints within its operating activities section, as a financial-services entity classifies it — 'Interest paid', 'Finance costs paid' below 'Cash generated from operations'. Where several such rows are printed this line is their total. Interest paid printed under financing activities, as most Ind AS statements print it, is 'Interest Paid(Fin)', and the two are told apart only by the section the row is printed in. It is cash paid, not the charge: the finance costs added back among the adjustments to profit are 'Interest Expense'. Where the operating section prints no interest paid row, answer with an empty sources list. It is one of the lines this template's rollup adds into Cash Flows Oper Activ(Indirect).",
    "aliases": [
     "Interest Paid(Oper)",
     "Interest Paid",
@@ -7693,7 +7693,7 @@
   {
    "key": "cf_oper_indirect__other_non_cash_adjs_oper",
    "label": "Other Non-Cash Adjs(Oper)",
-   "definition": "Extract the reported value for 'Other Non-Cash Adjs(Oper)' from the stated section. Do not calculate it.",
+   "definition": "The operating section's remainder: every row printed on the face of the indirect-method operating section — an adjustment to profit or a working-capital movement — that no dedicated line of this template claims, such as share-based payment expense, unrealised foreign exchange differences, '(Profit)/loss on sale of property, plant and equipment (net)', net gain on financial assets at fair value through profit or loss, 'Interest income' and 'Dividend income' deducted, the share of profit of associates and joint ventures, liabilities no longer required written back, and exceptional items adjusted. Its figure is the sum of those rows at their printed signs, each kept with its own caption; it is never worked out as the printed subtotal less the lines the template has mapped. This template's rollup adds it into Cash Flows Oper Activ(Indirect). Not this line: any subtotal or total — 'Operating profit before working capital changes', 'Cash generated from operations', the net cash flow from operating activities ('Cash Flows Oper Activ(Indirect)'); a row a dedicated line takes. Where a row fits a dedicated line, it belongs to that line and not here; do not add this line up yourself.",
    "aliases": [
     "Other Non-Cash Adjs(Oper)"
    ],
@@ -7886,7 +7886,7 @@
   {
    "key": "cf_investing__purchase_intangible_assets",
    "label": "Purchase Intangible Assets",
-   "definition": "Extract the reported value for 'Purchase Intangible Assets' from the stated section. Do not calculate it.",
+   "definition": "Cash paid to acquire intangible assets, printed as a row of its own in the investing activities section of the cash flow statement: 'Purchase of intangible assets', 'Payment for intangible assets including intangible assets under development', software, licences and development costs capitalised. Where several such rows are printed this line is their total. Where the filing prints one row for property, plant and equipment and intangible assets together ('Purchase of property, plant and equipment and intangible assets', 'Acquisition of property, plant and equipment, intangible assets and capital work-in-progress'), that row is 'Purchase PPE' as printed, and nothing is split out to this line. Not this line: purchases of property, plant and equipment ('Purchase PPE'); investment property ('Purchase Investment Property'); proceeds from selling intangible assets ('Other Invest Cash Flows'). It is one of the lines this template's rollup adds into Cash Flows from Invest Activities.",
    "aliases": [
     "Purchase Intangible Assets",
     "(Payment for) Purchase of Intangible Assets",
@@ -7911,7 +7911,7 @@
   {
    "key": "cf_investing__purchase_ppe",
    "label": "Purchase PPE",
-   "definition": "Extract the reported value for 'Purchase PPE' from the stated section. Do not calculate it.",
+   "definition": "Cash paid to acquire property, plant and equipment, printed in the investing activities section of the cash flow statement: 'Purchase of property, plant and equipment (including capital work-in-progress and capital advances)', 'Payment for acquisition of property, plant and equipment', 'Capital expenditure on property, plant and equipment'. Where several such rows are printed this line is their total. Where the filing prints one row for property, plant and equipment, intangible assets and other long-term assets together, that row is this line as printed and is not split. Not this line: intangible assets printed on rows of their own ('Purchase Intangible Assets'); investment property ('Purchase Investment Property'); right-of-use assets acquired under leases, which are not a cash flow of the year; proceeds from disposals ('Proceeds Sale PPE'). It is one of the lines this template's rollup adds into Cash Flows from Invest Activities.",
    "aliases": [
     "Purchase PPE",
     "(Payments for) Purchase of property, plant and equipment",
@@ -7944,7 +7944,7 @@
   {
    "key": "cf_investing__proceeds_sale_ppe",
    "label": "Proceeds Sale PPE",
-   "definition": "Extract the reported value for 'Proceeds Sale PPE' from the stated section. Do not calculate it.",
+   "definition": "Cash received from disposing of property, plant and equipment, printed in the investing activities section of the cash flow statement: 'Proceeds from sale of property, plant and equipment', 'Proceeds from disposal of property, plant and equipment and intangible assets'. Where the row takes in intangible assets and other long-term assets too, it is this line as printed and is not split. Where several such rows are printed this line is their total. Not this line: the profit or loss on the sale, an adjustment in the operating section ('Other Non-Cash Adjs(Oper)'); proceeds from investment property or from disposing of a subsidiary ('Other Invest Cash Flows'); proceeds from investments ('Proceeds Sale Fncl Assets'). It is one of the lines this template's rollup adds into Cash Flows from Invest Activities.",
    "aliases": [
     "Proceeds Sale PPE",
     "Proceeds from sale of property, plant and equipment",
@@ -7985,7 +7985,7 @@
   {
    "key": "cf_investing__purchase_investment_property",
    "label": "Purchase Investment Property",
-   "definition": "Extract the reported value for 'Purchase Investment Property' from the stated section. Do not calculate it.",
+   "definition": "Cash paid to acquire or develop investment property, printed in the investing activities section of the cash flow statement: 'Purchase of investment property', 'Additions to investment property', 'Expenditure on investment property'. Where several such rows are printed this line is their total. Not this line: property, plant and equipment ('Purchase PPE'); a real estate developer's spending on projects for sale, which is a working-capital movement in the operating section ('Chg in Inventories'); proceeds from selling investment property ('Other Invest Cash Flows'). Where the statement prints no such row, answer with an empty sources list. It is one of the lines this template's rollup adds into Cash Flows from Invest Activities.",
    "aliases": [
     "Purchase Investment Property",
     "(Payment for) Purchase of Investment Property",
@@ -8010,7 +8010,7 @@
   {
    "key": "cf_investing__purchase_financial_assets",
    "label": "Purchase Financial Assets",
-   "definition": "Extract the reported value for 'Purchase Financial Assets' from the stated section. Do not calculate it.",
+   "definition": "Cash paid to acquire investments held as financial assets, printed in the investing activities section of the cash flow statement: 'Purchase of investments', 'Purchase of current investments', 'Purchase of non-current investments', 'Investment in mutual funds', 'Purchase of financial assets measured at fair value through profit or loss', bonds and debentures. Where the statement prints purchases and sales of investments as one net row, that row is this line as printed. Where several such rows are printed this line is their total. Not this line: investments in associates and joint ventures ('Investment Assoc & Affiliates'); investments in subsidiaries and acquisitions of businesses ('Other Invest Cash Flows'); placements of bank deposits not considered cash and cash equivalents ('Other Invest Cash Flows'); proceeds from selling or redeeming investments ('Proceeds Sale Fncl Assets'). It is one of the lines this template's rollup adds into Cash Flows from Invest Activities.",
    "aliases": [
     "Purchase Financial Assets",
     "Purchase of/Payments for Investment",
@@ -8051,7 +8051,7 @@
   {
    "key": "cf_investing__proceeds_sale_fncl_assets",
    "label": "Proceeds Sale Fncl Assets",
-   "definition": "Extract the reported value for 'Proceeds Sale Fncl Assets' from the stated section. Do not calculate it.",
+   "definition": "Cash received from selling or redeeming investments held as financial assets, printed in the investing activities section of the cash flow statement: 'Proceeds from sale of investments', 'Proceeds from sale/redemption of current investments', 'Redemption of mutual fund units', 'Proceeds from redemption of bonds and debentures'. Where several such rows are printed this line is their total. Not this line: proceeds from associates and joint ventures and from disposing of subsidiaries ('Other Invest Cash Flows'); dividends and interest received ('Dividends Received(Invest)', 'Interest Income Rcvd(Invest)'); the gain on investments taken out of profit in the operating section ('Other Non-Cash Adjs(Oper)'); maturity of bank deposits ('Other Invest Cash Flows'). It is one of the lines this template's rollup adds into Cash Flows from Invest Activities.",
    "aliases": [
     "Proceeds Sale Fncl Assets",
     "Proceeds from disposal of Investment",
@@ -8094,7 +8094,7 @@
   {
    "key": "cf_investing__investment_assoc_and_affiliates",
    "label": "Investment Assoc & Affiliates",
-   "definition": "Extract the reported value for 'Investment Assoc & Affiliates' from the stated section. Do not calculate it.",
+   "definition": "Cash paid to invest in associates and joint ventures, printed in the investing activities section of the cash flow statement: 'Investment in associates', 'Investment in joint ventures', 'Acquisition of an associate', capital contributed to them, and loans and advances made to them ('Loans given to joint ventures'). Where several such rows are printed this line is their total. Not this line: investments in subsidiaries and acquisitions of businesses ('Other Invest Cash Flows'); purchases of other equity investments held as financial assets ('Purchase Financial Assets'); dividends received from associates and joint ventures ('Dividends Received(Invest)'). It is one of the lines this template's rollup adds into Cash Flows from Invest Activities.",
    "aliases": [
     "Investment Assoc & Affiliates",
     "Investment in associates",
@@ -8129,7 +8129,7 @@
   {
    "key": "cf_investing__interest_income_rcvd_invest",
    "label": "Interest Income Rcvd(Invest)",
-   "definition": "Extract the reported value for 'Interest Income Rcvd(Invest)' from the stated section. Do not calculate it.",
+   "definition": "Interest received in cash, printed in the investing activities section of the cash flow statement: 'Interest received', 'Interest income received', including interest received on bank deposits, loans and investments. Where several such rows are printed this line is their total. Interest received printed within the operating activities section is 'Interest Inc Received(Oper)', and the two are told apart only by the section the row is printed in. Not this line: the 'Interest income' deducted among the adjustments to profit in the operating section, which is not a cash receipt ('Other Non-Cash Adjs(Oper)'); dividends received ('Dividends Received(Invest)'). It is one of the lines this template's rollup adds into Cash Flows from Invest Activities.",
    "aliases": [
     "Interest Income Rcvd(Invest)",
     "Interest received",
@@ -8156,7 +8156,7 @@
   {
    "key": "cf_investing__dividends_received_invest",
    "label": "Dividends Received(Invest)",
-   "definition": "Extract the reported value for 'Dividends Received(Invest)' from the stated section. Do not calculate it.",
+   "definition": "Dividends received in cash from investments, printed in the investing activities section of the cash flow statement: 'Dividend received', 'Dividends received from associates and joint ventures', 'Dividend received from subsidiaries', 'Dividend income received'. Where several such rows are printed this line is their total. Not this line: the 'Dividend income' deducted among the adjustments to profit in the operating section, which is not a cash receipt ('Other Non-Cash Adjs(Oper)'); the share of profit of associates and joint ventures; interest received ('Interest Income Rcvd(Invest)'). It is one of the lines this template's rollup adds into Cash Flows from Invest Activities.",
    "aliases": [
     "Dividends Received(Invest)",
     "Dividends Received",
@@ -8191,7 +8191,7 @@
   {
    "key": "cf_investing__other_invest_cash_flows",
    "label": "Other Invest Cash Flows",
-   "definition": "Extract the reported value for 'Other Invest Cash Flows' from the stated section. Do not calculate it.",
+   "definition": "The investing section's remainder: every row printed on the face of the investing activities section that no dedicated line of this template claims — investments in and loans to subsidiaries, acquisitions of businesses net of cash acquired, proceeds from disposing of subsidiaries, associates and joint ventures, proceeds from investment property and intangible assets, loans given to and repaid by others, government grants received for assets, and the placement and maturity of bank deposits and earmarked balances not considered cash and cash equivalents ('Bank balances not considered as cash and cash equivalents (net)', 'Investment in fixed deposits'). Its figure is the sum of those rows at their printed signs, each kept with its own caption; it is never worked out as the printed subtotal less the lines the template has mapped. This template's rollup adds it into Cash Flows from Invest Activities. Not this line: the net cash flow from investing activities ('Cash Flows from Invest Activities'); a row printed under the operating or financing activities headings; the net increase or decrease in cash and cash equivalents; a row a dedicated line takes. Where a row fits a dedicated line, it belongs to that line and not here; do not add this line up yourself.",
    "aliases": [
     "Other Invest Cash Flows",
     "Net cash used in/generated from investing activities"
@@ -8325,7 +8325,7 @@
   {
    "key": "cf_financing__net_proceeds_issuance_of_capital",
    "label": "Net Proceeds Issuance of Capital",
-   "definition": "Extract the reported value for 'Net Proceeds Issuance of Capital' from the stated section. Do not calculate it.",
+   "definition": "Cash raised by issuing equity, printed in the financing activities section of the cash flow statement: 'Proceeds from issue of equity shares', 'Proceeds from issue of shares under employee stock option schemes', share application money received, a qualified institutions placement or rights issue, and capital contributed by non-controlling shareholders of subsidiaries. Where several such rows are printed this line is their total. Not this line: share issue expenses paid on a row of their own, and the buy-back of equity shares ('Other Financing Cash Flows'); proceeds from borrowings ('Proceeds Non-Cur Borrowings'). It is one of the lines this template's rollup adds into Cash Flows from Finance Activities.",
    "aliases": [
     "Net Proceeds Issuance of Capital",
     "Net Proceeds from Issuance of Capital",
@@ -8350,7 +8350,7 @@
   {
    "key": "cf_financing__proceeds_non_cur_borrowings",
    "label": "Proceeds Non-Cur Borrowings",
-   "definition": "Extract the reported value for 'Proceeds Non-Cur Borrowings' from the stated section. Do not calculate it.",
+   "definition": "Cash received from new long-term borrowings, printed in the financing activities section of the cash flow statement: 'Proceeds from long-term borrowings', 'Proceeds from non-current borrowings', 'Proceeds from issue of non-convertible debentures', term loans raised. Where the filing does not separate long-term from short-term borrowings, its new borrowings row ('Proceeds from borrowings') is this line as printed. Not this line: short-term borrowings ('Proceeds from/(repayment of) short-term borrowings (net)', 'Chg in Current Borrowings'); repayments ('Repayments Non-Cur Borrowings'); loans from related parties printed on their own rows ('Other Financing Cash Flows'). It is one of the lines this template's rollup adds into Cash Flows from Finance Activities.",
    "aliases": [
     "Proceeds Non-Cur Borrowings",
     "Proceeds/cash recepit from bank and other borrowings/long term bank and other loan/bank and other loan",
@@ -8385,7 +8385,7 @@
   {
    "key": "cf_financing__repayments_non_cur_borrowings",
    "label": "Repayments Non-Cur Borrowings",
-   "definition": "Extract the reported value for 'Repayments Non-Cur Borrowings' from the stated section. Do not calculate it.",
+   "definition": "Cash paid to repay long-term borrowings, printed in the financing activities section of the cash flow statement: 'Repayment of long-term borrowings', 'Repayment of non-current borrowings', 'Redemption of non-convertible debentures', term loans repaid. Where the filing does not separate long-term from short-term borrowings, its repayments row ('Repayment of borrowings') is this line as printed. Not this line: short-term borrowings ('Chg in Current Borrowings'); 'Payment of lease liabilities' ('Other Financing Cash Flows'); interest paid ('Interest Paid(Fin)'); new borrowings ('Proceeds Non-Cur Borrowings'). It is one of the lines this template's rollup adds into Cash Flows from Finance Activities.",
    "aliases": [
     "Repayments Non-Cur Borrowings",
     "Repayment/cash payment of bank and other borrowings/long term bank and other loan/bank and other loan",
@@ -8420,7 +8420,7 @@
   {
    "key": "cf_financing__chg_in_current_borrowings",
    "label": "Chg in Current Borrowings",
-   "definition": "Extract the reported value for 'Chg in Current Borrowings' from the stated section. Do not calculate it.",
+   "definition": "The cash movement in short-term borrowings, printed in the financing activities section of the cash flow statement where the statement identifies the borrowings as short-term or current: a net row ('Proceeds from/(repayment of) short-term borrowings (net)', 'Net increase/(decrease) in current borrowings', 'Net change in working capital loans') or separate proceeds and repayment rows, which this line takes together as their net total. Not this line: borrowings the statement does not identify as short-term, and long-term borrowings and debentures ('Proceeds Non-Cur Borrowings', 'Repayments Non-Cur Borrowings'); bank overdrafts the statement counts within cash and cash equivalents. Where no such row is printed, answer with an empty sources list. It is one of the lines this template's rollup adds into Cash Flows from Finance Activities.",
    "aliases": [
     "Chg in Current Borrowings",
     "Change in Current Borrowings",
@@ -8457,7 +8457,7 @@
   {
    "key": "cf_financing__interest_paid_fin",
    "label": "Interest Paid(Fin)",
-   "definition": "Extract the reported value for 'Interest Paid(Fin)' from the stated section. Do not calculate it.",
+   "definition": "Interest paid in cash, printed in the financing activities section of the cash flow statement: 'Interest paid', 'Finance costs paid', 'Interest and other borrowing costs paid', and the interest portion of lease payments where printed as a row of its own ('Payment of interest portion of lease liabilities'). Where several such rows are printed this line is their total. Interest paid printed within the operating activities section is 'Interest Paid(Oper)', and the two are told apart only by the section the row is printed in. It is cash paid, not the finance costs charged to profit ('Interest Expense'). Not this line: a single 'Payment of lease liabilities' row that takes in principal and interest together ('Other Financing Cash Flows'); the principal portion of lease payments. It is one of the lines this template's rollup adds into Cash Flows from Finance Activities.",
    "aliases": [
     "Interest Paid(Fin)",
     "Interest Paid"
@@ -8480,7 +8480,7 @@
   {
    "key": "cf_financing__dividends_paid_fin",
    "label": "Dividends Paid(Fin)",
-   "definition": "Extract the reported value for 'Dividends Paid(Fin)' from the stated section. Do not calculate it.",
+   "definition": "Cash paid as dividends, reported in the financing activities section of the cash flow statement: 'Dividends paid', 'Dividend paid to equity shareholders', 'Dividends paid to non-controlling interests', and the dividend distribution tax paid on them where printed beside them. Where several such rows are printed this line is their total. Where the statement prints dividends and interest paid as one row, that combined row is this line's figure and is not split. Not this line: the dividends recognised in retained earnings ('Cash Div Common Shares(-)'); interest paid printed on its own row ('Interest Paid(Fin)'). It is one of the lines this template's rollup adds into Cash Flows from Finance Activities.",
    "aliases": [
     "Dividends Paid(Fin)",
     "Dividends Paid",
@@ -8507,7 +8507,7 @@
   {
    "key": "cf_financing__other_financing_cash_flows",
    "label": "Other Financing Cash Flows",
-   "definition": "Extract the reported value for 'Other Financing Cash Flows' from the stated section. Do not calculate it.",
+   "definition": "The financing section's remainder: every row printed on the face of the financing activities section that no dedicated line of this template claims — 'Payment of lease liabilities' and the principal portion of lease payments, the buy-back of equity shares, share issue expenses, acquisitions of non-controlling interests, loans from and repaid to related parties printed on their own rows, and other financing receipts and payments. Its figure is the sum of those rows at their printed signs, each kept with its own caption; it is never worked out as the printed subtotal less the lines the template has mapped. This template's rollup adds it into Cash Flows from Finance Activities. Not this line: the net cash flow from financing activities ('Cash Flows from Finance Activities'); the net increase or decrease in cash and cash equivalents, the cash at the beginning or end of the year and the effect of exchange rate changes, which are printed below the financing section; the reconciliation of cash and cash equivalents to the balance sheet printed under the statement; a row a dedicated line takes. Where a row fits a dedicated line, it belongs to that line and not here; do not add this line up yourself.",
    "aliases": [
     "Other Financing Cash Flows"
    ],
@@ -8626,7 +8626,7 @@
   {
    "key": "cf_financing__net_foreign_exchange_difference",
    "label": "Net Foreign Exchange Difference",
-   "definition": "Extract the reported value for 'Net Foreign Exchange Difference' from the stated section. Do not calculate it.",
+   "definition": "The effect of exchange rate changes on cash and cash equivalents, printed below the net cash flows of the three activities and outside them: 'Effect of exchange rate changes on cash and cash equivalents', 'Effect of exchange differences on translation of foreign currency cash and cash equivalents', 'Exchange difference on translation of foreign operations' where printed in that place. It is one of the terms of this template's cash roll-forward: the cash at the beginning of the period plus the three net cash flows plus this line gives the cash at the end of the period. It is one of the lines this template's rollup adds into End of Period-Cash & Cash Equiv. Not this line: unrealised exchange differences adjusted in the operating section ('Other Non-Cash Adjs(Oper)'); the net increase or decrease in cash and cash equivalents. Where no such row is printed, answer with an empty sources list.",
    "aliases": [
     "Net Foreign Exchange Difference",
     "Effect of foreign exchange rate changes",
@@ -8667,7 +8667,7 @@
   {
    "key": "cf_financing__beg_of_period_cash_and_cash_equiv",
    "label": "Beg of Period-Cash & Cash Equiv",
-   "definition": "Extract the reported value for 'Beg of Period-Cash & Cash Equiv' from the stated section. Do not calculate it.",
+   "definition": "The cash and cash equivalents at the beginning of the period, as the cash flow statement prints it below the net increase or decrease in cash: 'Cash and cash equivalents at the beginning of the year', 'Opening cash and cash equivalents'. It is the statement's own opening figure, which can differ from the balance sheet's cash row (bank overdrafts and cash credit repayable on demand deducted, earmarked balances left out). Where the statement prints the opening balance and the cash and cash equivalents of a subsidiary acquired or disposed of as separate rows, this line is the opening balance row. Not this line: the cash and cash equivalents at the end of the period ('End of Period-Cash & Cash Equiv'); the components of cash and cash equivalents printed under the statement; the balance sheet's cash line ('Cash in Hand and at Banks'). It is one of the lines this template's rollup adds into End of Period-Cash & Cash Equiv; where the statement prints no opening cash figure, answer with an empty sources list.",
    "aliases": [
     "Beg of Period-Cash & Cash Equiv",
     "Cash and Cash Equivalents at beginning of the year",
