@@ -1307,7 +1307,7 @@
   {
    "canonical_key": "bs_nca__accum_intgbl_assets_amort",
    "label": "Accum Intgbl Assets Amort(-)",
-   "definition": "Extract the reported Accum Intgbl Assets Amort(-) from the Balance Sheet. Do not calculate or replace it from goodwill, other intangible assets or any other row.",
+   "definition": "Accumulated amortisation and accumulated impairment of intangible assets other than goodwill, where the balance sheet prints intangible assets at cost with this amount as a separate deduction row beneath them ('Less: accumulated amortisation', 'Accumulated amortisation and impairment'). CAS and HKFRS balance sheets print intangible assets net, so this line is almost always empty. It is one of the lines this template's rollup adds into Net Intangibles, and it is carried as a negative figure, a deduction from the intangible asset lines. Where the balance sheet prints intangible assets net, answer with an empty sources list and do not take the accumulated amortisation from the breakdown of a net intangible assets row, which would deduct it a second time. Not this line: accumulated amortisation or impairment of goodwill ('Accum Goodwill Amortized(-)'); accumulated depreciation of fixed assets ('Accum Deprec & Impairment(-)'); the amortisation charged in the year ('Amortization & Asset Impairment', 'Amort & Impairment(Intgbl)').",
    "aliases": [
     "Accum Intgbl Assets Amort(-)"
    ],
@@ -4335,7 +4335,7 @@
   {
    "canonical_key": "bs_ca__trade_receivables_gross",
    "label": "Trade Receivables(Gross)",
-   "definition": "Amounts due from customers for goods sold and services rendered, held as a current asset: the trade receivables row of the current assets section — CAS 应收账款; HKFRS 'Trade receivables' (贸易应收款项, 应收贸易款项), 'Debtors', 'Accounts receivable', 'Trade and bills receivables' (应收账款及票据, 贸易应收款项及票据), and bills, notes or accounts receivable from customers printed as one trade row. This line is before the loss allowance only where the balance sheet itself prints the allowance as its own row ('Allow for Doubtful Accounts(-)'); where the face prints trade receivables net of the allowance, as it normally does, this line is that printed figure. Net Trade Receivables is this line plus the allowance, as this template's rollup adds it. Trade receivables from related parties are 'Trade receivables- related parties'; the arithmetic that keeps them out of this line is declared in this template's rollup. Not this line: a row that prints trade and other receivables together ('Trade and other receivables'); CAS 应收票据 and 应收款项融资, which this template files on 'Trade and other receivables'; other receivables ('Other Receivables(CP)'); contract assets; non-current trade receivables.",
+   "definition": "Trade receivables at their gross carrying amount, before the loss allowance: amounts due from customers for goods sold and services rendered, held as a current asset. The balance sheet normally prints trade receivables net of the allowance, and that net row is not this line. On a CAS filing this line is the 合计 of the 账面余额 column in the disclosed breakdown of 应收账款, before 坏账准备 is deducted — not the 账面价值. On an HKFRS filing it is the gross amount of trade receivables ('Trade receivables', 'Trade and bills receivables', 'Debtors', 'Accounts receivable') before the impairment or loss allowance, as the filing's breakdown of them prints it. Where the balance sheet itself prints the gross amount and the allowance as rows of their own, this line is the gross row. Where the filing states no allowance on trade receivables, the gross and the net amount are the same figure. The allowance is 'Allow for Doubtful Accounts(-)', carried as a negative figure, and this template's rollup adds the two lines into Net Trade Receivables, which is therefore the gross amount less the allowance. Trade receivables from related parties are 'Trade receivables- related parties'; the arithmetic that keeps them out of this line is declared in this template's rollup. Not this line: a row that prints trade and other receivables together ('Trade and other receivables'); bills receivable and receivables financing (应收票据, 应收款项融资), which this template files on 'Trade and other receivables'; other receivables ('Other Receivables(CP)'); contract assets; non-current trade receivables.",
    "aliases": [
     "Trade Receivables(Gross)",
     "Trade receivables",
@@ -4387,7 +4387,7 @@
   {
    "canonical_key": "bs_ca__allow_for_doubtful_accounts",
    "label": "Allow for Doubtful Accounts(-)",
-   "definition": "Extract the reported Allow for Doubtful Accounts(-) from the Balance Sheet. Do not calculate or replace it from gross trade receivables or any other row.",
+   "definition": "The loss allowance on trade receivables — the provision for impairment, expected credit losses or bad and doubtful debts held against them at the end of the period — which takes trade receivables from their gross amount to their net carrying amount. On a CAS filing it is the 合计 of the 坏账准备 column in the disclosed breakdown of 应收账款; on an HKFRS filing it is the loss or impairment allowance that the filing's breakdown of trade receivables deducts ('Less: loss allowance', 'Allowance for credit losses', 'Provision for impairment of trade receivables'). Where the balance sheet itself prints the allowance as a row of its own beneath the gross trade receivables, it is that row. Cite the figure as printed, which is normally unsigned: the template carries this line as a negative figure, a deduction, and this template's rollup adds it to 'Trade Receivables(Gross)' to make Net Trade Receivables. It is the balance at the end of the period, not a movement: not the impairment loss of the year ('Bad Debt Expense'), and not the amounts provided, reversed or written off in the year. Not this line: the allowance on other receivables, on bills receivable or receivables financing, on contract assets or on long-term receivables. Where the filing states no allowance on trade receivables, answer with an empty sources list.",
    "aliases": [
     "Allow for Doubtful Accounts(-)",
     "Provision of impairments of Trade receivables",
@@ -4427,7 +4427,7 @@
   {
    "canonical_key": "bs_ca__net_trade_receivables",
    "label": "Net Trade Receivables",
-   "definition": "Calculated target using the exact formula retained in the supplied template: ={bs_ca__trade_receivables_gross}+{bs_ca__allow_for_doubtful_accounts}",
+   "definition": "Trade receivables net of the loss allowance: their carrying amount, which the balance sheet normally prints as its trade receivables row among the current assets — CAS 应收账款 as printed, HKFRS 'Trade receivables', 'Accounts receivable' or 'Debtors' as printed. Read the printed row. It is Trade Receivables(Gross) less Allow for Doubtful Accounts(-), which is carried as a negative figure; this template's rollup adds those two lines into this one, so do not compute it here and do not replace a printed figure with one added up from them. Where the balance sheet prints no trade receivables row of its own, answer with an empty sources list and leave it to the rollup. Not this line: a row that prints trade and other receivables together ('Trade and other receivables').",
    "aliases": [
     "Net Trade Receivables"
    ],
@@ -9617,7 +9617,7 @@
     "^(?:[一二三四五六七八九十]+、|其中：)?\\s*(?:收益|营业额|销售收入|客户合约收益)$"
    ],
    "label": "Sales(Revenues)",
-   "definition": "Extract the reported value for 'Sales(Revenues)' from the face of the income statement (English: Revenue/Turnover/Sales; PRC: 主营业务/主营业务收入). When the face carries no value, services.sales_revenues falls back to the 主营业务/主营业务收入 row of a 营业收入 note, never the note's own combined total. See docs/PRC_Sales_Revenues_Extraction_Logic_Simplified.md.",
+   "definition": "Revenue from the ordinary course of business — turnover from the sale of goods and the rendering of services, before cost of sales and excluding other income, finance income and gains. This is the top line of the income statement, and a revenue note disaggregates the same figure by product, service line, geography, segment or timing of transfer. The principal-business revenue the revenue note prints, or the face's revenue line where no note gives it.",
    "aliases": [
     "Sales(Revenues)",
     "Turnover/Sales/Revenues",
@@ -10502,7 +10502,7 @@
   {
    "canonical_key": "is_pl__personnel_and_benefit_expenses",
    "label": "Personnel & Benefit Expenses",
-   "definition": "Extract the reported value for 'Personnel & Benefit Expenses' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
+   "definition": "The cost of employee benefits the filing charges to profit or loss for the year: wages and salaries, bonuses and allowances, pension and other retirement scheme contributions, social security and housing fund contributions, staff welfare, and equity-settled share-based payments to employees. It is the employee benefit (staff costs) total the filing prints — 'Employee benefit expense' or 'Staff costs' in the profit-before-tax note of an HKFRS filing, 职工薪酬 or 员工成本 in a CAS one. Take that total as the note prints it: with the directors' and chief executive's remuneration where the note's total includes it, and without it where the note excludes it and states it in another note (do not add that note to it). Where the note deducts amounts capitalised (into properties under development, construction in progress or inventories) or government grants released against the cost, the line is the figure after those deductions — the cost charged to profit or loss. Where the note prints no total, cite each of its components; the line is their sum. It is not employee benefits payable, and not the remuneration of directors or key management alone.",
    "aliases": [
     "Personnel & Benefit Expenses",
     "Salaries, commission",
@@ -11927,7 +11927,7 @@
   {
    "canonical_key": "is_pl__interest_expense_capitalised",
    "label": "Interest expense - capitalised",
-   "definition": "Extract the reported value for 'Interest expense - capitalised' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
+   "definition": "Borrowing costs capitalised in the year: the interest on borrowings the filing added to the cost of qualifying assets — construction in progress, properties under development, investment properties under construction — instead of charging it to profit or loss. An HKFRS filing prints it in the finance costs note, deducted from the total interest to arrive at the finance costs charged ('Less: Interest capitalised', 'Amount capitalised in properties under development'); where the note prints one such row per class of asset, cite each, and the line is their total. A CAS filing states it as 利息资本化金额 (本期利息资本化金额, 资本化利息) in the 财务费用 or 在建工程 note; it is not printed on the income statement. It is not the interest expense charged to profit or loss, and not the capitalisation rate. Where the filing states no interest capitalised, answer with an empty sources list.",
    "aliases": [
     "Interest expense - capitalised",
     "capitalised interest"
@@ -12956,7 +12956,7 @@
   {
    "canonical_key": "is_pl__other_non_income_related_taxes",
    "label": "Other Non-Income Related Taxes",
-   "definition": "Extract the reported value for 'Other Non-Income Related Taxes' from the stated section. Do not calculate or replace it from other rows, because the revised template does not designate this field as formula-driven.",
+   "definition": "Taxes and levies other than income tax that the statement of profit and loss charges on a line of their own: 税金及附加 (营业税金及附加) on a CAS income statement — city maintenance and construction tax, education surcharges, property tax, land use tax, stamp duty and land appreciation tax — and the same row where an HKFRS statement prints one ('Tax and surcharges', 'Taxes and surcharges', 'Business tax and surcharges'). Read it off the face of the statement. It is not income tax or deferred tax, and not a land appreciation tax the filing includes in its income tax expense. Where the statement prints no such row, answer with an empty sources list.",
    "aliases": [
     "Other Non-Income Related Taxes",
     "Taxes and surcharges",
@@ -16129,7 +16129,7 @@
   {
    "canonical_key": "cf_investing__purchase_ppe",
    "label": "Purchase PPE",
-   "definition": "Cash paid to acquire property, plant and equipment, printed in the investing activities section of the cash flow statement: 'Purchases of items of property, plant and equipment', 'Purchase of property, plant and equipment', 'Capital expenditures', payments for construction in progress, and purchases of right-of-use assets and leasehold land ('Purchases of items of leasehold land included in right-of-use assets'). Where several such rows are printed this line is their total. On a CAS statement it is 购建固定资产、无形资产和其他长期资产支付的现金, as printed: that row takes in intangible assets and other long-term assets too, and it is not split. The same holds for an HKFRS row 'Purchase of items of property, plant and equipment, intangible assets and other long-term assets'. Not this line: intangible assets and land use rights printed on rows of their own ('Purchase Intangible Assets'); investment properties ('Purchase Investment Property'); other non-current assets printed on a row of their own ('Purchase Other Assets'); deposits paid for acquiring assets where printed separately; proceeds from disposals ('Proceeds Sale PPE'). It is one of the lines this template's rollup adds into Cash Flows from Invest Activities.",
+   "definition": "Cash paid to acquire property, plant and equipment, printed in the investing activities section of the cash flow statement: 'Purchases of items of property, plant and equipment', 'Purchase of property, plant and equipment', 'Capital expenditures', payments for construction in progress, and purchases of right-of-use assets and of leasehold land ('Purchases of items of leasehold land included in right-of-use assets', 'Payments for leasehold land'). Where several such rows are printed this line is their total. Leasehold land is this line whether the filing carries it in right-of-use assets or in property, plant and equipment. On a CAS statement it is 购建固定资产、无形资产和其他长期资产支付的现金, as printed: that row takes in intangible assets, land use rights and other long-term assets too, and it is not split. The same holds for an HKFRS row 'Purchase of items of property, plant and equipment, intangible assets and other long-term assets'. Not this line: a row printed for the purchase or acquisition of land use rights (土地使用权), and other intangible assets printed on rows of their own ('Purchase Intangible Assets'); investment properties ('Purchase Investment Property'); other non-current assets printed on a row of their own ('Purchase Other Assets'); deposits paid for acquiring assets where printed separately; proceeds from disposals ('Proceeds Sale PPE'). It is one of the lines this template's rollup adds into Cash Flows from Invest Activities.",
    "aliases": [
     "Purchase PPE",
     "(Payments for) Purchase of property, plant and equipment",
@@ -17708,7 +17708,7 @@
   {
    "canonical_key": "cf_financing__end_of_period_cash_and_cash_equiv",
    "label": "End of Period-Cash & Cash Equiv",
-   "definition": "Calculated target using the exact formula retained in the supplied template: ={cf_financing__beg_of_period_cash_and_cash_equiv}+{cf_oper_indirect__cash_flows_oper_activ_indirect}+{cf_investing__cash_flows_from_invest_activities}+{cf_financing__cash_flows_from_finance_activities}+{cf_financing__net_foreign_exchange_difference}",
+   "definition": "The cash and cash equivalents at the end of the period, as the cash flow statement prints it at its foot, after the net cash flows of the three activities and the effect of exchange rate changes: 'Cash and cash equivalents at end of year', 'Cash and cash equivalents at the end of the reporting period' (年末現金及現金等價物); on a CAS statement 六、期末现金及现金等价物余额, as printed. It closes the whole statement and is not part of the financing activities section. It is the statement's own closing figure, which can differ from the cash and bank balances of the balance sheet (time deposits over three months, restricted or pledged cash, bank overdrafts). Read the printed row. Do not compute it here and do not replace it with the opening cash plus the year's net cash flows and the exchange difference: that arithmetic is declared in this template's rollup, and a closing figure the statement prints is the more authoritative number. What the printed figure and that arithmetic leave between them is 'Unexplained Adjustment to Cash'. Not this line: the cash and cash equivalents at the beginning of the period ('Beg of Period-Cash & Cash Equiv'); the rows of the analysis of balances of cash and cash equivalents printed under the statement; the balance sheet's cash line ('Cash in Hand and at Banks'). Where the statement prints no closing cash figure, answer with an empty sources list and leave it to the rollup.",
    "aliases": [
     "End of Period-Cash & Cash Equiv",
     "Cash and Cash Equivalents at end of the year",
@@ -17767,7 +17767,7 @@
   {
    "canonical_key": "cf_financing__unexplained_adjustment_to_cash",
    "label": "Unexplained Adjustment to Cash",
-   "definition": "Calculated target using the exact formula retained in the supplied template: ={cf_financing__end_of_period_cash_and_cash_equiv}-{cf_financing__beg_of_period_cash_and_cash_equiv}-{cf_oper_indirect__cash_flows_oper_activ_indirect}-{cf_investing__cash_flows_from_invest_activities}-{cf_financing__cash_flows_from_finance_activities}-{cf_financing__net_foreign_exchange_difference}",
+   "definition": "The part of the year's movement in cash and cash equivalents that the cash flow statement leaves unexplained: what remains between the closing cash and cash equivalents the statement prints and the opening cash and cash equivalents together with the net cash flows from operating, investing and financing activities and the net foreign exchange difference. It belongs to the foot of the statement, beside the opening and closing cash, and is not part of the financing activities section. Neither HKFRS nor CAS prints such a row — a statement that reconciles leaves nothing here — and the figure is this template's own check, whose arithmetic is declared in this template's rollup. Do not cite a row for it and do not compute it yourself: answer with an empty sources list and leave it to the rollup. Not this line: the effect of exchange rate changes on cash ('Net Foreign Exchange Difference'); the net increase or decrease in cash and cash equivalents; other financing cash flows ('Other Financing Cash Flows').",
    "aliases": [
     "Unexplained Adjustment to Cash"
    ],
