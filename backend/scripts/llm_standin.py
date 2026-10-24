@@ -773,10 +773,37 @@ CODE_FOR = {
 }
 
 
-def _close(a: float | None, b: float | None) -> bool:
+def _places(x) -> int:
+    """The decimal places a figure is printed to: '387,791,885.96' → 2, '(3,532,249)' → 0. A number
+    (a JSON figure, a float the script computed) states no printing, so its own digits are read:
+    71610.0 → 0, 1901.5 → 1."""
+    if x is None or isinstance(x, (bool, int)):
+        return 0
+    if isinstance(x, float):
+        from decimal import Decimal
+        if x != x or x in (float("inf"), float("-inf")):
+            return 0
+        digits = format(Decimal(repr(x)).normalize(), "f")
+        return len(digits.split(".")[1]) if "." in digits else 0
+    m = re.search(r"\.(\d+)", str(x))
+    return len(m.group(1)) if m else 0
+
+
+def _same(a: float | None, b: float | None, places_a: int = 2, places_b: int = 2,
+          unit_a: float = 1.0, unit_b: float = 1.0) -> bool:
+    """Whether two printed figures are the same figure: EXACTLY, at the coarser of the two
+    printings, after each one's unit scale. No percentage tolerance — the 0.5% the grader used to
+    allow graded a gross receivable 0.499% above the net one the answer cited as right.
+
+    Each figure is on a grid of `unit × 10^-places` (CNY to the cent is 0.01; a figure printed in
+    thousands with no decimals is 1,000). The finer one is read at the coarser one's grid, so the
+    rounding a filing itself prints still compares: a key given as 3,532,249 equals a row printed
+    3,532,249.40, and a key of 19,015,000.00 yuan equals 1,901.50 printed in 万元 (a grid of 100). Two
+    figures on one grid compare exactly."""
     if a is None or b is None:
         return a is None and b is None
-    return abs(a - b) <= max(0.01, 0.005 * abs(b))
+    step = max(unit_a * 10.0 ** -places_a, unit_b * 10.0 ** -places_b)
+    return abs(a * unit_a - b * unit_b) <= step / 2 * (1 + 1e-9)
 
 
 SUM_MAX_ROWS = 4  # a printed figure carried as the sum of at most this many rows of one block
@@ -797,17 +824,26 @@ def key_nets(key_line: KeyLine) -> bool:
 _BRACKETED = re.compile(r"\(\d[\d,]*(?:\.\d+)?\)")
 
 
-def payload_has(req: dict, figure: float, parts: bool = False, nets: bool = False) -> list[str]:
+def payload_has(req: dict, figure: float | str, parts: bool = False, nets: bool = False,
+                period: str | None = None) -> list[str]:
     """Where the request carries this figure: a row printing it, compared by magnitude so a
-    bracketed '(519.65)' carries 519.65. With `parts` (the key says the line is 'A + B'), also rows
-    in one period column that add up to it to the cent: two rows anywhere in the request, or up to
+    bracketed '(519.65)' carries 519.65, and exactly at the printed precision (`_same`). With
+    `parts` (the key says the line is 'A + B'), also rows in one period column that add up to it
+    at the figure's precision (to the cent at most): two rows anywhere in the request, or up to
     SUM_MAX_ROWS rows of one block. With `nets` (the key prints a part in brackets), rows of one
-    block whose SIGNED figures net to it."""
+    block whose SIGNED figures net to it. `figure` is the key's figure as printed, or a number.
+
+    With `period`, the addends of a sum are that period's figures only: a figure filed under the
+    OTHER year (its column key, or the row's `periods` / `period`) is no part of this year's total.
+    PetroChina's current impairment adjustment (3,152) is not in its request — one of its three
+    parts was sent for the prior year only — yet four unrelated prior-year gains add up to 3,152."""
     p = payload_of(req["body"])
     out: list[str] = []
-    if not isinstance(p, dict):
+    if not isinstance(p, dict) or _num(figure) is None:
         return out
-    target = round(abs(figure), 2)
+    places = _places(figure)
+    target = round(abs(_num(figure)), 2)
+    tol = 0.5 * 10.0 ** -min(places, 2) * (1 + 1e-9)
     allcols: dict[str, list[tuple[str, float]]] = {}
     sums: list[str] = []
     for kind, label, b in _blocks(p):
@@ -821,59 +857,64 @@ def payload_has(req: dict, figure: float, parts: bool = False, nets: bool = Fals
                 n = _num(v)
                 if n is None:
                     continue
-                if _close(abs(n), target):
+                if _same(abs(n), abs(_num(figure)), _places(v), places):
                     out.append(f"{label}: '{r.get('caption')}'")
                     continue
                 where = f"{label}: '{r.get('caption')}'"
+                per = (r.get("periods") or {}).get(col) or r.get("period") or col
+                if period and per in ("current", "prior") and per != period:
+                    continue
                 if n and abs(n) < target:
                     cols.setdefault(col, []).append((where, round(abs(n), 2)))
                 if n and abs(n) < 2 * target:
                     signed.setdefault(col, []).append((where, round(n, 2)))
         for col, vals in cols.items():
             allcols.setdefault(col, []).extend(vals)
-            hit = parts and _sum_of(vals, target, SUM_MAX_ROWS)
+            hit = parts and _sum_of(vals, target, SUM_MAX_ROWS, tol=tol)
             if hit:
                 sums.append(" + ".join(hit) + f" ({col})")
         if nets and not sums:
             for col, vals in signed.items():
                 if not any(v < 0 for _, v in vals):
                     continue
-                hit = _sum_of(vals, target, SUM_MAX_ROWS, signed=True)
+                hit = _sum_of(vals, target, SUM_MAX_ROWS, signed=True, tol=tol)
                 if hit:
                     sums.append(" + ".join(hit) + f" ({col}, net)")
     if parts and not sums:
         for col, vals in allcols.items():
-            hit = _sum_of(vals, target, 2)
+            hit = _sum_of(vals, target, 2, tol=tol)
             if hit:
                 sums.append(" + ".join(hit) + f" ({col})")
     return list(dict.fromkeys(out + [f"sum of {x}" for x in sums[:1]]))
 
 
 def _sum_of(vals: list[tuple[str, float]], target: float, most: int,
-            signed: bool = False) -> list[str] | None:
-    """Rows of `vals` adding up to `target`. With `signed`, the figures keep their signs, at least
-    one is negative, and the net is compared by magnitude."""
+            signed: bool = False, tol: float = 0.005) -> list[str] | None:
+    """Rows of `vals` adding up to `target` within `tol` (half the target's printed step: to the
+    cent for a figure printed to the cent, to the unit for a whole number). With `signed`, the
+    figures keep their signs, at least one is negative, and the net is compared by magnitude."""
     from itertools import combinations
     for n in range(2, most + 1):
         for combo in combinations(vals[:60], n):
             if signed and not any(v < 0 for _, v in combo):
                 continue
             total = round(sum(v for _, v in combo), 2)
-            if abs((abs(total) if signed else total) - target) < 0.005:
+            if abs((abs(total) if signed else total) - target) <= tol:
                 return [c for c, _ in combo]
     return None
 
 
-def prose_has(req: dict, figure: float) -> list[str]:
-    """Blocks whose prose (not rows) prints the figure: the table reached the model only as text."""
+def prose_has(req: dict, figure: float | str) -> list[str]:
+    """Blocks whose prose (not rows) prints the figure, exactly at the printed precision: the
+    table reached the model only as text."""
     p = payload_of(req["body"])
     out = []
-    if isinstance(p, dict):
+    if isinstance(p, dict) and _num(figure) is not None:
         for kind, label, b in _blocks(p):
             prose = str(b.get("prose") or "")
-            if any(_close(abs(n), abs(figure)) for n in
-                   (_num(t) for t in re.findall(r"\(?\d[\d,]*\.\d+\)?|\d{1,3}(?:,\d{3})+", prose))
-                   if n is not None):
+            if any(_same(abs(_num(t)), abs(_num(figure)), _places(t), _places(figure)) for t in
+                   re.findall(r"\(?\d[\d,]*\.\d+\)?|\d{1,3}(?:,\d{3})+", prose)
+                   if _num(t) is not None):
                 out.append(label)
     return out
 
@@ -884,18 +925,19 @@ NOT_A_LOSS = {"no_unit"}
 
 def classify(key_line: KeyLine, period: str, published: float | None, asking: list[dict],
              answered: set[str], lint: dict[str, list], audits: dict[str, dict]) -> tuple[str, str]:
-    printed = _num(getattr(key_line, period))
+    printed_as = getattr(key_line, period)
+    printed = _num(printed_as)
     if printed is None:
         return ("correct", "filing prints nothing; run published nothing") if published is None else \
                ("not_in_filing", f"filing prints nothing; run published {published}")
-    if _close(published, printed):
+    if published is not None and _same(published, printed, _places(published), _places(printed_as)):
         return "correct", ""
     if not asking:
         return "deterministic", "the line was not asked"
     if (key_line.where or "").lower().startswith("computed"):
         # no page prints it: the key adds other lines, so the miss follows those lines, not a payload
         return "derived", f"the key computes it ({(key_line.where or '')[:80]}); see its parts"
-    had = [(r["id"], b) for r in asking for b in payload_has(r, printed, key_is_sum(key_line))]
+    had = [(r["id"], b) for r in asking for b in payload_has(r, printed_as, key_is_sum(key_line))]
     if had:
         rid, where = had[0]
         if rid in answered or any(r["id"] in answered for r in asking):
@@ -904,7 +946,7 @@ def classify(key_line: KeyLine, period: str, published: float | None, asking: li
     causes = sorted(({h["check"] for r in asking for h in lint.get(r["id"], [])}
                      | {pr["kind"] for r in asking for pr in (audits.get(r["id"]) or {}).get("problems", [])})
                     - NOT_A_LOSS)
-    prose = [(r["id"], b) for r in asking for b in prose_has(r, printed)]
+    prose = [(r["id"], b) for r in asking for b in prose_has(r, printed_as)]
     tail = f"; in prose only: {prose[0][1]} ({prose[0][0]})" if prose else ""
     return "lost_in_context", "faults: " + (", ".join(causes) or "none detected (figure absent from payload)") + tail
 
@@ -1062,24 +1104,27 @@ def unit_multiple(unit: str | None) -> float:
     return 1.0
 
 
-def _rows_printing(req: dict, figure: float, key_unit: str | None = None
+def _rows_printing(req: dict, figure: float | str, key_unit: str | None = None
                    ) -> list[tuple[str, str, str, str]]:
     """(block, caption, figure key, row period) of every row of the request that prints this
-    figure, by magnitude as `payload_has` compares it. With `key_unit`, a block that states a
-    DIFFERENT unit is compared at it: HyperStrong's 关键管理人员报酬 note prints 1,901.50 in 万元,
-    which is the key's 19,015,000.00 yuan, and the block says "(x10,000)"."""
+    figure, by magnitude and exactly at the printed precision, as `payload_has` compares it.
+    `figure` is the key's figure as printed (or a number, read at its own digits). With
+    `key_unit`, a block that states a DIFFERENT unit is compared at it: HyperStrong's 关键管理人员报酬
+    note prints 1,901.50 in 万元, which is the key's 19,015,000.00 yuan, and the block says
+    "(x10,000)"."""
     p = payload_of(req["body"])
     out: list[tuple[str, str, str, str]] = []
     km = unit_multiple(key_unit) if key_unit else None
-    if isinstance(p, dict):
+    want, places = _num(figure), _places(figure)
+    if isinstance(p, dict) and want is not None:
         for _kind, label, b in _blocks(p):
             bm = unit_multiple(b.get("unit")) if km is not None and b.get("unit") else None
             rescale = bm is not None and bm != km
             for r in b.get("rows") or []:
                 for col, v in (r.get("figures") or {}).items():
                     n = _num(v)
-                    if n is not None and (_close(abs(n), round(abs(figure), 2)) or (
-                            rescale and _close(round(abs(n) * bm, 2), round(abs(figure) * km, 2)))):
+                    if n is not None and (_same(abs(n), abs(want), _places(v), places) or (
+                            rescale and _same(abs(n), abs(want), _places(v), places, bm, km))):
                         # A period × measure row states each figure's period in `periods`.
                         per = (r.get("periods") or {}).get(col) or r.get("period") or ""
                         out.append((label, str(r.get("caption") or ""), col, str(per)))
@@ -1091,12 +1136,19 @@ _KEY_PAIR = re.compile(r"(\(?-?\d{1,3}(?:,\d{3})+(?:\.\d+)?\)?)\s*/\s*(\(?-?\d{1
 
 
 def key_parts(key_line: KeyLine, period: str) -> list[float]:
+    """The addends the key names for this period, as magnitudes (see `key_part_figures`)."""
+    return [abs(_num(x)) for x in key_part_figures(key_line, period)]
+
+
+def key_part_figures(key_line: KeyLine, period: str) -> list[str]:
     """The addends the key's `where` names for this period, when they add up to its figure.
 
     A key that gives a line as parts writes each addend: "66,532,098.75 + 38,974,805.76 + …" for
     one period, or "'A' 4,209 / 6,915 + 'B' 293,097 / 434,273" for both, current first. Grouped
     numbers only (a thousands separator), so note numbers and years are not read as parts. [] when
-    the key names none, or when what it names does not add up to the printed figure."""
+    the key names none, or when what it names does not add up to the printed figure — exactly, at
+    the coarsest precision among the parts and the figure. Each addend is returned AS PRINTED, so
+    it is looked for at its own precision."""
     where = key_line.where or ""
     printed = _num(getattr(key_line, period))
     stated = (key_line.parts or {}).get(period) if key_line.parts else None
@@ -1104,20 +1156,23 @@ def key_parts(key_line: KeyLine, period: str) -> list[float]:
         # Signed as the key states them, so a sales return nets; each addend is then looked for
         # by magnitude like every other figure. A zero addend is no figure to look for.
         nums = [_num(x) for x in stated]
-        if any(n is None for n in nums) or not _close(round(sum(nums), 2), round(printed, 2)):
+        if any(n is None for n in nums) or not _same(
+                sum(nums), printed, min(_places(x) for x in stated), _places(getattr(key_line, period))):
             return []
-        return [abs(n) for n in nums if n]
+        return [x for x, n in zip(stated, nums) if n]
     if printed is None or "+" not in where:
         return []
     pairs = _KEY_PAIR.findall(where)
     if pairs:
-        nums = [_num(a if period == "current" else b) for a, b in pairs]
+        texts = [a if period == "current" else b for a, b in pairs]
     else:
-        nums = [_num(t) for t in _KEY_PART.findall(where)]
-    nums = [abs(n) for n in nums if n is not None]
-    if len(nums) < 2 or not _close(round(sum(nums), 2), round(abs(printed), 2)):
+        texts = _KEY_PART.findall(where)
+    texts = [t for t in texts if _num(t) is not None]
+    nums = [abs(_num(t)) for t in texts]
+    if len(nums) < 2 or not _same(sum(nums), abs(printed), min(_places(t) for t in texts),
+                                  _places(getattr(key_line, period))):
         return []
-    return nums
+    return texts
 
 
 def coverage_of(d: Path, key: Key, part_keys: dict[str, set[str]] | None = None,
@@ -1145,7 +1200,8 @@ def coverage_of(d: Path, key: Key, part_keys: dict[str, set[str]] | None = None,
         if not asking and part_keys:
             asking = [reqs[i] for i in ids if part_keys.get(k, set()) & set(reqs[i]["line_keys"])]
         for period in ("current", "prior"):
-            printed = _num(getattr(kl, period))
+            printed_as = getattr(kl, period)
+            printed = _num(printed_as)
             if printed is None:
                 continue
             row = {"key": k, "period": period, "printed": printed, "request": "", "where": ""}
@@ -1155,24 +1211,25 @@ def coverage_of(d: Path, key: Key, part_keys: dict[str, set[str]] | None = None,
             if not asking:
                 out.append({**row, "status": "not_asked"})
                 continue
-            hits = [(r["id"], h) for r in asking for h in _rows_printing(r, printed, key.unit)]
+            hits = [(r["id"], h) for r in asking for h in _rows_printing(r, printed_as, key.unit)]
             if hits:
                 right = [x for x in hits if period in (x[1][2], x[1][3])]
                 rid, (label, cap, col, per) = (right or hits)[0]
                 out.append({**row, "status": "carried" if right else "carried_other_key", "request": rid,
                             "where": f"{label}: '{cap}' [{col}{'/' + per if per else ''}]"})
                 continue
-            parts = [(r["id"], w) for r in asking for w in payload_has(r, printed, key_is_sum(kl), key_nets(kl))]
+            parts = [(r["id"], w) for r in asking
+                     for w in payload_has(r, printed_as, key_is_sum(kl), key_nets(kl), period)]
             if not parts:
                 # EVERY ADDEND THE KEY NAMES, each printed in a row of a request about the line —
                 # the same claim as a sum found by search, without the search's limit of
                 # `SUM_MAX_ROWS` rows (000685's guarantee balance is five guarantees).
-                named = key_parts(kl, period)
+                named = key_part_figures(kl, period)
                 found = [next(((r["id"], h) for r in asking for h in _rows_printing(r, v)), None)
                          for v in named]
                 if named and all(found):
                     parts = [(found[0][0], " + ".join(f"{h[0]}: '{h[1]}'" for _rid, h in found))]
-            prose = [(r["id"], b) for r in asking for b in prose_has(r, printed)]
+            prose = [(r["id"], b) for r in asking for b in prose_has(r, printed_as)]
             status, (rid, where) = (("carried_as_parts", parts[0]) if parts else
                                     ("carried_in_prose" if prose_lines is not None and k in prose_lines
                                      else "prose_only", prose[0]) if prose else
@@ -1290,9 +1347,10 @@ def _column_period(heading: str, block: dict | None) -> str:
     return relative_slot(str(heading))[0]
 
 
-def _row_figure(r: dict, src, period: str, block: dict | None = None) -> float | None:
-    """The row's figure for this period, as the citation reads it: a named column (its key or its
-    printed heading) filed under the row's own period, else the period's own key.
+def _row_cell(r: dict, src, period: str, block: dict | None = None):
+    """The row's figure for this period AS PRINTED (so its precision can be read), as the citation
+    reads it: a named column (its key or its printed heading) filed under the row's own period,
+    else the period's own key.
 
     A row whose period reads `unstated` in a table whose block states the year of the cited column
     (`_column_period`) is filed under that year, as the stage files it
@@ -1301,7 +1359,7 @@ def _row_figure(r: dict, src, period: str, block: dict | None = None) -> float |
     published the key's figure."""
     figs = r.get("figures") or {}
     if src.column and str(src.column).casefold() == "share_counts" and r.get("share_counts"):
-        return _num((r.get("share_counts") or {}).get(period))   # the counts the caption prints
+        return (r.get("share_counts") or {}).get(period)   # the counts the caption prints
     if src.column:
         heads = {**{str(v): k for k, v in (r.get("columns") or {}).items()}}
         col = src.column if src.column in figs else heads.get(src.column)
@@ -1316,23 +1374,31 @@ def _row_figure(r: dict, src, period: str, block: dict | None = None) -> float |
             return None
         if per not in ("current", "prior") and col not in ("current", "prior") and period != "current":
             return None   # a row that states no year is read as the reporting year's, once
-        return _num(figs.get(col))
+        return figs.get(col)
     per = r.get("period") or ""
     if per in ("current", "prior"):
         if per != period:
             return None
-        vals = [_num(v) for v in figs.values() if _num(v) is not None]
-        return vals[0] if len(vals) == 1 else _num(figs.get(src.column or ""))
-    return _num(figs.get(period))
+        vals = [v for v in figs.values() if _num(v) is not None]
+        return vals[0] if len(vals) == 1 else figs.get(src.column or "")
+    return figs.get(period)
 
 
 def grade_answer(payload: dict, answer, kl: KeyLine, period: str, key_unit: str | None,
-                 key_basis: str | None = None) -> tuple[str, str]:
+                 key_basis: str | None = None, computed: float | None = None) -> tuple[str, str]:
     """Whether an answer picks the figure the filing prints for this line and period, judged in
     the request it answers: each citation is matched back to its row (an unmatched one is
     `unresolved`, one matching rows with different figures `ambiguous`), its figure for the period
-    taken, components added with their signs, and the total compared with the key at the block's
-    unit.
+    taken, components added with their signs, and the total compared with the key EXACTLY at the
+    printed precision (`_same`: the coarser of the cited figures' and the key's, so a key given to
+    fewer decimals than the row compares at the key's) — first at the printed unit, then at the
+    block's unit against the key's.
+
+    An answer with no sources leaves the line to the rollup, as a definition says to when the
+    filing prints no subtotal. Where the run then publishes the line COMPUTED from its parts
+    (`computed`, from `computed_figures`) and that figure is the one the filing prints, the line
+    is `derived`, not `missed`: PetroChina's net trade receivables are printed as one face row the
+    answer had already given to the gross line, and the rollup publishes the same 71,610.
 
     An answer whose citations name two or more entities is one figure PER ENTITY, as the stage
     publishes it (`services.line_item_llm.split_by_entity`): only the citations of the key's basis
@@ -1340,10 +1406,15 @@ def grade_answer(payload: dict, answer, kl: KeyLine, period: str, key_unit: str 
     printed = _num(getattr(kl, period))
     if (kl.where or "").lower().startswith("computed"):
         return "derived", "the key computes the line; no page prints it"
+    printed_as = getattr(kl, period)
     if not answer.sources:
-        return ("rightly_blank", "") if printed is None else ("missed", "no sources")
+        if printed is None:
+            return "rightly_blank", ""
+        if computed is not None and _same(computed, printed, _places(computed), _places(printed_as)):
+            return "derived", f"left to the rollup; the run computes {computed:,.2f} from its parts, as printed"
+        return "missed", "no sources" + (f"; the run computes {computed:,.2f}" if computed is not None else "")
     km = unit_multiple(key_unit) if key_unit else 1.0
-    vals, notes_, bm = [], [], None
+    vals, notes_, bm, places = [], [], None, []
     named = {str(s.entity or "").lower() for s in answer.sources if getattr(s, "entity", None)}
     want = str(key_basis or "consolidated").lower()
     for i, src in enumerate(answer.sources):
@@ -1353,10 +1424,13 @@ def grade_answer(payload: dict, answer, kl: KeyLine, period: str, key_unit: str 
             n = _num(src.amount)
             if n is not None and (src.period or "current") == period:
                 vals.append(n)
+                places.append(_places(src.amount))
                 notes_.append(f"prose {src.amount}")
             elif period == "prior" and not src.period and printed is not None and any(
-                    _close(abs(_num(t) or 0), abs(printed)) for t in _KEY_PART.findall(src.quote)):
+                    _same(abs(_num(t) or 0), abs(printed), _places(t), _places(printed_as))
+                    for t in _KEY_PART.findall(src.quote)):
                 vals.append(printed)           # the comparative the quote prints, read from it
+                places.append(_places(printed_as))
                 notes_.append("prose comparative in the quote")
             continue
         hits = _source_rows(payload, src)
@@ -1364,11 +1438,13 @@ def grade_answer(payload: dict, answer, kl: KeyLine, period: str, key_unit: str 
             if printed is None:   # nothing to pick for this year; the bad citation counts once
                 return "rightly_blank", ""
             return "unresolved", f"no row '{src.caption}' in {src.note or src.statement or src.page}"
-        figs = {f for f in (_row_figure(r, src, period, b) for b, r in hits) if f is not None}
+        cells = [c for c in (_row_cell(r, src, period, b) for b, r in hits) if _num(c) is not None]
+        figs = {_num(c) for c in cells}
         if len(figs) > 1:
             return "ambiguous", f"'{src.caption}' matches rows with {sorted(figs)[:4]}"
         if not figs:
             continue
+        places.append(min(_places(c) for c in cells))
         if bm is None and hits[0][0].get("unit"):
             bm = unit_multiple(hits[0][0].get("unit"))
         sign = answer.signs[i] if (str(answer.role) == "component" and i < len(answer.signs)) else 1
@@ -1379,15 +1455,17 @@ def grade_answer(payload: dict, answer, kl: KeyLine, period: str, key_unit: str 
     if not vals:
         return ("rightly_blank", "") if printed is None else ("unresolved", "no figure for the period")
     total = sum(vals)
+    tp = min(places) if places else 2
 
-    def same(x: float | None) -> bool:
-        return x is not None and (_close(abs(total), abs(x)) or (
-            bm is not None and bool(key_unit) and _close(abs(total) * bm, abs(x) * km)))
+    def same(x) -> bool:
+        n = _num(x)
+        return n is not None and (_same(abs(total), abs(n), tp, _places(x)) or (
+            bm is not None and bool(key_unit) and _same(abs(total), abs(n), tp, _places(x), bm, km)))
     if printed is None:
         return "cited_unprinted", f"cited {' + '.join(notes_)} = {total:,.2f}; the filing prints nothing"
-    if same(printed):
+    if same(printed_as):
         return "right", ""
-    other = _num(getattr(kl, "prior" if period == "current" else "current"))
+    other = getattr(kl, "prior" if period == "current" else "current")
     if same(other):
         return "wrong_period", f"{total:,.2f} is the other year's figure"
     return "wrong_figure", f"{' + '.join(notes_)} = {total:,.2f}, the filing prints {printed:,.2f}"
@@ -1421,9 +1499,40 @@ def grade_text(payload: dict, answer, kl: KeyLine) -> tuple[str, str]:
     return "wrong_text", f"gave {given[:80]!r}, the filing prints {accepted[0][:80]!r}"
 
 
+def computed_figures(d: Path, basis: str) -> dict[tuple[str, str], float]:
+    """{(line, period): figure} for every line the folder's run PUBLISHES COMPUTED from its parts,
+    on this basis: the template's arithmetic over the run's rows (`rollups.evaluate_rows`, the
+    resolver the grid and the export use) gives it, no analyst value overrides it, and it is the
+    figure `run/spread.json` shows. {} when the run or its template is not there."""
+    run, idx = d / "run", d / "index.json"
+    if not (run / "rows.json").exists() or not idx.exists():
+        return {}
+    tname = json.loads(idx.read_text(encoding="utf-8")).get("template") or ""
+    tpath = TEMPLATES / tname
+    if not tname or not tpath.exists():
+        return {}
+    from app.services import rollups
+    tpl = json.loads(tpath.read_text(encoding="utf-8"))
+    rows = json.loads((run / "rows.json").read_text(encoding="utf-8"))
+    spread_p = run / "spread.json"
+    spread = json.loads(spread_p.read_text(encoding="utf-8")) if spread_p.exists() else None
+    out: dict[tuple[str, str], float] = {}
+    for period in ("current", "prior"):
+        _g, _reported, overridden, *_ = rollups._readers(rows, basis, period, None)
+        shown = (spread or {}).get(f"{basis}|{period}") or {}
+        for k, c in rollups.evaluate_rows(tpl, rows, basis, period).items():
+            if not c.computable or c.value is None or overridden(k):
+                continue
+            if spread is not None and (shown.get(k) is None or float(shown[k]) != float(c.value)):
+                continue
+            out[(k, period)] = float(c.value)
+    return out
+
+
 def grade_folder(d: Path, key: Key) -> list[dict]:
     reqs = load_requests(d)
     latest = set(current_ids(d))
+    computed = computed_figures(d, key.basis)
     out = []
     for ap in sorted((d / "answers").glob("*.txt")):
         req = reqs.get(ap.stem)
@@ -1450,7 +1559,8 @@ def grade_folder(d: Path, key: Key) -> list[dict]:
                             "detail": detail})
                 continue
             for period in ("current", "prior"):
-                g, detail = grade_answer(payload, ans, kl, period, key.unit, key.basis)
+                g, detail = grade_answer(payload, ans, kl, period, key.unit, key.basis,
+                                         computed=computed.get((ans.key, period)))
                 out.append({"request": ap.stem, "key": ans.key, "period": period, "grade": g,
                             "detail": detail})
     return out

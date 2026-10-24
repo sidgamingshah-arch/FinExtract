@@ -695,3 +695,121 @@ def test_grade_files_an_unstated_rows_column_under_the_year_its_table_states():
     assert standin.grade_answer(payload, limit, standin.KeyLine(current="0.00"), "current", None)[0] == "right"
     assert standin.grade_answer(payload, limit, standin.KeyLine(current="0.00"), "prior",
                                 None)[0] == "rightly_blank"
+
+
+# ---- figures compare exactly, at the printed precision ------------------------------------------
+
+def test_grade_compares_a_figure_exactly_at_its_printed_precision():
+    """The grader allowed 0.5%, which graded five wrong rows right: 688008's net trade receivables
+    (387,791,885.96, the face row cited) for the gross line (389,736,337.95, an allowance of
+    0.499%), BYD's PPE purchases without the leasehold land (-2,848,294 for -2,849,091). A figure
+    printed to the cent compares to the cent; one printed in thousands, in thousands."""
+    from app.services.line_item_llm import LineItemAnswer
+    from app.services.mapping import SourceRef
+    payload = _payload(notes=[{"note": "七、5", "title": "应收账款", "rows": [
+        {"caption": "应收账款", "figures": {"current": "387,791,885.96", "prior": "294,253,723.40"}},
+        {"caption": "Purchases of PPE", "figures": {"current": "(2,848,294)"}},
+        {"caption": "Depreciation", "figures": {"current": "3,532,249.40"}}]}])
+
+    def grade(caption, kl, period="current", unit=None):
+        ans = LineItemAnswer(key="k", sources=[SourceRef(note="七、5", caption=caption)])
+        return standin.grade_answer(payload, ans, kl, period, unit)[0]
+
+    gross = standin.KeyLine(current="389,736,337.95", prior="295,728,366.40")
+    assert grade("应收账款", gross) == "wrong_figure"
+    assert grade("应收账款", gross, "prior") == "wrong_figure"
+    assert grade("应收账款", standin.KeyLine(current="387,791,885.96")) == "right"
+    assert grade("应收账款", standin.KeyLine(current="387,791,885.97")) == "wrong_figure"   # one cent
+    assert grade("Purchases of PPE", standin.KeyLine(current="-2,849,091")) == "wrong_figure"
+    assert grade("Purchases of PPE", standin.KeyLine(current="-2,848,294")) == "right"
+    # A key given to fewer decimals than the row compares at the key's precision.
+    assert grade("Depreciation", standin.KeyLine(current="3,532,249")) == "right"
+    assert grade("Depreciation", standin.KeyLine(current="3,524,658")) == "wrong_figure"
+
+
+def test_a_figure_in_another_unit_compares_at_the_coarser_printing():
+    """1,901.50 printed in 万元 is a figure to the hundred yuan: it is the key's 19,015,000.00 and
+    19,015,040.00 (the filing's own rounding), and not 19,015,123.45."""
+    from app.services.line_item_llm import LineItemAnswer
+    from app.services.mapping import SourceRef
+    payload = _payload(notes=[{"note": "十四、5", "title": "关键管理人员报酬", "unit": "CNY ten thousands (x10,000)",
+                               "rows": [{"caption": "关键管理人员报酬", "figures": {"current": "1901.50"}}]}])
+    ans = LineItemAnswer(key="k", sources=[SourceRef(note="十四、5", caption="关键管理人员报酬")])
+    unit = "CNY yuan (单位：元)"
+    for key, want in (("19,015,000.00", "right"), ("19,015,040.00", "right"),
+                      ("19,015,123.45", "wrong_figure"), ("19,100,000.00", "wrong_figure")):
+        assert standin.grade_answer(payload, ans, standin.KeyLine(current=key), "current", unit)[0] == want, key
+    assert standin._same(1901.5, 19015040.0, 2, 2, 1e4, 1.0)
+    assert not standin._same(3524658.0, 3532249.0, 0, 0)
+
+
+def test_coverage_does_not_carry_a_figure_by_an_unrelated_row_near_it(tmp_path: Path):
+    """000685's gross trade receivables (1,879,998,245.12) are not in their request; coverage said
+    `carried_other_key` because '其他非流动资产' printed a figure within 0.5% of it. A near figure
+    carries nothing; the exact one does, and so does the exact figure printed in another unit."""
+    rows = [{"caption": "其他非流动资产", "figures": {"current": "1,200.00", "prior": "1,875,000,000.00"}},
+            {"caption": "应收票据", "figures": {"current": "1,215,045,260.01"}}]
+    _folder_with(tmp_path, _payload(statement_rows=[{"statement": "balance_sheet", "entity": "consolidated",
+                                                     "rows": rows}], notes=[]))
+    key = standin.Key(filing="x", template="t", lines={
+        "bs_icon__finished_goods": standin.KeyLine(current="1879998245.12", prior="1215045260.01")})
+    status = {r["period"]: r["status"] for r in standin.coverage_of(tmp_path, key)}
+    assert status == {"current": "not_carried", "prior": "carried_other_key"}
+    req = _request(_payload(notes=[], statement_rows=[{"statement": "balance_sheet", "rows": rows}]))
+    assert standin.payload_has(req, "1,879,998,245.12") == []
+    assert standin.prose_has(_request(_payload(notes=[{"note": "1", "title": "t", "rows": [],
+                                                      "prose": "receivables of 1,875,000,000.00"}])),
+                             "1,879,998,245.12") == []
+
+
+def test_a_sum_is_made_of_the_periods_own_figures(tmp_path: Path):
+    """PetroChina's current impairment adjustment, 3,152, is not in its request (one of its parts
+    was sent for the prior year only); four unrelated prior-year gains add up to 3,152, and coverage
+    called it carried. The addends of this year's total are this year's figures."""
+    rows = [{"caption": "Accrual of provision", "figures": {"current": "743", "prior": "43"}},
+            {"caption": "Write down in inventories", "figures": {"current": "2,367", "prior": "6,411"}},
+            {"caption": "Impairment of other non-current assets", "figures": {"prior": "259"}},
+            {"caption": "Gain A", "figures": {"current": "-291", "prior": "-267"}},
+            {"caption": "Gain B", "figures": {"current": "-865", "prior": "-102"}},
+            {"caption": "Gain C", "figures": {"current": "-4673", "prior": "-2008"}},
+            {"caption": "Gain D", "figures": {"current": "-11", "prior": "-775"}}]
+    _folder_with(tmp_path, _payload(notes=[], statement_rows=[{"statement": "cash_flow", "entity": "consolidated",
+                                                               "rows": rows}]))
+    key = standin.Key(filing="x", template="t", lines={"bs_icon__finished_goods": standin.KeyLine(
+        current="3,152", prior="6,713", where="'Accrual' 743 / 43 + 'Write down' 2,367 / 6,411 + 'Impairment' 42 / 259",
+        parts={"current": ["743", "2,367", "42"], "prior": ["43", "6,411", "259"]})})
+    status = {r["period"]: r["status"] for r in standin.coverage_of(tmp_path, key)}
+    assert status == {"current": "not_carried", "prior": "carried_as_parts"}
+
+
+def test_a_line_left_to_the_rollup_and_computed_as_printed_is_derived(tmp_path: Path):
+    """PetroChina prints one 'Accounts receivable' row; the answer gives it to the gross line and
+    leaves the net line to the rollup with no sources, as its definition says when no subtotal is
+    printed. The run publishes the net line COMPUTED from its parts, 71,610 / 69,006 — the printed
+    figures. That is `derived`, not `missed`; a computed figure the filing does not print stays
+    `missed`."""
+    from app.services.line_item_llm import LineItemReply as Reply
+    req = _folder_with(tmp_path, _payload(line_items=[{"key": "bs_ca__net_trade_receivables", "label": "Net",
+                                                        "notes_supplied": [], "statement": "balance_sheet"}]))
+    (tmp_path / "index.json").write_text(json.dumps({"template": "output_csv_hk_v1_template.json",
+                                                     "requests": [{"id": req["id"]}]}))
+    (tmp_path / "answers").mkdir()
+    (tmp_path / "answers" / f"{req['id']}.txt").write_text(json.dumps(
+        {"answers": [{"key": "bs_ca__net_trade_receivables", "sources": []}]}))
+    Reply.model_validate_json((tmp_path / "answers" / f"{req['id']}.txt").read_text())
+    run = tmp_path / "run"
+    run.mkdir()
+    (run / "rows.json").write_text(json.dumps([{
+        "canonical_key": "bs_ca__trade_receivables_gross", "source_label": "Accounts receivable",
+        "printed_in": "face", "role": "line", "is_computed": False, "mapping_method": "llm", "flags": [],
+        "values": [{"period_label": p, "basis": "consolidated", "value": v, "value_raw": v}
+                   for p, v in (("current", "71610"), ("prior", "69006"))]}]))
+    computed = standin.computed_figures(tmp_path, "consolidated")
+    assert computed[("bs_ca__net_trade_receivables", "current")] == 71610.0
+    key = standin.Key(filing="x", basis="consolidated", lines={
+        "bs_ca__net_trade_receivables": standin.KeyLine(current="71610", prior="69500")})
+    grades = {r["period"]: r["grade"] for r in standin.grade_folder(tmp_path, key)}
+    assert grades == {"current": "derived", "prior": "missed"}
+    # Without a run that computes it, an empty answer is a miss, as before.
+    (run / "rows.json").write_text("[]")
+    assert {r["grade"] for r in standin.grade_folder(tmp_path, key)} == {"missed"}

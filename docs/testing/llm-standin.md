@@ -72,6 +72,25 @@ Run from `backend/`.
    `not_asked`. The first four count as covered. The key file is `coverage_key.json`
    in the folder, else `sample_key.json`; a block that states another unit than the key (`(x10,000)`
    for a 万元 table) is compared at its unit (`--key-name` to choose). Text-valued lines are not counted.
+   The addends of a sum are the period's own figures: a figure filed under the other year is no
+   part of this year's total.
+
+9. **Grade.** Whether each recorded answer picks the figure the filing prints, judged in the
+   request it answers (every citation matched back to its row). Writes `grade.json`.
+
+       python scripts/llm_standin.py grade ../_standin/*__output_csv_hk_v1
+
+   An answer with no sources leaves the line to the rollup (as a definition says to when the
+   filing prints no subtotal); where the run publishes the line computed from its parts and that
+   figure is the printed one, it is `derived`, not `missed`.
+
+   **Figures compare exactly, at the printed precision** — in `grade`, `coverage` and `report`
+   alike. A figure is on the grid its printing gives it (CNY to the cent is 0.01; a whole number in
+   thousands is 1,000), and two figures are the same when the finer one, read at the coarser one's
+   grid, is the coarser one: a key given to fewer decimals than the row compares at the key's
+   precision, and a key in yuan against a table in 万元 at the table's. There is no percentage
+   tolerance: 0.5% let a gross receivable pass for the net one, and a row 0.48% away carry a figure
+   it does not print.
 
 ## What is in the output folder
 
@@ -174,7 +193,7 @@ run's text request is graded. The older scratch shape (numbers instead of string
     prints it, so its miss follows its parts.
 
   A figure counts as carried when a row prints it (by magnitude: `(519.65)` carries 519.65) or, when
-  the key's `where` gives it as parts (`A + B`), when rows add up to it to the cent: two rows anywhere
+  the key's `where` gives it as parts (`A + B`), when rows add up to it at its printed precision: two rows anywhere
   in the request or up to four rows of one block. A `lost_in_context` row says when the figure is in a
   block's prose only. `no_unit` is reported in the lint and audit but is not named as what lost a
   figure, since a missing unit does not remove one.
