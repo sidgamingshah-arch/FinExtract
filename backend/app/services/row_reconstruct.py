@@ -1872,6 +1872,21 @@ def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
     straddle: tuple[list[Word], BBox] | None = None
     for idx, row in enumerate(rows):
         label_words, note_ref, value_words = _scan_row(row, fmt)
+        # ON A MAINLAND FACE, A LINE SET RIGHT OF THE PENDING CAPTION'S LAST LINE STARTS A CAPTION
+        # OF ITS OWN — the layout wraps to the left; see `_HANG_MIN`.
+        if (on_face and pending and label_words
+                and _indented_past_the_pending_line(pending, label_words)):
+            out.append(pending)
+            pending = []
+        # THE PAGE'S FOLIO ENDS A PENDING CAPTION; it is not that caption's figure. 000685's parent
+        # income statement printed 以摊余成本计量的金融资产终止确认收益（损失以“-”号填列） blank at the
+        # foot of the page, and its page number "143" was read as the line's prior-year figure.
+        if pending and not label_words and _is_folio_row(row, fmt):
+            out.append(pending)
+            out.append(row)
+            pending = []
+            straddle = None
+            continue
         # IN A NOTE, A ROW PRINTED NIL IN EVERY COLUMN ENDS ITS CAPTION as a row of figures does:
         # f1 note 10's "(ii) Undisputed trade / receivables - which have / significant increase
         # in credit / risk  -  -  -" is one row, and its head is no longer lost. See `_nil_row`.
@@ -2028,6 +2043,18 @@ def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
                 out[-1] = prev_labels + label_words + rest
                 continue
 
+        # ON A MAINLAND FACE, THE LINE HUNG UNDER A VALUED CAPTION IS ITS SECOND LINE — see
+        # `_hung_tail_of_the_row_above`: "支付其他与经营活动有关现" over "金", which otherwise took the
+        # next caption ("金经营活动现金流出小计").
+        if (on_face and not pending and out and label_words and note_ref is None
+                and _hung_tail_of_the_row_above(out[-1], label_words,
+                                                rows[idx + 1] if idx + 1 < len(rows) else None,
+                                                fmt, steps, known)):
+            prev_labels = _scan_row(out[-1], fmt)[0]
+            consumed = {id(w) for w in prev_labels}
+            rest = [w for w in out[-1] if id(w) not in consumed]
+            out[-1] = prev_labels + label_words + rest
+            continue
         # A TAIL BETWEEN TWO TOP-ALIGNED ROWS OF A NOTE. A CAS note whose captions wrap in a narrow
         # cell sets each row's figures beside its caption's FIRST line, so the second line stands
         # alone between two valued rows — 600990's 坏账准备的情况 prints 按单项计提坏 / 账准备 /
@@ -2103,6 +2130,11 @@ def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
                                  or _heads_a_qualifier_block(label_words,
                                                              _scan_row(nxt, fmt)[0])))
         )
+        # …AND A BLANK CAPTION WHOSE SECOND LINE HANGS LEFT OF IT is one caption, whether or not a
+        # figure follows within reach — see `_blank_head_hung_over`.
+        if (not is_wrap and on_face and label_words and note_ref is None
+                and _blank_head_hung_over(label_words, rows, idx, fmt, steps, known)):
+            is_wrap = True
         if is_wrap:
             pending = pending + row
         else:
@@ -2111,6 +2143,142 @@ def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
     if pending:                                          # trailing label-only text, no value
         out.append(pending)
     return out
+
+
+# ── A MAINLAND FACE WRAPS ITS CAPTIONS TO THE LEFT ────────────────────────────────────────────
+#
+# A CAS statement indents each caption by its level (收到其他与投资活动有关的现金 under its banner,
+# 以摊余成本计量的金融资产终止确认收益 under 其中：) and sets every caption's SECOND line back at the
+# caption column's left edge — a hanging indent the other way round from an English one:
+#
+#     处置子公司及其他营业单位                       ← first line, indented (x 0.169)
+#   收到的现金净额                                   ← its second line, at the edge (x 0.151)
+#     收到其他与投资活动有关的                       ← the NEXT caption, indented again
+#   现金
+#       投资活动现金流入小计      9,174,713.00
+#
+# The merge judged a wrap by left alignment within 0.06 and by whether the caption reached a figure
+# in three lines, and neither is the layout's own rule: a blank two-line caption above a blank
+# two-line caption reaches no figure, so its head was dropped and its tail folded onward —
+# 600990 and 000685 published "收到的现金净额收到其他与投资活动有关的现金投资活动现金流入小计"
+# holding the subtotal's figures; 688411's parent statement put 净敞口套期收益's figures under
+# "融资产终止确认收益净敞口套期收益" and swept them into other operating expenses; 000685 dropped the
+# head 以摊余成本计量 (0.124 left of its tail, past the 0.06) and the page number took its place.
+#
+# The rule, read by POSITION: a line set LEFT of the line above it (by more than a character's
+# slack and less than a few indent steps) continues it; a line set RIGHT of a continuation line
+# starts a caption of its own. Han captions only — a bilingual HKFRS face (1966) wraps to the RIGHT,
+# "Changes in fair value of investment 投資物業公允值變動" over "properties, net 淨額" — and never a
+# known caption, an enumerated line or a banner, which say for themselves where a line starts.
+_HANG_MIN = 0.008
+_HANG_MAX = 0.15
+
+
+def _han_line(words: list[Word]) -> bool:
+    """A caption line in Han script alone — the layout `_HANG_MIN` describes."""
+    # No Latin and no ASCII digits: a face caption's own lines are words, and a line carrying
+    # "年03 009、" is a table's cell text on a page read as a face (000685's related-party pages).
+    text = _join_words(words)
+    return bool(_HAN.search(text)) and not _LATIN.search(text) and not re.search(r"[0-9]", text)
+
+
+def _last_line(words: list[Word]) -> list[Word]:
+    """The bottom printed line of a (possibly wrapped) caption's words."""
+    if not words:
+        return []
+    bottom = max(w.bbox.y0 for w in words)
+    height = max(w.bbox.y1 - w.bbox.y0 for w in words)
+    return [w for w in words if w.bbox.y0 >= bottom - 0.5 * height]
+
+
+def _hangs_left_of(above: list[Word], below: list[Word]) -> bool:
+    """Whether ``below`` is set as the hanging continuation of ``above``: the next printed line,
+    starting left of it by a hanging indent, both in Han script."""
+    if not above or not below or not (_han_line(above) and _han_line(below)):
+        return False
+    dx = min(w.bbox.x0 for w in above) - min(w.bbox.x0 for w in below)
+    return _HANG_MIN < dx <= _HANG_MAX and _tight_below(_row_box(above), _row_box(below))
+
+
+def _indented_past_the_pending_line(pending: list[Word], label_words: list[Word]) -> bool:
+    """Whether this line starts a new caption because it is set RIGHT of the pending caption's
+    last line — see `_HANG_MIN`. Measured over the eleven mainland filings' faces before this rule:
+    every Han line the merge had joined onto a Han line set left of it was the next caption or a
+    column-header fragment of an equity statement, never the same caption's continuation."""
+    last = _last_line(pending)
+    if not last or not label_words or not (_han_line(last) and _han_line(label_words)):
+        return False
+    dx = min(w.bbox.x0 for w in label_words) - min(w.bbox.x0 for w in last)
+    return _HANG_MIN < dx <= _HANG_MAX
+
+
+def _starts_by_itself(label_words: list[Word], steps, known) -> bool:
+    """A line that says for itself it starts a line of the statement."""
+    # A COLUMN HEADER is no caption's head: "项目 本期发生额 上期发生额" over a cash-flow note's
+    # first row, on a page read as a face.
+    if any(w.text.strip() in ("项目", "項目") or _opens_with_period(w.text) for w in label_words):
+        return True
+    return (_is_known_caption(label_words, steps, known) or _opens_its_own_line(label_words)
+            or _is_enumerated_other(label_words) or _looks_like_header(label_words, steps)
+            or _any_banner_line(label_words, steps) or _is_note_column_header(label_words, steps))
+
+
+def _blank_head_hung_over(row_label: list[Word], rows: list[list[Word]], idx: int,
+                          fmt, steps, known) -> bool:
+    """Whether a figure-less caption line at ``idx`` and the line(s) hung under it are ONE caption:
+    the next line hangs left of it, and the caption ends where a line is set back to the right, a
+    line carries figures, or nothing more is printed — at most three continuation lines."""
+    if idx + 1 >= len(rows):
+        return False
+    nxt_label, nxt_note, nxt_values = _scan_row(rows[idx + 1], fmt)
+    if nxt_note is not None or not _hangs_left_of(row_label, nxt_label):
+        return False
+    # A lone character is no caption's first line: an equity statement's column header prints
+    # 其 / 他 one character a line.
+    if len(_join_words(row_label).strip()) < 2:
+        return False
+    if _starts_by_itself(row_label, steps, known) or _starts_by_itself(nxt_label, steps, known):
+        return False
+    if nxt_values:
+        return True
+    edge = min(w.bbox.x0 for w in nxt_label)
+    above = nxt_label
+    for j in range(idx + 2, min(idx + 5, len(rows))):
+        label, _note, values = _scan_row(rows[j], fmt)
+        if not label:
+            return True
+        x0 = min(w.bbox.x0 for w in label)
+        if x0 - edge > _HANG_MIN:
+            return True
+        if abs(x0 - edge) > _HANG_MIN or not _tight_below(_row_box(above), _row_box(label)):
+            return False
+        if values:
+            return True
+        above = label
+    return idx + 2 >= len(rows)
+
+
+def _hung_tail_of_the_row_above(prev: list[Word], label_words: list[Word],
+                                after: list[Word] | None, fmt, steps, known) -> bool:
+    """Whether a figure-less line is the hanging second line of the valued caption above it —
+    "支付其他与经营活动有关现 89,365,652.61" over "金", the next caption indented again."""
+    prev_label, _pn, prev_values = _scan_row(prev, fmt)
+    if not (prev_label and prev_values):
+        return False
+    head = _last_line(prev_label)
+    if len(head) != len(prev_label):
+        return False                              # the caption above already wrapped
+    if not _hangs_left_of(head, label_words) or len(_join_words(label_words)) > 16:
+        return False
+    if _starts_by_itself(label_words, steps, known) or _is_known_caption(prev_label, steps, known):
+        return False
+    if after is None:
+        return True
+    after_label, _an, after_values = _scan_row(after, fmt)
+    if not after_label and after_values:
+        return False          # figures set under this line: it is the head of a straddled caption
+    return not after_label or (min(w.bbox.x0 for w in after_label)
+                               - min(w.bbox.x0 for w in label_words) > _HANG_MIN)
 
 
 def _tail_between_top_aligned_rows(prev: list[Word], row: list[Word], label_words: list[Word],
@@ -3981,6 +4149,13 @@ _PRC_PERIOD_CAPTIONS: tuple[tuple[str, int], ...] = (
 _MEASURE_CAPTIONS: tuple[tuple[str, str], ...] = (
     ("账面余额", ""), ("賬面餘額", ""), ("帳面餘額", ""),
     ("坏账准备", "allowance"), ("壞賬準備", "allowance"), ("壞帳準備", "allowance"),
+    # THE PROVISION AN INVENTORY OR ASSET TABLE PRINTS IN THE SAME PLACE: 存货跌价准备 (wrapped
+    # "存货跌价准备 / 或合同履约成 / 本减值准备"), 在建工程's and 长期股权投资's 减值准备. Unread, a
+    # 期末余额 | 期初余额 table over 账面余额 | 跌价准备 | 账面价值 kept its positional reading — this
+    # year's provision in `prior` and last year's gross in `col3` — and a lone 期初余额 table (000709
+    # 七、7, printed under （续）) published the opening gross as `current`.
+    ("跌价准备", "impairment"), ("跌價準備", "impairment"),
+    ("减值准备", "impairment"), ("減值準備", "impairment"),
     # THE NET CARRYING AMOUNT, and NOT the primary. 账面余额 keeps the bare period label even
     # when this column is printed beside it, because a part that reads the primary and deducts
     # 坏账准备 from it (`sub__rp_find_3`, `sub__cp_other_receivables_gross`) would otherwise
@@ -4150,10 +4325,17 @@ def _measure_band(region: list[list[Word]], after: int, value_bands: list[float]
     Only the next two printed rows are considered: the measure band is the second line of one
     printed header block, and looking further down reaches the note's own first data row.
     """
+    # THE BAND MAY WRAP OVER BOTH LINES: an inventory note prints 账面余额 | 存货跌价准备… | 账面价值
+    # with the provision's caption a line ABOVE the other two ("项目 存货跌价准备 存货跌价准备" over
+    # "账面余额 或合同履约成 账面价值 …"). A line that names only a PROVISION is therefore read
+    # together with the next one; a line naming any other measure is the band, as it always was.
+    # …AND A PROVISION NAMES ONLY A COLUMN NO OTHER MEASURE CLAIMS. A table whose 减值准备 column is
+    # empty throughout has no figures under it, so its caption stands between the 账面余额 and
+    # 账面价值 bands and must not take either (300257 七、22 在建工程情况).
+    found: dict[int, tuple[str, str]] = {}
     for row in region[after + 1:after + 3]:
         if _carries_amounts(row, fmt):
             continue
-        found: dict[int, tuple[str, str]] = {}
         # MEASURED AGAINST THE COLUMN PITCH, not a fixed fraction of the page. A band is a median
         # x-CENTRE of right-aligned figures while a caption is set over the column's own width, so
         # the offset between the two scales with how wide the columns are. On 000709 note 6(2) the
@@ -4163,6 +4345,7 @@ def _measure_band(region: list[list[Word]], after: int, value_bands: list[float]
         # positional reading. Two fifths of the pitch keeps the reason the bound exists: a caption
         # HALFWAY to the next column still names neither. Never tighter than the 0.06 it replaces.
         tol = max(0.06, 0.4 * _pitch(sorted(value_bands)))
+        named: list[tuple[int, str, str]] = []
         for run in _x_runs(row, _CAPTION_GAP):
             xc = sum(_xc(w) for w in run) / len(run)
             if not _over_value_columns(xc, area):
@@ -4172,11 +4355,15 @@ def _measure_band(region: list[list[Word]], after: int, value_bands: list[float]
             if slug is None:
                 continue
             col = _nearest_col(xc, value_bands)
-            if col is not None and abs(value_bands[col] - xc) <= tol and col not in found:
-                found[col] = (text, slug)
-        if found:
+            if col is not None and abs(value_bands[col] - xc) <= tol:
+                named.append((col, text, slug))
+        for provision in (False, True):
+            for col, text, slug in named:
+                if (slug == "impairment") == provision and col not in found:
+                    found[col] = (text, slug)
+        if any(slug != "impairment" for _t, slug in found.values()):
             return found
-    return None
+    return found or None
 
 
 def _period_measure_grid(rows: list[list[Word]], value_bands: list[float],
@@ -4435,9 +4622,13 @@ def _declared_value_columns(rows: list[list[Word]], fmt=None) -> list[float]:
         for below in region[idx + 1:idx + 3]:
             if _carries_amounts(below, fmt):
                 break
+            # A PROVISION'S CAPTION DECLARES NO COLUMN OF ITS OWN: printed over a column that is
+            # empty throughout (300257 七、22's 减值准备), it would make the page six columns wide
+            # where its figures and the next page's show four, and the continuation page could not
+            # take the grid. Where the provision has figures, the figures show its column.
             measures = sorted(sum(_xc(w) for w in run) / len(run)
                               for run in _x_runs(below, _CAPTION_GAP)
-                              if _measure_slug(_caption_text(run)) is not None)
+                              if _measure_slug(_caption_text(run)) not in (None, "impairment"))
             if measures:
                 return measures if len(measures) >= 2 else []
         return sorted(x for x, _ in periods) if len(periods) == 2 else []
@@ -6693,7 +6884,13 @@ def _breakdown_parent(open_breakdowns: list[_Breakdown], label_words: list[Word]
     """
     if not label_words:
         return None
-    x0 = min(w.bbox.x0 for w in label_words)
+    # WHERE THE CAPTION STARTS IS ITS FIRST LINE. A wrapped caption's later lines are set back at
+    # the margin (see `_HANG_MIN`), so the edge of the whole caption is the margin: once 600990's
+    # 以摊余成本计量的金融 / 资产终止确认收益 was read as one caption, its edge was the tail's and it
+    # left the breakdown it is printed in, and its -1,300,261.11 was swept a second time.
+    top = min(w.bbox.y0 for w in label_words)
+    height = max(w.bbox.y1 - w.bbox.y0 for w in label_words)
+    x0 = min(w.bbox.x0 for w in label_words if w.bbox.y0 <= top + 0.5 * height)
     # A line set outboard of the innermost breakdown's captions has left that breakdown — if it
     # prints a figure. A FIGURE-LESS LINE CLOSES NOTHING: it becomes no row, and on a face it is
     # most often the wrapped tail of the caption above, which a filing sets back at the margin.

@@ -492,6 +492,27 @@ _TABLE_NAME = re.compile(r"(?:情况表|情況表|作为(?:出租方|承租方|�
 _REVENUE_BREAKDOWN_HEADER = re.compile(r"^(?:合同分类|合同分類|分部\s*[0-9一二三四五]+)$")
 
 
+# THE LINE A MAINLAND NOTE PRINTS BETWEEN ITS CLOSING-BALANCE TABLE AND THE OPENING ONE. 河钢股份
+# 000709 prints 七、3 （1）以摊余成本计量的应收账款 as two tables, one under the other:
+#
+#     期末余额                                  （续）
+#     项目 | 账面余额 | 坏账准备 | 账面价值        期初余额
+#     应收账款 2,689,546,185.47 …               项目 | 账面余额 | 坏账准备 | 账面价值
+#     合计 …                                     应收账款 2,595,130,766.28 …
+#
+# Read as one section, the second table's own header was never read — a section is read with ONE
+# header — and its rows took the first one's: the opening gross 2,595,130,766.28 went out as a
+# second `current` 应收账款 under the heading 期末余额, so nothing could cite it as the prior year.
+# The marker opens a new section of the same note, which is read under the header printed below it.
+_CONTINUED_MARK = re.compile(r"^[（(]\s*(?:续|續)\s*[)）]$")
+
+
+def _continuation_mark(row: list[Word]) -> bool:
+    """Whether this line is nothing but the （续） a continued table is printed under."""
+    text = "".join(w.text for w in sorted(row, key=lambda w: w.bbox.x0)).strip()
+    return bool(_CONTINUED_MARK.match(text))
+
+
 def _opens_a_sub_table(row: list[Word]) -> bool:
     """Whether this figure-less row is the column header of a NEW table inside the open note.
 
@@ -1601,6 +1622,15 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
         elif current is not None:
             if current is carried and carried not in sections:
                 sections.append(carried)
+            if (_continuation_mark(row)
+                    and any(_carries_amounts(r) for r in _rows_since(rows, i, current))):
+                # THE SAME NOTE'S CONTINUED TABLE — see `_CONTINUED_MARK`. The marker itself is no
+                # row of either table and is left out of both.
+                current = {k: v for k, v in current.items() if k != "words"}
+                current["words"] = []
+                sections.append(current)
+                i += 1
+                continue
             if (_opens_a_sub_table(row) and i > 0
                     and any(_carries_amounts(r) for r in _rows_since(rows, i, current))):
                 # A SECOND TABLE OF THE SAME NOTE, under its own column header — see
