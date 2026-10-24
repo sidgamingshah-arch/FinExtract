@@ -1784,6 +1784,9 @@ def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
             # `cf_financing__net_foreign_exchange_difference` all four of its slots on 300319.
             # Asking the row that HAS the figures keeps both: the fragment still reaches a caption
             # that needs it, and a caption that does not need it no longer takes it.
+            # When the row beneath is NOT enumerated (归属于少数股东的其他综合收益的税后净额 under
+            # 7.其他), this cannot fire; a face then recognises the catch-all itself — see
+            # `_is_enumerated_other`.
             if pending and _opens_its_own_line(label_words):
                 out.append(pending)
                 pending = []
@@ -1793,7 +1796,8 @@ def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
             # complete once its two halves are joined, and was then folded onto the next row:
             # "处置子公司及其他营业单位收到的现金净额收到其他与投资活动有关的现金".
             if (pending and label_words
-                    and _is_known_caption(_scan_row(pending, fmt)[0], steps, known)):
+                    and (_is_known_caption(_scan_row(pending, fmt)[0], steps, known)
+                         or (on_face and _is_enumerated_other(_scan_row(pending, fmt)[0])))):
                 out.append(pending)
                 pending = []
             # A BRACKETED NOTE REFERENCE PRINTED AS THE LAST LINE of a caption that is already
@@ -1937,7 +1941,8 @@ def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
         # …and the same on a label-only line: a pending caption that is complete does not take the
         # next caption's first line as its continuation.
         if (pending and label_words
-                and _is_known_caption(_scan_row(pending, fmt)[0], steps, known)):
+                and (_is_known_caption(_scan_row(pending, fmt)[0], steps, known)
+                     or (on_face and _is_enumerated_other(_scan_row(pending, fmt)[0])))):
             out.append(pending)
             pending = []
         # Label-only (or note-only) line: candidate wrapped-label continuation.
@@ -1948,6 +1953,8 @@ def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
             and note_ref is None
             # A COMPLETE CAPTION IS A LINE ITEM, not the head of a wrap — see ``known``.
             and not _is_known_caption(label_words, steps, known)
+            # …and on a face, an enumerated 其他 is one too — see `_is_enumerated_other`.
+            and not (on_face and _is_enumerated_other(label_words))
             # An ALL-CAPS banner is not a continuation — unless grammar shows the caption
             # actually wraps into the next line (see `_is_wrapped_head`).
             # `_looks_like_header` accepts only ALL-CAPS or a trailing colon, so a filing that
@@ -2152,6 +2159,27 @@ _CAS_FACE_CAPTIONS: frozenset[str] = frozenset(normalize_label(_c) for _c in {
     "代理买卖证券收到的现金净额", "客户贷款及垫款净增加额", "存放中央银行和同业款项净增加额",
     "支付原保险合同赔付款项的现金", "拆出资金净增加额", "支付利息、手续费及佣金的现金",
     "支付保单红利的现金",
+    # …AND THE FINANCIAL-ENTERPRISE LINES OF THE BALANCE SHEET AND THE INCOME STATEMENT, which the
+    # combined general/financial layout prints blank on a general enterprise in exactly the same
+    # way. 四创电子 600990 and 海博思创 688411 print the full combined layout, and not in the list,
+    # runs of them were welded onto the next caption WITH figures:
+    #
+    #   提取保险责任准备金净额保单红利支出分保费用税金及附加   holding 税金及附加's 10,584,581.75
+    #   应收分保合同准备金其他应收款 / 代理承销证券款应付职工薪酬 / 保险合同准备金长期借款
+    #
+    # — and each glued caption bound nothing it named: 税金及附加 was swept into other operating
+    # expenses, 其他应收款 into other current assets, 应付职工薪酬 into other current liabilities,
+    # 长期借款 into other non-current liabilities. Every entry is printed on the face of both.
+    "应收分保合同准备金", "发放贷款和垫款", "卖出回购金融资产款", "吸收存款及同业存放",
+    "代理买卖证券款", "代理承销证券款", "应付手续费及佣金", "应付分保账款", "保险合同准备金",
+    "已赚保费", "手续费及佣金收入", "利息支出", "手续费及佣金支出", "退保金", "赔付支出净额",
+    "提取保险责任准备金净额", "保单红利支出", "分保费用",
+    # THE 2024 DATA-RESOURCE LINES (财会〔2023〕11号): 其中：数据资源 under 存货, 无形资产 and 开发支出,
+    # printed blank by every filer that has none. Matched bare, as `_is_known_caption` strips the
+    # 其中： it carries. Not in the list, 000709, 600990, 688008 and 688411 printed
+    # "其中：数据资源商誉" / "其中：数据资源开发支出" / "其中：数据资源合同资产": goodwill, development
+    # expenditure and contract assets bound to an unclassified row instead of their own lines.
+    "数据资源",
     # THE STATEMENT OF CHANGES IN EQUITY, which the same scan also stopped short of. Its caption
     # column is the narrowest on the face — a dozen value columns share the page — so almost every
     # one of these wraps, and with none of them recognised the forward-fold ate them in runs:
@@ -2167,6 +2195,27 @@ _CAS_FACE_CAPTIONS: frozenset[str] = frozenset(normalize_label(_c) for _c in {
     "盈余公积转增资本", "盈余公积弥补亏损", "设定受益计划变动额结转留存收益",
     "其他综合收益结转留存收益", "本期提取", "本期使用", "本期期末余额",
 })
+
+
+# AN ENUMERATED 其他 IS A WHOLE LINE OF THE STATEMENT. The CAS layout closes each enumerated OCI
+# and equity block with a catch-all — 6.其他 / 7.其他 under 将重分类进损益的其他综合收益, 4．其他 under
+# 利润分配 — printed blank by nearly every filer. "Other" is too generic for `_CAS_FACE_CAPTIONS`
+# (其他 alone heads 其他应收款, 其他收益, 其他综合收益…), and `_opens_its_own_line` catches the
+# glue only when the row beneath it is enumerated too. Under 7.其他 the layout prints
+# 归属于少数股东的其他综合收益的税后净额, which is not, so on 000883, 002273, 300319, 300391 and
+# 301577 the blank catch-all was still welded onto it: "7.其他归属于少数股东的其他综合收益的税后净额"
+# holding the minority share of OCI, bound to an unclassified row.
+#
+# The enumeration AND the bare 其他 together are what make it complete: a numbered caption whose
+# printed line ends exactly at 其他 has no words left to wrap. A face only — inside a note "（三）其他"
+# can title the rows indented beneath it, which `_heads_indented_rows` reads for itself.
+_ENUMERATED_OTHER = re.compile(
+    r"^\s*(?:[一二三四五六七八九十]+\s*、|[(（]\s*[一二三四五六七八九十0-9０-９]+\s*[)）]"
+    r"|[0-9０-９]+\s*[.．、])\s*其他\s*$")
+
+
+def _is_enumerated_other(label_words: list[Word]) -> bool:
+    return bool(label_words) and bool(_ENUMERATED_OTHER.match(_join_words(label_words)))
 
 
 def _is_known_caption(label_words: list[Word], steps: tuple[tuple[str, object], ...],
