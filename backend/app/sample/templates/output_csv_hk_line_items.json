@@ -6873,7 +6873,64 @@
    "inherits": "bs_cl",
    "face_only": false,
    "match_priority": 80,
-   "namespace": "template"
+   "namespace": "template",
+   "cascade": [
+    {
+     "id": "NOTE_SPLIT",
+     "terms_op": "first",
+     "refuse_negative": true,
+     "outranks_printed": false,
+     "terms": [
+      {
+       "ref": "sub__st_borrowings_current_portion_of_ltd",
+       "role": "required",
+       "sign": 1
+      },
+      {
+       "ref": "sub__st_borrowings_excl_current_portion",
+       "role": "required",
+       "sign": 1
+      }
+     ],
+     "note": "THE CURRENT PORTION THE SHORT-TERM BORROWINGS ROW TOOK IN, as the borrowings note splits it (PetroChina note 29: 92,828 / 109,801). The same two REQUIRED rows as ST Bank Loans Payable's NOTE_SPLIT under `first`, so it resolves only where that rung does; its figure is the current-portion row. Not `outranks_printed`: a face row of this line's own stands, and the rung fills only a column the face leaves empty. Not `carved_from_face`: the face row this figure was in is now the bank part alone, so the section adds it here."
+    }
+   ]
+  },
+  {
+   "key": "sub__st_borrowings_current_portion_of_ltd",
+   "label": "Current portion of long-term borrowings inside short-term borrowings (borrowings note)",
+   "in_output": false,
+   "parent": "bs_cl__cpltd_bank",
+   "order": 1,
+   "namespace": "internal",
+   "inherits": "notes",
+   "note_source": {
+    "note_title_any": [],
+    "row_caption_any": [
+     "^\\s*current\\s+portions?\\s+of\\s+long[\\s-]*term\\s+(?:bank\\s+)?(?:borrowings|loans)\\s*$"
+    ],
+    "row_caption_none": [
+     "^\\s*(?:total|subtotal|合计|合計|小计|小計|总计|總計)"
+    ],
+    "prose_any": [],
+    "prose_subject": "",
+    "prose_landed_in": [],
+    "note_terms": [
+     "borrowings",
+     "short-term borrowings",
+     "short term borrowings",
+     "bank borrowings",
+     "bank loans",
+     "interest-bearing borrowings"
+    ],
+    "row_terms": [],
+    "row_terms_none": []
+   },
+   "statement": "notes",
+   "section_scope": [],
+   "definition": "The current portion of long-term borrowings as the borrowings note prints it beside the short-term borrowings it is split from ('Current portion of long-term borrowings'), where the face prints the two together as one short-term borrowings row. Read only together with the note's 'Short-term borrowings excluding current portion of long-term borrowings' row.",
+   "route": "note_tables",
+   "rollup": "sum"
   },
   {
    "key": "bs_cl__entrusted_loan_payables_third_parties_cp",
@@ -7090,7 +7147,64 @@
      "银行贷款",
      "銀行貸款"
     ]
-   }
+   },
+   "cascade": [
+    {
+     "id": "NOTE_SPLIT",
+     "terms_op": "first",
+     "refuse_negative": true,
+     "outranks_printed": true,
+     "terms": [
+      {
+       "ref": "sub__st_borrowings_excl_current_portion",
+       "role": "required",
+       "sign": 1
+      },
+      {
+       "ref": "sub__st_borrowings_current_portion_of_ltd",
+       "role": "required",
+       "sign": 1
+      }
+     ],
+     "note": "THE BANK PART OF A FACE ROW THAT TAKES IN THE CURRENT PORTION, as the borrowings note splits it. PetroChina's face 'Short-term borrowings' 138,783 / 148,780 is note 29's 'Short-term borrowings excluding current portion of long-term borrowings' 45,955 / 38,979 plus 'Current portion of long-term borrowings' 92,828 / 109,801; this line is the first, CPLTD Bank the second. A printed note row, never the face less a part. `first` over two REQUIRED terms: the rung resolves only where the note prints BOTH rows, so this line and CPLTD Bank move together and the section's total does not; its figure is the first term. `outranks_printed`, because the face row states more than this line. Where no note prints the split the face row stands — the fallback, and every CAS 短期借款, which is the line as printed."
+    }
+   ]
+  },
+  {
+   "key": "sub__st_borrowings_excl_current_portion",
+   "label": "Short-term borrowings excluding the current portion of long-term borrowings (borrowings note)",
+   "in_output": false,
+   "parent": "bs_cl__st_bank_loans_payable",
+   "order": 1,
+   "namespace": "internal",
+   "inherits": "notes",
+   "note_source": {
+    "note_title_any": [],
+    "row_caption_any": [
+     "^\\s*short[\\s-]*term\\s+(?:bank\\s+)?(?:borrowings|loans)\\s*[,(]?\\s*(?:excluding|excl\\.?|other\\s+than)\\s+(?:the\\s+)?current\\s+portions?\\s+of\\s+long[\\s-]*term\\s+(?:bank\\s+)?(?:borrowings|loans)\\s*\\)?\\s*$"
+    ],
+    "row_caption_none": [
+     "^\\s*(?:total|subtotal|合计|合計|小计|小計|总计|總計)"
+    ],
+    "prose_any": [],
+    "prose_subject": "",
+    "prose_landed_in": [],
+    "note_terms": [
+     "borrowings",
+     "short-term borrowings",
+     "short term borrowings",
+     "bank borrowings",
+     "bank loans",
+     "interest-bearing borrowings"
+    ],
+    "row_terms": [],
+    "row_terms_none": []
+   },
+   "statement": "notes",
+   "section_scope": [],
+   "definition": "The short-term borrowings the borrowings note prints apart from the current portion of long-term borrowings, in a row such as 'Short-term borrowings excluding current portion of long-term borrowings'. It is read where the face's short-term borrowings row takes in that current portion, and only together with the note's 'Current portion of long-term borrowings' row: the two rows are the face row's split.",
+   "route": "note_tables",
+   "rollup": "sum"
   },
   {
    "key": "bs_cl__ipo_loans_st_bank_loans_pay",

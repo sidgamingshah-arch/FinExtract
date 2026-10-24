@@ -1519,8 +1519,22 @@ def _fill_by_cascade(parent_def, kids: list, by_key: dict, doc: DocumentModel,
             # WHICH WINS — THE PRINTED FIGURE OR THE RESOLVED RUNG. Two conditions, and both are
             # declarations rather than heuristics:
             #
-            #   `type: derived`          the line's figure is assembled at all
-            #   `rung.outranks_printed`  THIS rung reconstructs something the face does not state
+            #   `type: derived` or `extracted`  the line's figure may be a judgement between
+            #                                   disclosures (a `calculated`/`intermediate` line's
+            #                                   never is — see the end of this comment)
+            #   `rung.outranks_printed`         THIS rung reconstructs something the face does not
+            #                                   state
+            #
+            # AN EXTRACTED LINE MAY DECLARE IT TOO, and the case is a face row that prints MORE than
+            # the line. PetroChina's face 'Short-term borrowings' 138,783 binds ST Bank Loans Payable
+            # by its caption, and note 29 splits it: 'Short-term borrowings excluding current portion
+            # of long-term borrowings' 45,955 and 'Current portion of long-term borrowings' 92,828.
+            # The line is the first (its definition says so); a printed figure ordinarily stands
+            # over a cascade, so the note rung decided nothing while the line was extracted. Making
+            # the line `derived` instead would move its aliases to a face part and re-tag every
+            # 短期借款 row the corpus prints — a CAS face row that IS the line. The rung that reads
+            # the split declares `outranks_printed`; the face row stays the line wherever the note
+            # prints no split, which is the fallback.
             #
             # THE SECOND IS THE LOAD-BEARING ONE and it has to be per RUNG, not per line. Measured
             # on the reference filings, one cascade wants each answer:
@@ -1544,7 +1558,7 @@ def _fill_by_cascade(parent_def, kids: list, by_key: dict, doc: DocumentModel,
             # a sum over other lines, not a judgement about which disclosure to believe.
             rung = next((r for r in (getattr(parent_def, "cascade", None) or ())
                          if str(getattr(r, "id", "")) == str(got.rung_used)), None)
-            if (str(getattr(parent_def, "type", "") or "") != "derived"
+            if (str(getattr(parent_def, "type", "") or "") not in ("derived", "extracted")
                     or not getattr(rung, "outranks_printed", False)):
                 parent.confidence.flags.append("note_sourced_differs_from_printed:cascade")
                 ctx.log(f"note_sourced:{parent_def.key}: printed {existing.value} kept over "
@@ -1558,7 +1572,7 @@ def _fill_by_cascade(parent_def, kids: list, by_key: dict, doc: DocumentModel,
             target_row.confidence.flags.append(f"cascade_over_printed:{displaced}")
             ctx.log(f"note_sourced:{parent_def.key}[{basis}:{period}]: cascade "
                     f"{got.rung_used}={got.value} TAKEN OVER printed {displaced} "
-                    f"({len(held)} row(s)) — a derived line's figure is its cascade's")
+                    f"({len(held)} row(s)) — the rung outranks the printed figure")
             # EVERY OTHER CARRIER STOPS CONTRIBUTING. Writing the rung onto one row and leaving the
             # rest is what produced 1,705,426: `concept_value` sums the carriers, so a figure that
             # is meant to BE the line rather than to join it has to silence the others. The printed
