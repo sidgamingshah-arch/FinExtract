@@ -416,6 +416,17 @@ HK_FACE_SPELLINGS_NOT_CARRIED = {
                                 "income tax credit/(expenses)"},
     "is_pl__minority_interests_pl": {"holders of perpetual capital securities",
                                      "holders of perpetual securities"},
+    # HKEX investing captions, added to the HK set for Hon Kwok and Far East Horizon (r8-cf-b).
+    "cf_investing__purchase_ppe": {
+        "purchases of items of property, plant and equipment",
+        "purchase of items of property, plant and equipment, intangible assets and other "
+        "long-term assets"},
+    "cf_investing__proceeds_sale_ppe": {
+        "proceeds from disposal of property, plant and equipment, intangible assets and other "
+        "long-term assets"},
+    "cf_investing__investment_assoc_and_affiliates": {
+        "purchase of shareholdings for associates", "purchase of shareholdings for joint ventures",
+        "purchase of a shareholding in a joint venture", "advances of loans to a joint venture"},
 }
 
 

@@ -14341,7 +14341,9 @@
     "(Payments for) Purchase of right-of-use assets",
     "(Payments for)Purchase of construction in progress",
     "(Payments for)Purchase of leasehold land",
-    "Purchase of items of property, plant and equipment"
+    "Purchase of items of property, plant and equipment",
+    "Purchases of items of property, plant and equipment",
+    "Purchase of items of property, plant and equipment, intangible assets and other long-term assets"
    ],
    "aliases_i18n": {
     "en": [
@@ -14351,7 +14353,9 @@
      "(Payments for) Purchase of right-of-use assets",
      "(Payments for)Purchase of construction in progress",
      "(Payments for)Purchase of leasehold land",
-     "Purchase of items of property, plant and equipment"
+     "Purchase of items of property, plant and equipment",
+     "Purchases of items of property, plant and equipment",
+     "Purchase of items of property, plant and equipment, intangible assets and other long-term assets"
     ],
     "zh": [
      "购建固定资产、无形资产和其他长期资产支付的现金"
@@ -14381,7 +14385,8 @@
     "Proceeds from sale of leased assets",
     "Gain/Loss/Payment from disposal of leased assets",
     "Proceeds from disposal of items of property, plant and equipment",
-    "Proceeds from disposal of right-of-use assets"
+    "Proceeds from disposal of right-of-use assets",
+    "Proceeds from disposal of property, plant and equipment, intangible assets and other long-term assets"
    ],
    "aliases_i18n": {
     "en": [
@@ -14395,7 +14400,8 @@
      "Proceeds from sale of leased assets",
      "Gain/Loss/Payment from disposal of leased assets",
      "Proceeds from disposal of items of property, plant and equipment",
-     "Proceeds from disposal of right-of-use assets"
+     "Proceeds from disposal of right-of-use assets",
+     "Proceeds from disposal of property, plant and equipment, intangible assets and other long-term assets"
     ],
     "zh": [
      "出售物业、厂房及设备所得款项",
@@ -14628,7 +14634,11 @@
     "Investment in joint ventures",
     "Acquisition of an associate",
     "Advances to associates",
-    "Advances to joint ventures"
+    "Advances to joint ventures",
+    "Purchase of shareholdings for associates",
+    "Purchase of shareholdings for joint ventures",
+    "Purchase of a shareholding in a joint venture",
+    "Advances of loans to a joint venture"
    ],
    "aliases_i18n": {
     "en": [
@@ -14639,7 +14649,11 @@
      "Investment in joint ventures",
      "Acquisition of an associate",
      "Advances to associates",
-     "Advances to joint ventures"
+     "Advances to joint ventures",
+     "Purchase of shareholdings for associates",
+     "Purchase of shareholdings for joint ventures",
+     "Purchase of a shareholding in a joint venture",
+     "Advances of loans to a joint venture"
     ]
    },
    "keyword_hints": [

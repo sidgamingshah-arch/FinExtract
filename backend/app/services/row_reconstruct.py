@@ -43,6 +43,7 @@ from app.services.line_item_config import SEED as _LINE_ITEM_SEED
 # The section vocabulary is a property of how statements are PRINTED, not of any ontology, so
 # reading a banner here uses the same function mapping does rather than a second copy of it.
 from app.services.mapping import (
+    HEADING_ROW_SECTIONS,
     normalize_label,
     section_of_banner,
     section_of_banner_only,
@@ -640,9 +641,46 @@ def _is_banner_line(text: str, steps: tuple[tuple[str, object], ...]) -> bool:
     caption whole — a truncated caption maps to whatever its tail resembles, which is worse than a
     missing section.
     """
+    head = _CONTINUED_MARK.sub("", text).strip()
+    if head and head != text.strip():
+        return _is_continued_banner(head, steps)
     if section_of_banner_only(apply_pipeline(text, steps)) is None:
         return False
     return len(text.split()) >= 2 or bool(_HAN.search(text))
+
+
+def _is_continued_banner(head: str, steps: tuple[tuple[str, object], ...]) -> bool:
+    """Whether a line that ends in a continuation marker is a banner repeated over its section.
+
+    The marker is the evidence the exhaustive test otherwise has to supply: no caption ends in
+    "(continued)", so a marked line that names one of the sections a statement prints as a heading
+    row is that heading, worded however the filing words it — "CASH FLOWS FROM OPERATING ACTIVITIES"
+    is not exhausted by the section vocabulary ("operating activities") and is a banner all the
+    same. A statement's own title continued ("Consolidated statement of changes in equity
+    (continued)") names a statement, not a section of one, and stays what it was.
+    """
+    folded = apply_pipeline(head, steps)
+    if _STATEMENT_TITLE.search(folded):
+        return False
+    if section_of_banner_only(folded) is not None:
+        return True
+    return (section_of_banner(folded) in HEADING_ROW_SECTIONS
+            and (len(head.split()) >= 2 or bool(_HAN.search(head))))
+
+
+_STATEMENT_TITLE = re.compile(r"\bstatements?\b|报表|報表|表$", re.IGNORECASE)
+
+
+# A BANNER REPEATED AT THE TOP OF A CONTINUATION PAGE says so: "CASH FLOWS FROM OPERATING ACTIVITIES
+# (continued)", "(cont'd)", "（續）". The marker names no section and leaves the banner a banner, but
+# the exhaustive test (`section_of_banner_only`) read it as a word the section vocabulary does not
+# cover, so the repeated banner merged into the first caption beneath it was not split off.
+# MEASURED on Lai Sun 2024/25 (answer-free, c2e2daf): 'CASH FLOWS FROM OPERATING ACTIVITIES
+# (continued) Gain on lease modification' left page 191's rows with no section, and 'Interest
+# received' 150,273 / 195,375, printed under "Cash generated from operations", bound to the
+# INVESTING concept — Net cash flows from operating activities published 142,127 against 292,696.
+_CONTINUED_MARK = re.compile(
+    r"\s*[(（]\s*(?:continued|cont(?:'|’)?d\.?|續|续)\s*[)）]\s*$", re.IGNORECASE)
 
 
 def _label_sub_lines(label_words: list[Word]) -> list[list[Word]]:
@@ -1345,6 +1383,30 @@ def _CJK_ONLY(text: str) -> bool:  # noqa: N802 - reads as a predicate at call s
     return bool(_HAN.search(text)) and not re.search(r"[A-Za-z]{2,}", text)
 
 
+def _translates(head_words: list[Word], label_words: list[Word]) -> bool:
+    """Whether a Han-only line is the translation of an English-only caption printed above it:
+    one bilingual caption printed as two lines, the figures on the Chinese line.
+
+    BYD Electronic 2024 prints its cash flow captions that way, page index 89::
+
+        Depreciation of property, plant and equipment
+        物業、廠房及設備折舊                     6   4,875,202   2,787,817
+
+    'Depreciation of property, plant and equipment' is a caption the rulebook knows, and a known
+    caption on a line of its own is a line item with no figures (the CSRC layout's empty lines —
+    see `_merge_wrapped_labels`'s ``known``). So the English was emitted alone and dropped, and the
+    figures were filed under 物業、廠房及設備折舊, which no line's aliases name: the cash flow's
+    Depreciation line missed 4,875,202 / 2,787,817 and they were swept into Other Non-Cash Adjs.
+
+    A CJK-only line under an English-only line is the translation of THAT line, never a caption
+    of its own: a bilingual face gives every caption both scripts. A CSRC face is all Han, so its
+    empty lines are untouched.
+    """
+    head, label = _join_words(head_words), _join_words(label_words)
+    return (bool(re.search(r"[A-Za-z]{2,}", head)) and not _HAN.search(head)
+            and _CJK_ONLY(label))
+
+
 def _is_wrapped_head(head: list[Word], cont: list[Word],
                      steps: tuple[tuple[str, object], ...] = ()) -> bool:
     """Whether an ALL-CAPS label-only line is the first line of a WRAPPED caption.
@@ -1919,11 +1981,16 @@ def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
             # caption that itself WRAPS — 处置子公司及其他营业单位收到的 / 现金净额 on 300319 — is only
             # complete once its two halves are joined, and was then folded onto the next row:
             # "处置子公司及其他营业单位收到的现金净额收到其他与投资活动有关的现金".
+            # …UNLESS THIS ROW IS ITS TRANSLATION. A bilingual HKEX face prints the English caption
+            # on one line and the Chinese beneath it, beside the figures: the pair is ONE caption,
+            # and an English half the vocabulary knows is still only half of it. MEASURED on BYD
+            # Electronic 2024 once 'Purchases of items of property, plant and equipment' became an
+            # alias: the English line was let go as a row of its own and the figures kept only
+            # 購買物業、廠房及設備項目.
             if (pending and label_words
-                    and not (on_face and _translated_on_the_next_line(_scan_row(pending, fmt)[0],
-                                                                      label_words))
                     and (_is_known_caption(_scan_row(pending, fmt)[0], steps, known)
-                         or (on_face and _is_enumerated_other(_scan_row(pending, fmt)[0])))):
+                         or (on_face and _is_enumerated_other(_scan_row(pending, fmt)[0])))
+                    and not _translates(_scan_row(pending, fmt)[0], label_words)):
                 out.append(pending)
                 pending = []
             # A BRACKETED NOTE REFERENCE PRINTED AS THE LAST LINE of a caption that is already
@@ -2090,10 +2157,9 @@ def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
             and label_words
             and note_ref is None
             # A COMPLETE CAPTION IS A LINE ITEM, not the head of a wrap — see ``known`` — unless
-            # the next line is its Chinese translation (`_translated_on_the_next_line`).
+            # the next line is its Chinese translation, printed beside the figures (`_translates`).
             and (not _is_known_caption(label_words, steps, known)
-                 or (on_face and _translated_on_the_next_line(label_words,
-                                                              _scan_row(nxt, fmt)[0])))
+                 or _translates(label_words, _scan_row(nxt, fmt)[0]))
             # …and on a face, an enumerated 其他 is one too — see `_is_enumerated_other`.
             and not (on_face and _is_enumerated_other(label_words))
             # An ALL-CAPS banner is not a continuation — unless grammar shows the caption
@@ -2620,30 +2686,6 @@ def _wrap_adjacent_by_script(cur_label: list[Word], nxt_label: list[Word]) -> bo
     if not _wrap_adjacent(_row_box(cur_latin), _row_box(nxt_latin), nxt_latin):
         return False
     return _row_box(nxt_han).y0 > _row_box(cur_han).y0
-
-
-def _translated_on_the_next_line(head_label: list[Word], nxt_label: list[Word]) -> bool:
-    """Whether a figure-less ENGLISH line is followed by its Chinese translation, which carries
-    the caption's figures: one bilingual caption printed as two lines.
-
-    BYD Electronic 2024 prints its cash flow captions that way, page index 89::
-
-        Depreciation of property, plant and equipment
-        物業、廠房及設備折舊                     6   4,875,202   2,787,817
-
-    'Depreciation of property, plant and equipment' is a caption the rulebook knows, and a known
-    caption on a line of its own is a line item with no figures (the CSRC layout's empty lines —
-    see `_merge_wrapped_labels`'s ``known``). So the English was emitted alone and dropped, and the
-    figures were filed under 物業、廠房及設備折舊, which no line's aliases name: the cash flow's
-    Depreciation line missed 4,875,202 / 2,787,817 and they were swept into Other Non-Cash Adjs.
-
-    A CJK-only line under an English-only line is the translation of THAT line, never a caption
-    of its own: a bilingual face gives every caption both scripts. A CSRC face is all Han, so its
-    empty lines are untouched.
-    """
-    head = _join_words(head_label)
-    return (bool(head) and not _HAN.search(head) and bool(re.search(r"[A-Za-z]{2,}", head))
-            and bool(nxt_label) and _CJK_ONLY(_join_words(nxt_label)))
 
 
 def _heads_indented_rows(head: list[Word], nxt_label: list[Word], *,
@@ -7996,6 +8038,14 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
             caption = apply_pipeline(label, steps)
             heading = _looks_like_header(label_words, steps) or id(row) in face_sections
             banner = section_of_banner_only(caption)
+            if banner is None:
+                # A BANNER REPEATED OVER A CONTINUATION PAGE — see `_CONTINUED_MARK`. Its marker is
+                # in lower case, so the ALL-CAPS test misses it too, and the page's rows were read
+                # under no section at all.
+                continued = _CONTINUED_MARK.sub("", label).strip()
+                if continued and continued != label.strip() \
+                        and _is_continued_banner(continued, steps):
+                    banner = section_of_banner(apply_pipeline(continued, steps))
             if banner is None and _ends_with_colon(label, steps):
                 # A TRAILING COLON IS THE GEOMETRY EXHAUSTION STANDS IN FOR. ``section_of_banner``
                 # matches a section phrase anywhere in the text, which its own docstring calls

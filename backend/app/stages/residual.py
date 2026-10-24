@@ -82,9 +82,10 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 
 from app.core.models import DocumentModel
-from app.core.models.enums import LineRole
+from app.core.models.enums import LineRole, PrintedIn
 from app.core.models.line_item import ExtractedValue, LineItem
 from app.core.stage import PipelineContext
+from app.services.caption_shape import prose_reasons
 from app.services.statement_sets import SET_NOT_READ_FLAG
 from app.services.han import to_simplified
 from app.services.mapping import (
@@ -343,11 +344,54 @@ def _label(row) -> str:
     return getattr(row, "source_label", None) or getattr(row, "raw_label", "") or ""
 
 
-def _is_narrative(label: str) -> bool:
-    words = [w for w in re.split(r"\s+", label.strip()) if w]
+# A STATEMENT'S OWN COLUMNS are its period columns: a figure the reader placed under "current" or
+# "prior". A figure it could only key positionally ("current_col1", "prior_col0") sits where no
+# period heading is, which is where a signature block's membership numbers and a footnote's inline
+# amounts land.
+_STATEMENT_COLUMNS = frozenset({"current", "prior"})
+
+
+def _in_statement_columns(row) -> bool:
+    """Whether a FACE row carries its figures in the statement's own period columns, and only there."""
+    if getattr(row, "printed_in", None) is not PrintedIn.FACE:
+        return False
+    values = getattr(row, "values", None) or {}
+    labels = {getattr(ev, "period_label", None) for ev in values.values()
+              if getattr(ev, "value", None) is not None}
+    return bool(labels) and labels <= _STATEMENT_COLUMNS
+
+
+def _is_narrative_row(row) -> bool:
+    """The eligibility list's "narrative row": prose that arrived as a row because it carried a figure.
+
+    A ROW THAT CARRIES FIGURES IN THE STATEMENT'S OWN COLUMNS IS A ROW, WHATEVER ITS LENGTH. The
+    word count was a proxy for prose, and on an HKFRS cash flow statement it is a poor one: a
+    fair-value line names its instrument in full ("Fair value losses on financial assets at fair
+    value through profit or loss", 13 words) and a property developer's working-capital line names
+    both stocks it moves. MEASURED at c2e2daf, answer-free: Hon Kwok 2023/24 refused 'Decrease in
+    properties held for sale under development and completed properties held for sale' 112,169 and
+    'Fair value losses on financial assets at fair value through profit or loss' 488, so Net cash
+    flows from operating activities published -25,663 against a printed 86,994; Far East Horizon
+    2024 refused four operating rows (CFO 10,271,969 against 9,965,983) and three investing rows,
+    'Purchase of items of property, plant and equipment, intangible assets and other long-term
+    assets' (8,411,868) among them; Lai Sun 2024/25 three operating and two investing rows.
+
+    So for such a row the length proves nothing, and prose is told by what makes a sentence — a
+    finite verb, a cross-reference, a caption past any real caption's length
+    (`caption_shape.prose_reasons`) — and by the phrase list, which applies to every row. A Han
+    caption keeps its character budget: a mainland face prints no 31-character caption, and a run
+    that long is captions the reader merged (688008: three investing captions on one row).
+    """
+    label = _label(row)
+    if _NARRATIVE.search(label):
+        return True
     han = len(re.findall(r"[㐀-鿿]", label))
-    return (len(words) > _MAX_CAPTION_WORDS or han > _MAX_CAPTION_HAN
-            or bool(_NARRATIVE.search(label)))
+    if han > _MAX_CAPTION_HAN:
+        return True
+    words = [w for w in re.split(r"\s+", label.strip()) if w]
+    if len(words) <= _MAX_CAPTION_WORDS:
+        return False
+    return not (_in_statement_columns(row) and not prose_reasons(label))
 
 
 # Phrase in the framework's eligibility list -> the test it switches on. The row is the argument;
@@ -371,7 +415,7 @@ _EXCLUSIONS: tuple[tuple[str, object], ...] = (
     ("section header", lambda row: row.role in (LineRole.HEADER, LineRole.SPACER)),
     (_ATTRIBUTION_PHRASE, lambda row: bool(_ATTRIBUTION.search(_label(row)))),
     (_PER_SHARE_PHRASE, lambda row: bool(_PER_SHARE.search(_label(row)))),
-    ("narrative row", lambda row: _is_narrative(_label(row))),
+    ("narrative row", _is_narrative_row),
     ("note-reference-only row", lambda row: bool(_NOTE_REF_ONLY.match(_label(row)))),
     (_OF_WHICH_PHRASE, lambda row: bool(_OF_WHICH.match(_label(row)))),
     ("sub-enumerated component", lambda row: bool(_CAS_SUB_ENUMERATED.match(_label(row)))),
@@ -420,6 +464,11 @@ _SIGN_AGREES = "sign agrees with the section"
 # The income statement keeps its own list on Other Operating Expenses, whose margins ("Gross
 # profit", "Operating profit") are shaped like components and need the concept's own judgement.
 _TOTAL_CAPTION_STATEMENTS = frozenset({"balance_sheet", "cash_flow"})
+# The closing cash of a cash flow statement, by its caption — see where `closing` is built.
+_CLOSING_CASH = re.compile(
+    r"cash\s+and\s+cash\s+equivalents\s+(?:at|as\s+at)\s+(?:the\s+)?end\s+of\b"
+    r"|^\W*at\s+(?:the\s+)?end\s+of\s+(?:the\s+)?(?:financial\s+)?(?:year|period)\b",
+    re.IGNORECASE)
 # The statements whose closing total cuts only the rows printed under it (see `_below_closing_total`).
 _CLOSES_ON_ITS_OWN_PRINTING = frozenset({"cash_flow"})
 _TOTAL_CAPTION = re.compile(
@@ -1209,6 +1258,20 @@ class ResidualStage:
             if li.canonical_key in statement_totals:
                 stmt = statement_of(li) or ""
                 closing[stmt] = max(closing.get(stmt, li.ordinal), li.ordinal)
+        # A CASH FLOW STATEMENT WHOSE CLOSING CASH BOUND NOTHING still closes on it: the caption
+        # says what it is ("AT END OF YEAR", "Cash and cash equivalents at end of year"). Only when
+        # no statement total closed it — a bound one is the statement's own word on where it ends.
+        # MEASURED on China SCE 2024 (answer-free): 'AT END OF YEAR' 3,932,025 binds nothing, and
+        # once a long row in the statement's columns is a row whatever its length, the
+        # reconciliation printed beneath it — 'Less: Non-pledged time deposits with original
+        # maturity over three months when acquired' (952,500) — was swept into Other financing
+        # cash flows, which a closed statement does not allow.
+        if "cash_flow" not in closing:
+            ends = [li.ordinal for li in doc.line_items
+                    if (statement_of(li) or "") == "cash_flow" and _has_value(li)
+                    and _CLOSING_CASH.search(_label(li))]
+            if ends:
+                closing["cash_flow"] = min(ends)
         # A STATEMENT TOTAL IS NOT ALWAYS THE LAST LINE. An HKFRS statement of financial position
         # prints "Total assets" after the assets and only then the liabilities, the net-assets line
         # and the equity (BYD Electronic 2024: 'Total assets 資產總值', then current liabilities).
