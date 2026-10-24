@@ -581,7 +581,11 @@ def _signs_established(rel: "Relation", section_of: dict[str, str],
     """
     if one_signed is None or rel.statement in _SIGNS_NEVER_IN_DOUBT:
         return True
-    sections = {section_of.get(k, "") for k in (rel.target, *rel.components)}
+    # A STATEMENT'S OWN TOTALS (`*_top_level`) are no section's costs: the cash at the end of the
+    # year is the roll-forward's result, not a figure a filing prints unsigned or in parentheses by
+    # choice. Its relation is established by the sections its components sit in.
+    sections = {s for s in (section_of.get(k, "") for k in (rel.target, *rel.components))
+                if not s.endswith("top_level")}
     if sections and sections <= one_signed:
         return True
     return _signed_by_convention(rel, costs)

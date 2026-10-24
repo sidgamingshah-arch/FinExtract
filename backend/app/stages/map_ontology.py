@@ -1265,6 +1265,62 @@ class MapOntologyStage:
         return out
 
     @staticmethod
+    def _printed_beside(parent, children: list, rows: list, tol: Decimal) -> str | None:
+        """The caption of a face row proving the aggregate and its components are SIBLINGS, or None.
+
+        A containment declaration says the aggregate HOLDS its components ("Reserves" is every
+        reserve, retained profits included), and that is how a Hong Kong face prints it: one
+        undifferentiated 'Reserves 儲備' line, broken down in the statement of changes in equity.
+        A face can also print the aggregate's caption BESIDE a component, and then it holds the
+        rest and not that one. MEASURED ON PETROCHINA 2024 (IFRS, RMB million): Share capital
+        183,021, Retained earnings 987,271, Reserves 344,840 and then TOTAL EQUITY ATTRIBUTABLE TO
+        OWNERS OF THE COMPANY 1,515,132 — the three added together. Unfiling 'Reserves' because
+        Retained Profits was printed took 344,840 / 348,365 out of Total Equity & Reserves
+        (1,364,783 published against a printed 1,709,623).
+
+        The proof is the filing's own arithmetic, the support ``parent_child_allocation`` asks for:
+        a later row on the SAME page whose figure, in every column the aggregate prints, is the sum
+        of one unbroken run of the rows above it that includes the aggregate AND every component
+        printed on that page. A contained component cannot pass — counted beside the aggregate that
+        already holds it, it is counted twice and the run overshoots the printed total. Components
+        printed on another page (the statement of changes in equity) are never siblings.
+        """
+        page = _page_of(parent)
+        if page is None:
+            return None
+        bases = _bases_of(parent)
+        kids = [c for c in children if _bases_of(c) & bases]
+        if not kids or any(_page_of(c) != page for c in kids):
+            return None
+        cols = [(ev.basis, ev.period_label) for ev in parent.values.values()
+                if ev.value is not None and ev.basis in bases]
+        if not cols:
+            return None
+
+        def figure(li, col):
+            return next((ev.value for ev in li.values.values()
+                         if (ev.basis, ev.period_label) == col and ev.value is not None), None)
+
+        on_page = sorted((r for r in rows if _page_of(r) == page and _bases_of(r) & bases),
+                         key=lambda r: r.ordinal)
+        idx = {id(r): i for i, r in enumerate(on_page)}
+        members = [idx[id(r)] for r in [parent, *kids] if id(r) in idx]
+        if len(members) != len(kids) + 1:
+            return None
+        first, last = min(members), max(members)
+        for j in range(last + 1, len(on_page)):
+            total = on_page[j]
+            want = [figure(total, c) for c in cols]
+            if any(w is None for w in want):
+                continue
+            for start in range(first, -1, -1):
+                run = [r for r in on_page[start:j] if r.role is LineRole.LINE or r in (parent, *kids)]
+                sums = [sum((figure(r, c) or Decimal(0)) for r in run) for c in cols]
+                if all(abs(s - w) <= tol for s, w in zip(sums, want)):
+                    return str(total.source_label or "")[:60]
+        return None
+
+    @staticmethod
     def _enforce_containment(doc: DocumentModel, ontology, ctx: PipelineContext) -> int:
         """A gross parent may not be FILED alongside the children it contains. Returns rows unfiled.
 
@@ -1346,6 +1402,13 @@ class MapOntologyStage:
                     continue          # an outer containment already unfiled it; do not count twice
                 if not any(printed_on.get(c, set()) & _bases_of(li) for c in present):
                     continue          # this row's entity printed no component of it
+                beside = MapOntologyStage._printed_beside(li, child_rows, doc.line_items, tol)
+                if beside:
+                    li.confidence.flags.append(f"printed_beside_components:{','.join(present)}")
+                    ctx.log(f"map_line_items:containment_refused({why}):{aggregate} "
+                            f"{(li.source_label or '')[:40]!r} is printed beside "
+                            f"{','.join(present)}: {beside!r} adds them both")
+                    continue
                 li.canonical_key = None
                 if li.role is LineRole.LINE:
                     li.role = LineRole.SUBTOTAL

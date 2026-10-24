@@ -4045,7 +4045,8 @@
     "Debtors",
     "Bills Receivables",
     "Notes Receivables",
-    "Account Receivables"
+    "Account Receivables",
+    "Accounts receivable"
    ],
    "aliases_i18n": {
     "en": [
@@ -4054,7 +4055,8 @@
      "Debtors",
      "Bills Receivables",
      "Notes Receivables",
-     "Account Receivables"
+     "Account Receivables",
+     "Accounts receivable"
     ],
     "zh": [
      "应收账款",
@@ -5077,7 +5079,8 @@
     "Earning/Profit for the year",
     "Retained earnings Appropriated",
     "Retained earnings Unappropriated",
-    "Undistributed profits"
+    "Undistributed profits",
+    "Retained earnings"
    ],
    "aliases_i18n": {
     "en": [
@@ -5088,7 +5091,8 @@
      "Earning/Profit for the year",
      "Retained earnings Appropriated",
      "Retained earnings Unappropriated",
-     "Undistributed profits"
+     "Undistributed profits",
+     "Retained earnings"
     ],
     "zh": [
      "保留溢利",
@@ -13100,14 +13104,16 @@
     "Depreciation",
     "Amortization of land use rights",
     "Deperciation and amortization",
-    "Depreciation and Impairment"
+    "Depreciation and Impairment",
+    "Depreciation of property, plant and equipment"
    ],
    "aliases_i18n": {
     "en": [
      "Depreciation",
      "Amortization of land use rights",
      "Deperciation and amortization",
-     "Depreciation and Impairment"
+     "Depreciation and Impairment",
+     "Depreciation of property, plant and equipment"
     ],
     "zh": [
      "使用权资产的折旧",
@@ -13742,7 +13748,10 @@
     "Hong Kong profits tax paid, net",
     "Chinese Mainland taxes paid, net",
     "Overseas taxes paid, net",
-    "Income tax paid"
+    "Income tax paid",
+    "Income taxes paid",
+    "Hong Kong profits tax paid",
+    "Overseas taxes paid"
    ],
    "aliases_i18n": {
     "en": [
@@ -13750,7 +13759,10 @@
      "Hong Kong profits tax paid, net",
      "Chinese Mainland taxes paid, net",
      "Overseas taxes paid, net",
-     "Income tax paid"
+     "Income tax paid",
+     "Income taxes paid",
+     "Hong Kong profits tax paid",
+     "Overseas taxes paid"
     ]
    },
    "keyword_hints": [
@@ -14900,13 +14912,17 @@
    "aliases": [
     "Cash Flows from Invest Activities",
     "Net cash flows from investing activities",
-    "Net cash flows used in investing activities"
+    "Net cash flows used in investing activities",
+    "Net cash flows used for investing activities",
+    "Net cash used in investing activities"
    ],
    "aliases_i18n": {
     "en": [
      "Cash Flows from Invest Activities",
      "Net cash flows from investing activities",
-     "Net cash flows used in investing activities"
+     "Net cash flows used in investing activities",
+     "Net cash flows used for investing activities",
+     "Net cash used in investing activities"
     ],
     "zh": [
      "投资活动产生的现金流量净额",
@@ -15310,12 +15326,16 @@
    "definition": "Cash paid as dividends, reported in the financing activities section of the cash flow statement. Where the statement prints dividends and interest paid as one row — on a CAS statement '分配股利、利润或偿付利息支付的现金' (cash paid for distributing dividends or profits, or for paying interest) — that combined row is this line's figure, interest included, and it is not split. Otherwise this line is the row the statement prints for dividends paid. An 'of which' row printed under the combined row for dividends paid by subsidiaries to non-controlling shareholders (其中：子公司支付给少数股东的股利、利润) is part of that figure, not this line's.",
    "aliases": [
     "Dividends Paid(Fin)",
-    "Dividends Paid"
+    "Dividends Paid",
+    "Dividends paid to owners of the Company",
+    "Dividend paid"
    ],
    "aliases_i18n": {
     "en": [
      "Dividends Paid(Fin)",
-     "Dividends Paid"
+     "Dividends Paid",
+     "Dividends paid to owners of the Company",
+     "Dividend paid"
     ],
     "zh": [
      "分配股利、利润或偿付利息支付的现金",
@@ -15405,13 +15425,17 @@
    "aliases": [
     "Cash Flows from Finance Activities",
     "Net cash flows from financing activities",
-    "Net cash flows used in financing activities"
+    "Net cash flows used in financing activities",
+    "Net cash flows used for financing activities",
+    "Net cash used in financing activities"
    ],
    "aliases_i18n": {
     "en": [
      "Cash Flows from Finance Activities",
      "Net cash flows from financing activities",
-     "Net cash flows used in financing activities"
+     "Net cash flows used in financing activities",
+     "Net cash flows used for financing activities",
+     "Net cash used in financing activities"
     ],
     "zh": [
      "筹资活动产生的现金流量净额",
@@ -15499,7 +15523,10 @@
     "Effect of foreign exchange rate changes, net",
     "Effect of foreign exchange rate changes on cash and cash equivalents",
     "Effect of changes in foreign exchange rates",
-    "Effect of changes in exchange rates on cash and cash equivalents"
+    "Effect of changes in exchange rates on cash and cash equivalents",
+    "Translation of foreign currency",
+    "Effect of foreign exchange rates changes, net",
+    "Effect of exchange rate changes on cash and cash equivalents"
    ],
    "aliases_i18n": {
     "en": [
@@ -15509,7 +15536,10 @@
      "Effect of foreign exchange rate changes, net",
      "Effect of foreign exchange rate changes on cash and cash equivalents",
      "Effect of changes in foreign exchange rates",
-     "Effect of changes in exchange rates on cash and cash equivalents"
+     "Effect of changes in exchange rates on cash and cash equivalents",
+     "Translation of foreign currency",
+     "Effect of foreign exchange rates changes, net",
+     "Effect of exchange rate changes on cash and cash equivalents"
     ],
     "zh": [
      "汇兑调整",
@@ -15633,7 +15663,10 @@
      "sign": 1
     }
    ],
-   "namespace": "template"
+   "namespace": "template",
+   "section_scope": [
+    "cf_top_level"
+   ]
   },
   {
    "key": "cf_financing__unexplained_adjustment_to_cash",
@@ -15682,7 +15715,10 @@
      "sign": 1
     }
    ],
-   "namespace": "template"
+   "namespace": "template",
+   "section_scope": [
+    "cf_top_level"
+   ]
   },
   {
    "key": "bs_equity__equity_and_reserves",
@@ -19957,8 +19993,6 @@
    "sign_convention": "negative_expected",
    "match_priority": 91,
    "aliases": [
-    "Income taxes paid",
-    "Income tax paid",
     "Taxes and levies paid"
    ],
    "keyword_hints": [
@@ -19968,8 +20002,6 @@
    ],
    "aliases_i18n": {
     "en": [
-     "Income taxes paid",
-     "Income tax paid",
      "Taxes and levies paid"
     ],
     "zh": [

@@ -2674,7 +2674,8 @@
     "Bills Receivables",
     "Notes Receivables",
     "Account Receivables",
-    "Trade Receivables"
+    "Trade Receivables",
+    "Accounts receivable"
    ],
    "aliases_i18n": {
     "en": [
@@ -2684,7 +2685,8 @@
      "Bills Receivables",
      "Notes Receivables",
      "Account Receivables",
-     "Trade Receivables"
+     "Trade Receivables",
+     "Accounts receivable"
     ]
    },
    "keyword_hints": [
@@ -7363,14 +7365,16 @@
     "Depreciation",
     "Amortization of land use rights",
     "Deperciation and amortization",
-    "Depreciation and Impairment"
+    "Depreciation and Impairment",
+    "Depreciation of property, plant and equipment"
    ],
    "aliases_i18n": {
     "en": [
      "Depreciation",
      "Amortization of land use rights",
      "Deperciation and amortization",
-     "Depreciation and Impairment"
+     "Depreciation and Impairment",
+     "Depreciation of property, plant and equipment"
     ]
    },
    "keyword_hints": [
@@ -7628,7 +7632,10 @@
     "Hong Kong profits tax paid, net",
     "Chinese Mainland taxes paid, net",
     "Overseas taxes paid, net",
-    "Income tax paid"
+    "Income tax paid",
+    "Income taxes paid",
+    "Hong Kong profits tax paid",
+    "Overseas taxes paid"
    ],
    "aliases_i18n": {
     "en": [
@@ -7636,7 +7643,10 @@
      "Hong Kong profits tax paid, net",
      "Chinese Mainland taxes paid, net",
      "Overseas taxes paid, net",
-     "Income tax paid"
+     "Income tax paid",
+     "Income taxes paid",
+     "Hong Kong profits tax paid",
+     "Overseas taxes paid"
     ]
    },
    "keyword_hints": [
@@ -8217,13 +8227,17 @@
    "aliases": [
     "Cash Flows from Invest Activities",
     "Net cash flows from investing activities",
-    "Net cash flows used in investing activities"
+    "Net cash flows used in investing activities",
+    "Net cash flows used for investing activities",
+    "Net cash used in investing activities"
    ],
    "aliases_i18n": {
     "en": [
      "Cash Flows from Invest Activities",
      "Net cash flows from investing activities",
-     "Net cash flows used in investing activities"
+     "Net cash flows used in investing activities",
+     "Net cash flows used for investing activities",
+     "Net cash used in investing activities"
     ]
    },
    "keyword_hints": [
@@ -8463,12 +8477,16 @@
    "definition": "Extract the reported value for 'Dividends Paid(Fin)' from the stated section. Do not calculate it.",
    "aliases": [
     "Dividends Paid(Fin)",
-    "Dividends Paid"
+    "Dividends Paid",
+    "Dividends paid to owners of the Company",
+    "Dividend paid"
    ],
    "aliases_i18n": {
     "en": [
      "Dividends Paid(Fin)",
-     "Dividends Paid"
+     "Dividends Paid",
+     "Dividends paid to owners of the Company",
+     "Dividend paid"
     ]
    },
    "keyword_hints": [
@@ -8522,13 +8540,17 @@
    "aliases": [
     "Cash Flows from Finance Activities",
     "Net cash flows from financing activities",
-    "Net cash flows used in financing activities"
+    "Net cash flows used in financing activities",
+    "Net cash flows used for financing activities",
+    "Net cash used in financing activities"
    ],
    "aliases_i18n": {
     "en": [
      "Cash Flows from Finance Activities",
      "Net cash flows from financing activities",
-     "Net cash flows used in financing activities"
+     "Net cash flows used in financing activities",
+     "Net cash flows used for financing activities",
+     "Net cash used in financing activities"
     ]
    },
    "keyword_hints": [
@@ -8606,7 +8628,10 @@
     "Effect of foreign exchange rate changes, net",
     "Effect of foreign exchange rate changes on cash and cash equivalents",
     "Effect of changes in foreign exchange rates",
-    "Effect of changes in exchange rates on cash and cash equivalents"
+    "Effect of changes in exchange rates on cash and cash equivalents",
+    "Translation of foreign currency",
+    "Effect of foreign exchange rates changes, net",
+    "Effect of exchange rate changes on cash and cash equivalents"
    ],
    "aliases_i18n": {
     "en": [
@@ -8616,7 +8641,10 @@
      "Effect of foreign exchange rate changes, net",
      "Effect of foreign exchange rate changes on cash and cash equivalents",
      "Effect of changes in foreign exchange rates",
-     "Effect of changes in exchange rates on cash and cash equivalents"
+     "Effect of changes in exchange rates on cash and cash equivalents",
+     "Translation of foreign currency",
+     "Effect of foreign exchange rates changes, net",
+     "Effect of exchange rate changes on cash and cash equivalents"
     ]
    },
    "keyword_hints": [

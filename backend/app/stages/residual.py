@@ -356,11 +356,20 @@ _PER_SHARE_PHRASE = "per-share figure"
 # Like the per-share phrase, also answered from the ROW'S NEIGHBOURS: a further line of a 其中
 # breakdown carries no marker of its own (see `_broken_down_rows`).
 _OF_WHICH_PHRASE = "of which breakdown"
+# AN ATTRIBUTION LINE SPLITS A FIGURE BY WHO OWNS IT, and only the income statement and the balance
+# sheet print one: profit, total comprehensive income and equity, each "attributable to" the owners
+# and the non-controlling interests. A cash flow statement splits nothing by owner — a cash-flow row
+# naming the owners is a TRANSACTION with them, and the money it moves is in no other row.
+# MEASURED ON PETROCHINA 2024 (IFRS): 'Dividends paid to owners of the Company' (82,360) / (78,982)
+# was refused as an attribution caption, so Net cash flows used for financing activities published
+# -93,349 against a printed -178,876. The test is therefore not run on a cash-flow row.
+_ATTRIBUTION_PHRASE = "attribution caption"
+_ATTRIBUTION_STATEMENTS_EXEMPT = frozenset({"cash_flow"})
 _EXCLUSIONS: tuple[tuple[str, object], ...] = (
     ("section subtotal", lambda row: row.role is LineRole.SUBTOTAL),
     ("statement total", lambda row: row.role is LineRole.TOTAL),
     ("section header", lambda row: row.role in (LineRole.HEADER, LineRole.SPACER)),
-    ("attribution caption", lambda row: bool(_ATTRIBUTION.search(_label(row)))),
+    (_ATTRIBUTION_PHRASE, lambda row: bool(_ATTRIBUTION.search(_label(row)))),
     (_PER_SHARE_PHRASE, lambda row: bool(_PER_SHARE.search(_label(row)))),
     ("narrative row", lambda row: _is_narrative(_label(row))),
     ("note-reference-only row", lambda row: bool(_NOTE_REF_ONLY.match(_label(row)))),
@@ -411,6 +420,8 @@ _SIGN_AGREES = "sign agrees with the section"
 # The income statement keeps its own list on Other Operating Expenses, whose margins ("Gross
 # profit", "Operating profit") are shaped like components and need the concept's own judgement.
 _TOTAL_CAPTION_STATEMENTS = frozenset({"balance_sheet", "cash_flow"})
+# The statements whose closing total cuts only the rows printed under it (see `_below_closing_total`).
+_CLOSES_ON_ITS_OWN_PRINTING = frozenset({"cash_flow"})
 _TOTAL_CAPTION = re.compile(
     # "Total …", "TOTAL EQUITY AND NON-CURRENT LIABILITIES", "Sub-total of cash inflows"
     r"^\W*(?:sub[\s-]*)?totals?\b"
@@ -1224,6 +1235,28 @@ class ResidualStage:
                     if end_page is None or page is None or page > end_page + 1:
                         break
                     closing[stmt], end_page = li.ordinal, page
+        # FOR THE CASH FLOW STATEMENT, BELOW THE CLOSING TOTAL MEANS ON ITS PAGE, or on the page the
+        # statement runs on to. A mainland filing prints its indirect-method reconciliation (补充资料)
+        # as a note long after the face's closing cash, and the run reads it as the cash flow
+        # statement: it is a second printing that FEEDS the indirect lines, not narrative. Once
+        # 'Cash and cash equivalents at end of the year' closed the cash flow statement (it is
+        # `cf_top_level`, as total assets is `bs_top_level`), every unbound supplement row was cut
+        # as narrative — 河钢 000709's 投资损失 -649,740,308.49 left the operating cash flow. The
+        # balance sheet keeps the unbounded cut: a balance sheet printed a hundred pages on is the
+        # other statement set, and its rows must not reopen the first
+        # (`test_a_section_subtotal_many_pages_on_is_another_printing`).
+        closing_page: dict[str, int | None] = {
+            stmt: _page_of_row(next((li for li in doc.line_items if li.ordinal == end), None))
+            for stmt, end in closing.items()}
+
+        def _below_closing_total(li, stmt: str | None) -> bool:
+            end = closing.get(stmt or "")
+            if end is None or li.ordinal <= end:
+                return False
+            if (stmt or "") not in _CLOSES_ON_ITS_OWN_PRINTING:
+                return True
+            end_page, page = closing_page.get(stmt or ""), _page_of_row(li)
+            return end_page is None or page is None or page <= end_page + 1
 
         ordered = sorted(doc.line_items, key=lambda li: li.ordinal)
         # The position at which each section's CLOSING subtotal is printed. A banner naming a
@@ -1280,13 +1313,14 @@ class ResidualStage:
             # It is the same exclusion either way, so this only decides which reason is reported.
             reason = next((phrase for phrase, test in _EXCLUSIONS
                            if phrase in terms.exclusions
+                           and not (phrase == _ATTRIBUTION_PHRASE
+                                    and (stmt or "") in _ATTRIBUTION_STATEMENTS_EXEMPT)
                            and (test(li)
                                 or (phrase == _PER_SHARE_PHRASE and li.id in per_share)
                                 or (phrase == _OF_WHICH_PHRASE and li.id in broken_down))),
                           None)
             if reason is None and "narrative row" in terms.exclusions:
-                end = closing.get(stmt or "")
-                if end is not None and li.ordinal > end:
+                if _below_closing_total(li, stmt):
                     reason = "narrative row"
             if reason is not None:
                 # Not swept and not silent: the rulebook's ``unbound_row_policy`` says an

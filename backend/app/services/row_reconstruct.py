@@ -358,6 +358,8 @@ def _is_noise_row(label: str, vals: list,
     # 2024 as a line, and the Ind AS residual swept the year 2025 into other operating expenses.
     if bool(vals) and _NOTE_NO_HEADER.match(label) and all(_is_date_ish(v) for v in vals):
         return True
+    if bool(vals) and all(_is_date_ish(v) for v in vals) and _is_dated_note_column_header(norm or label):
+        return True
     if cut_sentence_figures(label, vals):
         return True
     # A SIGNATORY'S IDENTIFIER UNDER THE FACE. An Indian face is signed on the page, and the
@@ -371,6 +373,21 @@ def _is_noise_row(label: str, vals: list,
 
 
 _NOTE_NO_HEADER = re.compile(r"^\s*(?:notes?\s*)?no\.?\s*$", re.I)
+# THE COLUMN HEADER BAND WITH THE NOTE COLUMN'S TITLE IN IT. An English face heads its columns
+# "Notes | December 31, 2024 | December 31, 2023", and when the band is printed over two lines the
+# words land on one baseline and the day-and-year on another: PetroChina 2024's statement of
+# financial position read "December December Notes" as a row whose current figure was 2024, and the
+# sweep put it in Other non-current assets (2,163,931 published against a printed 2,161,907).
+# `_is_period_only_label` keeps it, because the note column's title is a substantive word there.
+# Here it is not: a caption that is nothing but period words and the note column's title is the
+# header, and — as every rule here — only when each of its figures is a date fragment.
+_NOTE_COLUMN_TITLE = re.compile(r"\b(?:notes?(?:\s+no\.?)?)\b|附注|附註", re.I)
+
+
+def _is_dated_note_column_header(label: str) -> bool:
+    if not label or not _PERIOD_TOKEN.search(label) or not _NOTE_COLUMN_TITLE.search(label):
+        return False
+    return _is_period_only_label(_NOTE_COLUMN_TITLE.sub(" ", label))
 _SIGNATORY_ID = re.compile(
     r"^\s*(?:DIN|PAN|CIN|M\.?\s*No|Membership\s+No|(?:ICAI\s+)?Firm\s+Registration\s+(?:No|Number)"
     r"|FRN|F\.\s*R\.\s*N)\.?\s*[:：.]?\s*$", re.IGNORECASE)

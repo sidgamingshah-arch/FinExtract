@@ -53,6 +53,9 @@ _NO_BANNER = {
     # A statement total sits under whatever section was printed last above it, so no banner may
     # constrain it — `token_of_scope`'s own docstring says this about `*_top_level`.
     "bs_top_level",
+    # …and the cash flow statement's: the closing cash and the unexplained adjustment, which are the
+    # roll-forward's result and print under the financing banner they do not belong to.
+    "cf_top_level",
     # Five compact sections a filing prints no heading for. `mapping.SECTION_WORDS`' comment names
     # exactly these as "untouched and stay unconstrained — a separate change".
     "statement_setup_controls", "supplemental_data", "off_balance_sheet_data",

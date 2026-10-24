@@ -215,6 +215,16 @@ _NET_ASSETS_VETOED = frozenset({
 # receipts and payments no longer reach: the supplement already reconciles to the same total, so
 # sweeping them in counted them twice (000709 operating cash flow 3.89bn against a printed 9.68bn).
 _CAS_DIRECT_ROWS_VETOED = frozenset({"cf_oper_indirect__other_non_cash_adjs_oper"})
+# THE CASH FLOW STATEMENT'S OWN TOTALS, scoped `cf_top_level` in the seed as the balance sheet's are
+# `bs_top_level`. The rulebook files the closing cash and the unexplained adjustment under the
+# financing section, so the financing section "closed" at a total no filing prints and the statement
+# never closed at all: Hon Kwok 2023/24 swept its analysis of cash below 'CASH AND CASH EQUIVALENTS
+# AT END OF YEAR' (1,090,904 and 203,208) into Other financing cash flows, which published
+# 1,275,800 against a printed 36,711.
+_CASH_FLOW_STATEMENT_TOTALS = frozenset({
+    "cf_financing__end_of_period_cash_and_cash_equiv",
+    "cf_financing__unexplained_adjustment_to_cash",
+})
 
 # THE SEED LEADS THE RULEBOOK ON TWO FIELDS BECAUSE THE CONFIG SCREEN WORK CHANGED THEM.
 #
@@ -556,6 +566,9 @@ def test_shipped_set_diverges_only_in_the_known_classes():
     unexpected = {}
     for field, keys in diff.items():
         if field in _SEED_LAG or (field, tuple(keys)) in allowed_single:
+            continue
+        if field == "section_scope" and set(keys) <= ({_SECTION_OVERRIDE[0]}
+                                                      | _CASH_FLOW_STATEMENT_TOTALS):
             continue
         # `definition` diverges on exactly the eight concepts whose definitions were rewritten —
         # named, so a NINTH would still fail here.
