@@ -1920,6 +1920,8 @@ def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
             # complete once its two halves are joined, and was then folded onto the next row:
             # "处置子公司及其他营业单位收到的现金净额收到其他与投资活动有关的现金".
             if (pending and label_words
+                    and not (on_face and _translated_on_the_next_line(_scan_row(pending, fmt)[0],
+                                                                      label_words))
                     and (_is_known_caption(_scan_row(pending, fmt)[0], steps, known)
                          or (on_face and _is_enumerated_other(_scan_row(pending, fmt)[0])))):
                 out.append(pending)
@@ -2087,8 +2089,11 @@ def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
             nxt is not None
             and label_words
             and note_ref is None
-            # A COMPLETE CAPTION IS A LINE ITEM, not the head of a wrap — see ``known``.
-            and not _is_known_caption(label_words, steps, known)
+            # A COMPLETE CAPTION IS A LINE ITEM, not the head of a wrap — see ``known`` — unless
+            # the next line is its Chinese translation (`_translated_on_the_next_line`).
+            and (not _is_known_caption(label_words, steps, known)
+                 or (on_face and _translated_on_the_next_line(label_words,
+                                                              _scan_row(nxt, fmt)[0])))
             # …and on a face, an enumerated 其他 is one too — see `_is_enumerated_other`.
             and not (on_face and _is_enumerated_other(label_words))
             # An ALL-CAPS banner is not a continuation — unless grammar shows the caption
@@ -2110,7 +2115,10 @@ def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
             # wrap over three or more lines, and requiring the value immediately dropped every line
             # but the last two (see `_wrap_reaches_a_value`).
             and _wrap_reaches_a_value(rows, idx, fmt, steps, nil_ends=not on_face)
-            and _wrap_adjacent(_row_box(row), _row_box(nxt), _scan_row(nxt, fmt)[0])
+            and (_wrap_adjacent(_row_box(row), _row_box(nxt), _scan_row(nxt, fmt)[0])
+                 # …or, on a bilingual face, each script's halves are — see
+                 # `_wrap_adjacent_by_script`.
+                 or (on_face and _wrap_adjacent_by_script(label_words, _scan_row(nxt, fmt)[0])))
             # IN A NOTE, A HEADING OVER INDENTED ROWS is not their caption's first line — see
             # `_heads_indented_rows`. Faces are left as they were: their captions are what the
             # mapper's aliases were written against.
@@ -2576,6 +2584,66 @@ def _wrap_adjacent(cur: BBox, nxt: BBox, nxt_label: list[Word]) -> bool:
         return True
     label_x0 = min(w.bbox.x0 for w in nxt_label)
     return abs(cur.x0 - label_x0) <= 0.06                # left-aligned in the label column
+
+
+def _wrap_adjacent_by_script(cur_label: list[Word], nxt_label: list[Word]) -> bool:
+    """Whether two BILINGUAL label lines are one caption wrapped, judged script by script.
+
+    A bilingual face that sets its Chinese in a taller type than its English interleaves the two
+    wraps of one caption. 佳明 2025/26 prints, page index 67::
+
+        y 0.685 ─ 外幣匯率變動對現金及                 (Han, 0.685–0.717)
+        y 0.694 ─ Effect of foreign exchange rate change (Latin, 0.694–0.708)
+        y 0.698 ─   現金等價物的影響                    (Han, 0.698–0.730)
+        y 0.708 ─   on cash and cash equivalents    21    (32)
+
+    Row clustering puts each Han line with the English line it overlaps, so the second row's box
+    begins 0.018 ABOVE the first row's bottom — more than half a line of overlap, which
+    `_tight_below` reads as two rows on top of one another, not a wrap. The English halves are
+    directly one under the other (a gap of 0.0001) and so are the Chinese halves; it is the union
+    of the two scripts that is not. The head was then dropped as a label-only row and the tail
+    'on cash and cash equivalents 現金等價物的影響' (21 / -32) was read as a row of its own and swept
+    into Other Financing Cash Flows.
+
+    Both lines must carry both scripts, the English halves must pass the ordinary wrap test, and
+    the second line's Chinese must begin below the first line's Chinese — the translation runs on
+    the same way the English does.
+    """
+    def split(words: list[Word]) -> tuple[list[Word], list[Word]]:
+        return ([w for w in words if _script_of(w.text) == "latin"],
+                [w for w in words if _script_of(w.text) == "han"])
+
+    cur_latin, cur_han = split(cur_label)
+    nxt_latin, nxt_han = split(nxt_label)
+    if not (cur_latin and cur_han and nxt_latin and nxt_han):
+        return False
+    if not _wrap_adjacent(_row_box(cur_latin), _row_box(nxt_latin), nxt_latin):
+        return False
+    return _row_box(nxt_han).y0 > _row_box(cur_han).y0
+
+
+def _translated_on_the_next_line(head_label: list[Word], nxt_label: list[Word]) -> bool:
+    """Whether a figure-less ENGLISH line is followed by its Chinese translation, which carries
+    the caption's figures: one bilingual caption printed as two lines.
+
+    BYD Electronic 2024 prints its cash flow captions that way, page index 89::
+
+        Depreciation of property, plant and equipment
+        物業、廠房及設備折舊                     6   4,875,202   2,787,817
+
+    'Depreciation of property, plant and equipment' is a caption the rulebook knows, and a known
+    caption on a line of its own is a line item with no figures (the CSRC layout's empty lines —
+    see `_merge_wrapped_labels`'s ``known``). So the English was emitted alone and dropped, and the
+    figures were filed under 物業、廠房及設備折舊, which no line's aliases name: the cash flow's
+    Depreciation line missed 4,875,202 / 2,787,817 and they were swept into Other Non-Cash Adjs.
+
+    A CJK-only line under an English-only line is the translation of THAT line, never a caption
+    of its own: a bilingual face gives every caption both scripts. A CSRC face is all Han, so its
+    empty lines are untouched.
+    """
+    head = _join_words(head_label)
+    return (bool(head) and not _HAN.search(head) and bool(re.search(r"[A-Za-z]{2,}", head))
+            and bool(nxt_label) and _CJK_ONLY(_join_words(nxt_label)))
 
 
 def _heads_indented_rows(head: list[Word], nxt_label: list[Word], *,

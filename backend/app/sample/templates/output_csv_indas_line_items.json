@@ -7397,7 +7397,8 @@
     "Amortization of intangible assets",
     "Asset Impairment gain/loss",
     "Impairment of property,plant and equipment",
-    "Expected credit loss"
+    "Expected credit loss",
+    "Write down to net realisable value of completed properties held for sale and properties under development"
    ],
    "aliases_i18n": {
     "en": [
@@ -7407,7 +7408,8 @@
      "Amortization of intangible assets",
      "Asset Impairment gain/loss",
      "Impairment of property,plant and equipment",
-     "Expected credit loss"
+     "Expected credit loss",
+     "Write down to net realisable value of completed properties held for sale and properties under development"
     ]
    },
    "keyword_hints": [
@@ -7425,12 +7427,14 @@
    "definition": "Extract the reported value for 'Interest Inc Received(Oper)' from the stated section. Do not calculate it.",
    "aliases": [
     "Interest Inc Received(Oper)",
-    "Interest Income Received"
+    "Interest Income Received",
+    "Interest received"
    ],
    "aliases_i18n": {
     "en": [
      "Interest Inc Received(Oper)",
-     "Interest Income Received"
+     "Interest Income Received",
+     "Interest received"
     ]
    },
    "keyword_hints": [
@@ -8059,7 +8063,8 @@
     "Proceeds from disposal of Available-for-sale investments",
     "Proceeds from disposal of Held-to-maturity financial assets",
     "Proceeds from disposal of Financial assets at amortised cost",
-    "Proceeds from redemption of Wealth management products"
+    "Proceeds from redemption of Wealth management products",
+    "Proceeds from disposal of financial assets at fair value through profit or loss"
    ],
    "aliases_i18n": {
     "en": [
@@ -8073,7 +8078,8 @@
      "Proceeds from disposal of Available-for-sale investments",
      "Proceeds from disposal of Held-to-maturity financial assets",
      "Proceeds from disposal of Financial assets at amortised cost",
-     "Proceeds from redemption of Wealth management products"
+     "Proceeds from redemption of Wealth management products",
+     "Proceeds from disposal of financial assets at fair value through profit or loss"
     ]
    },
    "keyword_hints": [
@@ -8631,7 +8637,8 @@
     "Effect of changes in exchange rates on cash and cash equivalents",
     "Translation of foreign currency",
     "Effect of foreign exchange rates changes, net",
-    "Effect of exchange rate changes on cash and cash equivalents"
+    "Effect of exchange rate changes on cash and cash equivalents",
+    "Effect of foreign exchange rate change on cash and cash equivalents"
    ],
    "aliases_i18n": {
     "en": [
@@ -8644,7 +8651,8 @@
      "Effect of changes in exchange rates on cash and cash equivalents",
      "Translation of foreign currency",
      "Effect of foreign exchange rates changes, net",
-     "Effect of exchange rate changes on cash and cash equivalents"
+     "Effect of exchange rate changes on cash and cash equivalents",
+     "Effect of foreign exchange rate change on cash and cash equivalents"
     ]
    },
    "keyword_hints": [

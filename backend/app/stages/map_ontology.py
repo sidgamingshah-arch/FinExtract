@@ -879,12 +879,39 @@ class MapOntologyStage:
         _split_heading = attribution_headings(
             (st, _page_of(r), r) for st, _c, r in face_index(doc) if st == "profit_and_loss")
 
+        # A CASH-FLOW ROW IS READ IN THE SECTION IT IS PRINTED UNDER, also on a page that prints no
+        # banner over it. The reader names a row's banner from the page it reads the row on, so a
+        # page continuing a section gives its rows the statement's title, or nothing: China SCE
+        # prints "CONSOLIDATED STATEMENT OF / CASH FLOWS" over page index 109, and its operating
+        # rows there were read under "CASH FLOWS 綜合現金流量表", which names no section. Ungated,
+        # 'Interest received 已收利息' (98,096 / 141,979), printed under OPERATING beside the taxes
+        # paid, took the INVESTING line's alias and left CFO for CFI. The request text has shown
+        # these rows in the section in force since c582de1 (`face_context.block_context`); the
+        # mapper now reads the same answer where the row's own banner names no section. Cash flow
+        # only: a balance-sheet banner the reader carries past its section's total is a different
+        # question (see `block_context`), and its continuation rows are not this change's.
+        from app.services.face_context import _blocks_context, _face_blocks
+        _in_force: dict[int, str] = {}
+        try:
+            _cf_blocks, _ = _face_blocks(doc, want={"cash_flow"})
+            for (_block, row_id), (under, _sub) in _blocks_context(doc, _cf_blocks).items():
+                if under and section_of_banner(under) is not None:
+                    _in_force.setdefault(row_id, under)
+        except Exception as exc:  # noqa: BLE001 — a section the request text cannot place is no
+            # reason to stop mapping; every row then keeps the banner it was read under.
+            ctx.log(f"map_line_items:cash_flow_section_in_force_unavailable({type(exc).__name__})")
+            _in_force = {}
+        _carried = [0]
+
         def _section_for(li):
             heading = _split_heading.get(id(li))
             banner = li.section_hint or ""
             if heading is None or (
                     section_of_banner(banner) in _SPLIT_SECTIONS
                     and _NAMES_A_SPLIT_TOTAL.search(banner)):
+                if section_of_banner(banner) is None and id(li) in _in_force:
+                    _carried[0] += 1
+                    return _in_force[id(li)]
                 return li.section_hint
             return heading
 
@@ -1026,6 +1053,10 @@ class MapOntologyStage:
             ctx.log(f"map_line_items:row_terms_refused_answers={row_terms_refused} "
                     f"(the caption shares no subject word with the line's own row terms — most "
                     f"often the total the line is a component of)")
+        if _carried[0]:
+            ctx.log(f"map_line_items:cash_flow_rows_in_section_in_force={_carried[0]} "
+                    f"(read under no section of their own; matched in the section they are "
+                    f"printed in)")
 
         # A note's pages do not carry a statement title, but its cited face row does. Map each
         # extracted detail row in that context so a disclosure can contribute a dedicated concept
