@@ -141,6 +141,52 @@ def _is_money_like(t: str, fmt=None) -> bool:
     return _num(t, fmt) is not None and not _is_note_number(t)
 
 
+# A FIGURE PRINTED WITHOUT A SEPARATOR OR A DECIMAL PART: "42", "259", "(18)". The shape a small
+# amount takes on a statement in millions, and the shape a bare note number takes too.
+_PLAIN_INTEGER = re.compile(r"^\(?-?\d+\)?$")
+# A nil cell: the dash a statement prints for "nothing this year", including the full-width one a
+# bilingual HKEX face sets ("－", BYD Electronic).
+_NIL_DASH = re.compile(r"^[-–—−－]{1,2}$")
+
+
+def _outside_the_note_column(w: Word, note_x: float | None) -> bool:
+    """Whether the page HAS a note column (`_detect_note_column`) and this word is not in it.
+
+    Where the column was found, it is the evidence, and a bare integer standing anywhere else is a
+    figure. 佳明's cash-flow statement prints its Notes column at x≈0.66 and "Interest received
+    30  8,127" with the 30 in the 2026 column at x≈0.79; `_scan_row` took it as note 30 on shape
+    alone (8,127 is money-like), and `_resolve_note_column`, handed a reference already read,
+    kept it — the current year's interest received was deleted on a page whose note column said
+    plainly where the notes were. The same tolerance as the column's own test (0.03)."""
+    return note_x is not None and abs((w.bbox.x0 + w.bbox.x1) / 2 - note_x) > 0.03
+
+
+def _small_figure_beside_its_comparative(cand: str, after: list[Word], fmt=None) -> bool:
+    """Whether a leading bare integer is the row's FIRST FIGURE and not its note reference.
+
+    The note fallback (`_scan_row`'s bare-number branch, `_resolve_note_column`'s last clause)
+    reads a 1-2 digit integer standing before a real amount as the note: "Revenue  6  45,230".
+    A row printing TWO SMALL FIGURES has the same shape. PetroChina's IFRS cash-flow statement
+    (RMB millions, no note column on the page) prints "Impairment of other non-current assets
+    42  259"; 259 has three digits, so it passed the money-like lookahead, 42 was taken as note
+    42, and the current-year figure was deleted — operating cash flow summed to 406,490 against
+    a printed 406,532, and the amortisation-and-impairment line read 3,110 against 3,152.
+
+    So the integer is refused as a note when the only CELL after it is a figure of the SAME SHAPE
+    — a plain integer, no thousands separator, no decimal part. Two figures of one shape are the
+    two columns of one row; a note number beside a formatted amount ("6  45,230") is still a note,
+    and so is one before two or more cells ("6  259  300"), where the columns are full without it.
+    A NIL DASH IS A CELL: "Impairment of right-of-use assets  7  –  218" (Far East Horizon) and
+    "Dividends paid  33  –  (1)" (佳明) print note, nil, comparative, and counting only the figures
+    read each as a two-figure row — measured on the corpus, seven of the twelve rows this rule
+    first refused were of that kind. A sub-note letter ("16(b)") or a chapter ("七、9") is never a
+    figure and is untouched."""
+    if not cand.strip().isdigit():
+        return False
+    cells = [w for w in after if _num(w.text, fmt) is not None or _NIL_DASH.match(w.text.strip())]
+    return len(cells) == 1 and bool(_PLAIN_INTEGER.match(cells[0].text.strip()))
+
+
 # A running-header / statement-title / period-caption label. These carry the entity or the
 # statement name + a period date, not a financial line — and the only "number" on them is a
 # date fragment (a year or a day-of-month).
@@ -809,7 +855,8 @@ def _open_brackets(words: list[Word]) -> int:
     return text.count("(") + text.count("\uff08") - text.count(")") - text.count("\uff09")
 
 
-def _scan_row(row: list[Word], fmt=None, *, extract_note_refs: bool = True) -> tuple[list[Word], str | None, list[Word]]:
+def _scan_row(row: list[Word], fmt=None, *, extract_note_refs: bool = True,
+              note_x: float | None = None) -> tuple[list[Word], str | None, list[Word]]:
     """Split one visual row into (label words, note-ref, value words).
 
     A "Note"/"Notes" token printed in a cell of its own, plus the *single* following number, is a
@@ -861,6 +908,8 @@ def _scan_row(row: list[Word], fmt=None, *, extract_note_refs: bool = True) -> t
         if (extract_note_refs and note_ref is None and label_words and not value_words
                 and _is_note_ref_token(tok)
                 and any(_is_money_like(w.text, fmt) for w in row[i + 1:])
+                and not _small_figure_beside_its_comparative(tok, row[i + 1:], fmt)
+                and not _outside_the_note_column(row[i], note_x)
                 and not _tight_after(row[i - 1], row[i])):
             note_ref = _note_ref_value(tok)
             i += 1
@@ -3657,23 +3706,59 @@ def _column_index(x: float, bands: list[float]) -> int | None:
     return idx if abs(bands[idx] - x) <= _COL_TOL * 2 else None
 
 
+# A NOTE COLUMN'S HEADER GLUED TO THE HEADER BESIDE IT. Text extraction joins two cells into one
+# word when the PDF sets no space between them: "2023Note", "Notes2024", "附注2024年", "项目附注".
+# `_NOTE_HDR` is anchored and missed every one, so no note column was found on such a page.
+_GLUED_NOTE_HDR = re.compile(
+    r"^(?P<pre>(?:19|20)\d{2}(?:年度?)?|项目|項目)(?P<hdr>notes?|附註|附注)$"
+    r"|^(?P<hdr2>notes?|附註|附注)(?P<post>(?:19|20)\d{2}.*|项目|項目)$", re.IGNORECASE)
+
+
+def _glued_note_header_x(w: Word) -> float | None:
+    """The x-centre of the 'Note'/'附注' PART of a word that glues it to a neighbouring header,
+    placed by its share of the word's characters; None when the word is not such a header."""
+    m = _GLUED_NOTE_HDR.match(w.text.strip())
+    if m is None:
+        return None
+    text = w.text.strip()
+    start, end = m.span("hdr") if m.group("hdr") else m.span("hdr2")
+    width = w.bbox.x1 - w.bbox.x0
+    return w.bbox.x0 + width * (start + end) / (2 * len(text))
+
+
 def _detect_note_column(rows: list[list[Word]]) -> float | None:
     """The x-centre of the note-reference column, if the statement has one. Found from a
     'Notes'/'附註' column header that is BACKED by a vertical run of bare note numbers beneath
     it (≥2), so an inline 'Note 14' mention in prose isn't mistaken for a column. Returns None
-    when there's no such column (then a per-row heuristic handles a leading note number)."""
-    header_xs: list[float] = []
+    when there's no such column (then a per-row heuristic handles a leading note number).
+
+    A HEADER GLUED TO ITS NEIGHBOUR ("2023Note", `_GLUED_NOTE_HDR`) is a candidate too, with one
+    more condition, because the same glued word is printed for another reason: PetroChina sets a
+    superscript "Note" — a footnote marker, "comparatives restated, see Note 42" — on the 2023
+    heading of its IFRS statements, and it extracts as "2023Note" OVER THE 2023 FIGURES. A small
+    comparative there ("43") is note-number shaped, and two of them would make the prior-year column
+    a note column. So a glued header is believed only when what stands beneath it is a column OF
+    NOTE NUMBERS: at least 80% of the rows with a figure within reach of it hold a note number there."""
+    header_xs: list[tuple[float, bool]] = []
     for row in rows:
         for w in row:
             if _NOTE_HDR.match(w.text.strip()):
-                header_xs.append((w.bbox.x0 + w.bbox.x1) / 2)
+                header_xs.append(((w.bbox.x0 + w.bbox.x1) / 2, False))
+            elif (gx := _glued_note_header_x(w)) is not None:
+                header_xs.append((gx, True))
     best, best_n = None, 0
-    for cx in header_xs:
+    for cx, glued in header_xs:
         n = 0
+        amounts = 0         # rows with an AMOUNT within reach instead (a year heading is neither)
         for row in rows:
-            if any(abs((w.bbox.x0 + w.bbox.x1) / 2 - cx) <= 0.03 and _is_note_number(w.text)
-                   for w in row):
+            near = [w for w in row if abs((w.bbox.x0 + w.bbox.x1) / 2 - cx) <= 0.03]
+            if any(_is_note_number(w.text) for w in near):
                 n += 1
+            elif any(_is_money_like(w.text) and not _YEAR_ONLY.fullmatch(w.text.strip())
+                     for w in near):
+                amounts += 1
+        if glued and n < 0.8 * (n + amounts):
+            continue
         if n > best_n:
             best, best_n = cx, n
     return best if best_n >= 2 else None
@@ -3732,7 +3817,8 @@ def _resolve_note_column(note_ref: str | None, value_words: list[Word],
     if note_ref is not None:
         return note_ref, value_words
     if (len(value_words) >= 2 and _is_note_number(value_words[0].text)
-            and any(_is_money_like(w.text, fmt) for w in value_words[1:])):
+            and any(_is_money_like(w.text, fmt) for w in value_words[1:])
+            and not _small_figure_beside_its_comparative(value_words[0].text, value_words[1:], fmt)):
         return _note_ref_value(value_words[0].text), value_words[1:]
     return note_ref, value_words
 
@@ -7053,7 +7139,7 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
     # The same figures as WORDS, row by row, for the one reader that needs their edges.
     col_words: list[list[Word]] = []
     for row in raw_rows:
-        _lw, _nr, _vw = _scan_row(row, number_format, extract_note_refs=on_face)
+        _lw, _nr, _vw = _scan_row(row, number_format, extract_note_refs=on_face, note_x=note_x)
         if on_face:
             _nr, _vw = _resolve_note_column(_nr, _vw, note_x, number_format)
         figures = [w for w in _vw if _num(w.text, number_format) is not None]
@@ -7356,7 +7442,7 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
         held, held_head = held_head, None
         above, held_line = held_line, None
         label_words, note_ref, value_words = _scan_row(
-            row, number_format, extract_note_refs=on_face)
+            row, number_format, extract_note_refs=on_face, note_x=note_x)
         if on_face:
             note_ref, value_words = _resolve_note_column(
                 note_ref, value_words, note_x, number_format)
