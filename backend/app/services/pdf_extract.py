@@ -547,6 +547,10 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
     # cleared once, on the first balance-sheet face page; a face page inside the notes (a cash-flow
     # supplement) never clears it.
     statements_open = [False]
+    # THE NEWEST YEAR EACH NOTE HAS NAMED, for a note whose comparative block is printed on a page
+    # of its own — see `extract_note_tables`' ``note_years``. Cleared where the statements open,
+    # with the chapter: nothing read before them is a note they continue.
+    note_years: dict = {}
     # THE RULEBOOK'S OWN VOCABULARY, so reconstruction can tell a wrapped caption's first
     # line from a line item that simply has no figures this year. A CSRC balance sheet prints
     # every template line whether the filer uses it or not, and on such a filing the two are
@@ -596,7 +600,8 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
                                      known_captions=captions, page_fold=fold,
                                      carry_header=carry_header, header_out=headers,
                                      default_basis=notes_basis,
-                                     reporting_year=_reporting_year(), open_out=opened)
+                                     reporting_year=_reporting_year(), open_out=opened,
+                                     note_years=note_years)
         doc.notes.extend(tables)
         # The BASIS travels with the note, so a note continued onto the page where the
         # company-only chapter opens stays the group's — see `extract_note_tables`.
@@ -637,6 +642,7 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
         if (not statements_open[0] and ps.kind == PageKind.FACE
                 and ps.statement == StatementType.BALANCE_SHEET.value):
             statements_open[0] = True
+            note_years.clear()
             if notes_chapter[0]:
                 ctx.log(f"extract:page={ps.index}:statements_open_notes_numbering"
                         f"(forgot_chapter={notes_chapter[0]}、{notes_chapter[2]})")

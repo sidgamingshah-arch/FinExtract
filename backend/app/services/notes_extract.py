@@ -1375,7 +1375,8 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
                         header_out: list | None = None,
                         reporting_year: int | None = None,
                         default_basis: Basis | None = None,
-                        open_out: list | None = None) -> list[NotesTable]:
+                        open_out: list | None = None,
+                        note_years: dict | None = None) -> list[NotesTable]:
     """Split a notes page into note sections and reconstruct each note's detail rows.
 
     ``scope``/``normalisation`` are the run's own rulebook blocks; a note's columns are read by
@@ -1429,6 +1430,11 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
     "1.以公允价值计量且…", leaving its four Level 2 rows under no header) — and in either case only
     when those rows print no header of their own and their figures fit the carried one; see
     `row_reconstruct._name_note_columns`. ``reporting_year`` places a dated column heading.
+
+    ``note_years`` is the newest year each note has named on the pages read so far, keyed by note
+    number — a cell the caller owns and carries across pages, as it does ``chapter``. A note that
+    prints its comparative block on a page of its own takes its current year from the note, not
+    from that page; see where a section's ``newest`` is decided. None keeps the per-page reading.
 
     ``open_out`` receives the (number, title, basis, basis_from) of the LAST section the page
     opened, published or not, for the caller to carry as ``carry_note``. A table titled and headed
@@ -1784,6 +1790,25 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
         # document, because a note is self-contained about which years it shows and a filing whose
         # face period was misread would otherwise mislabel every movement row.
         newest = max((year for _y, year, _f in anchors), default=None)
+        # …AND THE NOTE IS ALL OF ITS PAGES, NOT THE ONE THIS SECTION IS ON. A note that prints a
+        # table per year often gives the comparative a page to itself, and on that page alone its
+        # newest year is the comparative's. Measured on Far East Horizon's note 47: page 345 prints
+        # the fair-value hierarchy "As at 31 December 2024" and page 346 "As at 31 December 2023",
+        # and both blocks were hinted `current`, so the Level 3 part read 11,330,161 + 3,753,048 =
+        # 15,083,209 as one year's total. Lai Sun's note 47 did the same with July 2025 and July
+        # 2024 (289,040 + 304,175 = 593,215).
+        #
+        # ONLY BY ONE YEAR, ONLY UPWARDS. The section takes the note's newest year where its own is
+        # exactly the year before: a page holding the comparative block. A page naming a year two
+        # behind, or a later page naming a NEWER year, keeps what it names, as before.
+        if note_years is not None and table.note_number and newest is not None:
+            earlier = note_years.get(table.note_number)
+            if earlier == newest + 1:
+                if log:
+                    log(f"notes:page={page_index}:note={table.note_number}"
+                        f":newest_year={earlier}(the note's earlier page; this page names {newest})")
+                newest = earlier
+            note_years[table.note_number] = max(newest, earlier or newest)
         for li in items:
             # THE CAPTION DECIDES THE ROLE, EXCEPT WHERE THE BUILDER ALREADY KNEW. Almost every
             # row reaches here as ``LINE`` — the promotion that classifies a face row runs in
