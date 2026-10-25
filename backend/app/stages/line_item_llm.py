@@ -1334,7 +1334,13 @@ def _input_label(entry: dict) -> str:
     citation picked one, so a reviewer reads "[Total 總計]" rather than a row of nine figures."""
     label = f"note {entry.get('note')}: {str(entry.get('caption'))[:160]}"
     col = entry.get("column") or {}
-    heading = str(col.get("heading") or col.get("key") or "")
+    # A RESOLVED citation carries the column it picked, as `{heading, key}`; an UNRESOLVED one
+    # carries the heading the model asked for, as it was given — `note_sourced.resolve_sources`
+    # records the string when no column of the row matched it. Read as a dict, that string raised
+    # AttributeError and took the whole run down: measured on 河钢 000709, whose allowance answer
+    # named a column the reconstructed row did not print.
+    heading = (str(col.get("heading") or col.get("key") or "") if isinstance(col, dict)
+               else str(col))
     return f"{label} [{heading[:80]}]" if heading else label
 
 
