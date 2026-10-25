@@ -24,6 +24,7 @@ nothing" was the answer on every run.
 """
 from __future__ import annotations
 
+import re
 from decimal import Decimal, InvalidOperation
 
 from app.core.models.document import DocumentModel
@@ -2136,18 +2137,106 @@ def _note_figure(item, basis: str, period: str) -> Decimal | None:
     return None
 
 
-def _note_totals(table, item, basis: str, period: str) -> set[Decimal]:
+# ── A NOTE THAT PRINTS ITS CURRENT / NON-CURRENT SPLIT ──────────────────────────────────────────
+#
+# The face prints one PORTION of such a note's money. China SCE 1966's note 24 prints five line rows
+# (other receivables 5,818,375 among them), their total (15,768,649, unlabelled, which the reader
+# keeps only as prose), "Non-current portion (705,926)" and "Current portion 15,062,723"; the face
+# prints 15,062,723 under current assets as "Prepayments, other receivables and other assets" and
+# 705,926 under non-current assets. No row of the note totals to the face figure — the portion rows
+# are line rows to the reader — so the settlement found no relation, and the 5,818,375 Other
+# Receivables (CP) read stood inside the swept current row as well: total current assets over by it
+# in 2023 and by 7,028,687 in 2022.
+#
+# THE PORTION ROW IS A TOTAL OVER THE ROWS IT SPLITS, for a line on ITS side. The note does not say
+# which portion holds which row; the line does — a current-asset line that read the row counts it as
+# current money, and the current portion is where a current amount of this note is. So the current
+# portion is a total over the row for a current line, the non-current portion for a non-current one,
+# and neither for the other (`portion_side` in the settlement: the face row must also be printed in
+# the line's own section).
+#
+# ONLY A SPLIT THAT ADDS UP. The two portion rows count only where, between them, they are the rows
+# they split — the line rows printed above the first portion row, or the total printed over them:
+# 15,062,723 + 705,926 = 15,768,649 = the five rows. One portion row of a side, one of the other, in
+# the same column; anything else (a cash note that takes several pledged balances out one by one, a
+# lease movement table whose portions split only its closing balance) is not read as a split at all.
+# A "Current" row on its own is an ageing bucket, not a portion, and is not one of these captions.
+_CURRENT_PORTION = re.compile(
+    r"^\s*(?:less\s*[:：]?\s*)?(?:the\s+)?current\s+portion\b"
+    r"|^\s*(?:less\s*[:：]?\s*)?(?:the\s+)?(?:portion|amounts?)\s+(?:classified|included|shown"
+    r"|presented|reclassified)\s+(?:as|under|in|to|within)\s+current\b"
+    r"|^\s*(?:[减減]\s*[:：]?\s*)?流[動动]部[份分]", re.IGNORECASE)
+_NON_CURRENT_PORTION = re.compile(
+    r"^\s*(?:less\s*[:：]?\s*)?(?:the\s+)?non[-\s]?current\s+portion\b"
+    r"|^\s*(?:less\s*[:：]?\s*)?(?:the\s+)?(?:portion|amounts?)\s+(?:classified|included|shown"
+    r"|presented|reclassified)\s+(?:as|under|in|to|within)\s+non[-\s]?current\b"
+    r"|^\s*(?:[减減]\s*[:：]?\s*)?非流[動动]部[份分]", re.IGNORECASE)
+#: The portion of a split note a line of this balance-sheet section reads its money from.
+_SIDE_OF_SECTION = {"bs_ca": "current", "bs_cl": "current",
+                    "bs_nca": "non_current", "bs_ncl": "non_current"}
+
+
+def _portion_of(row) -> str | None:
+    caption = str(getattr(row, "raw_label", "") or "")
+    if _NON_CURRENT_PORTION.search(caption):
+        return "non_current"
+    if _CURRENT_PORTION.search(caption):
+        return "current"
+    return None
+
+
+def _printed_split(rows: list, basis: str, period: str) -> tuple[int, dict[str, Decimal]] | None:
+    """(index of the first portion row, {side: magnitude}) for a note table that prints its money
+    split into a current and a non-current portion which add up to the rows above them — or None.
+    See `_CURRENT_PORTION`."""
+    from app.core.models.enums import LineRole
+
+    portions: dict[str, list[int]] = {}
+    for i, row in enumerate(rows):
+        side = _portion_of(row)
+        if side is not None:
+            portions.setdefault(side, []).append(i)
+    if sorted(portions) != ["current", "non_current"] or any(len(v) != 1 for v in portions.values()):
+        return None
+    figures = {side: _note_figure(rows[idx[0]], basis, period) for side, idx in portions.items()}
+    if any(f is None for f in figures.values()):
+        return None
+    split = {side: abs(f) for side, f in figures.items()}
+    first = min(idx[0] for idx in portions.values())
+    above = [r for r in rows[:first] if _note_figure(r, basis, period) is not None]
+    # What the two portions split: the line rows above them, or the last total printed over them.
+    lines = [_note_figure(r, basis, period) for r in above
+             if getattr(r, "role", None) == LineRole.LINE]
+    totals = [_note_figure(r, basis, period) for r in above
+              if getattr(r, "role", None) in (LineRole.TOTAL, LineRole.SUBTOTAL)]
+    whole = split["current"] + split["non_current"]
+    candidates = ([abs(sum(lines, Decimal(0)))] if len(lines) > 1 else []) + (
+        [abs(totals[-1])] if totals else [])
+    return (first, split) if whole and whole in candidates else None
+
+
+def _note_totals(table, item, basis: str, period: str, side: str | None = None) -> set[Decimal]:
     """The totals a note prints OVER this row, in one column.
 
     A total or subtotal row whose recorded components include the row, or — where the
     reconstruction recorded none — every total printed below it. A table that prints no total at
     all is totalled by its line rows, which is the figure a face row citing it states.
+
+    A table that prints its current / non-current split (`_printed_split`) also totals a row above
+    the split by the portion of ``side``, the side of the line that read it; and its portion rows
+    are not line rows of that total.
     """
     from app.core.models.enums import LineRole
 
     rows = list(getattr(table, "items", None) or ())
-    totals = [r for r in rows if getattr(r, "role", None) in (LineRole.TOTAL, LineRole.SUBTOTAL)]
+    split = _printed_split(rows, basis, period)
     out: set[Decimal] = set()
+    if split is not None and side in split[1]:
+        first, portions = split
+        at = next((i for i, r in enumerate(rows) if r is item), None)
+        if at is not None and at < first:
+            out.add(portions[side])
+    totals = [r for r in rows if getattr(r, "role", None) in (LineRole.TOTAL, LineRole.SUBTOTAL)]
     if totals:
         position = {id(r): i for i, r in enumerate(rows)}
         for total in totals:
@@ -2159,7 +2248,8 @@ def _note_totals(table, item, basis: str, period: str) -> set[Decimal]:
                 out.add(amount)
         return out
     figures = [_note_figure(r, basis, period) for r in rows
-               if getattr(r, "role", None) not in (LineRole.HEADER, LineRole.SPACER)]
+               if getattr(r, "role", None) not in (LineRole.HEADER, LineRole.SPACER)
+               and (split is None or _portion_of(r) is None)]
     figures = [f for f in figures if f is not None]
     if len(figures) > 1:
         out.add(sum(figures, Decimal(0)))
@@ -2357,12 +2447,22 @@ def _settle_against_the_face(doc: DocumentModel, ctx: PipelineContext, all_items
             return []
         return [_Piece("line", value, None, str(getattr(item, "label", "") or item.key))] + rows
 
-    def relation(amount: Decimal, piece: _Piece, basis: str, period: str) -> str | None:
+    def portion_side(face_row: LineItem, line_key: str) -> str | None:
+        """The portion of a split note (`_printed_split`) the face row can be printing for this
+        line: the line's own side, and only where the face row is printed in the line's own
+        section — a current line's money is in the current portion, which the current row prints."""
+        home = section(line_key)
+        if not home or section(face_row.canonical_key or "") != home:
+            return None
+        return _SIDE_OF_SECTION.get(home)
+
+    def relation(amount: Decimal, piece: _Piece, basis: str, period: str,
+                 side: str | None = None) -> str | None:
         if amount == piece.amount:
             return "identity"
         if piece.level == "row" and piece.cell in cells:
             table, note_row = cells[piece.cell]
-            if amount in _note_totals(table, note_row, basis, period):
+            if amount in _note_totals(table, note_row, basis, period, side):
                 return "contains"
         return None
 
@@ -2435,7 +2535,8 @@ def _settle_against_the_face(doc: DocumentModel, ctx: PipelineContext, all_items
                 if rel == "contains":
                     if _note_figure(note_row, basis, other) is None:
                         return None
-                    return face_then in _note_totals(table, note_row, basis, other)
+                    return face_then in _note_totals(table, note_row, basis, other,
+                                                     portion_side(face_row, line_key))
                 then = _note_figure(note_row, basis, other)
         return None if then is None else then == face_then
 
@@ -2466,7 +2567,7 @@ def _settle_against_the_face(doc: DocumentModel, ctx: PipelineContext, all_items
             printed = was(face_row, basis, period)
             if fev is None or fev.value is None or not printed:
                 continue
-            rel = relation(printed, piece, basis, period)
+            rel = relation(printed, piece, basis, period, portion_side(face_row, key))
             if rel is None or not confirmed(face_row, piece, rel, key, basis, period):
                 continue
             if piece.amount > fev.value - absorbed.get(id(fev), Decimal(0)):
