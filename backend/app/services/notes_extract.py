@@ -1264,19 +1264,35 @@ def _period_year_for(anchors: list[tuple[float, int, bool]], y: float | None) ->
     """The year governing the row printed at ``y``, or None when this note states none.
 
     Opening headers win where a note has them: a note that captions its blocks says so directly,
-    and a closing balance in the same note is then just one of the rows that block governs.
+    and a closing balance in the same note is then just one of the rows that block governs —
+    EXCEPT BETWEEN TWO BALANCES OF ONE YEAR. A header can name the year-end the block's balances
+    are struck at while the movement it then prints is the next year's: BYD Electronic's note 13
+    opens "At 31 December 2023 and at 1 January 2024:" over the 2023 cost and accumulated
+    depreciation, and below them prints 2024's movement, "At 1 January 2024, net of …" to
+    "At 31 December 2024, net of …". Under the header alone 2024's depreciation (4,875,202) was
+    dated 2023. A row printed between two balances of the same year, inside the header's block, is
+    that year's movement; every other row keeps the header's year.
     """
     if not anchors or y is None:
         return None
     opens = [(top, year) for top, year, has_figures in anchors if not has_figures]
     if opens:
         found: int | None = None
+        start: float | None = None
+        end: float | None = None
         for top, year in opens:
             if top <= y + _ANCHOR_TOL:
-                found = year
+                found, start = year, top
             else:
+                end = top
                 break
         if found is not None:
+            balances = [(top, year) for top, year, has_figures in anchors
+                        if has_figures and top > start and (end is None or top < end)]
+            above = [year for top, year in balances if top <= y + _ANCHOR_TOL]
+            below = [year for top, year in balances if top >= y - _ANCHOR_TOL]
+            if above and below and above[-1] == below[0] != found:
+                return above[-1]
             return found
     # No header opened this block, so the first closing balance BELOW the row completes it.
     for top, year, has_figures in anchors:

@@ -120,6 +120,53 @@ def test_a_closing_anchor_governs_the_rows_above_it():
     assert _period_year_for(anchors, 0.29) == 2024      # above "At 31 December 2024"
 
 
+def _header_then_next_years_movement() -> list[list[Word]]:
+    """BYD Electronic note 13, page 149: a header naming the PREVIOUS year-end over that year's
+    balances, then the next year's movement between its own two balances, then the next header."""
+    return [
+        _row("At 31 December 2023 and at 1 January 2024:", 0.20),
+        _row("Cost", 0.22, "36,111,000", "39,785,640"),
+        _row("Accumulated depreciation and impairment", 0.24, "(16,401,828)", "(20,076,468)"),
+        _row("於二零二四年一月一日，扣除累計折舊及減值", 0.27, "3,161,665", "19,709,172"),
+        _row("Additions", 0.29, "1,000,000", "2,279,105"),
+        _row("Depreciation provided during the year", 0.31, "(777,422)", "(4,875,202)"),
+        _row("於二零二四年十二月三十一日，扣除累計折舊及減值", 0.33, "3,384,243", "17,113,075"),
+        _row("At 31 December 2024:", 0.36),
+        _row("Cost", 0.38, "37,000,000", "40,935,354"),
+    ]
+
+
+def test_a_movement_between_two_balances_of_one_year_is_that_years():
+    """The header's 2023 governs the 2023 balances under it, but the movement printed between
+    "At 1 January 2024" and "At 31 December 2024" is 2024's. Under the header alone the 2024
+    depreciation was dated 2023 — the prior slot — on every page of this note."""
+    anchors = _period_anchors(_header_then_next_years_movement())
+    assert [(year, carries) for _y, year, carries in anchors] == [
+        (2023, False), (2024, True), (2024, True), (2024, False)], anchors
+
+    assert _period_year_for(anchors, 0.22) == 2023      # the 31 December 2023 cost
+    assert _period_year_for(anchors, 0.29) == 2024      # additions
+    assert _period_year_for(anchors, 0.31) == 2024      # 2024's depreciation
+    assert _period_year_for(anchors, 0.38) == 2024      # under the 2024 header
+    assert _period_hint_for(anchors, 2024, 0.24) == "prior"
+    assert _period_hint_for(anchors, 2024, 0.31) == "current"
+
+
+def test_balances_of_two_years_leave_the_row_to_its_header():
+    """Only a movement BRACKETED by one year's balances is moved off its header: between a 2023
+    balance and a 2024 one the header still decides."""
+    rows = [
+        _row("For the year ended 31 December 2024", 0.20),
+        _row("At 31 December 2023", 0.22, "1,000"),
+        _row("Exchange difference", 0.24, "10"),
+        _row("At 31 December 2024", 0.26, "1,010"),
+    ]
+    anchors = _period_anchors(rows)
+    assert [(year, carries) for _y, year, carries in anchors] == [
+        (2024, False), (2023, True), (2024, True)], anchors
+    assert _period_year_for(anchors, 0.24) == 2024
+
+
 def test_a_date_is_not_a_figure():
     """"As at 31 December 2024" reaches the scanner as the label "As at" and the values 31 and
     2024. Counting those as figures would make an opening header look like a closing balance and
