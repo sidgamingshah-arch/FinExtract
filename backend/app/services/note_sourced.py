@@ -1798,6 +1798,24 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
                 in_period = [r for r in pool if _period_is(r[2], want_period)]
                 if in_period:
                     pool = in_period
+            # THE COLUMN NARROWS TOO, among the rows the caption ties on. A CAS note prints its
+            # 期末余额 table and, under （续）, its 期初余额 table in one block, and both total rows
+            # are 合计: the citation names the row by its caption and the cell by its column, and
+            # only one of the two prints "期初余额 · 坏账准备". Document order took the first, whose
+            # columns are all 期末余额, and the citation was refused — measured on 河钢 000709, where
+            # the allowance and the gross receivables both lost their opening balance that way.
+            # Only a tie is narrowed, and only to the rows printing the column: where none does,
+            # the pool stands and the refusal below names the columns the row does print.
+            if want_col and want_col.casefold() != SHARE_COUNTS_COLUMN:
+                def _prints(r) -> bool:
+                    lay_r = layout.get(id(r[2]))
+                    got, _why = (_by_laid_out_column(r[2], lay_r, ref) if lay_r is not None
+                                 else _by_column(r[2], ref))
+                    return got is not None
+                tied_cap = _tied_captions(want_cap, pool, key=lambda r: norm(r[1]))
+                printing = [r for r in tied_cap if _prints(r)]
+                if printing and len(printing) < len(tied_cap):
+                    pool = printing
             hit = best_caption(want_cap, pool, key=lambda r: norm(r[1]))
             if hit is not None:
                 # A CAPTION THAT STILL NAMES SEVERAL ROWS IS REFUSED, where the request gave the

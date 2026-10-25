@@ -813,3 +813,30 @@ def test_a_line_left_to_the_rollup_and_computed_as_printed_is_derived(tmp_path: 
     # Without a run that computes it, an empty answer is a miss, as before.
     (run / "rows.json").write_text("[]")
     assert {r["grade"] for r in standin.grade_folder(tmp_path, key)} == {"missed"}
+
+
+def test_grade_reads_a_column_legend_down_to_the_rows_it_is_not_repeated_on():
+    """The request sends a row's `columns` only when it changes, so 000709's 合计 rows carry none
+    and read the legend of the 应收账款 row above them. A citation of 合计 by "期初余额 · 坏账准备"
+    names the （续） table's cell, keyed 'prior:allowance' — the prior year — as the gateway
+    resolves it; it was graded unresolved."""
+    from app.services.line_item_llm import LineItemAnswer
+    from app.services.mapping import SourceRef
+    closing = {"current": "期末余额 · 账面余额", "current:allowance": "期末余额 · 坏账准备"}
+    opening = {"prior": "期初余额 · 账面余额", "prior:allowance": "期初余额 · 坏账准备"}
+    payload = _payload(notes=[
+        {"note": "七、3", "title": "以摊余成本计量的应收账款", "unit": "CNY units (x1)", "rows": [
+            {"caption": "应收账款", "columns": closing,
+             "figures": {"current": "2689546185.47", "current:allowance": "1394836830.02"}},
+            {"caption": "合计",
+             "figures": {"current": "2689546185.47", "current:allowance": "1394836830.02"}},
+            {"caption": "应收账款", "columns": opening,
+             "figures": {"prior": "2595130766.28", "prior:allowance": "1445376980.12"}},
+            {"caption": "合计",
+             "figures": {"prior": "2595130766.28", "prior:allowance": "1445376980.12"}}]}])
+    ans = LineItemAnswer(key="k", sources=[
+        SourceRef(note="七、3", table="以摊余成本计量的应收账款", caption="合计", column=col)
+        for col in ("期末余额 · 坏账准备", "期初余额 · 坏账准备")])
+    kl = standin.KeyLine(current="1394836830.02", prior="1445376980.12")
+    assert standin.grade_answer(payload, ans, kl, "current", None)[0] == "right"
+    assert standin.grade_answer(payload, ans, kl, "prior", None)[0] == "right"

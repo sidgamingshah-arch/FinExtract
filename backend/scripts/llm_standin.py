@@ -1304,7 +1304,17 @@ def _source_rows(payload: dict, src) -> list[tuple[dict, dict]]:
                 continue
             if src.entity and b.get("entity") != src.entity:
                 continue
+        # A ROW'S COLUMN LEGEND HOLDS UNTIL A ROW GIVES A NEW ONE: the request sends `columns` only
+        # when it changes (`note_context`), so 000709's 合计 rows read "期末余额 · 坏账准备" off the
+        # 应收账款 row above them — as the model reads them, and as the gateway resolves them.
+        legend = None
         for r in b.get("rows") or []:
+            if not isinstance(r, dict):
+                continue
+            if r.get("columns"):
+                legend = r["columns"]
+            elif legend:
+                r = {**r, "columns": legend}
             if _norm_caption(r.get("caption")) != cap:
                 continue
             # A statement row is named by the heading it is printed under (`subheading` or
@@ -1368,6 +1378,11 @@ def _row_cell(r: dict, src, period: str, block: dict | None = None):
         per = (r.get("periods") or {}).get(col) or r.get("period") or ""
         if per == "unstated":
             per = _column_period(col, block) or per
+        # A KEY READ OFF A PERIOD × MEASURE HEADER NAMES ITS YEAR FIRST — 'prior:allowance' is the
+        # 期初余额 table's 坏账准备 — and the gateway files it there (`note_columns.period_of`).
+        base = str(col).split(":", 1)[0]
+        if per not in ("current", "prior") and ":" in str(col) and base in ("current", "prior"):
+            per = base
         if per in ("current", "prior") and per != period:
             return None
         if per not in ("current", "prior") and col in ("current", "prior") and col != period:
