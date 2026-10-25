@@ -17500,7 +17500,9 @@
     "Dividends paid to non-controlling interest",
     "Dividends paid to minority interest",
     "Dividends paid to non-controlling interests of subsidiaries",
-    "Dividends paid to non-controlling interests"
+    "Dividends paid to non-controlling interests",
+    "Dividends paid to non-controlling shareholders",
+    "Dividends paid to non-controlling shareholders of subsidiaries"
    ],
    "keyword_hints": [
     "Dvds Paid(Minority S'holders)"
@@ -17529,7 +17531,9 @@
      "Dividends paid to non-controlling interest",
      "Dividends paid to minority interest",
      "Dividends paid to non-controlling interests of subsidiaries",
-     "Dividends paid to non-controlling interests"
+     "Dividends paid to non-controlling interests",
+     "Dividends paid to non-controlling shareholders",
+     "Dividends paid to non-controlling shareholders of subsidiaries"
     ]
    }
   },
