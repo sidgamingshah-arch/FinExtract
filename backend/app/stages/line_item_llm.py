@@ -561,6 +561,10 @@ class LineItemLlmStage(Stage):
             ctx.mapping_strategy_reason = (
                 f"all {failures} line-item request(s) failed; every figure on this run comes from "
                 f"the deterministic route")
+        # A CONTRA LINE THE MODEL ANSWERED IS STORED AS THE DEDUCTION IT IS, as `normalize` stores
+        # one it read: a 坏账准备 cell is printed unsigned. See `orient_balance_sheet_contras`.
+        from app.stages.normalize import orient_balance_sheet_contras
+        orient_balance_sheet_contras(doc, ctx, by="line_item_llm")
         return doc
 
     def _ask_text(self, doc, ctx, provider, text_plans, by_key: dict, by_concept: dict

@@ -332,6 +332,48 @@ def _natural_negative_keys(template_def: dict | None) -> set[str]:
     return keys
 
 
+def orient_balance_sheet_contras(doc: DocumentModel, ctx: PipelineContext, *, by: str) -> int:
+    """Store a balance-sheet contra line's figure as the deduction it is, for a figure written AFTER
+    `normalize` ran — by the model route or a note-sourced cascade (`note_sourced._write`), which
+    put the figure on the row as the page printed it.
+
+    `normalize` negates a contra line (`sign: natural_negative`) so that the parent the template
+    sums it into deducts it. The two stages that run after it never did, so a CAS allowance cited
+    off its note's 坏账准备 column — printed unsigned — went out positive and Net Trade Receivables
+    ADDED it: measured on 湖北能源 000883, 5,404,636,192.20 + 409,601,688.47 = 5,814,237,880.67
+    against a printed 4,995,034,503.73, and the same on every CAS filing of the corpus.
+
+    ONLY THE BALANCE SHEET'S contra lines, and every positive figure on them. None of them is ever
+    a positive balance, so there is no printed sign to keep; a P&L contra line is different — a
+    net credit printed under an unsigned expense keeps its sign (`NormalizeStage.run`) — and is
+    left to that stage. Not gated on `sign_normalised`: `note_sourced._write` replaces the figure
+    of a slot `normalize` had already oriented, and the flag stays set on the object.
+    """
+    template = getattr(ctx, "template_def", None) or getattr(ctx, "template", None)
+    if hasattr(template, "model_dump"):
+        template = template.model_dump(mode="json")
+    from app.services.rollups import balance_sheet_deductions
+    keys = balance_sheet_deductions(template)
+    changed = 0
+    for li in doc.line_items:
+        if li.canonical_key not in keys:
+            continue
+        for ev in (li.values or {}).values():
+            if ev.value is None or ev.value <= 0:
+                continue
+            ev.value = -abs(ev.value)
+            ev.sign_normalised = True
+            for flag in (f"{_SIGN_RULE_FLAG}:natural_negative", "sign_normalised"):
+                if flag not in ev.confidence.flags:
+                    ev.confidence.flags.append(flag)
+                if flag not in li.confidence.flags:
+                    li.confidence.flags.append(flag)
+            changed += 1
+    if changed:
+        ctx.log(f"{by}:balance_sheet_contras_oriented={changed}")
+    return changed
+
+
 class NormalizeStage:
     name = "normalize"
 

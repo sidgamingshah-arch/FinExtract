@@ -226,6 +226,22 @@ def reconcile_section(members: SectionMembers, value_of, components: list[float]
     return recon
 
 
+def balance_sheet_deductions(template_def: dict | None) -> set[str]:
+    """The `natural_negative` lines of the template's BALANCE SHEET: a contra-asset or a deduction
+    from equity — an allowance, accumulated depreciation or amortisation, treasury shares — which
+    no filing prints as anything but a deduction from the line beside it."""
+    pending = [section for statement in (template_def or {}).get("statements", [])
+               if statement.get("type") == "balance_sheet"
+               for section in statement.get("sections", [])]
+    keys: set[str] = set()
+    while pending:
+        node = pending.pop()
+        if node.get("sign") == "natural_negative" and node.get("canonical_key"):
+            keys.add(node["canonical_key"])
+        pending.extend(node.get("children") or [])
+    return keys
+
+
 def calculated_nodes(template_def: dict | None) -> dict[str, dict]:
     """canonical_key → the node, for every template line that declares a rollup."""
     out: dict[str, dict] = {}
@@ -421,6 +437,7 @@ def evaluate(template_def: dict | None, reported, *, labels: dict[str, str] | No
     nodes = calculated_nodes(template_def)
     names = labels or node_labels(template_def)
     order, cyclic = _order(nodes)
+    deductions = balance_sheet_deductions(template_def)
     out: dict[str, Calculated] = {}
 
     def figure(key: str) -> float | None:
@@ -508,6 +525,18 @@ def evaluate(template_def: dict | None, reported, *, labels: dict[str, str] | No
         complete = not requires_complete or all(component.value is not None
                               for component in calc.components)
         calc.computable = total is not None and complete
+        # A BALANCE-SHEET SUBTOTAL OF DEDUCTIONS ALONE IS NOT ITS FIGURE. Net Trade Receivables is
+        # gross + allowance, and where the gross is not disclosed the allowance alone is not the
+        # net receivable — it was published as one once the allowance was answered and the gross
+        # was not: -81 on Grand Ming, -3,068 on PetroChina, -1,637,436 on Far East Horizon. Where
+        # the template gives a subtotal a base and NONE of its base children is disclosed, the
+        # subtotal is not computed, and the figure the filing (or the model) gives it stands. Only
+        # the balance sheet's deductions: on the P&L an expense alone is a figure.
+        if calc.computable and op == SUM and reported_total is None:
+            bases = [c for c in calc.components if c.canonical_key not in deductions]
+            if (bases and len(bases) < len(calc.components)
+                    and all(c.value is None for c in bases)):
+                calc.computable = False
         # A LINE WHOSE PARTS ARE ONLY PARTLY DISCLOSED — net fixed assets, the one plain rollup on a
         # `line` (gross fixed assets + accumulated depreciation). A face that prints net figures
         # discloses no accumulated depreciation, so the line was never computable; and what it fell

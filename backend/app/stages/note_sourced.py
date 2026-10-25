@@ -435,6 +435,9 @@ class NoteSourcedStage(Stage):
         carried = line_disclosure.attach(doc, line_item_set)
         if carried:
             ctx.log(f"note_sourced: {carried} line(s) carry the disclosure they were added up from")
+        # …and a contra line a cascade filled is a deduction, as the model route's is.
+        from app.stages.normalize import orient_balance_sheet_contras
+        orient_balance_sheet_contras(doc, ctx, by="note_sourced")
         return doc
 
 
