@@ -207,11 +207,14 @@ def test_a_face_section_line_is_not_offered_the_note_route():
     # 营业收入和营业成本 is where its row is analysed. `bs_ca__trade_receivables_gross` carries the
     # allowance's terms: its figure is the 账面余额 of the receivables note the allowance reads, and
     # without them its definition text was the probe (see
-    # `test_gross_receivables_is_before_the_allowance.py`).
+    # `test_gross_receivables_is_before_the_allowance.py`). `bs_cl__st_other_loans_payable` names
+    # the note of a combined current row — 1966's INTEREST-BEARING BANK AND OTHER BORROWINGS, Grand
+    # Ming's BANK AND OTHER LOANS — whose other loans its definition takes and its face-only route
+    # could not reach (`test_short_term_other_loans_reads_the_borrowings_note.py`).
     assert {i.key for i in probes_only} == {
         "is_pl__personnel_and_benefit_expenses", "is_pl__interest_expense_capitalised",
         "bs_ca__allow_for_doubtful_accounts", "bs_ca__trade_receivables_gross",
-        "bs_cl__st_bank_loans_payable",
+        "bs_cl__st_bank_loans_payable", "bs_cl__st_other_loans_payable",
         "bs_nca__gross_fixed_assets", "bs_nca__net_fixed_assets", "is_pl__total_cost_of_sales"}
 
     sections = st.section_defaults

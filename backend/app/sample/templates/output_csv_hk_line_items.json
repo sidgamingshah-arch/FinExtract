@@ -7283,7 +7283,7 @@
   {
    "key": "bs_cl__st_other_loans_payable",
    "label": "ST Other Loans Payable",
-   "definition": "Short-term loans from lenders other than banks (third parties, other financial institutions, government and other non-bank lenders) repayable within one year, as a row printed in the current liabilities section of the balance sheet ('Other borrowings', 'Other loans', 'Loans from third parties'; on a CAS statement '向中央银行借款' and '拆入资金'). A row that prints bank and other borrowings together ('Interest-bearing bank and other borrowings') is not this line: it is read as 'ST Bank Loans Payable'. Not this line: bank loans ('ST Bank Loans Payable', 'CPLTD Bank'); bonds and guaranteed or senior notes due within one year ('CPLTD Other'); entrusted loans ('Entrusted loan payables- third parties(CP)' and its related-party and shareholder peers); amounts due to related parties, directors or shareholders ('Due to Related Parties(CP)', 'Due to directors(CP)', 'Due to S'holder(CP)'); bills and notes payable ('Notes Payable(CP)').",
+   "definition": "Short-term loans from lenders other than banks (third parties, other financial institutions, government and other non-bank lenders) repayable within one year, reported in the current liabilities section of the balance sheet. Where the face prints them as a row of their own ('Other borrowings', 'Other loans', 'Loans from third parties'; on a CAS statement '向中央银行借款' and '拆入资金'), this line is that row as printed, whatever its breakdown lists. Where the filing prints bank loans and other loans in one current row (an HKFRS face row 'Interest-bearing bank and other borrowings' or 'Bank and other loans'), this line is the other loans part of that row, as the filing's breakdown of it splits it (its current 'Other loans' or 'Other borrowings' rows); the bank loans part is 'ST Bank Loans Payable'. Where the breakdown does not split that row into bank loans and other loans repayable within one year, this line takes nothing from it. On a CAS statement '短期借款' is 'ST Bank Loans Payable' as printed, whatever kinds of loan its breakdown lists. Not this line: bank loans ('ST Bank Loans Payable', 'CPLTD Bank'); bonds and guaranteed or senior notes due within one year ('CPLTD Other'); entrusted loans ('Entrusted loan payables- third parties(CP)' and its related-party and shareholder peers); amounts due to related parties, directors or shareholders ('Due to Related Parties(CP)', 'Due to directors(CP)', 'Due to S'holder(CP)'); bills and notes payable ('Notes Payable(CP)').",
    "aliases": [
     "ST Other Loans Payable",
     "Short term loan from third parties",
@@ -7313,7 +7313,17 @@
    "inherits": "bs_cl",
    "face_only": false,
    "namespace": "template",
-   "route": "face"
+   "note_source": {
+    "note_terms": [
+     "other borrowings",
+     "other loans",
+     "其他借款",
+     "其他貸款",
+     "其他贷款",
+     "向中央银行借款",
+     "拆入资金"
+    ]
+   }
   },
   {
    "key": "bs_cl__finance_leases_cp",
