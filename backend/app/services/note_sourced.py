@@ -1819,7 +1819,16 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
             if want_group:
                 in_group = [r for r in pool
                             if _caption_matches(want_group, norm(_group_of(r[2])))]
-                if in_group:
+                # THE GROUP NAMED EXACTLY, where the caption is printed under it. Containment
+                # admits a heading that holds the cited one — "current" is inside "non-current" —
+                # so Far East Horizon's note 32, printing "Other loans – secured 3.08~5.37" under
+                # both, refused a citation of group "Current" as two rows, and ST Other Loans
+                # Payable published 5,849,191 of its 9,950,826. Containment still answers where
+                # the exact heading holds no such caption.
+                exact = [r for r in in_group if norm(_group_of(r[2])) == want_group]
+                if exact and best_caption(want_cap, exact, key=lambda r: norm(r[1])) is not None:
+                    pool = exact
+                elif in_group:
                     pool = in_group
             # THE PERIOD OF THE ROW'S BLOCK, where the request stated one: a movement schedule
             # prints "Disposals" once per year under each group.

@@ -129,3 +129,27 @@ def test_the_block_mapping_is_one_definition():
         "采购商品情况表", "应付项目", "应付项目"]
     assert [heading for _key, heading in note_context.note_blocks(_notes())] == [
         "采购商品情况表", PAYABLES_TITLE, PAYABLES_TITLE]
+
+
+def test_a_group_named_exactly_is_not_widened_to_a_heading_that_contains_it():
+    """Far East Horizon's note 32 prints "Other loans – secured 3.08~5.37" under "Current"
+    (4,101,635) and under "Non-current" (13,066,882). A citation naming group "Current" was
+    refused as two rows: "current" is inside "non-current", so containment matched both groups.
+    ST Other Loans Payable published the unsecured part alone, 5,849,191 of 9,950,826."""
+    notes = [_table("INTEREST-BEARING BANK AND OTHER BORROWINGS",
+                    _row("Other loans – secured 3.08~5.37", "4101635", "Current"),
+                    _row("Other loans – unsecured 4.10~5.80", "5849191", "Current"),
+                    _row("Other loans – secured 3.08~5.37", "13066882", "Non-current"),
+                    number="32")]
+
+    def cite(**kw):
+        resolved, unresolved = resolve_sources(
+            [SourceRef(note="32", table="INTEREST-BEARING BANK AND OTHER BORROWINGS",
+                       caption="Other loans – secured 3.08~5.37", **kw)], notes)
+        return [r["figures"]["current"] for r in resolved], [u["why"] for u in unresolved]
+
+    assert cite(group="Current") == (["4101635"], [])
+    assert cite(group="Non-current") == (["13066882"], [])
+    # Naming no group still names two rows with different figures, and is refused as before.
+    got, why = cite()
+    assert got == [] and why and "different figures" in why[0]
