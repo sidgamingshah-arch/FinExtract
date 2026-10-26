@@ -815,6 +815,48 @@ def test_a_line_left_to_the_rollup_and_computed_as_printed_is_derived(tmp_path: 
     assert {r["grade"] for r in standin.grade_folder(tmp_path, key)} == {"missed"}
 
 
+def test_a_line_published_as_its_own_row_plus_the_parts_beside_it_is_right_citing_that_row(
+        tmp_path: Path):
+    """湖北能源 000883: Net Fixed Assets on a CAS balance sheet cites 固定资产 alone, as its
+    definition says, and the rollup adds 在建工程 and 使用权资产, printed as lines of their own. The
+    run publishes 75,643,796,087.48 / 66,315,949,699.32, the key's figures, and the answer's
+    固定资产 was graded a wrong figure against that sum. It is right: the row the computation took
+    as the line's own. Without a run that adds the parts, the same citation is still wrong."""
+    from app.services.line_item_llm import LineItemReply as Reply
+    face = [("固定资产", "bs_nca__net_fixed_assets", "65182826011.07", "57874490717.41"),
+            ("在建工程", "bs_nca__construction_in_progress", "9084760397.72", "7259109949.73"),
+            ("使用权资产", "bs_nca__other_fixed_assets", "1376209678.69", "1182349032.18")]
+    req = _folder_with(tmp_path, _payload(
+        unit="CNY units (x1)", notes=[],
+        line_items=[{"key": "bs_nca__net_fixed_assets", "label": "Net Fixed Assets",
+                     "notes_supplied": [], "statement": "balance_sheet"}],
+        statement_rows=[{"statement": "balance_sheet", "entity": "consolidated",
+                         "rows": [{"caption": c, "figures": {"current": now, "prior": then}}
+                                  for c, _k, now, then in face]}]))
+    (tmp_path / "index.json").write_text(json.dumps({"template": "output_csv_hk_v1_template.json",
+                                                     "requests": [{"id": req["id"]}]}))
+    (tmp_path / "answers").mkdir()
+    (tmp_path / "answers" / f"{req['id']}.txt").write_text(json.dumps({"answers": [{
+        "key": "bs_nca__net_fixed_assets",
+        "sources": [{"statement": "balance_sheet", "caption": "固定资产"}]}]}))
+    Reply.model_validate_json((tmp_path / "answers" / f"{req['id']}.txt").read_text())
+    run = tmp_path / "run"
+    run.mkdir()
+    (run / "rows.json").write_text(json.dumps([{
+        "canonical_key": k, "source_label": c, "printed_in": "face", "role": "line",
+        "is_computed": False, "mapping_method": "llm", "flags": [],
+        "values": [{"period_label": p, "basis": "consolidated", "value": v, "value_raw": v}
+                   for p, v in (("current", now), ("prior", then))]} for c, k, now, then in face]))
+    key = standin.Key(filing="x", basis="consolidated", lines={
+        "bs_nca__net_fixed_assets": standin.KeyLine(current="75643796087.48",
+                                                    prior="66315949699.32")})
+    grades = {r["period"]: r["grade"] for r in standin.grade_folder(tmp_path, key)}
+    assert grades == {"current": "right", "prior": "right"}
+    # A run that publishes the row alone has added nothing: the citation is the wrong figure.
+    (run / "rows.json").write_text(json.dumps([json.loads((run / "rows.json").read_text())[0]]))
+    assert {r["grade"] for r in standin.grade_folder(tmp_path, key)} == {"wrong_figure"}
+
+
 def test_grade_reads_a_column_legend_down_to_the_rows_it_is_not_repeated_on():
     """The request sends a row's `columns` only when it changes, so 000709's 合计 rows carry none
     and read the legend of the 应收账款 row above them. A citation of 合计 by "期初余额 · 坏账准备"

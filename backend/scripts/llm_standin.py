@@ -1400,7 +1400,8 @@ def _row_cell(r: dict, src, period: str, block: dict | None = None):
 
 
 def grade_answer(payload: dict, answer, kl: KeyLine, period: str, key_unit: str | None,
-                 key_basis: str | None = None, computed: float | None = None) -> tuple[str, str]:
+                 key_basis: str | None = None, computed: float | None = None,
+                 own: float | None = None) -> tuple[str, str]:
     """Whether an answer picks the figure the filing prints for this line and period, judged in
     the request it answers: each citation is matched back to its row (an unmatched one is
     `unresolved`, one matching rows with different figures `ambiguous`), its figure for the period
@@ -1417,7 +1418,14 @@ def grade_answer(payload: dict, answer, kl: KeyLine, period: str, key_unit: str 
 
     An answer whose citations name two or more entities is one figure PER ENTITY, as the stage
     publishes it (`services.line_item_llm.split_by_entity`): only the citations of the key's basis
-    — and those naming no entity — are graded."""
+    — and those naming no entity — are graded.
+
+    A line the run publishes as ITS OWN ROW PLUS THE PARTS PRINTED BESIDE IT (`own`, from
+    `_own_figure`) is answered with that row alone: Net Fixed Assets on a CAS balance sheet cites
+    固定资产, and the rollup adds 在建工程 and 使用权资产. Such an answer is `right` when it cites the
+    row the computation took as the line's own and the computation is the printed figure. Graded
+    against the sum, 湖北能源's 固定资产 65,182,826,011.07 was a wrong figure for a printed
+    75,643,796,087.48 that the run published exactly."""
     printed = _num(getattr(kl, period))
     if (kl.where or "").lower().startswith("computed"):
         return "derived", "the key computes the line; no page prints it"
@@ -1480,6 +1488,10 @@ def grade_answer(payload: dict, answer, kl: KeyLine, period: str, key_unit: str 
         return "cited_unprinted", f"cited {' + '.join(notes_)} = {total:,.2f}; the filing prints nothing"
     if same(printed_as):
         return "right", ""
+    if (own is not None and computed is not None and same(own)
+            and _same(computed, printed, _places(computed), _places(printed_as))):
+        return "right", (f"the line's own row; the run adds the parts printed beside it: "
+                         f"{computed:,.2f}, as printed")
     other = getattr(kl, "prior" if period == "current" else "current")
     if same(other):
         return "wrong_period", f"{total:,.2f} is the other year's figure"
@@ -1514,11 +1526,11 @@ def grade_text(payload: dict, answer, kl: KeyLine) -> tuple[str, str]:
     return "wrong_text", f"gave {given[:80]!r}, the filing prints {accepted[0][:80]!r}"
 
 
-def computed_figures(d: Path, basis: str) -> dict[tuple[str, str], float]:
-    """{(line, period): figure} for every line the folder's run PUBLISHES COMPUTED from its parts,
-    on this basis: the template's arithmetic over the run's rows (`rollups.evaluate_rows`, the
-    resolver the grid and the export use) gives it, no analyst value overrides it, and it is the
-    figure `run/spread.json` shows. {} when the run or its template is not there."""
+def _computations(d: Path, basis: str) -> dict:
+    """{(line, period): Calculated} for every line the folder's run PUBLISHES COMPUTED from its
+    parts, on this basis: the template's arithmetic over the run's rows (`rollups.evaluate_rows`,
+    the resolver the grid and the export use) gives it, no analyst value overrides it, and it is
+    the figure `run/spread.json` shows. {} when the run or its template is not there."""
     run, idx = d / "run", d / "index.json"
     if not (run / "rows.json").exists() or not idx.exists():
         return {}
@@ -1531,7 +1543,7 @@ def computed_figures(d: Path, basis: str) -> dict[tuple[str, str], float]:
     rows = json.loads((run / "rows.json").read_text(encoding="utf-8"))
     spread_p = run / "spread.json"
     spread = json.loads(spread_p.read_text(encoding="utf-8")) if spread_p.exists() else None
-    out: dict[tuple[str, str], float] = {}
+    out: dict = {}
     for period in ("current", "prior"):
         _g, _reported, overridden, *_ = rollups._readers(rows, basis, period, None)
         shown = (spread or {}).get(f"{basis}|{period}") or {}
@@ -1540,14 +1552,33 @@ def computed_figures(d: Path, basis: str) -> dict[tuple[str, str], float]:
                 continue
             if spread is not None and (shown.get(k) is None or float(shown[k]) != float(c.value)):
                 continue
-            out[(k, period)] = float(c.value)
+            out[(k, period)] = c
     return out
+
+
+def computed_figures(d: Path, basis: str) -> dict[tuple[str, str], float]:
+    """{(line, period): figure} for every line the folder's run publishes computed from its parts
+    (`_computations`)."""
+    return {k: float(c.value) for k, c in _computations(d, basis).items()}
+
+
+def _own_figure(key: str, calc) -> float | None:
+    """The line's own figure where the run publishes the line AS THAT FIGURE PLUS THE PARTS
+    PRINTED BESIDE IT — the rollup's rule for a `line` whose parts are printed as lines of their
+    own (a mainland 固定资产 with 在建工程 and 使用权资产 below it, `rollups.evaluate`), whose first
+    component is then the line itself. None for any other computation."""
+    first = calc.components[0] if calc.components else None
+    if first is not None and first.canonical_key == key and first.value is not None:
+        return float(first.value)
+    return None
 
 
 def grade_folder(d: Path, key: Key) -> list[dict]:
     reqs = load_requests(d)
     latest = set(current_ids(d))
-    computed = computed_figures(d, key.basis)
+    computations = _computations(d, key.basis)
+    computed = {k: float(c.value) for k, c in computations.items()}
+    own = {k: f for k, c in computations.items() if (f := _own_figure(k[0], c)) is not None}
     out = []
     for ap in sorted((d / "answers").glob("*.txt")):
         req = reqs.get(ap.stem)
@@ -1575,7 +1606,8 @@ def grade_folder(d: Path, key: Key) -> list[dict]:
                 continue
             for period in ("current", "prior"):
                 g, detail = grade_answer(payload, ans, kl, period, key.unit, key.basis,
-                                         computed=computed.get((ans.key, period)))
+                                         computed=computed.get((ans.key, period)),
+                                         own=own.get((ans.key, period)))
                 out.append({"request": ap.stem, "key": ans.key, "period": period, "grade": g,
                             "detail": detail})
     return out

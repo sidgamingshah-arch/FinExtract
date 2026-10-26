@@ -82,7 +82,10 @@ Run from `backend/`.
 
    An answer with no sources leaves the line to the rollup (as a definition says to when the
    filing prints no subtotal); where the run publishes the line computed from its parts and that
-   figure is the printed one, it is `derived`, not `missed`.
+   figure is the printed one, it is `derived`, not `missed`. A line the run publishes as its own
+   row plus the parts printed beside it (Net Fixed Assets on a CAS face: 固定资产, with 在建工程 and
+   使用权资产 added by the rollup) is answered with that row alone, and is `right` when it cites the
+   row the computation took as the line's own and the computation is the printed figure.
 
    **Figures compare exactly, at the printed precision** — in `grade`, `coverage` and `report`
    alike. A figure is on the grid its printing gives it (CNY to the cent is 0.01; a whole number in
