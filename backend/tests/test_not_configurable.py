@@ -112,7 +112,12 @@ def test_the_fields_the_v2_spec_removed_are_all_refused():
 
 
 def test_the_count_someone_has_to_justify():
-    """24 of 53 wire fields refused.
+    """24 of 54 wire fields refused.
+
+    54 SINCE `carved_from_face` ARRIVED on the line — the line-level twin of the cascade rung's
+    flag, for a line the model answers: its note figure is already inside the face's captions
+    (staff costs on a by-function statement, interest capitalised out of the finance costs), so
+    it is shown and added into no total. Writable, as the rung's flag is.
 
     53 SINCE `statements` ARRIVED — every statement a line may be claimed on, as a LIST. The
     singular `statement` was not merely narrow, it was actively refusing: `_in_statement` returns
@@ -181,7 +186,7 @@ def test_the_count_someone_has_to_justify():
     It was 26 until the audit found that `in_output`, `namespace` and `order` cannot be refused:
     the template has no row for an off-template PART (measured: 0 of the 77 appear in it), so it
     cannot decide a part's delivery, and refusing them made parts unauthorable."""
-    assert len(_EDITABLE_FIELDS) == 53, len(_EDITABLE_FIELDS)
+    assert len(_EDITABLE_FIELDS) == 54, len(_EDITABLE_FIELDS)
     assert len(_NOT_CONFIGURABLE) == 24, len(_NOT_CONFIGURABLE)
 
 

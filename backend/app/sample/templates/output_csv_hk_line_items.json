@@ -1093,7 +1093,7 @@
   {
    "key": "bs_nca__net_fixed_assets",
    "label": "Net Fixed Assets",
-   "definition": "Fixed assets net of accumulated depreciation and impairment, reported in the non-current assets section of the balance sheet. It covers every class this template counts in Gross Fixed Assets: property, plant and equipment, other fixed assets (which include right-of-use assets, oil and gas assets and productive biological assets) and construction in progress. A CAS balance sheet prints these as separate net rows with no total over them: 固定资产, 在建工程 and 使用权资产, and 油气资产 or 生产性生物资产 where printed. Cite each of those rows as a component; the line is their sum. An HKFRS balance sheet prints 'Property, plant and equipment' and 'Right-of-use assets' (with construction in progress inside the first, or as its own row): cite each. Where the filing prints a single net total over them, cite that total. Investment properties and intangible assets are not fixed assets here. The line equals Gross Fixed Assets plus Accum Deprec & Impairment(-), the reported contra-asset.",
+   "definition": "Fixed assets net of accumulated depreciation and impairment, reported in the non-current assets section of the balance sheet. It covers every class this template counts in Gross Fixed Assets: property, plant and equipment, other fixed assets (which include right-of-use assets, oil and gas assets and productive biological assets) and construction in progress. A CAS balance sheet prints these as separate net rows with no total over them: 固定资产, 在建工程 and 使用权资产, and 油气资产 or 生产性生物资产 where printed. Cite 固定资产 alone: the other rows are lines of their own — Construction in Progress and Other Fixed Assets — and this template's rollup adds them to it, so citing them here counts them twice. An HKFRS balance sheet prints 'Property, plant and equipment' and 'Right-of-use assets' (with construction in progress inside the first, or as its own row): cite each. Where the filing prints a single net total over them, cite that total. Investment properties and intangible assets are not fixed assets here. The line equals Gross Fixed Assets plus Accum Deprec & Impairment(-), the reported contra-asset.",
    "extraction_mode": "extract_or_derive",
    "aliases": [
     "Net Fixed Assets"
@@ -9771,6 +9771,7 @@
   {
    "key": "is_pl__personnel_and_benefit_expenses",
    "label": "Personnel & Benefit Expenses",
+   "carved_from_face": true,
    "definition": "The cost of employee benefits the filing charges to profit or loss for the year: wages and salaries, bonuses and allowances, pension and other retirement scheme contributions, social security and housing fund contributions, staff welfare, and equity-settled share-based payments to employees. It is the employee benefit (staff costs) total the filing prints — 'Employee benefit expense' or 'Staff costs' in the profit-before-tax note of an HKFRS filing, 职工薪酬 or 员工成本 in a CAS one. Take that total as the note prints it: with the directors' and chief executive's remuneration where the note's total includes it, and without it where the note excludes it and states it in another note (do not add that note to it). Where the note deducts amounts capitalised (into properties under development, construction in progress or inventories) or government grants released against the cost, the line is the figure after those deductions — the cost charged to profit or loss. Where the note prints no total, cite each of its components; the line is their sum. It is not employee benefits payable, and not the remuneration of directors or key management alone.",
    "aliases": [
     "Personnel & Benefit Expenses",
@@ -11079,6 +11080,7 @@
   {
    "key": "is_pl__interest_expense_capitalised",
    "label": "Interest expense - capitalised",
+   "carved_from_face": true,
    "definition": "Borrowing costs capitalised in the year: the interest on borrowings the filing added to the cost of qualifying assets — construction in progress, properties under development, investment properties under construction — instead of charging it to profit or loss. An HKFRS filing prints it in the finance costs note, deducted from the total interest to arrive at the finance costs charged ('Less: Interest capitalised', 'Amount capitalised in properties under development'); where the note prints one such row per class of asset, cite each, and the line is their total. A CAS filing states it as 利息资本化金额 (本期利息资本化金额, 资本化利息) in the 财务费用 or 在建工程 note; it is not printed on the income statement. It is not the interest expense charged to profit or loss, and not the capitalisation rate. Where the filing states no interest capitalised, answer with an empty sources list.",
    "aliases": [
     "Interest expense - capitalised",

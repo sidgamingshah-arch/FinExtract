@@ -968,6 +968,19 @@ class LineItemDef(BaseModel):
     # formulas, so this is a capability the rule builder gains, not a change to a figure.
     terms_op: TermsOp = "sum"
 
+    # A FIGURE THIS LINE READS FROM A NOTE IS ALREADY INSIDE THE FACE'S CAPTIONS — the line-level
+    # twin of `CascadeRung.carved_from_face`, for a line the model answers rather than a cascade.
+    # A by-function income statement charges its staff costs inside cost of sales, selling,
+    # administrative and R&D expenses, and the profit-before-tax note states them again by
+    # nature; interest capitalised is taken out of the finance costs before the face prints
+    # them. Read from the note, the figure is shown on its line and no total adds it again
+    # (`rollups.CARVED_FROM_FACE`). Measured on BYD Electronic: the note's staff costs,
+    # 18,965,744, were added to operating profit beside the function lines that hold them,
+    # and profit before tax published -14,079,152 against a printed 4,740,416. A face that
+    # prints the line as a row of its own (PetroChina's by-nature "Employee compensation
+    # costs") is a face row, not a note figure, and is added as before.
+    carved_from_face: bool = False
+
     # ── derived ──────────────────────────────────────────────────────────────────────────────
     cascade: list[CascadeRung] = Field(default_factory=list)
     # An in-code implementer for this line, naming what computes it. Kept as an escape hatch and

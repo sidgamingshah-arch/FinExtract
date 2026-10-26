@@ -525,6 +525,7 @@ class LineItemLlmStage(Stage):
         blanked += self._settle_shared_printed_rows(doc, face_claims, cited_by_key, by_concept,
                                                     ctx, line_item_set)
         blanked += self._settle_shared_note_rows(doc, note_cells, by_concept, line_item_set, ctx)
+        blanked += self._release_swept_rows(doc, face_claims, ctx, line_item_set)
         # THE RUN'S ONE-LINE TOKEN SUMMARY. `cached` is part of `input`, not added to it.
         hit = (100.0 * tok["cached"] / tok["input"]) if tok["input"] else 0.0
         ctx.log(f"line_item_llm:tokens document_context={doc_context} requests={calls} "
@@ -565,6 +566,10 @@ class LineItemLlmStage(Stage):
         # one it read: a 坏账准备 cell is printed unsigned. See `orient_balance_sheet_contras`.
         from app.stages.normalize import orient_balance_sheet_contras
         orient_balance_sheet_contras(doc, ctx, by="line_item_llm")
+        # …AND A NOTE FIGURE THE FACE ALREADY CARRIES is shown on its line and added into no
+        # total — see `LineItemDef.carved_from_face`.
+        from app.stages.note_sourced import carve_note_figures
+        carve_note_figures(doc, ctx, by="line_item_llm")
         return doc
 
     def _ask_text(self, doc, ctx, provider, text_plans, by_key: dict, by_concept: dict
@@ -1066,6 +1071,66 @@ class LineItemLlmStage(Stage):
                         f"{where or 'no recognised section'} and goes to {owner}; this line is "
                         f"left empty" + (f" (was {figures[0]})" if figures else ""))
         return blanked
+
+    @staticmethod
+    def _release_swept_rows(doc, face_claims: dict[str, list[str]], ctx,
+                            line_item_set=None) -> int:
+        """A printed row the residual sweep put on its section's catch-all line, cited by the model
+        for a line of its own, leaves the catch-all.
+
+        THE CASE. The sweep (`stages.residual`) files every face row no dedicated line claimed on
+        the section's residual — Other Non-Cash Adjs(Oper), Other Current Liabilities. The model is
+        then asked about a dedicated line and cites some of those rows: PetroChina's Amortization &
+        Asset Impairment took "Accrual of provision for impairment of receivables, net" 743, "Write
+        down in inventories, net" 2,367 and "Impairment of other non-current assets" 42 — and the
+        three stayed in the residual too, so operating cash flow published 409,684 against a
+        printed 406,532 (and 463,560 against 456,847). `_reconcile_claimed_printed_rows` answers
+        this for a line that kept its printed row; a swept row belongs to no line that was asked,
+        so nothing released it.
+
+        THE ROW IS EMPTIED, as a claimed printed row is: its figures go, its key and flags stay
+        and say which line took it. Only a row of the SAME statement section as the citing line
+        (a part on another statement reads the row and does not take it), only where the citing
+        line is not one the residual is computed from or a part of (`_ancestry`), and only where
+        the citing line adds the figure into the section's total — a figure shown on its line and
+        added into none (`CARVED_FROM_FACE`) leaves the money where it is.
+        """
+        from app.services.rollups import CARVED_FROM_FACE
+        rows = {str(getattr(li, "id", "") or ""): li for li in (doc.line_items or ())}
+        by_key: dict[str, list] = {}
+        for li in (doc.line_items or ()):
+            if li.canonical_key:
+                by_key.setdefault(str(li.canonical_key), []).append(li)
+        ancestors = _ancestry(line_item_set)
+
+        def counted(key: str) -> bool:
+            return not any(CARVED_FROM_FACE in ev.confidence.flags
+                           for li in by_key.get(key, ()) for ev in (li.values or {}).values())
+
+        released = 0
+        for rid, keys in face_claims.items():
+            row = rows.get(rid)
+            if row is None or getattr(row.confidence, "method", None) != "residual":
+                continue
+            swept_to = str(row.canonical_key or "")
+            section = swept_to.split("__")[0]
+            takers = [k for k in keys if k != swept_to and k.split("__")[0] == section
+                      and k not in ancestors(swept_to) and swept_to not in ancestors(k)
+                      and counted(k)]
+            if not takers:
+                continue
+            figures = [str(ev.value) for ev in (row.values or {}).values()
+                       if getattr(ev, "value", None) is not None]
+            if not figures:
+                continue
+            row.values = {}
+            row.confidence.flags.append(f"swept_row_claimed_by:{takers[0]}")
+            row.confidence.flags.append(
+                f"llm_printed_row_withheld:{','.join(sorted(set(figures))[:4])}")
+            released += 1
+            ctx.log(f"line_item_llm:{swept_to}: swept row {str(row.source_label or '')[:48]!r} "
+                    f"is cited by {takers[0]} and leaves the residual (was {figures[0]})")
+        return released
 
     @staticmethod
     def _settle_shared_note_rows(doc, note_cells: dict[str, list[tuple | None]], by_concept: dict,

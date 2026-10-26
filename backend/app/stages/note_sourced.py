@@ -438,6 +438,8 @@ class NoteSourcedStage(Stage):
         # …and a contra line a cascade filled is a deduction, as the model route's is.
         from app.stages.normalize import orient_balance_sheet_contras
         orient_balance_sheet_contras(doc, ctx, by="note_sourced")
+        # …and a note figure the face already carries inside its captions is shown, not added.
+        carve_note_figures(doc, ctx, by="note_sourced")
         return doc
 
 
@@ -713,6 +715,19 @@ def _write(row: LineItem, basis: str, period: str, amount: Decimal,
     for ev in (row.values or {}).values():
         if (_basis(ev) == basis and str(getattr(ev, "period_label", "") or "") == period):
             figure = ev.value if ev.value is not None else ev.value_raw
+            # THE SAME AMOUNT KEEPS THE SIGN THE SLOT ALREADY CARRIES. A note prints its breakdown
+            # unsigned; the face, or `normalize`, or the note→face split, has already put the
+            # figure in the statement's convention. A writer arriving later with the note's
+            # amount has no better word on the sign than the stage that oriented it. Measured on
+            # BYD Electronic: the split stored interest on lease liabilities as -73,088 against
+            # the face's bracketed finance costs; the model cited the same note row and wrote
+            # +73,088, and net interest moved by twice the figure — on four HKEX filings. Only a
+            # slot read off a page or oriented upstream: one an earlier writer derived keeps no
+            # authority over the sign.
+            if (figure is not None and figure != 0 and amount == -figure
+                    and (not ev.derived or ev.sign_normalised)):
+                row.confidence.flags.append(f"{by or 'value'}_kept_sign:{figure}")
+                amount = figure
             displaced = figure is not None and figure != amount
             if displaced:
                 kind = "derived" if ev.derived else "printed"
@@ -1675,6 +1690,89 @@ def _fill_by_cascade(parent_def, kids: list, by_key: dict, doc: DocumentModel,
 #: `CascadeRung.adds_to_printed`.
 ARRIVED_BESIDE_PRINTED = "arrived_beside_printed"
 
+#: A carved cost line's note figure, put in the sign the face prints its costs in.
+FACE_COST_SIGN = "sign_rule:face_cost_convention"
+
+
+def carve_note_figures(doc: DocumentModel, ctx: PipelineContext, *, by: str) -> int:
+    """Mark the note figures of a `carved_from_face` line as already inside the face's captions.
+
+    `LineItemDef.carved_from_face` says the line's note figure is money the face already prints
+    inside other captions. A slot qualifies where it was READ FROM A NOTE — its figure's page is a
+    notes page — on a row that is not a face row: the row a writer made for a line the face does
+    not print. A face row keeps its figure in every total even where a late writer re-read it off a
+    note, because the face printing the line is what makes it a line of its own (a by-nature
+    statement's "Employee compensation costs"). The slot then carries `CARVED_FROM_FACE`: shown on
+    its line, and `rollups` adds it into no total.
+
+    A CARVED COST IS SHOWN IN THE FACE'S CONVENTION. A note prints its staff costs unsigned; where
+    the face prints the costs of the same rollup negative (an HKEX statement's bracketed expenses),
+    the figure is stored negative too, as `normalize` stores the face's. Where the face's costs are
+    printed unsigned (a CAS statement), it is left as printed. The sign moves no total — the
+    figure is in none — so this is what the line SHOWS, not what anything sums.
+
+    Run at the end of both late writers, the model route and the note-sourced stage. Idempotent.
+    """
+    from app.core.models.enums import PrintedIn
+    from app.services.face_context import _notes_pages
+    from app.services.rollups import CARVED_FROM_FACE
+
+    line_item_set = getattr(ctx, "line_items", None)
+    keys = {str(i.key) for i in (getattr(line_item_set, "items", None) or ())
+            if getattr(i, "carved_from_face", False)}
+    if not keys:
+        return 0
+    notes_pages = _notes_pages(doc)
+    template = getattr(ctx, "template_def", None) or getattr(ctx, "template", None)
+    if hasattr(template, "model_dump"):
+        template = template.model_dump(mode="json")
+    from app.services.rollups import calculated_nodes
+    # THE COST MEMBERS OF EACH ROLLUP — the ones it spends as magnitudes — by member.
+    members_of: dict[str, list[str]] = {}
+    for node in calculated_nodes(template).values():
+        costs = list((node.get("rollup") or {}).get("cost_magnitude_children") or [])
+        for key in costs:
+            members_of.setdefault(key, []).extend(c for c in costs if c != key)
+
+    def face_costs_negative(key: str, basis: str, period: str) -> bool:
+        figures = [ev.value for li in doc.line_items
+                   if str(li.canonical_key or "") in set(members_of.get(key, ())) - keys
+                   and li.printed_in is PrintedIn.FACE
+                   and getattr(li.confidence, "method", None) != "residual"
+                   for ev in (li.values or {}).values()
+                   if ev.value is not None and _basis(ev) == basis
+                   and str(getattr(ev, "period_label", "") or "") == period]
+        return bool(figures) and all(v < 0 for v in figures)
+
+    carved = oriented = 0
+    for li in doc.line_items:
+        key = str(li.canonical_key or "")
+        if key not in keys or li.printed_in is PrintedIn.FACE:
+            continue
+        for ev in (li.values or {}).values():
+            page = getattr(getattr(ev, "provenance", None), "page_index", None)
+            if ev.value is None or page is None or int(page) not in notes_pages:
+                continue
+            if CARVED_FROM_FACE not in ev.confidence.flags:
+                ev.confidence.flags.append(CARVED_FROM_FACE)
+                carved += 1
+            period = str(getattr(ev, "period_label", "") or "")
+            if (ev.value > 0 and key in members_of
+                    and face_costs_negative(key, _basis(ev), period)):
+                ev.value = -ev.value
+                ev.sign_normalised = True
+                for flag in (FACE_COST_SIGN, "sign_normalised"):
+                    if flag not in ev.confidence.flags:
+                        ev.confidence.flags.append(flag)
+                oriented += 1
+        if any(CARVED_FROM_FACE in ev.confidence.flags for ev in (li.values or {}).values()):
+            if CARVED_FROM_FACE not in li.confidence.flags:
+                li.confidence.flags.append(CARVED_FROM_FACE)
+    if carved or oriented:
+        ctx.log(f"{by}:note_figures_carved={carved}" + (f" oriented={oriented}" if oriented else "")
+                + " (already inside the face's captions: shown, not added)")
+    return carved
+
 
 def _arrival_label(parent_def, kids: list) -> str:
     """What the carrier of an `adds_to_printed` rung's figure is called: the parts it is read from,
@@ -2459,13 +2557,97 @@ def _settle_against_the_face(doc: DocumentModel, ctx: PipelineContext, all_items
             return None
         return _SIDE_OF_SECTION.get(home)
 
+    def other_portion(home: str, face_row: LineItem) -> bool:
+        """Whether the face row is printed in the OTHER portion of the line's side — a non-current
+        row for a current line, or the reverse. A classified balance sheet never prints a current
+        amount INSIDE a non-current row, so no total of the other portion's block contains the
+        line's money ("contains" is refused there). The same amount printed AS the other
+        portion's row is another matter — the line read money the face files in the other
+        section, and that identity still settles (1966's note 26 FVTPL, printed as the current
+        row, read by the non-current line). Measured on China SCE 1966: note 30 prints its current
+        and non-current borrowings in one table, the face prints "Interest-bearing bank and other
+        borrowings" in both sections, and the current bank loans 8,151,188 were found "inside" the
+        non-current row — a total printed below them, in the next block — and given up: ST Bank
+        Loans Payable published 0 and total current liabilities came out 9,817,976 short."""
+        there = section(face_row.canonical_key or "")
+        portions = {_SIDE_OF_SECTION.get(home), _SIDE_OF_SECTION.get(there)}
+        return bool(home and there) and home[:3] == there[:3] and portions == {
+            "current", "non_current"}
+
+    def printed_on_their_own(face_row: LineItem, basis: str, period: str) -> list[Decimal]:
+        """The figures the face prints, on this slot, on rows of their own beside `face_row` — on
+        the same side of the balance sheet, so a note row it states is not inside `face_row`."""
+        mine = side(face_row.canonical_key or "")
+        out = []
+        for other in face:
+            if other is face_row or side(other.canonical_key or "") != mine:
+                continue
+            figure = was(other, basis, period)
+            if figure:
+                out.append(abs(figure))
+        return out
+
+    def less_printed(table, note_row, face_row: LineItem, basis: str, period: str,
+                     side_: str | None) -> set[Decimal]:
+        """A note total over the row, LESS the rows inside it that the face prints on rows of their
+        own — the figure a face row prints when the face takes those rows out of the total.
+
+        Measured on Far East Horizon: note 32's "Subtotal – current" is 143,776,669, and the face
+        prints "Lease liabilities" 277,212 on a row of its own and "Interest-bearing bank and other
+        borrowings" 143,499,457 — the subtotal less the lease liabilities. The current portion of
+        long-term bank loans, 64,157,317, is inside that face row; no total the note prints equals
+        it, so the row was never found to contain it, and the 64,157,317 was counted twice in total
+        current liabilities.
+
+        Only a member row whose figure the face prints, in full, beside the face row — and the
+        relation is confirmed in the other year the same way (`compared`), so one coincidental
+        amount settles nothing."""
+        rows = list(getattr(table, "items", None) or ())
+        at = next((i for i, r in enumerate(rows) if r is note_row), None)
+        if at is None:
+            return set()
+        from app.core.models.enums import LineRole
+        printed = printed_on_their_own(face_row, basis, period)
+        if not printed:
+            return set()
+        out: set[Decimal] = set()
+        totals = [i for i, r in enumerate(rows)
+                  if getattr(r, "role", None) in (LineRole.TOTAL, LineRole.SUBTOTAL)]
+        for t in totals:
+            amount = _note_figure(rows[t], basis, period)
+            if amount is None or amount not in _note_totals(table, note_row, basis, period,
+                                                             side_):
+                continue
+            members_of = list(getattr(rows[t], "component_ordinals", None) or ())
+            start = max([i for i in totals if i < t], default=-1) + 1
+            members = ([r for r in rows if getattr(r, "ordinal", None) in members_of]
+                       if members_of else
+                       [r for r in rows[start:t] if getattr(r, "role", None) == LineRole.LINE])
+            if note_row not in members:
+                continue
+            taken = Decimal(0)
+            left = list(printed)
+            for r in members:
+                if r is note_row:
+                    continue
+                figure = _note_figure(r, basis, period)
+                if figure is not None and abs(figure) in left:
+                    left.remove(abs(figure))
+                    taken += abs(figure)
+            if taken:
+                out.add(abs(amount) - taken)
+        return out
+
     def relation(amount: Decimal, piece: _Piece, basis: str, period: str,
-                 side: str | None = None) -> str | None:
+                 side: str | None = None, face_row: LineItem | None = None) -> str | None:
         if amount == piece.amount:
             return "identity"
         if piece.level == "row" and piece.cell in cells:
             table, note_row = cells[piece.cell]
             if amount in _note_totals(table, note_row, basis, period, side):
+                return "contains"
+            if face_row is not None and abs(amount) in less_printed(table, note_row, face_row,
+                                                                    basis, period, side):
                 return "contains"
         return None
 
@@ -2538,8 +2720,10 @@ def _settle_against_the_face(doc: DocumentModel, ctx: PipelineContext, all_items
                 if rel == "contains":
                     if _note_figure(note_row, basis, other) is None:
                         return None
-                    return face_then in _note_totals(table, note_row, basis, other,
-                                                     portion_side(face_row, line_key))
+                    portion = portion_side(face_row, line_key)
+                    return (face_then in _note_totals(table, note_row, basis, other, portion)
+                            or abs(face_then) in less_printed(table, note_row, face_row, basis,
+                                                              other, portion))
                 then = _note_figure(note_row, basis, other)
         return None if then is None else then == face_then
 
@@ -2570,7 +2754,9 @@ def _settle_against_the_face(doc: DocumentModel, ctx: PipelineContext, all_items
             printed = was(face_row, basis, period)
             if fev is None or fev.value is None or not printed:
                 continue
-            rel = relation(printed, piece, basis, period, portion_side(face_row, key))
+            rel = relation(printed, piece, basis, period, portion_side(face_row, key), face_row)
+            if rel == "contains" and other_portion(home, face_row):
+                continue                  # a total of the other portion's block holds none of it
             if rel is None or not confirmed(face_row, piece, rel, key, basis, period):
                 continue
             if piece.amount > fev.value - absorbed.get(id(fev), Decimal(0)):

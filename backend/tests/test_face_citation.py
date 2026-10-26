@@ -284,3 +284,23 @@ def test_a_caption_printed_under_two_banners_resolves_under_the_asking_lines_own
     assert res[0]["figures"] == {"current": "6353"}, "no section given: document order"
     res, _ = resolve_sources(cite, [], face_context.face_index(doc), sections={"equity"})
     assert res[0]["figures"] == {"current": "6353"}, "no row under the section: document order"
+
+
+def test_a_current_line_does_not_resolve_to_the_other_portions_row():
+    """Lai Sun prints "Debtors" under NON-CURRENT and under CURRENT ASSETS. Once the current row has
+    left the lookup — the gross line's answer re-read it off its note — Net Trade Receivables'
+    citation of "Debtors" under CURRENT ASSETS took the non-current 507,744 by document order, and
+    the shared-figure tie-break then took it out of Other Non-Current Assets. A row of the other
+    portion of the line's own side is never the line's: the citation is left unresolved."""
+    non_current = _face_row("Debtors", value="507744")
+    non_current.section_hint = "NON-CURRENT ASSETS"
+    doc = _doc([non_current], {FACE_PAGE: "balance_sheet"})
+    cite = [SourceRef(statement="balance_sheet", caption="Debtors", group="CURRENT ASSETS")]
+    res, unresolved = resolve_sources(cite, [], face_context.face_index(doc),
+                                      sections={"current_assets"})
+    assert res == []
+    assert "NON-CURRENT ASSETS" in unresolved[0]["why"]
+    # The non-current line itself still reads it.
+    res, _ = resolve_sources([SourceRef(statement="balance_sheet", caption="Debtors")], [],
+                             face_context.face_index(doc), sections={"non_current_assets"})
+    assert res[0]["figures"] == {"current": "507744"}

@@ -1017,6 +1017,12 @@ def bad_patterns(item) -> list[str]:
 _CAPTION_SPECIFICITY = 0.5
 
 
+#: The two portions of each side of a classified balance sheet, by banner token — see the
+#: other-portion fence in `resolve_sources`.
+_OTHER_PORTIONS = ({"current_assets", "non_current_assets"},
+                   {"current_liabilities", "non_current_liabilities"})
+
+
 def _caption_matches(want: str, cap_norm: str) -> bool:
     """Whether a cited caption and a printed one are the same row's, both already normalised.
 
@@ -1675,6 +1681,30 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
                                 if any(_caption_matches(want_group, h) for h in _headings(f))])
                 if in_group:
                     on_face = in_group[0]
+            # THE OTHER PORTION'S ROW IS NOT THIS LINE'S, whatever its caption. Where the line's
+            # own section prints no row of the caption, the narrowing above falls back to
+            # document order — and a current-assets line took a NON-CURRENT row. Measured on
+            # Lai Sun: Net Trade Receivables cited "Debtors" under CURRENT ASSETS; that row had
+            # left the lookup (the gross line's answer had re-read it off its note), and the
+            # citation resolved to the non-current "Debtors" 507,744, which the shared-figure
+            # tie-break then took out of Other Non-Current Assets. A wrong row is worse than none,
+            # so the citation is returned unresolved and says where the row it found is printed.
+            # Only the other portion of the line's own side — current against non-current assets,
+            # or liabilities — where an HKFRS face repeats the same captions ("Debtors",
+            # "Borrowings", "Lease liabilities") and prints the non-current block first; any other
+            # section still falls back to document order, as before.
+            if on_face is not None and sections:
+                from app.services.mapping import section_of_banner
+                where = section_of_banner(getattr(on_face[2], "section_hint", None))
+                if where and where not in sections and any(
+                        {where, own} in _OTHER_PORTIONS for own in sections):
+                    unresolved.append({
+                        "at": at, "note": "", "statement": want_stmt,
+                        "caption": getattr(ref, "caption", ""), "quote": quote,
+                        "why": (f"the row of that caption is printed under "
+                                f"{getattr(on_face[2], 'section_hint', '')!s}, outside this "
+                                f"line's section")})
+                    continue
             if on_face is None:
                 # EMPTY IS NOT A STATEMENT. A face row whose page resolved none carries "", and
                 # reporting it read "it is on " with nothing after it — a diagnostic worse than

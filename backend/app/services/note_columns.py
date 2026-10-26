@@ -632,6 +632,27 @@ def _earlier(date, newest) -> bool:
     return bool(date and newest and date < (newest[0] - 1, newest[1], newest[2]))
 
 
+def _joined_caption_at(cap: str, text: str, cursor: int) -> tuple[int, str]:
+    """``(position, the part found)`` of a caption the reader JOINED from two printed lines, else
+    ``(-1, cap)``: the longest run of its closing words the note's text prints after ``cursor``.
+
+    A line the reader keeps as caption-only text runs into the caption of the row below it, and
+    the note's text prints the two apart, with the first line's own cells between them — so the
+    joined caption is found nowhere and its row takes no period from the table's dated title.
+    Measured on Lai Sun note 33: the 2024 provision matrix prints "Expected credit loss rate 0% 1%
+    0% 100% 12%" over "Gross carrying amount (HK$’000) … 470,403", the row went out as "Expected
+    credit loss rate Gross carrying amount (HK$’000)" with no period, though "As at 31 July 2024"
+    is printed over it, and the 2024 gross receivables could not be filed under 2024. At least
+    three words, so a stray word cannot stand in for the caption."""
+    words = cap.split()
+    for start in range(1, len(words) - 2):
+        tail = " ".join(words[start:])
+        at = text.find(tail, cursor)
+        if at >= 0:
+            return at, tail
+    return -1, cap
+
+
 def _title_periods(rows, non_period, balance, text) -> dict[int, tuple[int, int, int] | None]:
     """``{row index: date}`` for the rows printed under a dated table title (`_DATED_TITLE`): the
     last such title before the row in the note's text, where every row between them is a
@@ -639,17 +660,21 @@ def _title_periods(rows, non_period, balance, text) -> dict[int, tuple[int, int,
     titles = [(m.start(), _date_of(m.group(0)), _date_text(m.group(0)))
               for m in _DATED_TITLE.finditer(text)]
     pos: dict[int, int] = {}
+    found: dict[int, int] = {}            # how much of the caption the text prints there
     cursor = 0
     for i, row in enumerate(rows):
         cap = unicodedata.normalize("NFKC", str(row.raw_label))
         at = text.find(cap, cursor)
+        if at < 0:
+            at, cap = _joined_caption_at(cap, text, cursor)
         if at >= 0:
             pos[i] = at
+            found[i] = len(cap)
             cursor = at + len(cap)
     # "As at 31 December 2024" printed alone over a table's header, once per year — FEH's fair
     # value hierarchy prints the same captions under 2024 and then 2023. A row's own caption
     # ("As at 31 December 2023" opening a movement block) is a balance row, not a title.
-    spans = [(pos[i], pos[i] + len(str(rows[i].raw_label))) for i in pos]
+    spans = [(pos[i], pos[i] + found[i]) for i in pos]
     titles += [(m.start(), _date_of(m.group(0)), _date_text(m.group(0)))
                for m in _AS_AT_TITLE.finditer(text)
                if not any(a <= m.start() < b for a, b in spans)]

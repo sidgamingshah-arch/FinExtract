@@ -206,6 +206,9 @@ _ROUND_TRIP: dict[str, tuple[str, object]] = {
     "statements": ("statements", ["profit_and_loss", "cash_flow"]),
     "note_use": ("note_use", "decomposition_allowed"),
     "face_only": ("face_only", True),
+    # A note figure the face already carries — staff costs on a by-function statement, interest
+    # capitalised out of the finance costs — shown on its line and added into no total.
+    "carved_from_face": ("carved_from_face", True),
     # THE OBJECT THAT REPLACED THE 162-ALTERNATIVE WHITELIST (`_QUALIFYING_RE`, which refused a
     # filing writing "Depreciation charge for the year"). Widening it is the single edit this
     # screen was built to make possible, and it was reachable from nowhere.

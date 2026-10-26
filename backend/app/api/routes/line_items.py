@@ -958,6 +958,9 @@ class ItemEdit(BaseModel):
     note_source: NoteSource | None = None
     note_use: NoteUse | None = None
     face_only: bool | None = None
+    # A note figure the face already carries inside its captions — shown on its line and added
+    # into no total. See `LineItemDef.carved_from_face`.
+    carved_from_face: bool | None = None
 
     # ── containment and residuals ─────────────────────────────────────────────────────────────
     is_gross_parent: bool | None = None
@@ -1049,6 +1052,7 @@ _EDIT_SCALARS: dict[str, str] = {
     "statements": "statements",
     "note_use": "note_use",
     "face_only": "face_only",
+    "carved_from_face": "carved_from_face",
     "is_gross_parent": "is_gross_parent",
     "temporality": "temporality",
     "unit_of_account": "unit_of_account",
