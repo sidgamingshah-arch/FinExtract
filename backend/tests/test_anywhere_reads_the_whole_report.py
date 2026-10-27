@@ -93,11 +93,15 @@ def _doc() -> DocumentModel:
     return doc
 
 
-def _set(extra_face: int = 0):
+def _set(extra_face: int = 0, second_batch: bool = False):
     """A face line, two `anywhere` figure lines and an `anywhere` text line — and `extra_face`
-    more face lines, each a request of its own."""
+    more face lines, each a request of its own; with `second_batch`, an `anywhere` line on the
+    balance sheet, which is asked in a batch of its own."""
     extra = [{"key": f"bs_nca__face_{n}", "label": f"Face {n}", "inherits": "bs", "route": "face",
               "definition": "a face row", "type": "extracted"} for n in range(extra_face)]
+    if second_batch:
+        extra.append({"key": "bs_nca__total_anywhere", "label": "Total", "inherits": "bs",
+                      "route": "anywhere", "definition": "a total", "type": "extracted"})
     return load_line_item_set({
         "section_defaults": {"bs": {"statement": "balance_sheet", "section_scope": ["bs_nca"]},
                              "sup": {"statement": "covenants_supplemental"},
@@ -131,13 +135,13 @@ class _Recorder:
             {"answers": [pool[k] for k in asked if k in pool]}), {"input_tokens": 1}
 
 
-def _run(provider, doc=None, extra_face: int = 0, **extraction):
+def _run(provider, doc=None, extra_face: int = 0, second_batch: bool = False, **extraction):
     from app.core.stage import PipelineContext
     from app.services.working_view import build_working_view
     from app.stages.line_item_llm import LineItemLlmStage
 
     doc = doc or _doc()
-    st = _set(extra_face)
+    st = _set(extra_face, second_batch)
     ctx = PipelineContext(raw_bytes=_pdf(PAGES), settings=get_settings())
     ctx.line_items, ctx.ontology = st, build_working_view(st)
     ctx.settings.extraction.llm_mapping = True
@@ -371,6 +375,27 @@ def test_the_first_request_of_each_prefix_goes_alone():
     assert len([e for e in events if e[0] == "start"]) == 5, events   # four face lines, one batch
     assert [e[0] for e in events[:4]] == ["start", "start", "end", "end"], events
     assert {e[1] for e in events[:2]} == {1, 2}, "one of each prefix went first"
+
+
+def test_one_at_a_time_the_report_batches_go_straight_after_their_first():
+    """A cache entry lives five minutes from the start of the last request that read it. One
+    request at a time, the other requests sent between the first report batch and the second would
+    let the report expire and be written twice; so the batches go next, and the replies are still
+    processed in plan order."""
+    class _Order(_Recorder):
+        def __init__(self):
+            super().__init__(_answers())
+            self.sent: list[int] = []
+
+        def complete_structured(self, **kw):
+            if kw["response_schema"].__name__ == "LineItemReply":
+                self.sent.append(len(kw["messages"]))
+            return super().complete_structured(**kw)
+
+    provider = _Order()
+    _run(provider, extra_face=3, second_batch=True, llm_parallel_requests=1)
+    # the first of each prefix, then the second report batch, then the other face lines
+    assert provider.sent == [1, 2, 2, 1, 1, 1], provider.sent
 
 
 def test_a_report_too_large_to_send_leaves_the_lines_to_the_selected_context(monkeypatch):

@@ -977,8 +977,12 @@ def prose_has(req: dict, figure: float | str) -> list[str]:
     p = payload_of(req["body"])
     out = []
     if isinstance(p, dict) and _num(figure) is not None:
-        for kind, label, b in _blocks(p):
-            prose = str(b.get("prose") or "")
+        # A REPORT REQUEST'S PAGES ARE PROSE TOO: a sentence on any page is citable there by its
+        # page and amount (`note_sourced._page_sentence`), and a note's prose is on its pages.
+        texts = [(label, str(b.get("prose") or "")) for _kind, label, b in _blocks(p)]
+        texts += [(f"page {b.get('page')}", str(b.get("text") or ""))
+                  for b in (p.get("pages") or []) if isinstance(b, dict)]
+        for label, prose in texts:
             if any(_same(abs(_num(t)), abs(_num(figure)), _places(t), _places(figure)) for t in
                    re.findall(r"\(?\d[\d,]*\.\d+\)?|\d{1,3}(?:,\d{3})+", prose)
                    if _num(t) is not None):

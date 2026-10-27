@@ -341,9 +341,14 @@ class LineItemLlmStage(Stage):
             for i in first.values():
                 futures[i] = pool.submit(_send, prepared[i])
             wait([futures[i] for i in first.values()])
-            for i, entry in enumerate(prepared):
+            # THE REPORT BATCHES ARE SENT NEXT, ahead of the other requests. A cache entry lives
+            # five minutes from the start of the last request that read it, and one request at a
+            # time (the default) would put a filing's four hundred other requests between the first
+            # batch and the second: the report would be written to the cache twice. Sending order
+            # only; replies are still processed in plan order.
+            for i in sorted(range(len(prepared)), key=lambda n: not prepared[n][4]):
                 if futures[i] is None:
-                    futures[i] = pool.submit(_send, entry)
+                    futures[i] = pool.submit(_send, prepared[i])
         try:
             for done, (plan, request, _system, sent_document, whole_report) in enumerate(
                     prepared, start=1):
@@ -668,9 +673,9 @@ class LineItemLlmStage(Stage):
                 ctx.log("line_item_llm:text_lines_skipped(the document has no page text)")
             return 0, 0, 0
         calls = failures = answered = 0
-        asked = [(plan, False) for plan in (text_plans if page_texts else ())]
-        asked += [(plan, True) for plan in report_plans]
-        for plan, whole in asked:
+        todo = [(plan, False) for plan in (text_plans if page_texts else ())]
+        todo += [(plan, True) for plan in report_plans]
+        for plan, whole in todo:
             items = [by_key[k] for k in plan.keys if k in by_key]
             if whole:
                 pages = list((report or {}).get("pages") or ())
