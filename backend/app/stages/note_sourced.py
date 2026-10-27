@@ -1698,12 +1698,17 @@ def carve_note_figures(doc: DocumentModel, ctx: PipelineContext, *, by: str) -> 
     """Mark the note figures of a `carved_from_face` line as already inside the face's captions.
 
     `LineItemDef.carved_from_face` says the line's note figure is money the face already prints
-    inside other captions. A slot qualifies where it was READ FROM A NOTE — its figure's page is a
-    notes page — on a row that is not a face row: the row a writer made for a line the face does
-    not print. A face row keeps its figure in every total even where a late writer re-read it off a
-    note, because the face printing the line is what makes it a line of its own (a by-nature
-    statement's "Employee compensation costs"). The slot then carries `CARVED_FROM_FACE`: shown on
-    its line, and `rollups` adds it into no total.
+    inside other captions. A slot qualifies where it was READ OFF THE STATEMENTS — its figure's page
+    is any page but a statement's — on a row that is not a face row: the row a writer made for a
+    line the face does not print. A face row keeps its figure in every total even where a late
+    writer re-read it off a note, because the face printing the line is what makes it a line of its
+    own (a by-nature statement's "Employee compensation costs"). The slot then carries
+    `CARVED_FROM_FACE`: shown on its line, and `rollups` adds it into no total.
+
+    ANY PAGE BUT A STATEMENT'S, NOT ONLY A NOTE'S. A notes page was the only other place a figure
+    could be read from until the `anywhere` route; a line on it may cite the directors' report or
+    any other page, and a staff cost stated there is inside the face's function costs exactly as
+    the note's is. Tested on notes pages alone, such a figure was added into the total.
 
     A CARVED COST IS SHOWN IN THE FACE'S CONVENTION. A note prints its staff costs unsigned; where
     the face prints the costs of the same rollup negative (an HKEX statement's bracketed expenses),
@@ -1713,8 +1718,7 @@ def carve_note_figures(doc: DocumentModel, ctx: PipelineContext, *, by: str) -> 
 
     Run at the end of both late writers, the model route and the note-sourced stage. Idempotent.
     """
-    from app.core.models.enums import PrintedIn
-    from app.services.face_context import _notes_pages
+    from app.core.models.enums import PageKind, PrintedIn
     from app.services.rollups import CARVED_FROM_FACE
 
     line_item_set = getattr(ctx, "line_items", None)
@@ -1722,7 +1726,8 @@ def carve_note_figures(doc: DocumentModel, ctx: PipelineContext, *, by: str) -> 
             if getattr(i, "carved_from_face", False)}
     if not keys:
         return 0
-    notes_pages = _notes_pages(doc)
+    statement_pages = {int(getattr(p, "index", -1)) for p in (getattr(doc, "pages", None) or ())
+                       if getattr(p, "kind", None) is PageKind.FACE}
     template = getattr(ctx, "template_def", None) or getattr(ctx, "template", None)
     if hasattr(template, "model_dump"):
         template = template.model_dump(mode="json")
@@ -1751,7 +1756,7 @@ def carve_note_figures(doc: DocumentModel, ctx: PipelineContext, *, by: str) -> 
             continue
         for ev in (li.values or {}).values():
             page = getattr(getattr(ev, "provenance", None), "page_index", None)
-            if ev.value is None or page is None or int(page) not in notes_pages:
+            if ev.value is None or page is None or int(page) in statement_pages:
                 continue
             if CARVED_FROM_FACE not in ev.confidence.flags:
                 ev.confidence.flags.append(CARVED_FROM_FACE)

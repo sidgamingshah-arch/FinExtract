@@ -10953,6 +10953,7 @@
   {
    "key": "is_pl__interest_on_lease_liabilities",
    "label": "Interest on lease liabilities",
+   "carved_from_face": true,
    "definition": "The interest expense on lease liabilities for the year: the finance charge on leases recognised under HKFRS 16 or CAS 21 — 'Interest on lease liabilities' (租赁负债的利息, 租赁负债利息), and on a CAS filing 租赁负债利息费用 — as the filing prints it within its finance costs. It is one of the lines this template's rollup adds into Net Interest Income(Expense). It is not depreciation of right-of-use assets, not rental expense for short-term or low-value leases (Operating Lease & Rent Expenses), not the lease payments in the cash flow statement, and not interest on bank and other borrowings (Interest on debt market instruments). Where the filing prints no lease interest, answer with an empty sources list.",
    "aliases": [
     "Interest on lease liabilities"

@@ -1273,6 +1273,13 @@ def best_caption(want: str, candidates, key=lambda c: c):
     return near[0][2]
 
 
+def _as_printed(caption: str) -> str:
+    """A caption as the page prints it, with only its case and its spacing made irrelevant — the
+    marks `norm` drops (an asterisk, a colon) are kept, because they can be all that tells two
+    printed rows apart."""
+    return " ".join(str(caption or "").split()).casefold()
+
+
 def _tied_captions(want: str, candidates, key=lambda c: c) -> list:
     """Every candidate `best_caption` would consider AS GOOD AS its pick, in document order.
 
@@ -1883,6 +1890,16 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
                 # request presented identically keep the tie-break: nothing a model could have
                 # written would have named one of them.
                 tied = _tied_captions(want_cap, pool, key=lambda r: norm(r[1]))
+                # THE CAPTION AS PRINTED breaks a tie `norm` made. `norm` drops every mark, so two
+                # captions the filing prints apart can become one: 佳明集團's note 8 prints "Less:
+                # Amount capitalised*" (the finance costs, 234,599) and "Less: Amount capitalised"
+                # (the staff costs, 56,917) in one block, and a citation of the second, exactly as
+                # printed, took the first by document order — staff costs -112,847 against a
+                # printed 64,835. Case and spacing aside, the row printed as cited is the one named.
+                as_cited = _as_printed(getattr(ref, "caption", ""))
+                printed_so = [r for r in tied if _as_printed(r[1]) == as_cited]
+                if len(tied) > 1 and len(printed_so) == 1:
+                    hit, tied = printed_so[0], printed_so
                 places = {(r[4], norm(_group_of(r[2])),
                            str((layout.get(id(r[2])) or {}).get("period_text") or ""))
                           for r in tied}

@@ -58,10 +58,12 @@ def _flags(li: LineItem) -> list[str]:
     return list(ev.confidence.flags)
 
 
-def test_the_hk_set_declares_staff_costs_and_capitalised_interest():
+def test_the_hk_set_declares_staff_costs_capitalised_interest_and_lease_interest():
+    """Lease interest since the whole-report requests: see
+    `test_a_carved_line_found_anywhere_is_shown_not_added`."""
     items = json.loads((TEMPLATES / "output_csv_hk_line_items.json").read_text("utf-8"))["items"]
     assert {i["key"] for i in items if i.get("carved_from_face")} == {
-        STAFF, "is_pl__interest_expense_capitalised"}
+        STAFF, "is_pl__interest_expense_capitalised", "is_pl__interest_on_lease_liabilities"}
 
 
 def test_staff_costs_read_from_a_note_are_carved_and_shown_in_the_faces_cost_sign():

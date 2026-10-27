@@ -157,6 +157,12 @@ Source: `backend/app/stages/line_item_llm.py`, `backend/app/services/line_item_l
   currency beside it (a headcount, a share count, a ratio) is taken as printed and is not scaled
   to the statements' units. In the shipped HK set, every asked-about line that names no other
   route declares `anywhere`.
+- **A line whose figure the face already holds inside other captions declares `carved_from_face:
+  true`** (the line-level twin of the rung flag below). A figure read for it off any page but a
+  statement's — a note, the directors' report — is shown on the line and added into no total; a
+  face row printed for the line keeps it in every total. The shipped HK set carves staff costs,
+  capitalised interest and lease interest: a CAS 财务费用 note prints 其中：租赁负债利息费用 inside
+  the 利息费用 the face prints, so net interest added it twice.
 - **The system prompt** is the product's fixed contract plus:
   - the set's `prompt`;
   - the `global_rules` policy texts;

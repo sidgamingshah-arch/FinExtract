@@ -1341,8 +1341,15 @@ class LineItemLlmStage(Stage):
         if refuse_unprinted(doc, row, item.key, basis, target_period, value,
                             by="line_item_llm", log=ctx.log):
             return 0
+        # THE PAGE THE SENTENCE IS ON goes on the slot, as a cited row's does (`_cited_provenance`).
+        # Written without one, the slot said nothing about where its figure was printed:
+        # click-to-source had nowhere to go, `buckets` stamped the row a FACE row because no page
+        # said otherwise, and `note_sourced.carve_note_figures`, which reads the page, never saw
+        # it. Measured on 河钢股份: capitalised interest, 493,877,376.21 from its sentence on page
+        # 143, was added into net interest beside the finance costs it is already netted out of.
+        provenance = _cited_provenance(prose_entries)
         if target is None:
-            _write(row, basis, target_period, value)
+            _write(row, basis, target_period, value, provenance=provenance)
         else:
             # A SLOT WITH NO PRINTED FIGURE BEHIND IT — computed or cited by an earlier writer
             # (`ExtractedValue.derived`) — has nothing to keep in `value_raw`, so it follows the
@@ -1357,6 +1364,8 @@ class LineItemLlmStage(Stage):
             elif target.value_raw is None:
                 target.value_raw = figure
             target.value = value
+            if provenance is not None:
+                target.provenance = provenance
 
         # THE COMPARATIVE THE SENTENCE PRINTS, "(2023: RMB6,050)" (`note_sourced.prose_context`),
         # into the prior year's slot — only for a single whole sentence, since a comparative of
@@ -1371,7 +1380,7 @@ class LineItemLlmStage(Stage):
             if held is None or held.derived or (held.value is None and held.value_raw is None):
                 if not refuse_unprinted(doc, row, item.key, basis, "prior", prior_value,
                                         by="line_item_llm", log=ctx.log):
-                    _write(row, basis, "prior", prior_value)
+                    _write(row, basis, "prior", prior_value, provenance=provenance)
             elif (held.value if held.value is not None else held.value_raw) != prior_value:
                 row.confidence.flags.append(
                     f"prose_prior_not_written:{prior_value}")

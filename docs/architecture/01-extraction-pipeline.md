@@ -213,7 +213,10 @@ The face and its cited notes are processed in this order:
 
     Such a line may cite a sentence on any page by its page, amount and quote. The amount is
     checked against that page's text (`note_sourced._page_sentence`). A number printed with no
-    currency beside it is not divided by the statements' scale.
+    currency beside it is not divided by the statements' scale. The figure is written with that
+    page as its provenance, as a cited row's is, so a `carved_from_face` line read from a sentence
+    is carved like one read from a row (`note_sourced.carve_note_figures`, which carves a figure
+    read off any page but a statement's).
 
     A report over `REPORT_TOKEN_BUDGET` (900,000 estimated tokens) is not cut down: its lines are
     asked as planned, with the selected context, and the log says so. Every other line's request
