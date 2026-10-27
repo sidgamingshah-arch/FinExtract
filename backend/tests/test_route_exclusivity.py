@@ -141,8 +141,12 @@ def test_the_shipped_set_asks_for_this_on_sixty_lines_and_no_more(shipped):
     # Every one of them declares the note source the route sends it to, so the ban takes a figure
     # away from no line without giving it another way to be read.
     assert all(getattr(i, "note_source", None) is not None for i in refused)
-    assert sorted(i.key for i in shipped.items if line_item_routes.reads_every_page(i)) == \
-        ["supplemental_data__num_employees", "supplemental_data__num_outstanding_common_shares"], "only the two supplemental lines printed outside the statements read every page"
+    # EVERY PAGE IS READ FOR THE `anywhere` LINES: the two supplemental lines printed outside the
+    # statements, and every asked-about line that declared no route (user decision — a line nothing
+    # restricts may be read from anywhere in the annual report). The face stays theirs.
+    every_page = [i for i in shipped.items if line_item_routes.reads_every_page(i)]
+    assert len(every_page) == 98, len(every_page)
+    assert all(line_item_routes.may_read_face(i) for i in every_page)
 
 
 # ── THE DETERMINISTIC PROPOSAL ───────────────────────────────────────────────────────────────

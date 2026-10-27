@@ -149,6 +149,14 @@ Source: `backend/app/stages/line_item_llm.py`, `backend/app/services/line_item_l
   it is printed in, its `route`, `sign_convention`, and the notes selected for it.
   - **Aliases, hints, regexes and `note_source` are NOT sent.** If the model needs to know a
     spelling or a distinction, write it in `definition`.
+- **A `route: anywhere` line is sent the whole annual report**: every page's text, every note,
+  every statement and every other page's rows, in one message before the question, cached by the
+  provider after the first request. These lines are asked in batches of at most 12, grouped by
+  the statement they are printed on. Such a line may also cite a sentence on any page by its page
+  number and amount, and the amount is checked against that page's text. A number printed with no
+  currency beside it (a headcount, a share count, a ratio) is taken as printed and is not scaled
+  to the statements' units. In the shipped HK set, every asked-about line that names no other
+  route declares `anywhere`.
 - **The system prompt** is the product's fixed contract plus:
   - the set's `prompt`;
   - the `global_rules` policy texts;

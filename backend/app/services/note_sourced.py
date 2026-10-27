@@ -1403,7 +1403,7 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
                     pages=None, allow_pages: bool = False,
                     allow_rows: bool = True,
                     sections=None, allow_notes: bool = True, notes_supplied=None,
-                    statements=None) -> tuple[list[dict], list[dict]]:
+                    statements=None, page_texts=None) -> tuple[list[dict], list[dict]]:
     """Match each citation the model gave against the extracted rows. Returns (resolved, unresolved).
 
     WHY THIS EXISTS RATHER THAN TRUSTING THE CITATION. The candidates offered to the model are
@@ -1464,6 +1464,13 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
 
     None leaves each one open — a caller with no request (the audit scripts) and a whole-document
     request, which supplies every note and statement, both pass None.
+
+    `page_texts` IS A SENTENCE'S WITNESS ON ANY PAGE: `{1-based page: text}` for a line asked with
+    the whole annual report (`line_item_llm.report_page_texts`). A page citation that matches no
+    row on that page and gives an `amount` is the prose case on a page — a headcount in the
+    directors' report, a covenant in a paragraph — and the amount must be printed in that page's
+    text, as a note's prose amount must be in the note's (`_amount_in_text`). None, every other
+    request, accepts no sentence by page.
     """
     import re as _re
 
@@ -1554,6 +1561,18 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
             on_page = best_caption(want_cap, [r for r in (pages or ())
                                               if int(r[0]) == int(want_page)],
                                    key=lambda r: norm(r[1]))
+            stated = str(getattr(ref, "amount", "") or "").strip()
+            if on_page is None and stated and page_texts is not None:
+                # A SENTENCE ON THE PAGE, not a row of it — see `page_texts` above.
+                entry, why = _page_sentence(stated, quote, int(want_page), page_texts)
+                if entry is not None:
+                    resolved.append({"at": at, "caption": getattr(ref, "caption", ""), **entry})
+                else:
+                    unresolved.append({
+                        "at": at, "note": "", "statement": "", "page": int(want_page),
+                        "caption": getattr(ref, "caption", ""), "quote": quote,
+                        "amount": stated, "why": why})
+                continue
             if on_page is None:
                 elsewhere = sorted({int(pg) for pg, cap, _r in (pages or ())
                                     if _caption_matches(want_cap, norm(cap))
@@ -2070,6 +2089,72 @@ def _amount_from_cited_sentence(cited: str, fragments) -> tuple[Decimal | None, 
                             if amounts else "the sentence the caption quotes states no amount")
     return None, None, ("no extracted row in that note matches the caption, and no sentence of "
                         "the note contains it")
+
+
+def _page_sentence(stated: str, quote: str, page: int,
+                   page_texts: dict) -> tuple[dict | None, str]:
+    """A prose amount cited on a PAGE, verified against that page's text. `(entry, why)`.
+
+    THE NOTE'S RULE ON A PAGE: the stated number must be printed there, whole (`_amount_in_text`),
+    and the figure is the number verified, not the number typed. Where the page prints it more than
+    once, the occurrence inside the quoted sentence is the one read — the quote is the model's
+    words, so it only CHOOSES among printed occurrences and puts nothing on the page.
+
+    WHAT IS READ BESIDE IT is read off the page: the scale word and the comparative
+    (`prose_context`, as for a note), and WHETHER IT IS MONEY (`_currency_beside`). A note's
+    sentence states money; a page's may state a headcount, a share count, a ratio or a rate, and
+    such a number is not in the statements' units, so it must not be divided by them
+    (`stages.line_item_llm._prose_in_statement_units` reads `prose_money`).
+    """
+    import re as _re
+
+    text = page_texts.get(int(page))
+    if text is None:
+        return None, f"page {page} is not a page of this filing"
+    found = _amount_in_text(stated, text)
+    if found is None:
+        return None, (f"the amount {stated} does not appear in page {page}'s text — a figure the "
+                      f"model stated rather than located is refused")
+    words = {w for w in _re.findall(r"[a-z]{3,}|[一-鿿]", (quote or "").lower())}
+    best, best_score = None, -1
+    for m in _re.finditer(r"(?<![\d.])(?:" + _PROSE_NUMBER + r")", text):
+        try:
+            if Decimal(_re.sub(r"[^0-9.]", "", m.group(0))) != found:
+                continue
+        except (InvalidOperation, ValueError):
+            continue
+        around = text[max(0, m.start() - 240): m.end() + 120].lower()
+        score = sum(1 for w in words if w in around)
+        if score > best_score:
+            best, best_score = m, score
+    start = best.start() if best is not None else 0
+    scale_word, prior = prose_context(found, text[start:])
+    before = text[max(0, start - 16): start]
+    after = text[best.end(): best.end() + 24] if best is not None else ""
+    return {"note": "", "statement": "", "title": "", "page": int(page),
+            "figures": {"prose": str(found)},
+            "provenance": {"page_index": int(page) - 1, "source": "page_prose"},
+            "quote": quote, "prose": True, "on_face": False,
+            "prose_scale": str(scale_word) if scale_word else None,
+            "prose_prior": str(prior) if prior is not None else None,
+            "prose_money": _currency_beside(before, after)}, ""
+
+
+# A CURRENCY PRINTED AGAINST AN AMOUNT: a sign or code before it ("HK$529,841,000", "RMB 20,878",
+# "人民币3.5亿元"), or a currency word after it, past any scale word ("12,345 万元", "1,234.56元",
+# "529.8 million dollars"). What tells money from a count in a sentence: a headcount, a number of
+# shares or a ratio is printed with none.
+_CURRENCY_BEFORE = re.compile(
+    r"(?:[A-Z]{1,3}\$|US\$|HK\$|RMB|CNY|HKD|USD|EUR|GBP|JPY|SGD|MOP|\$|€|£|¥|￥|人民币|人民幣|港币|港幣|"
+    r"港元|美元|欧元|歐元|日元)\s*$")
+_CURRENCY_AFTER = re.compile(
+    r"^\s*(?:(?:billion|million|thousand|bn|mn|'000|’000|亿|億|百万|百萬|万|萬|千)\s*)?"
+    r"(?:元|港元|美元|dollars?\b|yuan\b|HKD\b|USD\b|RMB\b|CNY\b)", re.I)
+
+
+def _currency_beside(before: str, after: str) -> bool:
+    """Whether a currency is printed against the amount `before` and `after` surround."""
+    return bool(_CURRENCY_BEFORE.search(before or "") or _CURRENCY_AFTER.match(after or ""))
 
 
 def _notes_by_number(notes, number: str) -> list:

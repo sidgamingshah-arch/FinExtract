@@ -778,7 +778,10 @@ def identified_notes(line_item_set, notes, *, cited=None, every_note: bool = Fal
     import re
     decls = [i for i in (getattr(line_item_set, "items", None) or ())
              if getattr(i, "note_source", None) is not None]
-    if not decls:
+    # `every_note` IS EVERY NOTE whatever the set declares: the whole annual report an `anywhere`
+    # line is asked with (`line_item_llm.build_report`) carries them on a set none of whose lines
+    # names a note too.
+    if not decls and not every_note:
         return []
     compiled: list[tuple[str, list]] = []
     for item in decls:

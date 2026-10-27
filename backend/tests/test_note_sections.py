@@ -193,12 +193,12 @@ def test_a_face_section_line_is_not_offered_the_note_route():
     # `line_item_notes.note_probe` scores headings with, so the line is SENT the note its figure is
     # printed in (BYD's staff costs in PROFIT BEFORE TAX, not FINANCE COSTS); no note reader acts
     # on it. Every other face-section `note_source` is still the declaration this guards against.
-    probes_only = [i for i in declared if i not in selected]
-    for item in probes_only:
-        src = item.note_source
-        assert not (src.note_title_any or src.row_caption_any or src.prose_any
-                    or src.prose_subject or src.row_terms), (
-            f"{item.key}: a face-section line declaring a note pattern — read this test")
+    sections = st.section_defaults
+
+    def in_a_face_section(item) -> bool:
+        section = sections.get(str(getattr(item, "inherits", "") or ""))
+        return section is not None and section.where() == "face"
+
     # `bs_cl__st_bank_loans_payable` names BANK BORROWINGS / 短期借款, and the two fixed-asset
     # totals PROPERTY, PLANT AND EQUIPMENT / 固定资产: none of their aliases is the heading a filing
     # files that note under, and a heading must name the line to be sent
@@ -211,16 +211,28 @@ def test_a_face_section_line_is_not_offered_the_note_route():
     # the note of a combined current row — 1966's INTEREST-BEARING BANK AND OTHER BORROWINGS, Grand
     # Ming's BANK AND OTHER LOANS — whose other loans its definition takes and its face-only route
     # could not reach (`test_short_term_other_loans_reads_the_borrowings_note.py`).
-    assert {i.key for i in probes_only} == {
-        "is_pl__personnel_and_benefit_expenses", "is_pl__interest_expense_capitalised",
-        "bs_ca__allow_for_doubtful_accounts", "bs_ca__trade_receivables_gross",
-        "bs_cl__st_bank_loans_payable", "bs_cl__st_other_loans_payable",
-        "bs_nca__gross_fixed_assets", "bs_nca__net_fixed_assets", "is_pl__total_cost_of_sales"}
+    probes = {"is_pl__personnel_and_benefit_expenses", "is_pl__interest_expense_capitalised",
+              "bs_ca__allow_for_doubtful_accounts", "bs_ca__trade_receivables_gross",
+              "bs_cl__st_bank_loans_payable", "bs_cl__st_other_loans_payable",
+              "bs_nca__gross_fixed_assets", "bs_nca__net_fixed_assets", "is_pl__total_cost_of_sales"}
+    face_section = [i for i in declared if in_a_face_section(i)]
+    assert {i.key for i in face_section} == probes
+    for item in face_section:
+        src = item.note_source
+        assert not (src.note_title_any or src.row_caption_any or src.prose_any
+                    or src.prose_subject or src.row_terms), (
+            f"{item.key}: a face-section line declaring a note pattern — read this test")
 
-    sections = st.section_defaults
+    # THE NINE NOW DECLARE `anywhere` — every asked-about line that named no route does, by the
+    # user's decision (`test_anywhere_route.py`) — and a declared route is what `_declared_items`
+    # reads before the section, so the stage now selects them. It READS NOTHING for them: no title
+    # pattern, no row pattern and no prose pattern, so `select_rows` and `select_prose` both return
+    # empty. A face-section line the stage selects is one whose author declared a route other than
+    # `face`; none is selected by inference.
     for item in selected:
-        section = sections.get(str(getattr(item, "inherits", "") or ""))
-        assert section is None or section.where() != "face", item.key
+        if in_a_face_section(item):
+            assert str(getattr(item, "route", "") or "") not in ("", "face"), item.key
+            assert item.key in probes, item.key
 
 
 def test_no_section_keeps_the_note_route():

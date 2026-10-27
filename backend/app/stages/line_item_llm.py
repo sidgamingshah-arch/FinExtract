@@ -68,10 +68,16 @@ _FILED = (*note_columns.FILED_PERIODS, "prose")
 
 _RESPONSE_RESERVE = 512
 _RESPONSE_TOKENS_PER_ANSWER = 200
+# A REPORT REQUEST'S ANSWERS ARE ALLOWED TWICE THAT. It asks up to twelve lines in one reply, and a
+# reply cut short is not valid JSON — all twelve are lost, not one. Measured over the 1,872 recorded
+# answers of the HK filings: median 125 tokens, 99th percentile 379, the longest 1,961; a sentence
+# citation carries its quote. 400 a line holds a batch in which several run long.
+_REPORT_RESPONSE_TOKENS_PER_ANSWER = 400
 
 
-def _max_tokens(n_answers: int) -> int:
-    return _RESPONSE_RESERVE + max(1, n_answers) * _RESPONSE_TOKENS_PER_ANSWER
+def _max_tokens(n_answers: int, *, report: bool = False) -> int:
+    per = _REPORT_RESPONSE_TOKENS_PER_ANSWER if report else _RESPONSE_TOKENS_PER_ANSWER
+    return _RESPONSE_RESERVE + max(1, n_answers) * per
 
 
 class LineItemLlmStage(Stage):
@@ -183,6 +189,37 @@ class LineItemLlmStage(Stage):
         # figure lines kept exactly as they were planned.
         plans, text_plans = _split_text_plans(plans, by_key)
 
+        # AN `anywhere` LINE IS ASKED WITH THE WHOLE ANNUAL REPORT — see
+        # `line_item_llm.build_report`. Its figure lines and its text lines alike are moved out of
+        # the plans they were in, into batches of their own (`line_item_requests.report_plans`),
+        # and the report is built once for all of them. A report too large to send is not cut
+        # down: the lines are asked as they were planned, with the selected context, and the log
+        # says so.
+        planned, planned_text = plans, text_plans
+        plans, report_plans = line_item_requests.report_plans(plans, by_key)
+        text_plans, report_text_plans = line_item_requests.report_plans(text_plans, by_key)
+        report = report_text = report_pages = page_texts = None
+        if report_plans or report_text_plans:
+            page_texts = _page_texts(doc, ctx)
+            report = line_item_llm.build_report(doc, line_item_set, page_texts or [],
+                                                cited=line_item_notes.cited_notes(doc))
+            report_text = line_item_llm.report_message(report)
+            tokens = line_item_llm.estimated_tokens(report_text)
+            lines = sum(len(p.keys) for p in (*report_plans, *report_text_plans))
+            if tokens > line_item_llm.REPORT_TOKEN_BUDGET:
+                ctx.log(f"line_item_llm:report_too_large est_tokens={tokens} "
+                        f"budget={line_item_llm.REPORT_TOKEN_BUDGET} — the {lines} anywhere "
+                        f"line(s) are asked with the selected context instead")
+                plans, text_plans = planned, planned_text
+                report_plans, report_text_plans = [], []
+                report = report_text = None
+            else:
+                report_pages = line_item_llm.report_page_texts(report)
+                ctx.log(f"line_item_llm:report pages={len(report['pages'])} "
+                        f"notes={len(report['notes'])} chars={len(report_text)} "
+                        f"est_tokens={tokens} lines={lines} "
+                        f"requests={len(report_plans) + len(report_text_plans)}")
+
         # The rulebook's judgement wording plus the master prompt, once for the run. The reply
         # contract goes FIRST and is not configurable — see `line_item_llm.REPLY_CONTRACT`. A
         # face-only set is sent the contract without its note passages: it is given no note.
@@ -190,6 +227,9 @@ class LineItemLlmStage(Stage):
         contract = line_item_llm.reply_contract(
             notes=not getattr(line_item_set, "strict_face_route", False))
         system = contract + "\n\n" + authored_guidance(working, ctx.settings)
+        # A REPORT REQUEST'S SYSTEM TEXT is the same plus one fixed paragraph saying where the
+        # report is and how a sentence on a page is cited. Every other request's is unchanged.
+        report_system = system + "\n\n" + line_item_llm.REPORT_GUIDE
         # THE WHOLE DOCUMENT WITH EVERY QUESTION, when an admin has asked for it. Built once, before
         # the first request, and sent unchanged on every one — after the system text and before
         # the question, so everything up to the question is the same bytes on every call and a
@@ -210,8 +250,11 @@ class LineItemLlmStage(Stage):
         mode = str(getattr(ctx.settings.extraction, "llm_request_grouping", "none") or "none")
         ctx.log(f"line_item_llm:planned requests={len(plans)} grouping={mode} shared={shared} "
                 f"lines={sum(len(p.keys) for p in plans)} notes_identified={len(identified)}"
+                + (f" report_requests={len(report_plans)} "
+                   f"report_lines={sum(len(p.keys) for p in report_plans)}" if report_plans else "")
                 + (f" requests_skipped_by_focus={skipped_by_focus}" if skipped_by_focus else ""))
-        ctx.emit_step(0, len(plans), "line-item request")
+        total = len(plans) + len(report_plans)
+        ctx.emit_step(0, total, "line-item request")
 
         by_concept = {li.canonical_key: li for li in doc.line_items if li.canonical_key}
         filled = answered = unresolved_total = 0
@@ -234,13 +277,17 @@ class LineItemLlmStage(Stage):
         explained: dict[tuple[str, str, str, str], Decimal] = {}
         indian = bool(getattr(ctx, "indian_filing", False))
         calls = failures = 0
-        # EVERY REQUEST IS BUILT FIRST, THEN SENT — the first on its own, the rest together.
+        # EVERY REQUEST IS BUILT FIRST, THEN SENT — the first of each prefix on its own, the rest
+        # together.
         #
         # The first goes alone because it is the one that stores the prompt's shared beginning (the
         # instructions, and in "full" mode the whole document) in the provider's cache; sent in
-        # parallel with it, the others would each pay for that beginning in full. After it, up to
-        # `extraction.llm_parallel_requests` are in flight at once. Replies are still PROCESSED in
-        # plan order, one at a time, so what a run writes does not depend on which call returned
+        # parallel with it, the others would each pay for that beginning in full. A run whose
+        # `anywhere` lines are asked with the whole report has TWO such beginnings — the system
+        # text alone, and the report's system text with the report after it — so the first
+        # request of each goes alone. After them, up to `extraction.llm_parallel_requests` are in
+        # flight at once. Replies are still PROCESSED in plan order, one at a time, the report
+        # requests after the others, so what a run writes does not depend on which call returned
         # first. 1 is the old behaviour: one request at a time.
         def _build(plan):
             face = face_context.face_rows(
@@ -267,23 +314,39 @@ class LineItemLlmStage(Stage):
                                                       other_pages)
             return request
 
-        prepared = [(plan, request) for plan in plans
+        # (plan, request, system text, document message, asked with the whole report)
+        prepared = [(plan, request, system, document, False) for plan in plans
                     for request in [_build(plan)] if request["line_items"]]
+        # A REPORT REQUEST IS ITS QUESTION ALONE — the lines, each with the notes its configuration
+        # points to — after the report, which carries every page, note and statement.
+        prepared += [(plan, request, report_system, report_text, True) for plan in report_plans
+                     for request in [{"line_items": line_item_llm.build_request(
+                         plan, by_key, notes_of, [], None, None)["line_items"]}]
+                     if request["line_items"]]
         workers = max(1, int(getattr(ctx.settings.extraction, "llm_parallel_requests", 1) or 1))
 
-        def _send(request):
-            return line_item_llm.ask(provider, system, request,
-                                     max_tokens=_max_tokens(len(request["line_items"])),
-                                     document=document)
+        def _send(entry):
+            _plan, request, system_text, document_text_, whole = entry
+            return line_item_llm.ask(provider, system_text, request,
+                                     max_tokens=_max_tokens(len(request["line_items"]),
+                                                            report=whole),
+                                     document=document_text_)
 
         pool = ThreadPoolExecutor(max_workers=workers) if prepared else None
-        futures = []
+        futures: list = [None] * len(prepared)
         if pool is not None:
-            futures.append(pool.submit(_send, prepared[0][1]))
-            wait(futures[:1])
-            futures += [pool.submit(_send, request) for _plan, request in prepared[1:]]
+            first: dict = {}
+            for i, entry in enumerate(prepared):
+                first.setdefault((entry[2], entry[3]), i)
+            for i in first.values():
+                futures[i] = pool.submit(_send, prepared[i])
+            wait([futures[i] for i in first.values()])
+            for i, entry in enumerate(prepared):
+                if futures[i] is None:
+                    futures[i] = pool.submit(_send, entry)
         try:
-            for done, (plan, request) in enumerate(prepared, start=1):
+            for done, (plan, request, _system, sent_document, whole_report) in enumerate(
+                    prepared, start=1):
                 try:
                     reply, meta = futures[done - 1].result()
                 except Exception as exc:  # noqa: BLE001
@@ -297,7 +360,7 @@ class LineItemLlmStage(Stage):
                     ctx.llm_failures += 1
                     ctx.log(f"line_item_llm:request({plan.name}) FAILED "
                             f"{type(exc).__name__}: {str(exc)[:160]}")
-                    ctx.emit_step(done, len(plans), "line-item request")
+                    ctx.emit_step(done, total, "line-item request")
                     continue
                 calls += 1
                 ctx.llm_calls += 1
@@ -350,8 +413,10 @@ class LineItemLlmStage(Stage):
                     # AND ONLY WHAT THIS LINE WAS GIVEN. A note citation must name a note its
                     # request supplied, and a statement citation the line's own statement — see
                     # `note_sourced.resolve_sources`. A whole-document request supplied every note
-                    # and every statement, so there only the route fences hold.
-                    whole_document = document is not None
+                    # and every statement, so there only the route fences hold — and so did a
+                    # report request, which also supplied every page's text: a sentence it cites by
+                    # its page is checked against that page.
+                    whole_document = sent_document is not None
                     resolved, unresolved, _ = line_item_llm.resolve(
                         answer, doc.notes, face_context.face_index(doc), allow_face=may_face,
                         pages=face_context.other_page_index(doc) if may_pages else None,
@@ -359,7 +424,8 @@ class LineItemLlmStage(Stage):
                         sections=_banner_tokens(item),
                         allow_notes=line_item_routes.may_read_notes(item),
                         notes_supplied=None if whole_document else tuple(notes_of.get(key, ())),
-                        statements=None if whole_document else _own_statements(item))
+                        statements=None if whole_document else _own_statements(item),
+                        page_texts=report_pages if whole_report else None)
                     # A LINE THAT EXCLUDES DERIVATIVES REFUSES A DERIVATIVE CITATION — see
                     # `_refuse_derivative_citations`. Refused citations carry no figure, so they
                     # are recorded on the row and counted nowhere.
@@ -504,15 +570,16 @@ class LineItemLlmStage(Stage):
                     # the deterministic route, which is what would have happened with no provider —
                     # but "unanswered" and "not asked" are different facts about a run.
                     ctx.log(f"line_item_llm:unanswered({plan.name}) {missing}")
-                ctx.emit_step(done, len(plans), "line-item request")
+                ctx.emit_step(done, total, "line-item request")
         finally:
             if pool is not None:
                 # A canceled run stops paying for requests nobody will read.
                 pool.shutdown(wait=False, cancel_futures=True)
 
-        if text_plans:
-            t_calls, t_failures, t_answered = self._ask_text(doc, ctx, provider, text_plans,
-                                                             by_key, by_concept)
+        if text_plans or report_text_plans:
+            t_calls, t_failures, t_answered = self._ask_text(
+                doc, ctx, provider, text_plans, by_key, by_concept, page_texts=page_texts,
+                report_plans=report_text_plans, report=report, report_text=report_text)
             calls += t_calls
             failures += t_failures
             answered += t_answered
@@ -572,7 +639,8 @@ class LineItemLlmStage(Stage):
         carve_note_figures(doc, ctx, by="line_item_llm")
         return doc
 
-    def _ask_text(self, doc, ctx, provider, text_plans, by_key: dict, by_concept: dict
+    def _ask_text(self, doc, ctx, provider, text_plans, by_key: dict, by_concept: dict, *,
+                  page_texts=None, report_plans=(), report=None, report_text=None
                   ) -> tuple[int, int, int]:
         """Ask about the TEXT lines and write each located text onto its line. ``(calls, failed,
         answered)``.
@@ -582,30 +650,45 @@ class LineItemLlmStage(Stage):
         is checked against the page it names (`text_lines.locate`): a text no supplied page prints
         is refused — logged and flagged on the line, nothing written — because a value the model
         wrote rather than read is not the filing's.
+
+        A REPORT PLAN — text lines whose route is `anywhere` (`line_item_requests.report_plans`) —
+        is sent the whole annual report instead, the same message the figure requests carry, and
+        every page of it is a page the text may be copied from. `page_texts` is the run's page text
+        when the caller has read it already.
         """
-        try:
-            from app.services.derived import document_text
-            page_texts = document_text(ctx.raw_bytes or b"", getattr(doc.fmt, "value", doc.fmt))
-        except Exception as exc:  # noqa: BLE001 — no page text means no text request, not a failed run
-            ctx.log(f"line_item_llm:text_lines_skipped(page text unavailable: "
-                    f"{type(exc).__name__})")
+        if page_texts is None and text_plans:
+            page_texts = _page_texts(doc, ctx, why="text_lines_skipped")
+        # A REPORT WITH NO PAGE TEXT HAS NOTHING A TEXT COULD BE COPIED FROM — its rows are figures
+        # — so its text lines are not asked, as a text line is not asked when the document has no
+        # page text.
+        if not any(str(b.get("text") or "").strip() for b in (report or {}).get("pages") or ()):
+            report_plans = ()
+        if not page_texts and not report_plans:
+            if page_texts is not None or report is not None:
+                ctx.log("line_item_llm:text_lines_skipped(the document has no page text)")
             return 0, 0, 0
-        if not page_texts:
-            ctx.log("line_item_llm:text_lines_skipped(the document has no page text)")
-            return 0, 0, 0
-        system = line_item_llm.TEXT_REPLY_CONTRACT
         calls = failures = answered = 0
-        for plan in text_plans:
+        asked = [(plan, False) for plan in (text_plans if page_texts else ())]
+        asked += [(plan, True) for plan in report_plans]
+        for plan, whole in asked:
             items = [by_key[k] for k in plan.keys if k in by_key]
-            pages = text_lines.text_pages(
-                page_texts, [n for it in items for n in line_item_notes.printed_names(it)], doc)
-            request = line_item_llm.build_text_request(plan, by_key, pages)
+            if whole:
+                pages = list((report or {}).get("pages") or ())
+                request = line_item_llm.build_text_request(plan, by_key, [])
+                system = line_item_llm.TEXT_REPLY_CONTRACT + "\n\n" + line_item_llm.TEXT_REPORT_GUIDE
+            else:
+                pages = text_lines.text_pages(
+                    page_texts, [n for it in items for n in line_item_notes.printed_names(it)],
+                    doc)
+                request = line_item_llm.build_text_request(plan, by_key, pages)
+                system = line_item_llm.TEXT_REPLY_CONTRACT
             if not request["line_items"]:
                 continue
             try:
                 reply, meta = line_item_llm.ask(
                     provider, system, request,
-                    max_tokens=_max_tokens(len(request["line_items"])),
+                    max_tokens=_max_tokens(len(request["line_items"]), report=whole),
+                    document=report_text if whole else None,
                     schema=line_item_llm.LineItemTextReply)
             except Exception as exc:  # noqa: BLE001 — the request is the unit of failure
                 failures += 1
@@ -617,6 +700,14 @@ class LineItemLlmStage(Stage):
             ctx.llm_calls += 1
             ctx.llm_input_tokens += int((meta or {}).get("input_tokens") or 0)
             ctx.llm_output_tokens += int((meta or {}).get("output_tokens") or 0)
+            ctx.llm_cached_tokens += int((meta or {}).get("cached_input_tokens") or 0)
+            ctx.llm_cache_write_tokens += int((meta or {}).get("cache_write_tokens") or 0)
+            if whole:
+                ctx.log(f"line_item_llm:usage request={plan.name} lines={len(request['line_items'])} "
+                        f"input={int((meta or {}).get('input_tokens') or 0)} "
+                        f"cached={int((meta or {}).get('cached_input_tokens') or 0)} "
+                        f"cache_write={int((meta or {}).get('cache_write_tokens') or 0)} "
+                        f"output={int((meta or {}).get('output_tokens') or 0)}")
             asked = {e["key"] for e in request["line_items"]}
             seen: set[str] = set()
             for answer in reply.answers:
@@ -1290,7 +1381,7 @@ class LineItemLlmStage(Stage):
             row.derivation, basis=basis, period_label=target_period,
             derivation=note_sourced.derivation.build(
                 method="prose_sourced", formula=None,
-                inputs=[{"label": e.get("caption") or f"note {e.get('note')}",
+                inputs=[{"label": e.get("caption") or _prose_place(e),
                          "note": e.get("note"),
                          "value": str(e.get("figures", {}).get("prose", "")),
                          "provenance": e.get("provenance"),
@@ -1305,17 +1396,38 @@ class LineItemLlmStage(Stage):
                          **_explained_fields(explained.get(("resolved", i)), "prose", component,
                                              at=e.get("at"))}
                         for i, e in prose],
-                result=value, flags=["prose_sourced", f"note:{best.get('note')}"],
+                result=value, flags=["prose_sourced", _prose_place(best).replace(" ", ":", 1)],
                 display={"op": "sum" if component else "first",
                          "combine": "component" if component else "whole",
                          "scale": (str(scale) if scale and scale != 1 and value != amount
                                    else None)}))
-        row.confidence.flags.append(f"prose_sourced_value:{best.get('note')}")
+        # A NOTE'S NUMBER, OR "page N" for a sentence cited on a page of the whole report.
+        row.confidence.flags.append(
+            f"prose_sourced_value:{best.get('note') or _prose_place(best)}")
         row.is_computed = True
         ctx.log(f"line_item_llm:{item.key}[{basis}:{target_period}] = {value} from prose in "
-                f"note {best.get('note')}"
+                f"{_prose_place(best)}"
                 + (f" (scaled by {scale})" if scale and scale != 1 and value != amount else ""))
         return 1
+
+
+def _page_texts(doc, ctx, why: str = "report_page_text"):
+    """Every page's text layer, ``[(0-based index, text)]`` — or None, logged, when it cannot be
+    read. No page text means no text request and a report of rows alone, not a failed run."""
+    try:
+        from app.services.derived import document_text
+        return document_text(ctx.raw_bytes or b"", getattr(doc.fmt, "value", doc.fmt))
+    except Exception as exc:  # noqa: BLE001
+        ctx.log(f"line_item_llm:{why}(page text unavailable: {type(exc).__name__})")
+        return None
+
+
+def _prose_place(entry: dict) -> str:
+    """Where a prose figure was read: "note 7", or "page 45" for a sentence cited on a page of the
+    whole report (`note_sourced._page_sentence`). A prose entry always names one of the two."""
+    if not entry.get("note") and entry.get("page") is not None:
+        return f"page {entry.get('page')}"
+    return f"note {entry.get('note')}"
 
 
 def _prose_in_statement_units(amount: Decimal, scale, entries: list[dict]) -> Decimal:
@@ -1327,9 +1439,21 @@ def _prose_in_statement_units(amount: Decimal, scale, entries: list[dict]) -> De
     million", `prose_scale`) is applied first; and an amount SMALLER than one unit of the
     statements is already stated in them — PetroChina's "RMB20,878 (2023: RMB6,050)" in a filing
     presented in RMB million was published as 0.020878.
+
+    AND A NUMBER PRINTED WITH NO CURRENCY IS NOT MONEY. A sentence on a page of the whole report
+    says whether a currency is printed against its amount (`prose_money`,
+    `note_sourced._currency_beside`), because a page's sentence may state a headcount, a number of
+    shares, a ratio or a rate — "the Group had 2,431 employees" in a report presented in RMB'000
+    is 2,431 employees, not 2.431. Such a number is never divided by the statements' scale; a
+    scale word beside it still multiplies ("1,250 million shares"). A note's sentence carries no
+    such reading and is money, as before.
     """
     doc_scale = scale if scale else Decimal(1)
     words = {e.get("prose_scale") for e in entries}
+    if entries and all(e.get("prose_money") is False for e in entries):
+        if len(words) == 1 and None not in words:
+            return amount * Decimal(str(next(iter(words))))
+        return amount
     if len(words) == 1 and None not in words:
         return amount * Decimal(str(next(iter(words)))) / doc_scale
     if doc_scale != 1 and abs(amount) < doc_scale:

@@ -217,6 +217,10 @@ def _run(route, sources):
 
         def complete_structured(self, *, system, messages, response_schema, **_):
             seen["request"] = _json.loads(messages[-1]["content"])
+            # AN `anywhere` LINE IS ASKED WITH THE WHOLE REPORT, sent before the question
+            # (`line_item_llm.report_message`); every other line is one message, as before.
+            seen["report"] = (_json.loads(messages[0]["content"].split("\n", 1)[1])
+                              if len(messages) > 1 else None)
             return response_schema.model_validate(
                 {"answers": [{"key": "x", "confidence": 0.8, "reason": "r",
                               "sources": sources}]}), {}
@@ -230,7 +234,10 @@ def _run(route, sources):
 def test_an_anywhere_line_publishes_a_figure_off_a_page_that_is_neither(_capsys=None):
     row, seen, _ctx = _run("anywhere", [{"page": OTHER_PAGE + 1,
                                          "caption": "Five-year turnover"}])
-    assert "other_pages" in seen["request"], "the request did not carry the pages"
+    assert seen["report"] is not None and "other_pages" in seen["report"], \
+        "the report did not carry the pages"
+    assert "other_pages" not in seen["request"], "the question carries the lines alone"
+    assert [e["key"] for e in seen["request"]["line_items"]] == ["x"]
     assert row is not None
     assert next(iter(row.values.values())).value == Decimal("8100")
     assert "llm_off_statement_page_scale_unverified:page 2" in row.confidence.flags, \
@@ -240,7 +247,7 @@ def test_an_anywhere_line_publishes_a_figure_off_a_page_that_is_neither(_capsys=
 
 def test_a_face_line_is_not_sent_those_pages_and_cannot_cite_one():
     row, seen, ctx = _run("face", [{"page": OTHER_PAGE + 1, "caption": "Five-year turnover"}])
-    assert "other_pages" not in seen["request"]
+    assert "other_pages" not in seen["request"] and seen["report"] is None
     assert row is None or not [ev for ev in row.values.values() if ev.value is not None]
     assert any("citation NOT resolved" in line for line in ctx.logs), ctx.logs[-4:]
 

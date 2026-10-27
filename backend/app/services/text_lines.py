@@ -465,11 +465,7 @@ def text_pages(page_texts, names, doc=None, *, cap: int = TEXT_PAGES_CAP,
     one and the document knows it.
     """
     by_index = {int(i): t for i, t in page_texts or ()}
-    folios = {}
-    for p in (getattr(doc, "pages", None) or ()):
-        folio = str(getattr(p, "printed_page", "") or "").strip()
-        if folio:
-            folios[int(getattr(p, "index", -1))] = folio
+    folios = _folios(doc)
     out = []
     anchored = designated_pages(page_texts, names, doc)
     scored, prefer = page_texts, ()
@@ -482,6 +478,35 @@ def text_pages(page_texts, names, doc=None, *, cap: int = TEXT_PAGES_CAP,
         if index in folios:
             entry["printed_page"] = folios[index]
         entry["text"] = text[:chars]
+        out.append(entry)
+    return out
+
+
+def _folios(doc) -> dict[int, str]:
+    """{0-based page index: the folio the page prints}, for the pages that print one."""
+    folios = {}
+    for p in (getattr(doc, "pages", None) or ()):
+        folio = str(getattr(p, "printed_page", "") or "").strip()
+        if folio:
+            folios[int(getattr(p, "index", -1))] = folio
+    return folios
+
+
+def every_page(page_texts, doc=None) -> list[dict]:
+    """EVERY page's text, in file order, in the shape of `text_pages`: the whole annual report an
+    `anywhere` line is asked with (`line_item_llm.build_report`).
+
+    Uncut, unlike `text_pages`: the report is the context, so a page is not shortened to fit a
+    budget per line. Trailing spaces are dropped from each printed line, which no reader of the
+    text — `locate`, `note_sourced._amount_in_text` — counts. A page whose text layer is empty is
+    still listed, so the page numbers a reader counts are the file's."""
+    folios = _folios(doc)
+    out = []
+    for index, text in sorted(((int(i), t) for i, t in page_texts or ()), key=lambda p: p[0]):
+        entry: dict = {"page": index + 1}
+        if index in folios:
+            entry["printed_page"] = folios[index]
+        entry["text"] = "\n".join(line.rstrip() for line in str(text or "").splitlines()).strip()
         out.append(entry)
     return out
 

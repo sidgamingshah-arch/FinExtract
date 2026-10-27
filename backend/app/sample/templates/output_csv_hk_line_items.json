@@ -1054,6 +1054,7 @@
     }
    ],
    "namespace": "template",
+   "route": "anywhere",
    "note_source": {
     "note_terms": [
      "fixed assets",
@@ -1126,6 +1127,7 @@
     }
    ],
    "namespace": "template",
+   "route": "anywhere",
    "note_source": {
     "note_terms": [
      "fixed assets",
@@ -1466,7 +1468,8 @@
      "sign": 1
     }
    ],
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "bs_nca__investment_property_net",
@@ -2780,7 +2783,8 @@
      "sign": 1
     }
    ],
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "bs_ca__operating_lease_receivables",
@@ -2924,7 +2928,8 @@
     "bs_ca__finished_goods"
    ],
    "type": "calculated",
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "bs_ca__due_from_jvs_and_partnerships",
@@ -4091,6 +4096,7 @@
     "^预付款项及其他应收款项$"
    ],
    "namespace": "template",
+   "route": "anywhere",
    "note_source": {
     "note_terms": [
      "trade receivables",
@@ -4133,6 +4139,7 @@
    "inherits": "bs_ca",
    "face_only": false,
    "namespace": "template",
+   "route": "anywhere",
    "note_source": {
     "note_terms": [
      "trade receivables",
@@ -4180,7 +4187,8 @@
      "sign": 1
     }
    ],
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "bs_ca__subscribed_capital_called_not_paid",
@@ -4640,7 +4648,8 @@
      "sign": 1
     }
    ],
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "bs_ca__total_assets",
@@ -4691,7 +4700,8 @@
      "sign": 1
     }
    ],
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "bs_equity__common_share_capital",
@@ -4918,7 +4928,8 @@
      "sign": 1
     }
    ],
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "bs_equity__revaluation_reserves",
@@ -5124,7 +5135,8 @@
    "face_only": false,
    "match_priority": 80,
    "type": "calculated",
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "bs_equity__treasury_shares",
@@ -5465,7 +5477,8 @@
      "sign": 1
     }
    ],
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "bs_ncl__ltd_bank",
@@ -6820,7 +6833,8 @@
      "sign": 1
     }
    ],
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "bs_cl__cpltd_bank",
@@ -6876,6 +6890,7 @@
    "face_only": false,
    "match_priority": 80,
    "namespace": "template",
+   "route": "anywhere",
    "cascade": [
     {
      "id": "NOTE_SPLIT",
@@ -7138,6 +7153,7 @@
    "inherits": "bs_cl",
    "face_only": false,
    "namespace": "template",
+   "route": "anywhere",
    "note_source": {
     "note_terms": [
      "bank borrowings",
@@ -7313,6 +7329,7 @@
    "inherits": "bs_cl",
    "face_only": false,
    "namespace": "template",
+   "route": "anywhere",
    "note_source": {
     "note_terms": [
      "other borrowings",
@@ -8357,6 +8374,7 @@
    "inherits": "bs_cl",
    "face_only": false,
    "namespace": "template",
+   "route": "anywhere",
    "cascade": [
     {
      "id": "TRADE_PART_OF_THE_COMBINED_ROW",
@@ -8906,7 +8924,8 @@
      "sign": 1
     }
    ],
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "bs_cl__total_liabilities",
@@ -8955,7 +8974,8 @@
      "sign": 1
     }
    ],
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "bs_cl__total_equity_and_liabilities",
@@ -9012,7 +9032,8 @@
      "sign": 1
     }
    ],
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "is_pl__sales_revenues",
@@ -9414,6 +9435,7 @@
     }
    ],
    "namespace": "template",
+   "route": "anywhere",
    "note_source": {
     "note_terms": [
      "cost of sales",
@@ -9480,7 +9502,8 @@
      "abs": true
     }
    ],
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "is_pl__rents_and_royalty_income",
@@ -9829,6 +9852,7 @@
    "face_only": false,
    "match_priority": 72,
    "namespace": "template",
+   "route": "anywhere",
    "note_source": {
     "note_terms": [
      "employee benefit expense",
@@ -10810,6 +10834,7 @@
     }
    ],
    "namespace": "template",
+   "route": "anywhere",
    "exclude_hints": [
     "^[^a-z]*[营營][业業]利[润潤][^a-z]*$"
    ]
@@ -10944,7 +10969,8 @@
    "inherits": "is_pl",
    "face_only": false,
    "match_priority": 56,
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "is_pl__interest_on_debt_market_instruments",
@@ -11110,6 +11136,7 @@
    "face_only": false,
    "match_priority": 52,
    "namespace": "template",
+   "route": "anywhere",
    "note_source": {
     "note_terms": [
      "finance costs",
@@ -11397,7 +11424,8 @@
      "sign": 1
     }
    ],
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "is_pl__income_loss_from_related_party",
@@ -11892,7 +11920,8 @@
      "sign": 1
     }
    ],
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "is_pl__gain_loss_disp_of_fixed_assets",
@@ -12211,7 +12240,8 @@
      "sign": 1
     }
    ],
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "is_pl__profit_loss_before_tax",
@@ -12287,7 +12317,8 @@
      "sign": 1
     }
    ],
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "is_pl__current_income_taxes",
@@ -12440,7 +12471,8 @@
      "sign": 1
     }
    ],
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "is_pl__profit_loss_bef_extraord_items",
@@ -12499,7 +12531,8 @@
      "sign": 1
     }
    ],
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "is_pl__extraordinary_income_exp",
@@ -12680,6 +12713,7 @@
     }
    ],
    "namespace": "template",
+   "route": "anywhere",
    "section_scope": [
     "is_pl",
     "profit_attributable_to"
@@ -12981,6 +13015,7 @@
     }
    ],
    "namespace": "template",
+   "route": "anywhere",
    "statements": [
     "equity_changes",
     "profit_and_loss"
@@ -14396,7 +14431,8 @@
      "sign": 1
     }
    ],
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "cf_oper_direct__cash_receipts_from_customers",
@@ -14593,7 +14629,8 @@
      "sign": 1
     }
    ],
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "cf_investing__purchase_intangible_assets",
@@ -15375,7 +15412,8 @@
      "sign": 1
     }
    ],
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "cf_financing__net_proceeds_issuance_of_capital",
@@ -15867,7 +15905,8 @@
      "sign": 1
     }
    ],
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "cf_financing__net_foreign_exchange_difference",
@@ -16023,6 +16062,7 @@
     }
    ],
    "namespace": "template",
+   "route": "anywhere",
    "section_scope": [
     "cf_top_level"
    ]
@@ -16075,6 +16115,7 @@
     }
    ],
    "namespace": "template",
+   "route": "anywhere",
    "section_scope": [
     "cf_top_level"
    ]
@@ -16148,7 +16189,8 @@
      "sign": 1
     }
    ],
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "statement_setup_controls__customer_s_name",
@@ -16171,6 +16213,7 @@
    "sign_rule": {},
    "inherits": "statement_setup_controls",
    "namespace": "template",
+   "route": "anywhere",
    "output_structure": "phrase",
    "aliases_i18n": {
     "zh": [
@@ -16206,6 +16249,7 @@
    "sign_rule": {},
    "inherits": "statement_setup_controls",
    "namespace": "template",
+   "route": "anywhere",
    "output_structure": "phrase",
    "aliases_i18n": {
     "zh": [
@@ -16243,6 +16287,7 @@
    "sign_rule": {},
    "inherits": "statement_setup_controls",
    "namespace": "template",
+   "route": "anywhere",
    "output_structure": "phrase",
    "aliases_i18n": {
     "zh": [
@@ -16276,6 +16321,7 @@
    "sign_rule": {},
    "inherits": "statement_setup_controls",
    "namespace": "template",
+   "route": "anywhere",
    "output_structure": "phrase",
    "aliases_i18n": {
     "zh": [
@@ -16330,6 +16376,7 @@
    "sign_rule": {},
    "inherits": "statement_setup_controls",
    "namespace": "template",
+   "route": "anywhere",
    "output_structure": "phrase",
    "aliases_i18n": {
     "zh": [
@@ -16464,6 +16511,7 @@
    "sign_rule": {},
    "inherits": "statement_setup_controls",
    "namespace": "template",
+   "route": "anywhere",
    "output_structure": "phrase",
    "aliases_i18n": {
     "zh": [
@@ -16499,6 +16547,7 @@
    "sign_rule": {},
    "inherits": "statement_setup_controls",
    "namespace": "template",
+   "route": "anywhere",
    "output_structure": "phrase",
    "aliases_i18n": {
     "zh": [
@@ -16530,6 +16579,7 @@
    "sign_rule": {},
    "inherits": "statement_setup_controls",
    "namespace": "template",
+   "route": "anywhere",
    "output_structure": "phrase",
    "aliases_i18n": {
     "zh": [
@@ -16580,6 +16630,7 @@
    "sign_rule": {},
    "inherits": "statement_setup_controls",
    "namespace": "template",
+   "route": "anywhere",
    "output_structure": "phrase",
    "aliases_i18n": {
     "zh": [
@@ -16631,6 +16682,7 @@
    "sign_rule": {},
    "inherits": "statement_setup_controls",
    "namespace": "template",
+   "route": "anywhere",
    "output_structure": "phrase",
    "aliases_i18n": {
     "zh": [
@@ -16658,7 +16710,8 @@
    ],
    "sign_rule": {},
    "inherits": "supplemental_data",
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "supplemental_data__num_outstanding_common_shares",
@@ -16719,7 +16772,8 @@
    ],
    "sign_rule": {},
    "inherits": "supplemental_data",
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "supplemental_data__num_employees",
@@ -16774,7 +16828,8 @@
    ],
    "sign_rule": {},
    "inherits": "supplemental_data",
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "supplemental_data__net_technical_reserve_liab_side_insur_co_only",
@@ -16793,7 +16848,8 @@
    ],
    "sign_rule": {},
    "inherits": "supplemental_data",
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "off_balance_sheet_data__off_balance_sheet_assets",
@@ -16811,7 +16867,8 @@
    ],
    "sign_rule": {},
    "inherits": "off_balance_sheet_data",
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "off_balance_sheet_data__operating_lease_commitments",
@@ -16830,6 +16887,7 @@
    "sign_rule": {},
    "inherits": "off_balance_sheet_data",
    "namespace": "template",
+   "route": "anywhere",
    "note_source": {
     "note_terms": [
      "operating lease commitments",
@@ -16862,6 +16920,7 @@
    "sign_rule": {},
    "inherits": "off_balance_sheet_data",
    "namespace": "template",
+   "route": "anywhere",
    "note_source": {
     "note_terms": [
      "contingent liabilities",
@@ -16891,7 +16950,8 @@
    ],
    "sign_rule": {},
    "inherits": "supplemental_data",
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "supplemental_data__gross_premium_written_insur_co_only",
@@ -16910,7 +16970,8 @@
    ],
    "sign_rule": {},
    "inherits": "supplemental_data",
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "supplemental_data__gross_premium_written_life_insur_co_only",
@@ -16927,7 +16988,8 @@
    ],
    "sign_rule": {},
    "inherits": "supplemental_data",
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "supplemental_data__gross_premium_written_non_life_insur_co_only",
@@ -16944,7 +17006,8 @@
    ],
    "sign_rule": {},
    "inherits": "supplemental_data",
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "supplemental_data__net_premium_written_insur_co_only",
@@ -16963,7 +17026,8 @@
    ],
    "sign_rule": {},
    "inherits": "supplemental_data",
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "supplemental_data__net_investment_income_insur_co_only",
@@ -16980,7 +17044,8 @@
    ],
    "sign_rule": {},
    "inherits": "supplemental_data",
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "credit_compliance__min_working_capital",
@@ -16996,7 +17061,8 @@
    ],
    "sign_rule": {},
    "inherits": "credit_compliance",
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "credit_compliance__min_current_ratio",
@@ -17012,7 +17078,8 @@
    ],
    "sign_rule": {},
    "inherits": "credit_compliance",
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "credit_compliance__min_quick_ratio",
@@ -17028,7 +17095,8 @@
    ],
    "sign_rule": {},
    "inherits": "credit_compliance",
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "credit_compliance__max_debt_to_tangible_worth",
@@ -17046,7 +17114,8 @@
    ],
    "sign_rule": {},
    "inherits": "credit_compliance",
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "credit_compliance__min_interest_coverage",
@@ -17062,7 +17131,8 @@
    ],
    "sign_rule": {},
    "inherits": "credit_compliance",
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "credit_compliance__min_earnings_coverage",
@@ -17078,7 +17148,8 @@
    ],
    "sign_rule": {},
    "inherits": "credit_compliance",
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "credit_compliance__min_cash_flow_coverage",
@@ -17095,7 +17166,8 @@
    ],
    "sign_rule": {},
    "inherits": "credit_compliance",
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "credit_compliance__max_capital_expenditures",
@@ -17111,7 +17183,8 @@
    ],
    "sign_rule": {},
    "inherits": "credit_compliance",
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "credit_compliance__max_off_balance_sheet_leverage",
@@ -17129,7 +17202,8 @@
    ],
    "sign_rule": {},
    "inherits": "credit_compliance",
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "credit_compliance__min_net_profit_margin",
@@ -17146,7 +17220,8 @@
    ],
    "sign_rule": {},
    "inherits": "credit_compliance",
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "credit_compliance__min_return_on_assets",
@@ -17163,7 +17238,8 @@
    ],
    "sign_rule": {},
    "inherits": "credit_compliance",
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "credit_compliance__min_return_on_equity",
@@ -17180,7 +17256,8 @@
    ],
    "sign_rule": {},
    "inherits": "credit_compliance",
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "credit_compliance__max_net_trade_receivable_days",
@@ -17198,7 +17275,8 @@
    ],
    "sign_rule": {},
    "inherits": "credit_compliance",
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "credit_compliance__max_inventory_days",
@@ -17214,7 +17292,8 @@
    ],
    "sign_rule": {},
    "inherits": "credit_compliance",
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "credit_compliance__max_trade_payable_days",
@@ -17231,7 +17310,8 @@
    ],
    "sign_rule": {},
    "inherits": "credit_compliance",
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "credit_compliance__max_sales_growth",
@@ -17247,7 +17327,8 @@
    ],
    "sign_rule": {},
    "inherits": "credit_compliance",
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "credit_compliance__min_tangible_net_worth",
@@ -17264,7 +17345,8 @@
    ],
    "sign_rule": {},
    "inherits": "credit_compliance",
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "credit_compliance__max_subordinated_debt",
@@ -17280,7 +17362,8 @@
    ],
    "sign_rule": {},
    "inherits": "credit_compliance",
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "credit_compliance__max_cash_dividends",
@@ -17296,7 +17379,8 @@
    ],
    "sign_rule": {},
    "inherits": "credit_compliance",
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "credit_compliance__min_cash_balance",
@@ -17312,7 +17396,8 @@
    ],
    "sign_rule": {},
    "inherits": "credit_compliance",
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "capital_and_lease_commitments__capital_commitments_for_fixed_assets",
@@ -17330,6 +17415,7 @@
    "sign_rule": {},
    "inherits": "capital_and_lease_commitments",
    "namespace": "template",
+   "route": "anywhere",
    "note_source": {
     "note_terms": [
      "capital commitments",
@@ -17360,6 +17446,7 @@
    "sign_rule": {},
    "inherits": "capital_and_lease_commitments",
    "namespace": "template",
+   "route": "anywhere",
    "note_source": {
     "note_terms": [
      "capital commitments",
@@ -17389,6 +17476,7 @@
    "sign_rule": {},
    "inherits": "capital_and_lease_commitments",
    "namespace": "template",
+   "route": "anywhere",
    "note_source": {
     "note_terms": [
      "capital commitments",
@@ -17417,6 +17505,7 @@
    "sign_rule": {},
    "inherits": "capital_and_lease_commitments",
    "namespace": "template",
+   "route": "anywhere",
    "note_source": {
     "note_terms": [
      "capital commitments",
@@ -17444,6 +17533,7 @@
    "sign_rule": {},
    "inherits": "capital_and_lease_commitments",
    "namespace": "template",
+   "route": "anywhere",
    "note_source": {
     "note_terms": [
      "capital commitments",
@@ -17473,6 +17563,7 @@
    "sign_rule": {},
    "inherits": "capital_and_lease_commitments",
    "namespace": "template",
+   "route": "anywhere",
    "note_source": {
     "note_terms": [
      "operating lease commitments",
@@ -17844,7 +17935,8 @@
    ],
    "sign_rule": {},
    "inherits": "notes",
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "notes__secure_borrowings",
@@ -17865,7 +17957,8 @@
    ],
    "sign_rule": {},
    "inherits": "notes",
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "notes__derivatives",
@@ -17890,7 +17983,8 @@
    ],
    "sign_rule": {},
    "inherits": "notes",
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "notes__contingent_liabilities",
@@ -17969,6 +18063,7 @@
    "sign_rule": {},
    "inherits": "notes",
    "namespace": "template",
+   "route": "anywhere",
    "output_structure": "phrase",
    "aliases_i18n": {
     "zh": [
@@ -18000,7 +18095,8 @@
    ],
    "sign_rule": {},
    "inherits": "notes",
-   "namespace": "template"
+   "namespace": "template",
+   "route": "anywhere"
   },
   {
    "key": "notes__confirmed_with_rm",

@@ -97,10 +97,14 @@ class Answers:
         self._only_asked = only_asked
         self.systems: list[str] = []
         self.requests: list[dict] = []
+        # The message sent BEFORE the question, where there is one: the whole annual report an
+        # `anywhere` line is asked with (`line_item_llm.report_message`). None for every other.
+        self.documents: list[str | None] = []
 
     def complete_structured(self, *, system, messages, response_schema, **_):
         self.systems.append(system)
         self.requests.append(json.loads(messages[-1]["content"]))
+        self.documents.append(messages[0]["content"] if len(messages) > 1 else None)
         asked = {e["key"] for e in self.requests[-1]["line_items"]}
         mine = ([a for a in self._answers if a["key"] in asked]
                 if self._only_asked else list(self._answers))
@@ -339,8 +343,15 @@ def test_the_notes_travel_once_beside_the_lines_not_inside_each_one(shipped):
     _ctx, provider = _run(shipped, doc, [], llm_focus_only=False,
                           llm_request_grouping="identical")
 
-    for request in provider.requests:
-        assert "notes" in request and isinstance(request["notes"], list)
+    assert any(d is None for d in provider.documents) and any(provider.documents)
+    for request, document in zip(provider.requests, provider.documents):
+        if document is not None:
+            # AN `anywhere` LINE'S NOTES ARE IN THE REPORT, sent once before the question: every
+            # note the filing prints, not a block per request.
+            report = json.loads(document.split("\n", 1)[1])
+            assert isinstance(report["notes"], list) and "notes" not in request
+        else:
+            assert "notes" in request and isinstance(request["notes"], list)
         for entry in request["line_items"]:
             # The line says WHICH notes are its own; it does not carry their content.
             assert "notes_supplied" in entry

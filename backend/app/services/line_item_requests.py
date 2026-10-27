@@ -185,6 +185,78 @@ def plan_requests(line_item_set, notes, settings, *, cited=None) -> list[Request
     return plans
 
 
+#: At most this many `anywhere` lines share one report request. A request carrying the whole
+#: report is the one whose shared context is largest, so its lines are batched, and the cap is the
+#: largest group measured to answer well together (the twelve depreciation parts of one note).
+REPORT_LINES_PER_REQUEST = 12
+
+
+def report_plans(plans, by_key: dict) -> tuple[list[RequestPlan], list[RequestPlan]]:
+    """``(plans, report plans)``: every `anywhere` line moved out of the plan it was in, into
+    batches that are asked with the whole annual report (`line_item_llm.build_report`).
+
+    A LINE THAT MAY BE READ FROM ANYWHERE IS GIVEN EVERYTHING, so the per-line selection that
+    planned its request — its note set, its statement — no longer decides what it is sent, and
+    nothing is left to keep it in a request of its own. Its `notes` still travel, as the line's
+    `notes_supplied` ("look there first"). The plan's other lines stay as they were planned, the
+    way `stages.line_item_llm._split_text_plans` leaves a plan's figure lines.
+
+    BATCHED BY WHERE THE LINE IS PRINTED: its statement, then its section, in the set's own order,
+    at most `REPORT_LINES_PER_REQUEST` to a batch and the batches of a statement even — so the
+    lines of one statement are asked together, and a balance-sheet total is asked beside the
+    balance-sheet lines rather than beside a covenant. A line names its statement on the line
+    (`LineItemDef.statement`); one naming none is batched under its section.
+    """
+    from dataclasses import replace
+
+    def anywhere(key: str) -> bool:
+        return key in by_key and line_item_routes.reads_every_page(by_key[key])
+
+    kept: list[RequestPlan] = []
+    moved: list[str] = []
+    notes_of: dict[str, tuple[str, ...]] = {}
+    for plan in plans:
+        mine = tuple(k for k in plan.keys if anywhere(k))
+        rest = tuple(k for k in plan.keys if k not in mine)
+        if rest:
+            kept.append(plan if not mine else replace(plan, keys=rest))
+        for key in mine:
+            if key not in notes_of:
+                moved.append(key)
+                notes_of[key] = tuple(plan.notes)
+    if not moved:
+        return kept, []
+
+    def tok(x) -> str:
+        return str(getattr(x, "value", x) or "")
+
+    def where(key: str) -> str:
+        item = by_key[key]
+        return tok(getattr(item, "statement", None)) or str(getattr(item, "inherits", "") or "")
+
+    position = {key: i for i, key in enumerate(moved)}
+    by_place: dict[str, list[str]] = {}
+    for key in sorted(moved, key=lambda k: (where(k), str(getattr(by_key[k], "inherits", "") or ""),
+                                            position[k])):
+        by_place.setdefault(where(key), []).append(key)
+    report: list[RequestPlan] = []
+    for place in sorted(by_place, key=lambda p: min(position[k] for k in by_place[p])):
+        keys = by_place[place]
+        batches = -(-len(keys) // REPORT_LINES_PER_REQUEST)
+        size = -(-len(keys) // batches)
+        for n in range(batches):
+            chunk = tuple(keys[n * size:(n + 1) * size])
+            if not chunk:
+                continue
+            notes: list[str] = []
+            for key in chunk:
+                notes += [num for num in notes_of[key] if num not in notes]
+            report.append(RequestPlan(
+                name=f"report:{place or 'unplaced'}" + (f"#{n + 1}" if batches > 1 else ""),
+                keys=chunk, notes=tuple(notes), sections=_sections_of_keys(chunk, by_key)))
+    return kept, report
+
+
 def face_statements(plan, by_key: dict) -> set[str]:
     """The statement tokens whose PRINTED ROWS this plan may be supplied, given its lines' routes.
 

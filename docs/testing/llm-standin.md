@@ -99,11 +99,44 @@ Run from `backend/`.
 
 | path | what it is |
 | --- | --- |
-| `requests/<id>.json` | one request: `id` (hash of the body), `stage` (the pipeline stage that made the call: `line_item_llm`, `shared_figures`, `gap_closing`, `contingent_liabilities`...), `schema` (reply schema name), `line_keys` (the keys asked about), `body` (exactly as sent), `chars`, `est_tokens` (chars/4) |
+| `requests/<id>.json` | one request: `id` (hash of the body), `stage` (the pipeline stage that made the call: `line_item_llm`, `shared_figures`, `gap_closing`, `contingent_liabilities`...), `schema` (reply schema name), `line_keys` (the keys asked about), `body` (as sent, with its prompt-cache breakpoints taken out: see below), `cache_breakpoints` (where the gateway body asks the provider to cache: `system`, `message 1`), `chars`, `est_tokens` (chars/4) |
 | `requests/<id>.md` | the same request rendered for people; the system prompt is written once to `system/<hash>.md` and linked, not repeated. The answerer reads the `.json`. |
 | `run/` | the run's own output: `spread.json`, `rows.json` (with provenance), `notes.json`, `pages.json`, `structural.json`, `log.txt` |
 | `index.json` | every request of the latest run: stage, keys, size, answered or pending |
 | `lint.json`, `sample.json`, `answers/`, `audit/`, `report.md` | as above |
+
+### Prompt-cache breakpoints do not change a request's id
+
+The gateway body sends the system text, and the whole-report message, as text blocks that end in
+`cache_control` (`adapters._structured.messages_body`). A breakpoint tells the provider what it
+may cache and changes nothing the model reads. So a request is recorded and keyed in its
+**canonical** form (`canonical_body`): every text block joined back into the string it spells. A
+request whose words did not change keeps its id and its answer, whether or not caching is on.
+
+### Report requests (the `anywhere` lines)
+
+A line whose route is `anywhere` is asked in a batch of at most 12, and the request has **two
+user messages**:
+
+- **The first is the annual report**, the same on every report request of the run. It is one line
+  of prose, then JSON:
+  - `pages`: every page's text, each under its 1-based `page` and its `printed_page` folio;
+  - `notes`: every note's rows (a note's sentences are on its pages);
+  - `statement_rows`: every statement;
+  - `other_pages`: the rows of the pages that are neither a statement nor a note.
+- **The second is the question**: the lines alone, each with the notes its configuration points
+  to (`notes_supplied`).
+
+The system text ends in the fixed paragraph `REPORT_GUIDE`, or `TEXT_REPORT_GUIDE` for text lines.
+A report request is large, about 200,000 tokens on a 270-page HKEX report. Search it rather than
+reading it end to end.
+
+A figure may be cited as a row of a note, a statement or another page, as in any request. A
+figure stated in a **sentence on any page** is cited with `page`, the `amount` exactly as printed,
+and the sentence in `quote`. The gateway checks the amount against that page's text.
+
+`lint`, `coverage` and `grade` read the report's blocks as if the question carried them
+(`payload_of` merges the first message in). A text answer is checked against the report's `pages`.
 
 ## The answerer's brief
 

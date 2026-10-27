@@ -87,15 +87,19 @@ def test_anywhere_changes_nothing_where_the_narrowing_never_applied():
     assert open_to(scoped, "7", {"7": {"bs_ca", "bs_nca"}}), "a multi-section note was always open"
 
 
-def test_the_shipped_set_declares_no_anywhere_line():
-    """RECORDED, NOT REQUIRED. The count is the reason this change is safe to make at all: no
-    shipped line's behaviour moves. If a future set declares one, this test is the place that says
-    the blast radius has changed — update it deliberately rather than discovering it in a run.
-    """
+def test_every_asked_line_that_named_no_route_declares_anywhere():
+    """RECORDED, NOT REQUIRED. The count is the blast radius, and this test is where it is said.
+
+    TWO lines declared it first: the share count and the headcount are printed in the directors'
+    report or a share-capital note, outside every statement and every section a note is filed
+    under. Then every asked-about line that declared NO route — 96 of them — was given it, by the
+    user's decision: a line nothing restricts may be read from anywhere in the annual report, and
+    its request carries the whole report (`services.line_item_llm.build_report`). A line that
+    declares a route keeps it."""
+    from app.services.line_item_requests import asked_about
     s = load_line_item_set(json.loads(SEED.read_text(encoding="utf-8")), resolve=True)
     declaring = [i.key for i in s.items if str(getattr(i, "route", "") or "") == "anywhere"]
-    # TWO, deliberately: the share count and the headcount are printed in the directors' report or
-    # a share-capital note, outside every statement and every section a note is filed under, and
-    # their requests carried nothing at all until they could read there.
-    assert sorted(declaring) == ["supplemental_data__num_employees", "supplemental_data__num_outstanding_common_shares"], \
-        f"the set now declares `anywhere`: {declaring}"
+    assert {"supplemental_data__num_employees",
+            "supplemental_data__num_outstanding_common_shares"} <= set(declaring)
+    assert len(declaring) == 98, len(declaring)
+    assert not [i.key for i in s.items if asked_about(i) and not str(getattr(i, "route", "") or "")]

@@ -203,6 +203,29 @@ The face and its cited notes are processed in this order:
     the NOTE BLOCK: measured at 95,188 of a ~196,000-character request, byte-identical in every
     call of a run, so lines needing the same notes can amortise one copy.
 
+    *An `anywhere` line is asked with the whole annual report.* Its plan is set aside
+    (`line_item_requests.report_plans`): the line goes into a batch of at most 12, grouped by the
+    statement it is printed on. That batch is sent the report (`line_item_llm.build_report`): every
+    page's text, every note's rows, every statement and every other page's rows. The report goes
+    as one message after the system text and before the question, and is the same bytes on every
+    request of the run. The system text gains one fixed paragraph (`REPORT_GUIDE`). Text lines
+    with this route are asked the same way, under the text contract.
+
+    Such a line may cite a sentence on any page by its page, amount and quote. The amount is
+    checked against that page's text (`note_sourced._page_sentence`). A number printed with no
+    currency beside it is not divided by the statements' scale.
+
+    A report over `REPORT_TOKEN_BUDGET` (900,000 estimated tokens) is not cut down: its lines are
+    asked as planned, with the selected context, and the log says so. Every other line's request
+    is unchanged.
+
+    *Prompt caching.* The Anthropic-format adapters (`anthropic`, `bedrock_gateway`) send the
+    system text, and a message marked `cache` (the report), as text blocks ending in a
+    `cache_control` breakpoint (`adapters._structured.messages_body`; off with
+    `llm.prompt_cache = false`). The first request of each prefix is sent on its own and waited
+    for, so the requests after it read the prefix from the provider's cache. The run log gives
+    every request's input, cached and cache-write tokens.
+
     *Position.* Immediately before `note_sourced`, the deterministic reader of the same
     `note_source` declarations. Every site that stage writes a figure asks `_llm_holds` first, so a
     line answered here keeps its answer and the declared route fills what was left empty — neither

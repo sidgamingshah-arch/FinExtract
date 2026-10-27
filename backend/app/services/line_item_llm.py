@@ -395,7 +395,8 @@ _ROUTE_LABEL = {
     "face": "the face of its statement only — its figure is not in a note",
     "note_tables": "a row of one of its notes only — its figure is not on the face of a statement",
     "prose": "a sentence in one of its notes only — its figure is not on the face of a statement",
-    "anywhere": "anywhere in the filing — a statement, a note, or any other page supplied",
+    "anywhere": ("anywhere in the annual report — a row of a statement, of a note or of any other "
+                 "page, or a sentence on any page"),
 }
 
 
@@ -499,9 +500,10 @@ def line_item_payload(item, notes_for_item: tuple[str, ...]) -> dict:
     # four values are the four routes, spelled for a reader rather than as engine tokens, and
     # `line_item_llm.REPLY_CONTRACT` says what each one permits a citation to name.
     #
-    # OMITTED FOR A LINE THAT DECLARES NO ROUTE, which is 100 of the 506 asked-about lines.
-    # Absence is "nothing was said", and stating a permission the author never wrote would make
-    # the silent majority read as the permissive route by assertion instead of by convention.
+    # OMITTED FOR A LINE THAT DECLARES NO ROUTE. Absence is "nothing was said", and stating a
+    # permission the author never wrote would make a silent line read as the permissive route by
+    # assertion instead of by convention. The shipped HK and ICON sets have no such line left —
+    # every asked-about HK line that named none now declares `anywhere` — and the Ind AS set has 39.
     if route := line_item_routes.declared_route(item):
         entry["read_from"] = _ROUTE_LABEL[route]
     # `prompt` IS NO LONGER A SECOND FIELD. Definition and prompt are one authored thing now — the
@@ -605,6 +607,105 @@ def document_message(document: dict) -> str:
     """The first user message of a full-document request. Deterministic: fixed lead-in, fixed keys."""
     return ("THE DOCUMENT (every note and statement of this filing). The questions follow in the "
             "next message.\n" + json.dumps(document, ensure_ascii=False, indent=2))
+
+
+# ── THE WHOLE ANNUAL REPORT, for the `anywhere` lines ─────────────────────────────────────────
+#
+# A LINE WHOSE ROUTE IS `anywhere` MAY BE READ FROM ANYWHERE IN THE REPORT, and it is now given
+# the report. Its request used to carry what the selected context carries — the notes its
+# configuration selected, its own statement's rows, and at most four other pages whose rows are
+# captioned with one of its names (`face_context.other_page_rows`) — so a headcount printed in a
+# sentence of the directors' report, or a covenant in a paragraph of a borrowings note no term
+# selected, was in nothing the line was sent. Every asked-about line that declares no other route
+# declares this one (the user's decision; `tests/test_anywhere_route.py` records the count).
+#
+# ONE COPY PER RUN, SENT FIRST AND CACHED. The report is built once and is the same bytes on every
+# request that carries it, after the system text and before the question, with a prompt-cache
+# breakpoint at its end (`ask`, `adapters._structured.messages_body`): the first request writes it
+# to the provider's cache and the others read it at the cached rate. The `anywhere` lines are asked
+# in BATCHES (`line_item_requests.report_plans`), so a filing pays for it a few times, not once per
+# line.
+REPORT_GUIDE = (
+    "THE WHOLE ANNUAL REPORT IS SENT ONCE, BEFORE THE QUESTIONS. The first message is the filing. "
+    "`pages` is the text of EVERY page, in file order, each under its `page` number — the page's "
+    "1-based position in the file, which is what a citation gives — and its `printed_page` folio "
+    "where it prints one. `notes` is every note's rows (a note's sentences are on its pages), "
+    "`statement_rows` every statement as printed, and `other_pages` the rows of every page that "
+    "is neither a statement nor a note. Every line item in this request may be read from "
+    "ANYWHERE in the report, and its `read_from` says so: cite a row of a note, a statement or "
+    "another page as the contract says, and a figure stated in a SENTENCE on any page with that "
+    "page's `page` number in `page`, the amount exactly as printed in `amount` and the sentence "
+    "in `quote` — it is checked against that page's text and refused if it is not there. A "
+    "line's `notes_supplied` names the notes its configuration points to: look there first. The "
+    "second message holds the line items to answer.")
+
+# THE SAME REPORT FOR A TEXT LINE, under its own contract: its value is copied from a page, and
+# every page is there.
+TEXT_REPORT_GUIDE = (
+    "THE WHOLE ANNUAL REPORT IS SENT ONCE, BEFORE THE QUESTIONS. The first message is the filing, "
+    "and its `pages` — the text of EVERY page, in file order, each under its `page` number — are "
+    "this request's `text_pages`: copy a line's value from one of them and give that page's "
+    "`page` number. The rest of the first message (notes, statements, other pages' rows) is the "
+    "same filing in rows. The second message holds the line items to answer.")
+
+#: How large the report may be, in estimated tokens, and still be sent. The deployment's model
+#: serves a one-million-token window; the system text, the question and the reply are what the
+#: rest is kept for. A report over it is not cut down: the `anywhere` lines are asked with the
+#: selected context instead, and the run log says so (`stages.line_item_llm`).
+REPORT_TOKEN_BUDGET = 900_000
+
+
+def estimated_tokens(text: str) -> int:
+    """A conservative token count for `text`: four ASCII characters a token, and every other
+    character a token of its own. A Chinese character is rarely more than one, so a bilingual
+    report is over-counted rather than under."""
+    other = sum(1 for ch in text if ord(ch) > 127)
+    return (len(text) - other) // 4 + other
+
+
+def build_report(doc, line_item_set, page_texts, *, cited=None) -> dict:
+    """The whole annual report, as an `anywhere` line is asked with it. Deterministic.
+
+    `pages` — every page's text (`text_lines.every_page`), which is the report as printed and the
+    only block that holds a sentence outside a note: a directors' report, a five-year summary, a
+    borrowings covenant. The blocks a ROW citation resolves against follow, in the shape a
+    request's own blocks have: every note (`note_context.identified_notes(..., every_note=True)`)
+    WITHOUT its `prose`, which its pages already carry; every statement's printed rows
+    (`face_context.face_rows`); and every other page's rows (`face_context.other_page_rows`, no
+    names, so every such page). Nothing in it varies per request, so it is the same bytes on every
+    call — the property the prompt cache keys on.
+    """
+    from app.services import face_context, text_lines
+    statements = {str(getattr(pg, "statement", "") or "")
+                  for pg in (getattr(doc, "pages", None) or ())}
+    statements.discard("")
+    statements.discard("None")
+    notes = [{k: v for k, v in block.items() if k != "prose"}
+             for block in note_context.identified_notes(line_item_set, doc.notes, cited=cited,
+                                                        every_note=True, doc=doc)]
+    out: dict = {"pages": text_lines.every_page(page_texts, doc),
+                 "notes": notes,
+                 "statement_rows": face_context.face_rows(doc, sorted(statements))}
+    other = face_context.other_page_rows(doc)
+    if other:
+        out["other_pages"] = other
+    return out
+
+
+def report_message(report: dict) -> str:
+    """The first user message of a report request. Compact JSON: the report is the request's bulk,
+    and indentation would be a fifth of it."""
+    return ("THE ANNUAL REPORT (every page's text, then every note, statement and other page in "
+            "rows). The questions follow in the next message.\n"
+            + json.dumps(report, ensure_ascii=False, separators=(",", ":")))
+
+
+def report_page_texts(report: dict) -> dict[int, str]:
+    """{1-based page: text} — what a sentence cited by its page is checked against
+    (`note_sourced.resolve_sources`, `page_texts`). The report's own page blocks, so the check
+    reads exactly the text the model was sent."""
+    return {int(b["page"]): str(b.get("text") or "") for b in (report or {}).get("pages") or ()
+            if b.get("page") is not None}
 
 
 def _amount(text: str) -> Decimal | None:
@@ -867,10 +968,11 @@ def ask(provider, system: str, request: dict, *, max_tokens: int,
     a defined outcome rather than a degraded one.
     """
     # WITH A DOCUMENT, TWO MESSAGES: the document first — identical on every call, so the prompt
-    # up to its end is a reusable prefix — and the question after it. Without one, the request is
-    # one message as before.
+    # up to its end is a reusable prefix, and marked as one (`cache`) — and the question after it.
+    # Without one, the request is one message as before.
     question = {"role": "user", "content": json.dumps(request, ensure_ascii=False, indent=2)}
-    messages = ([{"role": "user", "content": document}, question] if document else [question])
+    messages = ([{"role": "user", "content": document, "cache": True}, question] if document
+                else [question])
     reply, meta = provider.complete_structured(
         system=system,
         messages=messages,
@@ -936,7 +1038,7 @@ def plan_and_notes(line_item_set, notes, settings, *, doc=None):
 
 def resolve(answer: LineItemAnswer, notes, face=None, *, allow_face: bool = True,
             pages=None, allow_pages: bool = False, allow_rows: bool = True, sections=None,
-            allow_notes: bool = True, notes_supplied=None, statements=None
+            allow_notes: bool = True, notes_supplied=None, statements=None, page_texts=None
             ) -> tuple[list[dict], list[dict], dict[str, Decimal]]:
     """``(resolved, unresolved, figures)`` for one answer. The model supplies none of the figures.
 
@@ -966,6 +1068,10 @@ def resolve(answer: LineItemAnswer, notes, face=None, *, allow_face: bool = True
     only its own statement's rows. None means unconstrained, which is what a caller with no request
     to hand (the audit scripts) and a whole-document request — every note and statement supplied —
     both get.
+
+    `page_texts` is `report_page_texts` for a line asked with the whole report: a sentence it
+    cites by its page is checked against that page's text. None — every other request — accepts
+    no sentence by page.
     """
     resolved, unresolved = note_sourced.resolve_sources(answer.sources, notes, face,
                                                         allow_face=allow_face,
@@ -973,6 +1079,7 @@ def resolve(answer: LineItemAnswer, notes, face=None, *, allow_face: bool = True
                                                         allow_rows=allow_rows, sections=sections,
                                                         allow_notes=allow_notes,
                                                         notes_supplied=notes_supplied,
-                                                        statements=statements)
+                                                        statements=statements,
+                                                        page_texts=page_texts)
     component = str(answer.role or "").strip().lower() == "component"
     return resolved, unresolved, figures_of(resolved, list(answer.signs or ()), component)
