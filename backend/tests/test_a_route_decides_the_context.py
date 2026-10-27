@@ -110,12 +110,21 @@ def test_silence_keeps_the_note_route(shipped):
     do. Reading silence as "face" would take the notes away from every one of them — which is the
     same conflation `line_item_routes.declared_route` refuses to make, "deliberately not
     defaulted".
+
+    THE SHIPPED HK SET HAS NO SILENT LINE LEFT: every asked-about line that declared no route now
+    declares `anywhere` (`tests/test_anywhere_route.py`). The rule still holds for any set that
+    leaves a line silent — the Ind AS set does, and so may any set an author writes — so it is
+    asserted on a line written here, and on every shipped silent line there is.
     """
-    items = {i.key: i for i in shipped.items}
-    silent = [i for i in items.values()
+    from app.schemas.line_items import load_line_item_set
+
+    (written,) = load_line_item_set({"items": [{
+        "key": "x", "label": "Trade receivables", "type": "extracted", "definition": "d",
+        "note_source": {"note_terms": ["trade receivables"]}}]}, resolve=True).items
+    assert line_item_routes.declared_route(written) == ""
+    assert line_item_routes.may_read_notes(written)
+    silent = [i for i in shipped.items
               if line_item_routes.declared_route(i) == "" and i.note_source is not None]
-    if not silent:
-        pytest.skip("the shipped set currently declares a route on every note-sourced line")
     assert all(line_item_routes.may_read_notes(i) for i in silent)
 
 
