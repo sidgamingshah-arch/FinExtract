@@ -89,10 +89,15 @@ def test_recorded_body_is_the_gateway_body(tmp_path: Path):
     assert meta["model"] == "standin-abstain" and parsed == LineItemReply.model_validate({})
     [path] = (tmp_path / "requests").glob("*.json")
     saved = json.loads(path.read_text())
-    expected = BedrockGatewayLlmProvider().build_body(system=SYSTEM, messages=msgs,
-                                                      response_schema=LineItemReply, max_tokens=777)
-    assert saved["body"] == expected
-    assert saved["id"] == standin.body_id(expected) == path.stem
+    sent = BedrockGatewayLlmProvider().build_body(system=SYSTEM, messages=msgs,
+                                                  response_schema=LineItemReply, max_tokens=777)
+    # RECORDED AS THE MODEL READS IT: the gateway body with its prompt-cache breakpoints taken
+    # out (`canonical_body`) — the system text a string again — and where they were, beside it.
+    expected = standin.canonical_body(sent)
+    assert isinstance(sent["system"], list) and isinstance(expected["system"], str)
+    assert expected["system"] == sent["system"][0]["text"]
+    assert saved["body"] == expected and saved["cache_breakpoints"] == ["system"]
+    assert saved["id"] == standin.body_id(expected) == standin.body_id(sent) == path.stem
     assert saved["line_keys"] == ["bs_icon__finished_goods"] and saved["stage"] == "line_item_llm"
     assert (tmp_path / "requests" / f"{path.stem}.md").exists()
     assert len(list((tmp_path / "system").glob("*.md"))) == 1

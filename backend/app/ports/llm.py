@@ -7,7 +7,7 @@ implementation time. Kept swappable for a self-hosted model (air-gapped).
 """
 from __future__ import annotations
 
-from typing import Protocol, Sequence, TypedDict, runtime_checkable
+from typing import NotRequired, Protocol, Sequence, TypedDict, runtime_checkable
 
 from pydantic import BaseModel
 
@@ -15,6 +15,13 @@ from pydantic import BaseModel
 class LlmMessage(TypedDict):
     role: str
     content: str
+    # A PROMPT-CACHE BREAKPOINT AFTER THIS MESSAGE: everything up to its end is the same on every
+    # request that sends it, so a provider that caches prompts may serve that prefix from its
+    # cache. Set on the whole-report message (`services.line_item_llm.ask`). An Anthropic-format
+    # adapter turns it into `cache_control` (`adapters._structured.messages_body`); an adapter whose
+    # provider caches by prefix on its own, or not at all, sends `role` and `content` only and
+    # never forwards it.
+    cache: NotRequired[bool]
 
 
 class LlmMeta(TypedDict, total=False):

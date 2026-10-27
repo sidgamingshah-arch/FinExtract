@@ -164,6 +164,11 @@ reasoning_effort = "low"
 # the whole completion budget thinking and return empty content with finish_reason=length,
 # losing the extraction. See backend/.env.example for the value the recorded runs used.
 reasoning_max_tokens = 0
+# Prompt caching on the Anthropic-format adapters (anthropic, bedrock_gateway): the system text and
+# the whole annual report an `anywhere` line is asked with carry a `cache_control` breakpoint, so
+# every request after the first reads them at the cached rate. false sends the plain body, for a
+# gateway that refuses the field. The OpenAI-format adapters cache by prefix on their own.
+prompt_cache = true
 disable_ssl_verify = true
 
 # Azure OpenAI address (used when provider = "azure_openai"). Azure selects a deployment on your

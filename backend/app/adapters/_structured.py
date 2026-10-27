@@ -24,6 +24,35 @@ def schema_instruction(response_schema: type[BaseModel]) -> str:
     )
 
 
+# A PROMPT-CACHE BREAKPOINT in the Messages API's own spelling, which Bedrock's Anthropic body uses
+# too. `ephemeral` is the only type; its default lifetime (five minutes, refreshed on every hit)
+# outlasts the gap between the requests of one run, which are sent back to back.
+CACHE_CONTROL = {"type": "ephemeral"}
+
+
+def messages_body(system: str, messages, *, cache: bool) -> tuple[object, list[dict]]:
+    """`(system, messages)` for an Anthropic Messages body, with its prompt-cache breakpoints.
+
+    Without `cache` the system is the string and every message `{role, content}`, the body these
+    adapters always sent. With it, the system text becomes one text block that ends in a
+    breakpoint, and so does every message marked `cache` (`ports.llm.LlmMessage`). The words are
+    unchanged and so is their order: a block holds the same text the string did, so what the model
+    reads is the same either way.
+
+    THE SYSTEM ALWAYS ENDS IN ONE, because it is the prefix every request of a run shares: the
+    contract, the authored guidance and the reply schema are the same bytes on every figure
+    request. The whole report is the second, on the requests that carry it. A prefix shorter than
+    the model's minimum is not cached, which costs nothing and is not an error.
+    """
+    def block(text: str) -> list[dict]:
+        return [{"type": "text", "text": text, "cache_control": dict(CACHE_CONTROL)}]
+
+    body_messages = [{"role": m["role"],
+                      "content": block(m["content"]) if cache and m.get("cache") else m["content"]}
+                     for m in messages]
+    return (block(system) if cache else system), body_messages
+
+
 def strip_fences(text: str) -> str:
     """Tolerate a model that wraps JSON in ```json fences despite instructions."""
     t = text.strip()

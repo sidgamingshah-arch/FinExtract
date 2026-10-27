@@ -13,7 +13,8 @@ from typing import Sequence
 import httpx
 from pydantic import BaseModel
 
-from app.adapters._structured import LlmConfigError, schema_instruction, strip_fences
+from app.adapters._structured import (LlmConfigError, messages_body, schema_instruction,
+                                      strip_fences)
 from app.config import Settings, get_settings
 from app.ports.llm import LlmMessage, LlmMeta, anthropic_usage
 
@@ -46,12 +47,17 @@ class BedrockGatewayLlmProvider:
 
     def build_body(self, *, system: str, messages: Sequence[LlmMessage],
                    response_schema: type[BaseModel], max_tokens: int) -> dict:
+        # WITH ITS PROMPT-CACHE BREAKPOINTS (`_structured.messages_body`), which Bedrock reads in
+        # the Anthropic body as the Messages API does. `llm.prompt_cache` turns them off for a
+        # gateway that refuses the field.
+        body_system, body_messages = messages_body(
+            f"{system}\n\n{schema_instruction(response_schema)}", messages,
+            cache=bool(getattr(self._settings.llm, "prompt_cache", True)))
         return {
             "anthropic_version": "bedrock-2023-05-31",
             "max_tokens": max_tokens,
-            "system": f"{system}\n\n{schema_instruction(response_schema)}",
-            "messages": [{"role": message["role"], "content": message["content"]}
-                         for message in messages],
+            "system": body_system,
+            "messages": body_messages,
         }
 
     def complete_structured(self, *, system: str, messages: Sequence[LlmMessage],

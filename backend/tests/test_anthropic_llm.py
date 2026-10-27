@@ -41,7 +41,29 @@ def test_build_request_embeds_schema_and_messages():
     )
     assert req["max_tokens"] == 128
     assert req["messages"] == [{"role": "user", "content": "hello"}]
-    assert "JSON Schema" in req["system"] and "do the thing" in req["system"]
+    # ONE TEXT BLOCK ENDING IN A PROMPT-CACHE BREAKPOINT (`llm.prompt_cache`, on by default),
+    # holding the same text the string did.
+    (block,) = req["system"]
+    assert block["cache_control"] == {"type": "ephemeral"}
+    assert "JSON Schema" in block["text"] and "do the thing" in block["text"]
+
+
+def test_a_message_marked_for_the_cache_ends_in_a_breakpoint_and_the_switch_turns_both_off():
+    from app.config import Settings
+    msgs = [{"role": "user", "content": "THE REPORT", "cache": True},
+            {"role": "user", "content": "the question"}]
+    req = AnthropicLlmProvider().build_request(system="s", messages=msgs, response_schema=_Out)
+    assert req["messages"] == [
+        {"role": "user", "content": [{"type": "text", "text": "THE REPORT",
+                                      "cache_control": {"type": "ephemeral"}}]},
+        {"role": "user", "content": "the question"}]
+    off = Settings()
+    off.llm.prompt_cache = False
+    plain = AnthropicLlmProvider(off).build_request(system="s", messages=msgs,
+                                                    response_schema=_Out)
+    assert plain["messages"] == [{"role": "user", "content": "THE REPORT"},
+                                 {"role": "user", "content": "the question"}]
+    assert isinstance(plain["system"], str) and plain["system"] == req["system"][0]["text"]
 
 
 def test_complete_structured_parses_and_reports_meta():

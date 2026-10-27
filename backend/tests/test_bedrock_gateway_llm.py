@@ -25,7 +25,27 @@ def test_bedrock_gateway_builds_anthropic_invoke_request():
     assert body["anthropic_version"] == "bedrock-2023-05-31"
     assert body["max_tokens"] == 256
     assert body["messages"] == [{"role": "user", "content": "caption"}]
-    assert "JSON Schema" in body["system"]
+    # The system text is one block ending in a prompt-cache breakpoint (`llm.prompt_cache`), which
+    # Bedrock reads in the Anthropic body; the text is what the string was.
+    (block,) = body["system"]
+    assert block["cache_control"] == {"type": "ephemeral"} and "JSON Schema" in block["text"]
+
+
+def test_the_report_message_is_cached_and_the_switch_sends_the_plain_body():
+    settings = Settings()
+    msgs = [{"role": "user", "content": "THE REPORT", "cache": True},
+            {"role": "user", "content": "the question"}]
+    body = BedrockGatewayLlmProvider(settings).build_body(
+        system="map", messages=msgs, response_schema=_Out, max_tokens=256)
+    assert body["messages"][0]["content"] == [{"type": "text", "text": "THE REPORT",
+                                               "cache_control": {"type": "ephemeral"}}]
+    assert body["messages"][1] == {"role": "user", "content": "the question"}
+    settings.llm.prompt_cache = False
+    plain = BedrockGatewayLlmProvider(settings).build_body(
+        system="map", messages=msgs, response_schema=_Out, max_tokens=256)
+    assert plain["messages"] == [{"role": "user", "content": "THE REPORT"},
+                                 {"role": "user", "content": "the question"}]
+    assert plain["system"] == body["system"][0]["text"]
 
 def test_the_shipped_gateway_is_called_at_its_invoke_address_with_the_key_in_a_token_header(
         monkeypatch):

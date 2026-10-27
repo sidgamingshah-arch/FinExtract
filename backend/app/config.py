@@ -133,6 +133,13 @@ class LlmSettings(BaseModel):
     # reasoning is mandatory (cannot be disabled) and would otherwise spend the whole completion
     # budget thinking, leaving no JSON (finish_reason=length, empty content). 0 = don't send it.
     reasoning_max_tokens: int = Field(default=0, ge=0, le=262144)
+    # PROMPT CACHING on the Anthropic-format adapters (`anthropic`, `bedrock_gateway`): the system
+    # text, and the whole annual report an `anywhere` line is asked with, are sent with a
+    # `cache_control` breakpoint, so the requests after the first read them from the provider's
+    # cache at the cached rate (`adapters._structured.messages_body`). The run log shows each
+    # request's input, cached and cache-write tokens. Off sends the plain body, for a gateway that
+    # refuses the field. The OpenAI-format adapters cache by prefix on their own and ignore it.
+    prompt_cache: bool = True
     disable_ssl_verify: bool = True
 
     # Azure OpenAI only. Azure does not address a model by name on a shared endpoint the way OpenAI

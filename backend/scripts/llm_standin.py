@@ -52,8 +52,43 @@ EST_CHARS_PER_TOKEN = 4  # what the batching math itself assumes
 # The stand-in provider
 # ------------------------------------------------------------------------------------------------
 
+def _block_text(content):
+    """A content given as text blocks, as the one string they spell; anything else as it is."""
+    if isinstance(content, list) and content and all(
+            isinstance(b, dict) and b.get("type") == "text" for b in content):
+        return "".join(str(b.get("text") or "") for b in content)
+    return content
+
+
+def canonical_body(body: dict) -> dict:
+    """The body as the model reads it: every prompt-cache breakpoint taken out.
+
+    The gateway sends the system text, and a message marked for the cache, as a text block ending in
+    `cache_control` (`adapters._structured.messages_body`). A breakpoint tells the provider what it
+    may cache and changes nothing the model is asked, so a request is RECORDED AND KEYED by this
+    form: the string the blocks spell, as the body was before the breakpoints existed. A request
+    whose words are unchanged keeps its id, and the answer written for it."""
+    out = dict(body)
+    if "system" in out:
+        out["system"] = _block_text(out["system"])
+    out["messages"] = [{**m, "content": _block_text(m.get("content"))}
+                       for m in body.get("messages", [])]
+    return out
+
+
+def cache_breakpoints(body: dict) -> list[str]:
+    """Where the gateway body asks the provider to cache: "system", "message 1", …"""
+    def marked(content) -> bool:
+        return isinstance(content, list) and any(
+            isinstance(b, dict) and b.get("cache_control") for b in content)
+    out = ["system"] if marked(body.get("system")) else []
+    out += [f"message {i + 1}" for i, m in enumerate(body.get("messages", []))
+            if marked(m.get("content"))]
+    return out
+
+
 def body_id(body: dict) -> str:
-    return hashlib.sha1(json.dumps(body, sort_keys=True, ensure_ascii=False)
+    return hashlib.sha1(json.dumps(canonical_body(body), sort_keys=True, ensure_ascii=False)
                         .encode("utf-8")).hexdigest()[:16]
 
 
@@ -82,18 +117,45 @@ def calling_stage() -> str:
     return "unknown"
 
 
-def payload_of(body: dict) -> Any:
-    """The last user message's content, as JSON when it is JSON."""
-    msgs = [m for m in body.get("messages", []) if m.get("role") == "user"]
-    if not msgs:
-        return None
-    content = msgs[-1].get("content")
+def _content_of(message: dict, *, lead_in: bool = False) -> Any:
+    """A message's content, as JSON when it is JSON. `lead_in`: a document message opens with one
+    line of prose before its JSON (`line_item_llm.document_message`, `report_message`)."""
+    content = message.get("content")
     if isinstance(content, list):
         content = "".join(c.get("text", "") for c in content if isinstance(c, dict))
     try:
         return json.loads(content)
     except (TypeError, ValueError):
-        return content
+        pass
+    if lead_in and isinstance(content, str) and "\n" in content:
+        try:
+            return json.loads(content.split("\n", 1)[1])
+        except (TypeError, ValueError):
+            pass
+    return content
+
+
+def payload_of(body: dict) -> Any:
+    """The request's payload: the last user message's content, as JSON when it is JSON.
+
+    A REQUEST THAT SENDS A DOCUMENT FIRST — the whole annual report an `anywhere` line is asked
+    with, or the whole document of `llm_document_context = "full"` — carries its notes, statements
+    and pages in that first message and only the lines in the last. Its blocks are merged in under
+    the question's, so a reader looking a cited row up (the grader, the lint) finds it whichever
+    message carried it."""
+    msgs = [m for m in body.get("messages", []) if m.get("role") == "user"]
+    if not msgs:
+        return None
+    last = _content_of(msgs[-1])
+    if isinstance(last, dict) and len(msgs) > 1:
+        merged: dict = {}
+        for m in msgs[:-1]:
+            doc = _content_of(m, lead_in=True)
+            if isinstance(doc, dict):
+                merged.update(doc)
+        if merged:
+            return {**merged, **last}
+    return last
 
 
 def line_keys_of(payload: Any) -> list[str]:
@@ -147,14 +209,19 @@ class Recorder:
         return Standin()
 
     def handle(self, *, system, messages, response_schema, max_tokens, stage):
-        body = gateway_body(system=system, messages=messages, response_schema=response_schema,
+        sent = gateway_body(system=system, messages=messages, response_schema=response_schema,
                             max_tokens=max_tokens)
+        # RECORDED IN ITS CANONICAL FORM (`canonical_body`): what the model reads, the key it is
+        # answered under, and the shape every reader of a request file expects. Where the gateway
+        # body asks for the prompt cache is kept beside it.
+        body = canonical_body(sent)
         rid = body_id(body)
         chars = len(json.dumps(body, ensure_ascii=False))
         payload = payload_of(body)
         record = {"id": rid, "stage": stage, "schema": response_schema.__name__,
                   "schema_module": response_schema.__module__, "line_keys": line_keys_of(payload),
-                  "body": body, "chars": chars, "est_tokens": chars // EST_CHARS_PER_TOKEN}
+                  "body": body, "chars": chars, "est_tokens": chars // EST_CHARS_PER_TOKEN,
+                  "cache_breakpoints": cache_breakpoints(sent)}
         self._write_request(record)
         hit = self.answers / f"{rid}.txt"
         answered = hit.exists()
@@ -1509,14 +1576,16 @@ def grade_text(payload: dict, answer, kl: KeyLine) -> tuple[str, str]:
     """Whether a text answer gives what the filing prints for the line, by normalised exact match.
 
     The answer is first checked as the gateway checks it (`text_lines.locate` against the page it
-    cites in the request's `text_pages`): a text that page does not print is `unresolved`, refused
-    before it is compared. A figure reply for a text line has no text to give and is `missed`."""
+    cites in the request's `text_pages`, or — asked with the whole report — its `pages`): a text
+    that page does not print is `unresolved`, refused before it is compared. A figure reply for a
+    text line has no text to give and is `missed`."""
     from app.services.text_lines import locate
     accepted = [kl.text] if isinstance(kl.text, str) else list(kl.text or ())
     given = str(getattr(answer, "text", "") or "").strip()
     if not given:
         return ("missed", "no text") if accepted else ("rightly_blank", "")
-    pages = (payload or {}).get("text_pages") if isinstance(payload, dict) else None
+    pages = (((payload or {}).get("text_pages") or (payload or {}).get("pages"))
+             if isinstance(payload, dict) else None)
     if locate(given, getattr(answer, "page", None), pages or []) is None:
         return "unresolved", f"page {getattr(answer, 'page', None)} does not print {given[:60]!r}"
     if not accepted:

@@ -20,7 +20,8 @@ from typing import Sequence
 
 from pydantic import BaseModel
 
-from app.adapters._structured import LlmConfigError, schema_instruction, strip_fences
+from app.adapters._structured import (LlmConfigError, messages_body, schema_instruction,
+                                      strip_fences)
 from app.config import Settings, get_settings
 from app.ports.llm import LlmMessage, LlmMeta, anthropic_usage
 
@@ -66,12 +67,15 @@ class AnthropicLlmProvider:
         max_tokens: int = 2048,
     ) -> dict:
         """Construct the exact request body (used by complete_structured and dry-runs)."""
-        full_system = f"{system}\n\n{schema_instruction(response_schema)}"
+        # The same prompt-cache breakpoints as the gateway body (`_structured.messages_body`).
+        body_system, body_messages = messages_body(
+            f"{system}\n\n{schema_instruction(response_schema)}", messages,
+            cache=bool(getattr(self._settings.llm, "prompt_cache", True)))
         return {
             "model": self._settings.llm.model,
             "max_tokens": max_tokens,
-            "system": full_system,
-            "messages": [{"role": m["role"], "content": m["content"]} for m in messages],
+            "system": body_system,
+            "messages": body_messages,
         }
 
     def complete_structured(
