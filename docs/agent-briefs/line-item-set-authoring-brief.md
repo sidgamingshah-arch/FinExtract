@@ -156,7 +156,9 @@ Source: `backend/app/stages/line_item_llm.py`, `backend/app/services/line_item_l
   number and amount, and the amount is checked against that page's text. A number printed with no
   currency beside it (a headcount, a share count, a ratio) is taken as printed and is not scaled
   to the statements' units. In the shipped HK set, every asked-about line that names no other
-  route declares `anywhere`.
+  route declares `anywhere`. This is under the default `extraction.llm_document_context =
+  "anywhere"`. `"selected"` sends no line the report; `"full"` sends it with every question, and
+  the route still decides what each line may cite.
 - **A line whose figure the face already holds inside other captions declares `carved_from_face:
   true`** (the line-level twin of the rung flag below). A figure read for it off any page but a
   statement's — a note, the directors' report — is shown on the line and added into no total; a
@@ -227,7 +229,10 @@ set's `terms` must mirror that rollup exactly (§6.3).
 - `carved_from_face: true` means the figure is already inside other face captions. It is shown
   on its own line but not added to the section total again.
 - `adds_to_printed: true` writes the rung's figure beside the line's printed row; the line is
-  their sum.
+  their sum. Cash Receipts from Customers and Cash Paid to Suppliers use it for the two CAS
+  direct-method rows the template has no line for, 收到其他与经营活动有关的现金 and
+  支付其他与经营活动有关的现金, each read by a face part, so the direct-method lines add to the
+  operating cash flow the statement prints.
 - `deducts_from_printed: true` is the mirror: the rung's terms are a part printed inside the
   line's own row that another line (the part's `parent`) takes, so the line is its printed row
   LESS the part — a remainder, flagged `remainder_of_printed`. It is not made where the line prints

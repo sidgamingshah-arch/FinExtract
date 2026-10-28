@@ -190,6 +190,13 @@ The face and its cited notes are processed in this order:
     `unit_context.scale_factor`, because a sentence states its amount in full where a table states
     it in the statement's units.
 
+    *A row the model's answer creates carries the unit its figure was printed in.* A fresh slot
+    takes the cited rows' unit where they agree on one (`note_sourced._unit_of`, carried on each
+    resolved citation). Where none declares one, it takes the row's other column's unit, and then
+    the statement's (`note_sourced._statement_unit`), which is how the declared note route reads an
+    undeclared row. A prose money amount, once divided into the statements' units, takes theirs; a
+    count takes none. A slot that already exists keeps its own unit.
+
     *Which lines are asked about.* `line_item_requests.asked_about` is the boundary: a DERIVED
     PARENT is never asked, because its figure is its declared cascade's and a number written
     straight onto it skips every rung, losing which disclosure it came from and the cross-check
@@ -221,6 +228,18 @@ The face and its cited notes are processed in this order:
     A report over `REPORT_TOKEN_BUDGET` (900,000 estimated tokens) is not cut down: its lines are
     asked as planned, with the selected context, and the log says so. Every other line's request
     is unchanged.
+
+    *What the model reads with each question* is one switch, `extraction.llm_document_context`
+    (Settings screen), cheapest first:
+
+    - `selected`: every request carries only what its lines selected. No line is sent the
+      report; an `anywhere` line is asked in its planned request, with the pages that print its
+      names.
+    - `anywhere` (the default): what is described above.
+    - `full`: the report goes with every question, figure and text alike, under one system text
+      (`FULL_REPORT_GUIDE` in place of `REPORT_GUIDE`). Every figure request then has the same
+      prefix. Each line's `read_from` still says where it may be cited from, and the route fences
+      still hold.
 
     *Prompt caching.* The Anthropic-format adapters (`anthropic`, `bedrock_gateway`) send the
     system text, and a message marked `cache` (the report), as text blocks ending in a

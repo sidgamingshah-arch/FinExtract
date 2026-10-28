@@ -52,7 +52,8 @@ from app.services.working_view import build_working_view
 # belongs in, and by how much a full amount has to be divided to match the statements' units.
 # Imported from the deterministic stage rather than copied: a second implementation is how a
 # thousandfold scale error gets fixed in one place and not the other.
-from app.stages.note_sourced import _prose_basis, _prose_scale, _write
+from app.stages.note_sourced import (_prose_basis, _prose_scale, _row_unit, _statement_unit,
+                                     _write)
 
 
 # One reply carries a citation list per line item. Sized from the envelope rather than from
@@ -189,36 +190,58 @@ class LineItemLlmStage(Stage):
         # figure lines kept exactly as they were planned.
         plans, text_plans = _split_text_plans(plans, by_key)
 
-        # AN `anywhere` LINE IS ASKED WITH THE WHOLE ANNUAL REPORT — see
-        # `line_item_llm.build_report`. Its figure lines and its text lines alike are moved out of
-        # the plans they were in, into batches of their own (`line_item_requests.report_plans`),
-        # and the report is built once for all of them. A report too large to send is not cut
-        # down: the lines are asked as they were planned, with the selected context, and the log
-        # says so.
+        # WHAT THE MODEL READS WITH EACH QUESTION — `extraction.llm_document_context`, one switch
+        # (`_document_context`):
+        #   "selected"  each request carries only what its lines selected — their notes, their
+        #               statements' rows, the pages that print their names. No line is sent the
+        #               whole report; an `anywhere` line too is asked with what it selected.
+        #   "anywhere"  the same, except that every `anywhere` line is asked with the WHOLE annual
+        #               report (`line_item_llm.build_report`): its figure lines and its text lines
+        #               alike are moved out of the plans they were in, into batches of their own
+        #               (`line_item_requests.report_plans`). The default.
+        #   "full"      the whole report with EVERY question, figure and text alike.
+        # The report is built once for the run. One too large to send is not cut down: every line
+        # is asked as it was planned, with the selected context, and the log says so.
+        doc_context = _document_context(ctx)
         planned, planned_text = plans, text_plans
-        plans, report_plans = line_item_requests.report_plans(plans, by_key)
-        text_plans, report_text_plans = line_item_requests.report_plans(text_plans, by_key)
+        report_plans, report_text_plans = [], []
+        if doc_context != "selected":
+            plans, report_plans = line_item_requests.report_plans(plans, by_key)
+            text_plans, report_text_plans = line_item_requests.report_plans(text_plans, by_key)
+        everything = doc_context == "full" and bool(plans or text_plans or report_plans
+                                                     or report_text_plans)
         report = report_text = report_pages = page_texts = None
-        if report_plans or report_text_plans:
+        if report_plans or report_text_plans or everything:
             page_texts = _page_texts(doc, ctx)
             report = line_item_llm.build_report(doc, line_item_set, page_texts or [],
                                                 cited=line_item_notes.cited_notes(doc))
             report_text = line_item_llm.report_message(report)
             tokens = line_item_llm.estimated_tokens(report_text)
-            lines = sum(len(p.keys) for p in (*report_plans, *report_text_plans))
+            lines = sum(len(p.keys) for p in (*report_plans, *report_text_plans,
+                                              *((*plans, *text_plans) if everything else ())))
             if tokens > line_item_llm.REPORT_TOKEN_BUDGET:
                 ctx.log(f"line_item_llm:report_too_large est_tokens={tokens} "
-                        f"budget={line_item_llm.REPORT_TOKEN_BUDGET} — the {lines} anywhere "
-                        f"line(s) are asked with the selected context instead")
+                        f"budget={line_item_llm.REPORT_TOKEN_BUDGET} — the {lines} "
+                        f"{'' if everything else 'anywhere '}line(s) are asked with the selected "
+                        f"context instead")
                 plans, text_plans = planned, planned_text
                 report_plans, report_text_plans = [], []
                 report = report_text = None
+                everything = False
             else:
                 report_pages = line_item_llm.report_page_texts(report)
+                if everything:
+                    # A TEXT LINE IS ASKED WITH THE REPORT TOO, every page of it a page its text
+                    # may be copied from — ahead of the `anywhere` text batches, as the figure
+                    # plans go ahead of the figure batches.
+                    report_text_plans = [*text_plans, *report_text_plans]
+                    text_plans = []
                 ctx.log(f"line_item_llm:report pages={len(report['pages'])} "
                         f"notes={len(report['notes'])} chars={len(report_text)} "
                         f"est_tokens={tokens} lines={lines} "
-                        f"requests={len(report_plans) + len(report_text_plans)}")
+                        f"requests={len(report_plans) + len(report_text_plans)}"
+                        + (f" other_requests={len(plans)}" if everything else "")
+                        + f" context={doc_context}")
 
         # The rulebook's judgement wording plus the master prompt, once for the run. The reply
         # contract goes FIRST and is not configurable — see `line_item_llm.REPLY_CONTRACT`. A
@@ -230,20 +253,15 @@ class LineItemLlmStage(Stage):
         # A REPORT REQUEST'S SYSTEM TEXT is the same plus one fixed paragraph saying where the
         # report is and how a sentence on a page is cited. Every other request's is unchanged.
         report_system = system + "\n\n" + line_item_llm.REPORT_GUIDE
-        # THE WHOLE DOCUMENT WITH EVERY QUESTION, when an admin has asked for it. Built once, before
-        # the first request, and sent unchanged on every one — after the system text and before
-        # the question, so everything up to the question is the same bytes on every call and a
-        # provider's prompt cache can serve it. The system text gains one fixed paragraph saying
-        # where the notes now are; it is still identical from call to call.
-        doc_context = str(getattr(ctx.settings.extraction, "llm_document_context", "selected")
-                          or "selected")
+        # "full": THE REPORT WITH EVERY QUESTION, after the system text and before the question,
+        # under ONE system text for every figure request — the `anywhere` batches' included — so
+        # everything up to the question is the same bytes on every call and a provider's prompt
+        # cache serves it after the first. Its paragraph says where each line may be cited from:
+        # its `read_from`, since these requests hold lines of every route.
         document = None
-        if doc_context == "full":
-            system += "\n\n" + line_item_llm.FULL_DOCUMENT_GUIDE
-            document = line_item_llm.document_message(line_item_llm.build_document(
-                doc, line_item_set, cited=line_item_notes.cited_notes(doc)))
-            ctx.log(f"line_item_llm:document_context=full document_chars={len(document)} "
-                    f"system_chars={len(system)}")
+        if everything:
+            system = report_system = system + "\n\n" + line_item_llm.FULL_REPORT_GUIDE
+            document = report_text
         tok = {"input": 0, "cached": 0, "write": 0, "output": 0}
 
         shared = sum(1 for p in plans if p.shared)
@@ -281,15 +299,20 @@ class LineItemLlmStage(Stage):
         # together.
         #
         # The first goes alone because it is the one that stores the prompt's shared beginning (the
-        # instructions, and in "full" mode the whole document) in the provider's cache; sent in
-        # parallel with it, the others would each pay for that beginning in full. A run whose
-        # `anywhere` lines are asked with the whole report has TWO such beginnings — the system
-        # text alone, and the report's system text with the report after it — so the first
-        # request of each goes alone. After them, up to `extraction.llm_parallel_requests` are in
-        # flight at once. Replies are still PROCESSED in plan order, one at a time, the report
-        # requests after the others, so what a run writes does not depend on which call returned
-        # first. 1 is the old behaviour: one request at a time.
+        # instructions, and with them the report where one is sent) in the provider's cache; sent
+        # in parallel with it, the others would each pay for that beginning in full. A run whose
+        # `anywhere` lines are asked with the whole report ("anywhere") has TWO such beginnings —
+        # the system text alone, and the report's system text with the report after it — so the
+        # first request of each goes alone; under "full" every request has the one. After them,
+        # up to `extraction.llm_parallel_requests` are in flight at once. Replies are still
+        # PROCESSED in plan order, one at a time, the report requests after the others, so what a
+        # run writes does not depend on which call returned first. 1 is the old behaviour: one
+        # request at a time.
         def _build(plan):
+            if document is not None:
+                # THE QUESTION ALONE: every page, note and statement is in the report message.
+                return {"line_items": line_item_llm.build_request(
+                    plan, by_key, notes_of, [], None, None)["line_items"]}
             face = face_context.face_rows(
                 doc, line_item_requests.face_statements(plan, by_key))
             # AND THE PAGES THAT ARE NEITHER, for a request holding a line that declares
@@ -305,17 +328,11 @@ class LineItemLlmStage(Stage):
             other_pages = (face_context.other_page_rows(
                 doc, [n for it in anywhere for n in line_item_notes.printed_names(it)])
                 if anywhere else [])
-            if document is not None:
-                # THE QUESTION ALONE: the notes and statements are in the document message.
-                request = {"line_items": line_item_llm.build_request(
-                    plan, by_key, notes_of, [], None, None)["line_items"]}
-            else:
-                request = line_item_llm.build_request(plan, by_key, notes_of, identified, face,
-                                                      other_pages)
-            return request
+            return line_item_llm.build_request(plan, by_key, notes_of, identified, face,
+                                               other_pages)
 
         # (plan, request, system text, document message, asked with the whole report)
-        prepared = [(plan, request, system, document, False) for plan in plans
+        prepared = [(plan, request, system, document, everything) for plan in plans
                     for request in [_build(plan)] if request["line_items"]]
         # A REPORT REQUEST IS ITS QUESTION ALONE — the lines, each with the notes its configuration
         # points to — after the report, which carries every page, note and statement.
@@ -417,10 +434,9 @@ class LineItemLlmStage(Stage):
                     may_rows = line_item_routes.may_read_table_rows(item)
                     # AND ONLY WHAT THIS LINE WAS GIVEN. A note citation must name a note its
                     # request supplied, and a statement citation the line's own statement — see
-                    # `note_sourced.resolve_sources`. A whole-document request supplied every note
-                    # and every statement, so there only the route fences hold — and so did a
-                    # report request, which also supplied every page's text: a sentence it cites by
-                    # its page is checked against that page.
+                    # `note_sourced.resolve_sources`. A request sent the report was given every
+                    # note, every statement and every page's text, so there only the route fences
+                    # hold, and a sentence it cites by its page is checked against that page.
                     whole_document = sent_document is not None
                     resolved, unresolved, _ = line_item_llm.resolve(
                         answer, doc.notes, face_context.face_index(doc), allow_face=may_face,
@@ -923,7 +939,8 @@ class LineItemLlmStage(Stage):
             # model's citation replaces keeps what the page printed beside the cited figure, so the
             # two can be compared.
             _write(row, basis, period, amount, by="line_item_llm",
-                   provenance=_cited_provenance(resolved))
+                   provenance=_cited_provenance(resolved),
+                   unit_ctx=_cited_unit(resolved, doc, basis, row))
             row.derivation = note_sourced.derivation.record(
                 row.derivation, basis=basis, period_label=period,
                 derivation=note_sourced.trail(
@@ -1348,8 +1365,14 @@ class LineItemLlmStage(Stage):
         # it. Measured on 河钢股份: capitalised interest, 493,877,376.21 from its sentence on page
         # 143, was added into net interest beside the finance costs it is already netted out of.
         provenance = _cited_provenance(prose_entries)
+        # AND THE UNIT IT IS NOW IN, for a slot written fresh: a money amount has just been put in
+        # the statements' units, so it takes theirs; a count — a headcount, a number of shares — is
+        # in none, and says so rather than inheriting the row's other column.
+        from app.core.models.line_item import UnitContext
+        money = not (prose_entries and all(e.get("prose_money") is False for e in prose_entries))
+        unit = _statement_unit(doc, basis) if money else UnitContext()
         if target is None:
-            _write(row, basis, target_period, value, provenance=provenance)
+            _write(row, basis, target_period, value, provenance=provenance, unit_ctx=unit)
         else:
             # A SLOT WITH NO PRINTED FIGURE BEHIND IT — computed or cited by an earlier writer
             # (`ExtractedValue.derived`) — has nothing to keep in `value_raw`, so it follows the
@@ -1380,7 +1403,8 @@ class LineItemLlmStage(Stage):
             if held is None or held.derived or (held.value is None and held.value_raw is None):
                 if not refuse_unprinted(doc, row, item.key, basis, "prior", prior_value,
                                         by="line_item_llm", log=ctx.log):
-                    _write(row, basis, "prior", prior_value, provenance=provenance)
+                    _write(row, basis, "prior", prior_value, provenance=provenance,
+                           unit_ctx=unit)
             elif (held.value if held.value is not None else held.value_raw) != prior_value:
                 row.confidence.flags.append(
                     f"prose_prior_not_written:{prior_value}")
@@ -1423,6 +1447,14 @@ class LineItemLlmStage(Stage):
                 f"{_prose_place(best)}"
                 + (f" (scaled by {scale})" if scale and scale != 1 and value != amount else ""))
         return 1
+
+
+def _document_context(ctx) -> str:
+    """`extraction.llm_document_context`: "selected", "anywhere" or "full". A value this build does
+    not know — it is checked where it is set (`settings_state`), so only a settings object built
+    past that check carries one — is read as the default, "anywhere"."""
+    value = str(getattr(ctx.settings.extraction, "llm_document_context", "") or "")
+    return value if value in ("selected", "anywhere", "full") else "anywhere"
 
 
 def _page_texts(doc, ctx, why: str = "report_page_text"):
@@ -1673,6 +1705,42 @@ def _cited_provenance(resolved: list[dict]):
             return Provenance(**{k: v for k, v in prov.items() if k in fields})
         except Exception:  # noqa: BLE001 - a malformed citation must not end the run
             continue
+    return None
+
+
+def _cited_unit(resolved: list[dict], doc, basis: str, row=None):
+    """The unit for a slot this route writes FRESH, from the rows its figure was cited from.
+
+    `note_sourced._write` gives a fresh slot the unit it is passed, or the one the row's other
+    column carries; a row the model's answer creates has no other column, so its figures took the
+    default — no currency, scale 1. On China SCE 1966 that labelled 50 figures printed in CNY'000
+    as units, beside 473 labelled CNY'000.
+
+      * the cited rows declare a unit (`note_sourced._unit_of`) and agree on its currency and
+        scale: that unit — the one the figure was printed in;
+      * none declares one: the unit the row's other column carries, as before, and where it has
+        none the statement's (`note_sourced._statement_unit`) — how the declared note route reads
+        a row whose page declares no unit;
+      * they disagree: None, and the slot falls back as before — one figure added up from rows in
+        two scales has no one unit to carry.
+
+    A slot that already exists keeps its own.
+    """
+    from app.core.models.line_item import UnitContext
+
+    units = []
+    for entry in resolved or ():
+        unit = entry.get("unit")
+        if isinstance(unit, dict):
+            try:
+                units.append(UnitContext(**unit))
+            except Exception:  # noqa: BLE001 - a malformed citation must not end the run
+                continue
+    declared = {(u.currency, u.scale_factor) for u in units}
+    if len(declared) == 1:
+        return units[0]
+    if not declared:
+        return (_row_unit(row) if row is not None else None) or _statement_unit(doc, basis)
     return None
 
 

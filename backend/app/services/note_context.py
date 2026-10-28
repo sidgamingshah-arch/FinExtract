@@ -754,8 +754,8 @@ def identified_notes(line_item_set, notes, *, cited=None, every_note: bool = Fal
                      doc=None) -> list[dict]:
     """Every note a `note_source` declaration names, IN FULL — all rows and all prose.
 
-    `every_note` keeps the notes NO line claims too, in the same shape and order — the whole
-    document, for `extraction.llm_document_context = "full"`. Their `identified_for` is empty.
+    `every_note` keeps the notes NO line claims too, in the same shape and order — the notes of the
+    whole annual report (`line_item_llm.build_report`). Their `identified_for` is empty.
 
     WHY IN FULL, AND WHY NOT SCORED. These are not notes a similarity function guessed at: an
     author has declared, in configuration, that this note is where a line's figure lives. That is a

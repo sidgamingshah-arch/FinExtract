@@ -996,7 +996,7 @@
   {
    "key": "bs_nca__gross_fixed_assets",
    "label": "Gross Fixed Assets",
-   "definition": "The subtotal the filing PRINTS as 'Gross Fixed Assets', reported in the non-current assets section of the balance sheet. It is the sum of Land, Buildings, Leasehold Improvements, Plant & Equipment, Furniture & Fixtures, Vehicles & Transport Equipment, Other Fixed Assets and Construction in Progress. Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup.",
+   "definition": "The subtotal the filing PRINTS as 'Gross Fixed Assets', reported in the non-current assets section of the balance sheet. It is the sum of Land, Buildings, Leasehold Improvements, Plant & Equipment, Furniture & Fixtures, Vehicles & Transport Equipment, Other Fixed Assets and Construction in Progress. Read the printed subtotal. Do not compute it here and do not replace it with a figure added up from those components: the arithmetic is declared in this template's rollup, and a subtotal the filing states itself is the more authoritative number. Where the filing prints no subtotal on this line, answer with an empty sources list and leave it to the rollup. Where the balance sheet prints its fixed assets only net — every CAS balance sheet, and nearly every HKFRS one — do not answer with the cost (成本, 原值) the fixed-asset note prints: the balance sheet states no gross figure, and the note's cost without its accumulated depreciation would overstate the fixed assets.",
    "extraction_mode": "extract_or_derive",
    "aliases": [
     "Gross Fixed Assets"
@@ -12804,6 +12804,9 @@
    "keyword_hints": [
     "Unreal Gain(Loss) Investments"
    ],
+   "regex_hints": [
+    "^items that will not be reclassified (?:subsequently )?to profit or loss:? fair value changes? (?:in|of|on) equity investments? (?:measured|designated) at fair value through other comprehensive income$"
+   ],
    "sign_rule": {},
    "inherits": "is_oci",
    "face_only": false,
@@ -12831,6 +12834,9 @@
    },
    "keyword_hints": [
     "Deferred Hedging Gain(Loss)"
+   ],
+   "regex_hints": [
+    "^items that (?:are or )?may be reclassified (?:subsequently )?to profit or loss:? cash flow hedges$"
    ],
    "sign_rule": {},
    "inherits": "is_oci",
@@ -12920,11 +12926,13 @@
    ],
    "exclude_hints": [
     "^(?:profit|loss) for the year$",
-    "total comprehensive (?:income|loss)",
+    "total comprehensive (?:income|loss|expense)",
     "^other comprehensive income/loss for the year$",
+    "^other comprehensive (?:income|loss|expense)\\b.*(?:for the year|net of (?:income )?tax)",
     "^total other comprehensive income",
     "净利润",
     "综合收益总额",
+    "^(?:本年度|年内)其他(?:全面|综合)(?:收益|收入|亏损)",
     "少数股东损益",
     "所得税费用",
     "资产减值损失|信用减值损失",
@@ -14250,8 +14258,8 @@
    "exclude_hints": [
     "cash generated from operations",
     "net cash .*operating activities",
-    "^收到其他与经营活动有关的现金$",
-    "^支付其他与经营活动有关的现金$"
+    "^收到其他与经营活动有关的?现金$",
+    "^支付其他与经营活动有关的?现金$"
    ],
    "sign_rule": {},
    "inherits": "cf_oper_indirect",
@@ -14438,7 +14446,7 @@
   {
    "key": "cf_oper_direct__cash_receipts_from_customers",
    "label": "Cash Receipts from Customers",
-   "definition": "Cash received from customers for goods sold and services rendered, the first row of a direct-method operating section: 'Cash received from customers', 'Receipts from customers', 'Cash received from sales of goods and rendering of services'. On a CAS statement, which presents the operating section by the direct method on its face, it is 销售商品、提供劳务收到的现金, as printed, including the output VAT collected with the sale. Not this line: 收到的税费返还 (tax refunds received), which is part of 'Income Taxes Paid(Direct)'; 收到其他与经营活动有关的现金 (other operating cash received); the subtotal 经营活动现金流入小计. It is a printed row; where the statement uses the indirect method and prints no such row, answer with an empty sources list. It is one of the lines this template's rollup adds into Cash Flows Oper Activ(Direct).",
+   "definition": "Cash received from customers for goods sold and services rendered, the first row of a direct-method operating section: 'Cash received from customers', 'Receipts from customers', 'Cash received from sales of goods and rendering of services'. On a CAS statement, which presents the operating section by the direct method on its face, it is 销售商品、提供劳务收到的现金, as printed, including the output VAT collected with the sale. Not this line: 收到的税费返还 (tax refunds received), which is part of 'Income Taxes Paid(Direct)'; the subtotal 经营活动现金流入小计. 收到其他与经营活动有关的现金 (other operating cash received) is not this row either, but this template adds it to this line, beside the row, because it has no line of its own — so cite 销售商品、提供劳务收到的现金 alone and do not add the other row yourself. It is a printed row; where the statement uses the indirect method and prints no such row, answer with an empty sources list. It is one of the lines this template's rollup adds into Cash Flows Oper Activ(Direct).",
    "aliases": [
     "Cash Receipts from Customers",
     "Cash received from sales of goods and rendering of services",
@@ -14463,12 +14471,31 @@
    "inherits": "cf_oper_direct",
    "face_only": false,
    "namespace": "template",
-   "route": "face"
+   "route": "face",
+   "cascade": [
+    {
+     "id": "OTHER_OPERATING_RECEIPTS",
+     "terms": [
+      {
+       "ref": "sub__cf_direct_other_operating_receipts",
+       "const": null,
+       "sign": 1,
+       "abs": false,
+       "role": "required"
+      }
+     ],
+     "terms_op": "sum",
+     "note": "A CAS direct-method operating section prints 收到其他与经营活动有关的现金 between the sales receipts and 经营活动现金流入小计, and the template has no line for it. It arrives here, beside the printed 销售商品、提供劳务收到的现金, so the direct-method lines add to the operating cash flow the statement prints.",
+     "refuse_negative": true,
+     "outranks_printed": false,
+     "adds_to_printed": true
+    }
+   ]
   },
   {
    "key": "cf_oper_direct__cash_paid_to_suppliers",
    "label": "Cash Paid to Suppliers",
-   "definition": "Cash paid to suppliers for goods and services in a direct-method operating section: 'Cash paid to suppliers', 'Payments to suppliers', 'Cash paid for goods and services'. On a CAS statement it is 购买商品、接受劳务支付的现金, as printed, including the input VAT paid with the purchase. CAS prints the row as an unsigned positive figure that its own 经营活动现金流出小计 deducts; the set's sign rule negates that caption, so cite the figure as printed. Not this line: cash paid to and on behalf of employees ('Cash Paid to Employees'); 支付的各项税费 (taxes paid, part of 'Income Taxes Paid(Direct)'); 支付其他与经营活动有关的现金 (other operating cash paid); the subtotal 经营活动现金流出小计. It is a printed row; where the statement uses the indirect method and prints no such row, answer with an empty sources list. It is one of the lines this template's rollup adds into Cash Flows Oper Activ(Direct).",
+   "definition": "Cash paid to suppliers for goods and services in a direct-method operating section: 'Cash paid to suppliers', 'Payments to suppliers', 'Cash paid for goods and services'. On a CAS statement it is 购买商品、接受劳务支付的现金, as printed, including the input VAT paid with the purchase. CAS prints the row as an unsigned positive figure that its own 经营活动现金流出小计 deducts; the set's sign rule negates that caption, so cite the figure as printed. Not this line: cash paid to and on behalf of employees ('Cash Paid to Employees'); 支付的各项税费 (taxes paid, part of 'Income Taxes Paid(Direct)'); the subtotal 经营活动现金流出小计. 支付其他与经营活动有关的现金 (other operating cash paid) is not this row either, but this template adds it to this line, beside the row, because it has no line of its own — so cite 购买商品、接受劳务支付的现金 alone and do not add the other row yourself. It is a printed row; where the statement uses the indirect method and prints no such row, answer with an empty sources list. It is one of the lines this template's rollup adds into Cash Flows Oper Activ(Direct).",
    "aliases": [
     "Cash Paid to Suppliers",
     "Cash paid for goods and services",
@@ -14498,7 +14525,26 @@
    "inherits": "cf_oper_direct",
    "face_only": false,
    "namespace": "template",
-   "route": "face"
+   "route": "face",
+   "cascade": [
+    {
+     "id": "OTHER_OPERATING_PAYMENTS",
+     "terms": [
+      {
+       "ref": "sub__cf_direct_other_operating_payments",
+       "const": null,
+       "sign": 1,
+       "abs": false,
+       "role": "required"
+      }
+     ],
+     "terms_op": "sum",
+     "note": "A CAS direct-method operating section prints 支付其他与经营活动有关的现金 above 经营活动现金流出小计, and the template has no line for it. It arrives here, beside the printed 购买商品、接受劳务支付的现金, so the direct-method lines add to the operating cash flow the statement prints. An outflow, so its figure is negative and is not refused for it.",
+     "refuse_negative": false,
+     "outranks_printed": false,
+     "adds_to_printed": true
+    }
+   ]
   },
   {
    "key": "cf_oper_direct__cash_paid_to_employees",
@@ -18930,7 +18976,8 @@
     "Profit and loss",
     "investment propert",
     "投资性房地产",
-    "投资物业"
+    "投资物业",
+    "^items that (?:will not|may|are or may) be reclassified"
    ],
    "route": "note_tables"
   },
@@ -19241,7 +19288,8 @@
    "exclude_hints": [
     "investment propert",
     "投资性房地产",
-    "投资物业"
+    "投资物业",
+    "^items that (?:will not|may|are or may) be reclassified"
    ]
   },
   {
@@ -20508,6 +20556,84 @@
     "cf_oper_direct"
    ],
    "order": 2
+  },
+  {
+   "key": "sub__cf_direct_other_operating_receipts",
+   "label": "Other cash received relating to operating activities (direct-method face row)",
+   "definition": "The cash-flow row a mainland filing prints as 收到其他与经营活动有关的现金 — operating cash received that is neither from sales nor a tax refund (interest income, government grants, deposits and guarantees returned, amounts recovered from others), read off the face of the direct-method operating section above 经营活动现金流入小计. It is a cash INFLOW and stays positive. The template prints no line for it, so it is a part of Cash Receipts from Customers, which is its parent and which adds it beside its own printed row: without it the direct-method lines sum to less than the operating cash flow the statement prints, by exactly this row. It is not 收到的税费返还 (tax refunds received, a part of Income Taxes Paid(Direct)) and not the subtotal 经营活动现金流入小计.",
+   "inherits": "cf_oper_direct",
+   "parent": "cf_oper_direct__cash_receipts_from_customers",
+   "namespace": "internal",
+   "sign_rule": {},
+   "route": "face",
+   "sign_convention": "positive_expected",
+   "match_priority": 91,
+   "aliases": [
+    "Other cash receipts relating to operating activities",
+    "Other cash received relating to operating activities"
+   ],
+   "keyword_hints": [
+    "Other cash receipts relating to operating activities",
+    "Other cash received relating to operating activities"
+   ],
+   "aliases_i18n": {
+    "en": [
+     "Other cash receipts relating to operating activities",
+     "Other cash received relating to operating activities"
+    ],
+    "zh": [
+     "收到其他与经营活动有关的现金",
+     "收到其他与经营活动有关现金"
+    ]
+   },
+   "in_output": false,
+   "statement": "cash_flow",
+   "section_scope": [
+    "cf_oper_direct"
+   ],
+   "order": 1
+  },
+  {
+   "key": "sub__cf_direct_other_operating_payments",
+   "label": "Other cash paid relating to operating activities (direct-method face row)",
+   "definition": "The cash-flow row a mainland filing prints as 支付其他与经营活动有关的现金 — operating cash paid that is neither for goods and services, nor to employees, nor a tax (selling and administrative expenses paid in cash, deposits and guarantees paid, amounts advanced to others), read off the face of the direct-method operating section above 经营活动现金流出小计. CAS prints it as an UNSIGNED POSITIVE magnitude that the statement's own 经营活动现金流出小计 deducts, so this part must carry the figure NEGATIVE — its sign_rule negates the CAS caption — and cite it as printed. The template prints no line for it, so it is a part of Cash Paid to Suppliers, which is its parent and which adds it beside its own printed row: without it the direct-method lines sum to more than the operating cash flow the statement prints, by exactly this row. It is not 支付的各项税费 (taxes paid, a part of Income Taxes Paid(Direct)) and not the subtotal 经营活动现金流出小计.",
+   "inherits": "cf_oper_direct",
+   "parent": "cf_oper_direct__cash_paid_to_suppliers",
+   "namespace": "internal",
+   "sign_rule": {
+    "flip_if_label_matches": [
+     "支付其他与经营活动有关的现金",
+     "支付其他與經營活動有關的現金",
+     "支付其他与经营活动有关现金"
+    ]
+   },
+   "route": "face",
+   "sign_convention": "negative_expected",
+   "match_priority": 91,
+   "aliases": [
+    "Other cash payments relating to operating activities",
+    "Other cash paid relating to operating activities"
+   ],
+   "keyword_hints": [
+    "Other cash payments relating to operating activities",
+    "Other cash paid relating to operating activities"
+   ],
+   "aliases_i18n": {
+    "en": [
+     "Other cash payments relating to operating activities",
+     "Other cash paid relating to operating activities"
+    ],
+    "zh": [
+     "支付其他与经营活动有关的现金",
+     "支付其他与经营活动有关现金"
+    ]
+   },
+   "in_output": false,
+   "statement": "cash_flow",
+   "section_scope": [
+    "cf_oper_direct"
+   ],
+   "order": 1
   },
   {
    "key": "sub__rp_find_3_gross",

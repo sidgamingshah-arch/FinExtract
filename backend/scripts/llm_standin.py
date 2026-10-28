@@ -119,7 +119,7 @@ def calling_stage() -> str:
 
 def _content_of(message: dict, *, lead_in: bool = False) -> Any:
     """A message's content, as JSON when it is JSON. `lead_in`: a document message opens with one
-    line of prose before its JSON (`line_item_llm.document_message`, `report_message`)."""
+    line of prose before its JSON (`line_item_llm.report_message`)."""
     content = message.get("content")
     if isinstance(content, list):
         content = "".join(c.get("text", "") for c in content if isinstance(c, dict))
@@ -138,11 +138,11 @@ def _content_of(message: dict, *, lead_in: bool = False) -> Any:
 def payload_of(body: dict) -> Any:
     """The request's payload: the last user message's content, as JSON when it is JSON.
 
-    A REQUEST THAT SENDS A DOCUMENT FIRST — the whole annual report an `anywhere` line is asked
-    with, or the whole document of `llm_document_context = "full"` — carries its notes, statements
-    and pages in that first message and only the lines in the last. Its blocks are merged in under
-    the question's, so a reader looking a cited row up (the grader, the lint) finds it whichever
-    message carried it."""
+    A REQUEST THAT SENDS A DOCUMENT FIRST — the whole annual report, which an `anywhere` line is
+    asked with and, under `llm_document_context = "full"`, every line — carries its notes,
+    statements and pages in that first message and only the lines in the last. Its blocks are
+    merged in under the question's, so a reader looking a cited row up (the grader, the lint)
+    finds it whichever message carried it."""
     msgs = [m for m in body.get("messages", []) if m.get("role") == "user"]
     if not msgs:
         return None

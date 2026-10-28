@@ -1355,6 +1355,23 @@ def _figures_by_basis(row, *, filed_only: bool = False,
     return dict(by_basis[chosen]), {"basis": chosen, **{"by": by_basis}}, prov
 
 
+def _unit_of(row) -> dict | None:
+    """The unit the row's figures are printed in, as JSON: its first `unit_ctx` that declares a
+    currency or a scale other than one. None where the row declares neither.
+
+    CARRIED ON A RESOLVED CITATION for the caller that writes a slot from it
+    (`stages.line_item_llm._write`). A slot written fresh takes the unit it is given, and was given
+    none: on China SCE 1966 the 50 figures the model route wrote onto rows it created were
+    labelled scale 1 with no currency, beside 473 at CNY'000 — figures in thousands, labelled as
+    units. A plain dict for the reason the provenance is one: the entry goes into a JSON column.
+    """
+    for ev in (getattr(row, "values", None) or {}).values():
+        uc = getattr(ev, "unit_ctx", None)
+        if uc is not None and (uc.currency or uc.scale_factor != 1):
+            return uc.model_dump(mode="json")
+    return None
+
+
 def _by_column(row, ref, *, keys_are_periods: bool = False) -> tuple[dict | None, str]:
     """``(fields, refusal)`` for a citation that names ONE COLUMN of the row it cites.
 
@@ -1469,8 +1486,8 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
       * `statements` is the line's own statement tokens. A citation of another statement's row is
         refused.
 
-    None leaves each one open — a caller with no request (the audit scripts) and a whole-document
-    request, which supplies every note and statement, both pass None.
+    None leaves each one open — a caller with no request (the audit scripts) and a request sent
+    the whole annual report, which supplies every note and statement, both pass None.
 
     `page_texts` IS A SENTENCE'S WITNESS ON ANY PAGE: `{1-based page: text}` for a line asked with
     the whole annual report (`line_item_llm.report_page_texts`). A page citation that matches no
@@ -1604,6 +1621,7 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
                 resolved.append({"at": at, "note": "", "statement": "", "title": "",
                                  "page": int(pg), "caption": caption, "quote": quote,
                                  "on_face": False, "off_statement": True,
+                                 "unit": _unit_of(row),
                                  "row_id": str(getattr(row, "id", "") or ""), **picked})
                 continue
             if not figures:
@@ -1622,7 +1640,7 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
                              "page": int(pg), "caption": caption, "figures": figures,
                              "provenance": prov, "quote": quote, "on_face": False,
                              "basis": filed.get("basis"), "figures_by_basis": filed.get("by"),
-                             "off_statement": True,
+                             "off_statement": True, "unit": _unit_of(row),
                              "row_id": str(getattr(row, "id", "") or "")})
             continue
 
@@ -1759,7 +1777,7 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
                     continue
                 resolved.append({"at": at, "note": "", "statement": st, "title": "",
                                  "caption": caption, "quote": quote, "on_face": True,
-                                 "entity": want_entity or None,
+                                 "entity": want_entity or None, "unit": _unit_of(row),
                                  "row_id": str(getattr(row, "id", "") or ""), **picked})
                 continue
             if not figures:
@@ -1784,6 +1802,7 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
                              "entity": want_entity or None,
                              "basis": filed.get("basis"),
                              "figures_by_basis": filed.get("by"),
+                             "unit": _unit_of(row),
                              "row_id": str(getattr(row, "id", "") or "")})
             continue
 
@@ -2037,7 +2056,8 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
                                    "column": want_col, "why": why})
                 continue
             resolved.append({"at": at, "note": number, "title": getattr(table, "title", "") or "",
-                             "caption": caption, "quote": quote, **picked})
+                             "caption": caption, "quote": quote, "unit": _unit_of(row),
+                             **picked})
             continue
         # THE WHOLE-ROW FENCE. A citation with no column takes the row's `current` and `prior` and
         # nothing else, and is REFUSED where those are not periods — a row whose columns are
@@ -2057,7 +2077,7 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
                          "note": number, "title": getattr(table, "title", "") or "",
                          "caption": caption, "figures": figures, "provenance": prov,
                          "basis": filed.get("basis"), "figures_by_basis": filed.get("by"),
-                         "quote": quote})
+                         "quote": quote, "unit": _unit_of(row)})
     return resolved, unresolved
 
 

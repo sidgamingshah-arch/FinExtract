@@ -441,14 +441,19 @@ class ExtractionSettings(BaseModel):
     #               components, or two lines whose DISTINCTION is what the model keeps
     #               getting wrong. Read by `services.line_item_requests.plan_requests`.
     llm_request_grouping: Literal["none", "identical", "similar", "manual"] = "none"
-    # WHAT THE MODEL READS BESIDE EACH LINE-ITEM QUESTION. "selected" is each request's own notes
-    # and statements — only what its lines selected. "full" is the WHOLE document every time:
-    # every extracted note and every statement's printed rows, in one block that is identical on
-    # every request of the run and is sent BEFORE the question, so a provider's prompt cache can
-    # serve it after the first call. The model is told the same thing either way — where each
-    # figure is printed — and its citations are checked against the same extracted rows.
-    # Read by `stages.line_item_llm`; an admin can flip it from the Settings screen.
-    llm_document_context: Literal["selected", "full"] = "selected"
+    # WHAT THE MODEL READS BESIDE EACH LINE-ITEM QUESTION, cheapest first.
+    #   "selected"  each request's own notes and statements — only what its lines selected. No
+    #               line is sent the whole annual report, an `anywhere` line included.
+    #   "anywhere"  the same, and every line whose route is `anywhere` is asked with the WHOLE
+    #               annual report (`line_item_llm.build_report`: every page's text, every note,
+    #               every statement), in batches of its own. The default.
+    #   "full"      the whole annual report with EVERY question, in one block that is identical
+    #               on every request of the run and is sent BEFORE the question, so a provider's
+    #               prompt cache serves it after the first call.
+    # The model is told the same thing in each — where each figure is printed — and its citations
+    # are checked against the same extracted rows and pages, under the same route fences.
+    # Read by `stages.line_item_llm`; an admin can change it from the Settings screen.
+    llm_document_context: Literal["selected", "anywhere", "full"] = "anywhere"
     # READ SCANNED PAGES WITH OCR. A page with a text layer is always read from that layer — OCR
     # would only re-guess characters the file already holds — so this decides what happens to a
     # page WITHOUT one: on, it is rasterised and read by the `[ocr]` engine (Docling, offline); off,

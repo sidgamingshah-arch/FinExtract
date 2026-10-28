@@ -241,11 +241,12 @@ recon_rel_tolerance = 0.005     # relative tolerance (fraction of the face value
 # route. The list below needs no change — a key names a line item either way.
 llm_focus_only = true
 # WHAT THE MODEL READS WITH EACH LINE-ITEM QUESTION — "selected" (only the notes and statements
-# the request's lines selected) or "full" (the whole document, every request: every note and every
-# statement, sent first and identical on every call so a provider's prompt cache can serve it).
-# An admin can flip it from the Settings screen; the run log then shows input / cached / output
-# tokens per request and a summary line (`line_item_llm:tokens …`).
-llm_document_context = "selected"
+# the request's lines selected; no line is sent the whole annual report), "anywhere" (the same,
+# and every line whose route is `anywhere` is asked with the whole annual report) or "full" (the
+# whole annual report with every question, sent first and identical on every call so a
+# provider's prompt cache can serve it). An admin can change it from the Settings screen; the run
+# log shows input / cached / output tokens per request and a summary line (`line_item_llm:tokens …`).
+llm_document_context = "anywhere"
 ocr_scanned_pages = true        # read pages with no text layer by OCR ([ocr] engine); admin-switchable
 document_reader = "off"          # off | kensho — a hosted document engine ([document_engine]); admin-switchable
 document_reader_pages = "scanned" # scanned (in place of OCR) | all (in place of the text layer)

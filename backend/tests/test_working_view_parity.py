@@ -66,7 +66,7 @@ RULEBOOK = TEMPLATES / "output_csv_hk_ontology.json"
 PROJECTED = sorted(set(SAME) | set(RENAMED))
 
 CONCEPTS = 462                 # the rulebook's concepts, and the set's `namespace == "template"`
-ITEMS = 543                    # 543: the two r9 trade-payables note parts (the trade row of a combined payables note, and its ageing analysis; user decision: trade payables split from the note) added  # 541: the borrowings note's two split parts (the bank part of a short-term borrowings row, and the current portion of long-term borrowings it took in) added  # 539: three CAS P&L note parts (other-business revenue, the 财务费用 note's exchange and bank-charge rows) added  # 536: sub__rp_face_due_from_cp, the printed Due from related parties (CP) row, added  # 535: the six Related Party Transactions parts (sub__rpt_*) added  # 529: sub__equity_reserves added (the face "Reserves 儲備" aggregate, kept apart from the equity-statement components it totals)  # 528 before
+ITEMS = 545                    # 545: the two other operating cash rows of a CAS direct-method section (sub__cf_direct_other_operating_receipts/_payments, parts of Cash Receipts from Customers and Cash Paid to Suppliers) added  # 543: the two r9 trade-payables note parts (the trade row of a combined payables note, and its ageing analysis; user decision: trade payables split from the note) added  # 541: the borrowings note's two split parts (the bank part of a short-term borrowings row, and the current portion of long-term borrowings it took in) added  # 539: three CAS P&L note parts (other-business revenue, the 财务费用 note's exchange and bank-charge rows) added  # 536: sub__rp_face_due_from_cp, the printed Due from related parties (CP) row, added  # 535: the six Related Party Transactions parts (sub__rpt_*) added  # 529: sub__equity_reserves added (the face "Reserves 儲備" aggregate, kept apart from the equity-statement components it totals)  # 528 before
                                # …plus the 69 `sub__*` note-level parts, which ARE concepts too:
                                # the view projects every definition, and `namespace` decides only
                                # where a figure is PUBLISHED. See
@@ -135,7 +135,7 @@ _EXTRACTION_MODE_DECISIONS = frozenset({
     "bs_nca__secur_and_other_fincl_assets_ltp",
     # …and the nine lines the APP fills, which no filing prints: the workflow fields and the
     # control totals computed from other lines. `derive` keeps them out of every model request —
-    # each one used to spend a whole request, carrying the whole document in "full" mode, to be
+    # each one used to spend a whole request, carrying the whole report under "full", to be
     # told the filing does not print it.
     "statement_setup_controls__analyst", "statement_setup_controls__status",
     "notes__confirmed_with_rm", "statement_setup_controls__target_currency",
@@ -215,6 +215,21 @@ _NET_ASSETS_VETOED = frozenset({
 # receipts and payments no longer reach: the supplement already reconciles to the same total, so
 # sweeping them in counted them twice (000709 operating cash flow 3.89bn against a printed 9.68bn).
 _CAS_DIRECT_ROWS_VETOED = frozenset({"cf_oper_indirect__other_non_cash_adjs_oper"})
+# …and the OCI residual, which refuses the OCI TOTAL as five HKEX filings print it. Swept in beside
+# the components it totals, it doubled the section: 佳明 2025/26 prior year -31,146 for a printed
+# -15,573 ("年內其他全面收益，扣除稅項 for the year, net of tax"), and the same on BYD Electronic, Far
+# East Horizon, Lai Sun and PetroChina; Lai Sun also swept its TOTAL COMPREHENSIVE EXPENSE.
+_OCI_TOTAL_VETOED = frozenset({"is_oci__other_equity_and_reserves_adj"})
+# THE TWO OCI COMPONENTS PETROCHINA PRINTS UNDER A MERGED SUB-HEADER, where the seed now LEADS the
+# rulebook on `regex_hints` — the one addition among the removals the allowance below reads. Its
+# PDF puts each group's sub-header on the line above the group's first item, and the two merge:
+# "Items that will not be reclassified to profit or loss Fair value changes in equity investment
+# measured at fair value through other comprehensive income" (-109 / 64) and "Items that are or may
+# be reclassified subsequently to profit or loss Cash flow hedges" (-8,111 / -1,893). The residual
+# refuses captions that long as narrative, so neither was counted; each now binds its line by an
+# anchored pattern.
+_OCI_SUBHEADER_ROWS = frozenset({"is_oci__unreal_gain_loss_investments",
+                                 "is_oci__deferred_hedging_gain_loss"})
 # THE CASH FLOW STATEMENT'S OWN TOTALS, scoped `cf_top_level` in the seed as the balance sheet's are
 # `bs_top_level`. The rulebook files the closing cash and the unexplained adjustment under the
 # financing section, so the financing section "closed" at a total no filing prints and the statement
@@ -511,6 +526,10 @@ def test_shipped_set_projects_every_definition_including_the_parts():
         # `statement: cash_flow` and `section_scope: ['cf_oper_direct']` are the mechanism by which
         # each is read off that face, not a pin cutting it off from a note neither reads.
         "sub__cf_direct_income_taxes_paid", "sub__cf_direct_tax_refunds_received",
+        # AND THE TWO OTHER OPERATING CASH ROWS of the same section, on the same grounds: CAS prints
+        # 收到其他与经营活动有关的现金 and 支付其他与经营活动有关的现金 there and the template holds no
+        # line for either, so each is a part of the direct line it arrives beside.
+        "sub__cf_direct_other_operating_receipts", "sub__cf_direct_other_operating_payments",
         # AND THE THREE RELATED-PARTY PAYABLE FACE PARTS, on the same grounds as `sub__rp_find_1`
         # above: no `note_source`, and `statement: balance_sheet` with `inherits: bs_cl`/`bs_ncl`
         # is the mechanism by which each is read off the balance-sheet face. They exist because
@@ -600,13 +619,14 @@ def test_shipped_set_diverges_only_in_the_known_classes():
         # alone — and the first version of this allowance did exactly that and failed on the eight.
         if field == "exclude_hints" and set(keys) <= (_CONFUSABLE_CONVERTED | _derived_parents()
                                                      | _NET_ASSETS_VETOED
-                                                     | _CAS_DIRECT_ROWS_VETOED):
+                                                     | _CAS_DIRECT_ROWS_VETOED
+                                                     | _OCI_TOTAL_VETOED):
             continue
         if field == "alias_matching" and len(keys) <= _ALIAS_MATCHING_REMOVED:
             continue
         if field == "regex_hints":
             seeded = _seed_regex_hints()
-            if all(not seeded.get(k) for k in keys):
+            if all(not seeded.get(k) or k in _OCI_SUBHEADER_ROWS for k in keys):
                 continue
         # …and the two fields the config-screen work changed, bounded by COUNT so a wider
         # divergence still fails. See `_EXCLUDE_BLANKED` / `_DEFINITION_FOLDED` /

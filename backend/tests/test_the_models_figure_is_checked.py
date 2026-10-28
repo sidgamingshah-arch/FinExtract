@@ -221,7 +221,8 @@ def test_unconstrained_by_default_so_a_caller_with_no_request_keeps_working():
 
 
 def test_a_whole_document_request_may_cite_any_note_but_not_against_its_route(shipped):
-    """In whole-document mode every note is supplied, so the set fence is open; the route is not."""
+    """Under `llm_document_context = "full"` every request is sent the whole annual report, so
+    every note is supplied and the set fence is open; the route fence is not."""
     doc = _doc([_note("7", "UNRELATED NOTE", [("Land", "555")])], [_face("Land", "100", LAND)])
     row, _ctx, _p = _run(shipped, doc, LAND, [{"note": "7", "caption": "Land"}],
                          llm_document_context="full")

@@ -95,13 +95,16 @@ EXTRACTION_KNOBS: tuple[Knob, ...] = (
          choices=("none", "identical", "similar", "manual")),
     Knob("llm_document_context", "choice", "What the model reads with each question",
          "\"selected\" sends each request only the notes and statements its line items selected: "
-         "the smallest requests. \"full\" sends the WHOLE document with every request — every "
-         "note and every statement — so the model always has the full filing in view. The "
-         "document goes first and is identical on every request of a run, so a provider that "
-         "caches prompts charges the cached rate for it after the first request; the run log "
-         "shows input, cached and output tokens per request and a summary at the end. Combine "
-         "with grouping to send the document fewer times.",
-         choices=("selected", "full")),
+         "the smallest requests, and no line is sent the whole annual report — a line that may be "
+         "read from anywhere is given the pages that print its name. \"anywhere\" (the default) "
+         "does the same for every other line, and asks the lines that may be read from anywhere "
+         "with the WHOLE annual report — every page, note and statement — in batches of their "
+         "own. \"full\" sends the whole annual report with every question, so the model always "
+         "has the full filing in view; it costs the most. The report goes first and is identical "
+         "on every request that carries it, so a provider that caches prompts charges the cached "
+         "rate for it after the first; the run log shows input, cached and output tokens per "
+         "request and a summary at the end.",
+         choices=("selected", "anywhere", "full")),
     Knob("ocr_scanned_pages", "bool", "Read scanned pages (OCR)",
          "A page with a text layer is always read from that layer, exactly as printed — OCR would "
          "only re-guess characters the file already holds — so this changes nothing for a native "
@@ -277,7 +280,7 @@ def load_persisted() -> None:
         _forget(SCOPE_LLM)
     _warn_if_provider_unregistered()
 
-    ex_stored = _stored(SCOPE_EXTRACTION)
+    ex_stored = _read_as_saved(_stored(SCOPE_EXTRACTION))
     if ex_stored:
         try:
             set_extraction_config(**ex_stored, persist=False)
@@ -285,6 +288,33 @@ def load_persisted() -> None:
             # A stored value that is no longer valid (a knob's range tightened between
             # releases) must not stop the app from starting; the config default stands.
             pass
+
+
+# A VALUE SAVED BEFORE ITS SETTING'S MEANING MOVED IS READ AS WHAT IT MEANT WHEN IT WAS SAVED.
+#
+# `llm_document_context` had two settings, and under "selected" every line that may be read from
+# anywhere was still asked with the whole annual report. That is now the setting "anywhere";
+# "selected" now sends no line the whole report. The Settings screen saves EVERY knob whenever
+# any one is changed, so a stored "selected" from before is almost always the old default, never
+# chosen — read as written, it would switch the whole report off for those lines without anyone
+# asking. A value saved by this release is saved with this marker beside it and read as it is.
+_DOCUMENT_CONTEXT_MARKER = "_llm_document_context_v2"
+
+
+def _read_as_saved(stored: dict) -> dict:
+    """The stored extraction overrides, with a pre-marker "selected" read as "anywhere" — and
+    that reading saved, with the marker, so it is made once and the table says what applies."""
+    if stored.get("llm_document_context") != "selected" or stored.get(_DOCUMENT_CONTEXT_MARKER):
+        return stored
+    import logging
+    logging.getLogger(__name__).warning(
+        "extraction.llm_document_context: the stored value 'selected' was saved before the "
+        "setting gained 'anywhere', and meant what 'anywhere' means now (lines that may be read "
+        "from anywhere are asked with the whole annual report). It is read, and saved, as "
+        "'anywhere'; choose 'selected' again on the Settings screen to send no line the report.")
+    _persist(SCOPE_EXTRACTION, {"llm_document_context": "anywhere",
+                                _DOCUMENT_CONTEXT_MARKER: True})
+    return {**stored, "llm_document_context": "anywhere", _DOCUMENT_CONTEXT_MARKER: True}
 
 
 def _seed() -> None:
@@ -406,7 +436,10 @@ def set_extraction_config(*, persist: bool = True, **fields) -> dict:
     for key, value in cleaned.items():
         setattr(ex, key, value)
     if persist and cleaned:
-        _persist(SCOPE_EXTRACTION, cleaned)
+        # Saved with the marker that says this value has the setting's present meaning — see
+        # `_read_as_saved`.
+        _persist(SCOPE_EXTRACTION, {**cleaned, _DOCUMENT_CONTEXT_MARKER: True}
+                 if "llm_document_context" in cleaned else cleaned)
     return extraction_config()
 
 
