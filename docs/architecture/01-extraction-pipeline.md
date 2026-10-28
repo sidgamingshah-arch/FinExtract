@@ -190,12 +190,17 @@ The face and its cited notes are processed in this order:
     `unit_context.scale_factor`, because a sentence states its amount in full where a table states
     it in the statement's units.
 
-    *A row the model's answer creates carries the unit its figure was printed in.* A fresh slot
-    takes the cited rows' unit where they agree on one (`note_sourced._unit_of`, carried on each
-    resolved citation). Where none declares one, it takes the row's other column's unit, and then
-    the statement's (`note_sourced._statement_unit`), which is how the declared note route reads an
-    undeclared row. A prose money amount, once divided into the statements' units, takes theirs; a
-    count takes none. A slot that already exists keeps its own unit.
+    *A row the model's answer creates carries the statement's unit.* A fresh slot takes the row's
+    other column's unit, else the face's (`note_sourced._statement_unit`) — how the declared note
+    route stamps a note figure, because the figure joins the statement's rows in every check that
+    adds them. Each resolved citation carries its row's unit (`note_sourced._unit_of`), and where
+    the cited rows declare a scale or currency the statement's declared unit differs from, the slot
+    takes the cited unit instead: this route writes the amount as printed and does not rescale it,
+    so the checks refuse to add it to the statement's figures (`mixed_scale`). Only what both sides
+    declare is compared (`services.units.compare`): on 佳明 the face's scale was never read, so a
+    figure cited from a note at HK$'000 takes the face's scale, not the note's. Cited rows in two
+    units give no unit. A prose money amount, once divided into the statements' units, takes
+    theirs; a count takes none. A slot that already exists keeps its own unit.
 
     *Which lines are asked about.* `line_item_requests.asked_about` is the boundary: a DERIVED
     PARENT is never asked, because its figure is its declared cascade's and a number written

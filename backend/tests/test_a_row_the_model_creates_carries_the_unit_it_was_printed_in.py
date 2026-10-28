@@ -8,12 +8,19 @@ beside 473 labelled CNY'000 — figures in thousands labelled as units, in the e
 and in every structural check that compares scales.
 
 Now each resolved row citation carries the unit its row is printed in (`note_sourced._unit_of`),
-and the fresh slot takes it (`stages.line_item_llm._cited_unit`):
+and the fresh slot takes the STATEMENT'S unit — the row's other column's, else the face's — as the
+declared note route stamps a note figure (`stages.line_item_llm._cited_unit`):
 
-  * the cited rows declare a unit and agree: that unit;
-  * none declares one: the row's other column's, else the statement's — how the declared note
-    route reads a row whose page declares no unit;
-  * they disagree: no unit is chosen, as before.
+  * the cited rows declare no unit, or one the statement's agrees with (only what both sides
+    declare is compared): the statement's, with the cited currency where the statement has none;
+  * the cited rows are printed in another scale than the statement declares, or the statement's
+    unit is not known: the cited rows' — the route writes the amount as printed;
+  * the cited rows are in two units: no unit is chosen, as before.
+
+Taking the cited row's own unit first, as this fix first did, broke 佳明 2025/26 (blind replay,
+r16): its face rows carry no unit — the face's scale was never read — and its notes and five-year
+summary declare HK$'000, so the model's Total Liabilities took HKD'000 beside face subtotals at
+scale 1, and two rollups that tie were skipped as `mixed_scale`.
 
 A figure stated in a sentence is put in the statements' units, so a fresh slot takes theirs; a
 count stated in one — a headcount — takes none. A slot that already exists keeps its own.
@@ -67,6 +74,12 @@ def _printed(row):
     return _in(row, THOUSANDS)
 
 
+def _on_face(row):
+    """A face row whose page's unit was never read: printed on the face, at the default unit."""
+    row.printed_in = PrintedIn.FACE
+    return row
+
+
 def _unit(row, period="current"):
     ev = next(ev for ev in row.values.values() if ev.period_label == period)
     return (ev.unit_ctx.currency, ev.unit_ctx.scale_factor)
@@ -87,6 +100,32 @@ def test_a_cited_note_row_that_declares_no_unit_takes_the_statements(shipped):
     row, _ctx, _p = _run(shipped, doc, PBT_DEP, [{"note": "7", "caption": "Depreciation"}])
     assert row is not None and row.values
     assert _unit(row) == ("CNY", Decimal(1000))
+
+
+def test_beside_a_face_whose_scale_was_never_read_the_figure_takes_the_faces(shipped):
+    """佳明 2025/26: the face rows carry no unit and the cited note declares HK$'000. The figure
+    joins the face's rows in every check that adds them, so it takes their scale and the note's
+    currency — at HKD'000 beside face subtotals at scale 1, the rollups were skipped."""
+    note = _note("7", "PROFIT BEFORE TAX", [("Depreciation", "6600")])
+    _in(note.items[0], UnitContext(currency="HKD", scale_factor=Decimal(1000)))
+    doc = _doc([note], [_on_face(_face("Profit before tax", "1000", "pl_profit_before_tax"))])
+    row, _ctx, _p = _run(shipped, doc, PBT_DEP, [{"note": "7", "caption": "Depreciation"}])
+    assert row is not None and row.values
+    assert _unit(row) == ("HKD", Decimal(1)), "it was ('HKD', 1000): beside the face at scale 1"
+
+
+def test_a_figure_cited_from_a_note_in_another_scale_keeps_the_notes_unit(shipped):
+    """This route writes the amount as printed and does not rescale it, so a figure read from a
+    note in CNY millions under a face in CNY'000 is in millions — and saying so is what lets the
+    checks refuse to add it to the thousands."""
+    note = _note("7", "PROFIT BEFORE TAX", [("Depreciation", "6.6")])
+    _in(note.items[0], UnitContext(currency="CNY", scale_factor=Decimal(1000000)))
+    doc = _doc([note], [_printed(_face("Profit before tax", "1000", "pl_profit_before_tax"))])
+    row, _ctx, _p = _run(shipped, doc, PBT_DEP, [{"note": "7", "caption": "Depreciation"}])
+    assert row is not None and row.values
+    ev = next(ev for ev in row.values.values() if ev.period_label == "current")
+    assert ev.value == Decimal("6.6"), "the amount as printed: this route does not rescale"
+    assert _unit(row) == ("CNY", Decimal(1000000))
 
 
 def test_cited_rows_in_two_scales_give_the_figure_no_one_unit():

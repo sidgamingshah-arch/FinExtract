@@ -1716,17 +1716,30 @@ def _cited_unit(resolved: list[dict], doc, basis: str, row=None):
     default — no currency, scale 1. On China SCE 1966 that labelled 50 figures printed in CNY'000
     as units, beside 473 labelled CNY'000.
 
-      * the cited rows declare a unit (`note_sourced._unit_of`) and agree on its currency and
-        scale: that unit — the one the figure was printed in;
-      * none declares one: the unit the row's other column carries, as before, and where it has
-        none the statement's (`note_sourced._statement_unit`) — how the declared note route reads
-        a row whose page declares no unit;
-      * they disagree: None, and the slot falls back as before — one figure added up from rows in
-        two scales has no one unit to carry.
+    THE FIGURE TAKES THE STATEMENT'S UNIT — the one the row's other column carries, else the face's
+    (`note_sourced._statement_unit`) — which is how the declared note route stamps a note figure:
+    it joins the statement's own rows in every check that adds them. Taking the cited row's own
+    unit instead broke that wherever the face's scale was never read. 佳明 2025/26 prints its face
+    in HK$'000 and the face rows carry no unit (scale 1, nothing read), while its notes and its
+    five-year summary declare HK$'000: the model's Total Liabilities, cited from the summary, took
+    HKD'000 beside the face's subtotals at scale 1, and `rollup:bs_cl__total_liabilities` and
+    `rollup:bs_ca__total_assets`, which had tied, were skipped as `mixed_scale`.
+
+      * the cited rows declare no unit (`note_sourced._unit_of`), or one the statement's agrees
+        with — `services.units.compare` compares only what both sides declare: the statement's,
+        keeping the cited currency where the statement names none;
+      * the cited rows are printed in another scale or currency than the statement declares, or
+        the statement's unit is not known at all: the cited rows' unit. This route writes the
+        amount as printed and does not rescale it, so that is the unit it is in, and the checks
+        refuse to add it to the statement's figures (`mixed_scale`) rather than add thousands to
+        millions;
+      * the cited rows are in two units: None, and the slot falls back as before — one figure
+        added up from rows in two scales has no one unit to carry.
 
     A slot that already exists keeps its own.
     """
     from app.core.models.line_item import UnitContext
+    from app.services.units import compare
 
     units = []
     for entry in resolved or ():
@@ -1736,12 +1749,17 @@ def _cited_unit(resolved: list[dict], doc, basis: str, row=None):
                 units.append(UnitContext(**unit))
             except Exception:  # noqa: BLE001 - a malformed citation must not end the run
                 continue
-    declared = {(u.currency, u.scale_factor) for u in units}
-    if len(declared) == 1:
+    if len({(u.currency, u.scale_factor) for u in units}) > 1:
+        return None
+    statement = (_row_unit(row) if row is not None else None) or _statement_unit(doc, basis)
+    if not units:
+        return statement
+    check = compare(units[0], statement) if statement is not None else None
+    if check is None or check.rescaled or check.currency_mismatch:
         return units[0]
-    if not declared:
-        return (_row_unit(row) if row is not None else None) or _statement_unit(doc, basis)
-    return None
+    if not statement.currency and units[0].currency:
+        return statement.model_copy(update={"currency": units[0].currency})
+    return statement
 
 
 def _derivative_vetoes(item) -> list:
