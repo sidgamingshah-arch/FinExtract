@@ -106,7 +106,7 @@ def test_the_status_rule_reproduces_every_shipped_rung(name):
                          if status in derivation.ENTERED), Decimal(0))
             mismatches += added != got.value
     assert mismatches == 0
-    assert evaluations > (100 if name in ("hk", "indas") else 0), evaluations
+    assert evaluations > (100 if name == "hk" else 0), evaluations
 
 
 def test_a_tie_is_counted_once():

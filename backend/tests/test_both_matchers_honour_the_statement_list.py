@@ -59,7 +59,9 @@ def indas():
 def test_the_shipped_sets_do_declare_two_statements(hk, indas):
     """Without this the rest of the file asserts nothing."""
     assert len([i for i in hk.items if len(i.statements or ()) > 1]) >= 15
-    assert len([i for i in indas.items if len(i.statements or ()) > 1]) >= 15
+    # The Ind AS set reads each line off one face statement, so it declares one statement a line;
+    # it stays in the checks below as the set every claim must still agree on.
+    assert all(len(i.statements or ()) == 1 for i in indas.items)
 
 
 def test_every_declared_statement_is_claimable(hk, indas):
@@ -127,18 +129,15 @@ def test_both_engines_agree_on_every_shipped_line(hk, indas):
 
 def test_the_schedule_iii_depreciation_line_reaches_its_concept(indas):
     """Schedule III presents expenses by nature, so the whole period's depreciation and
-    amortisation is ONE face line. `sub__pbt_depreciation` is the concept that means that total —
-    declared on `notes` as well, because under HKFRS it is printed in the profit-before-tax note."""
+    amortisation is ONE face line, and the Ind AS template has a line for exactly that row."""
     matcher = LineItemMatcher(indas)
     for caption in ("Depreciation and Amortisation Expense",
                     "Depreciation and Amortization Expense",
                     "Depreciation & Amortisation Expense"):
         hit = matcher.match(caption, "profit_and_loss", "is_pl")
-        assert hit.key == "sub__pbt_depreciation", (caption, hit.key, hit.reason)
+        assert hit.key == "is_pl__depreciation_and_amortisation", (caption, hit.key, hit.reason)
 
-    item = {i.key: i for i in indas.items}["sub__pbt_depreciation"]
+    item = {i.key: i for i in indas.items}["is_pl__depreciation_and_amortisation"]
     assert StatementType.PROFIT_AND_LOSS in (item.statements or ())
-    assert StatementType.NOTES in (item.statements or ())
-    # Route SILENCE, so the face and the note are both open to it. `face` would close the note and
-    # `anywhere` would widen extraction to all 293 pages of an integrated report for one line.
-    assert not item.route, item.route
+    # The Ind AS set reads the face only: the line is the face row, never a note's breakdown.
+    assert item.route == "face", item.route

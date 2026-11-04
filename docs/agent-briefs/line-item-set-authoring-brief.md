@@ -19,7 +19,7 @@ Paths are relative to the repository root. The three shipped sets are your worki
 |---|---|---|---|
 | Template | `backend/app/sample/templates/output_csv_hk_v1_template.json` | `backend/app/sample/templates/output_csv_indas_v1_template.json` | `backend/app/sample/templates/output_csv_icon_v1_template.json` |
 | Line-item set | `backend/app/sample/templates/output_csv_hk_line_items.json` | `backend/app/sample/templates/output_csv_indas_line_items.json` | `backend/app/sample/templates/output_csv_icon_line_items.json` |
-| Size | 480 keyed nodes (18 section headers + 462 figure lines); 529 items (462 template + 67 internal) | 211 nodes (13 headers + 198 figure lines); 256 items (198 + 58) | 199 nodes (17 headers + 182 figure lines); 182 items, no internal parts |
+| Size | 480 keyed nodes (18 section headers + 462 figure lines); 529 items (462 template + 67 internal) | 121 nodes (10 section headers + 111 figure lines); 111 items, no internal parts — face only, built by `backend/scripts/build_indas_pair.py` | 199 nodes (17 headers + 182 figure lines); 182 items, no internal parts |
 
 ICON is the closest example of a set made from a client workbook: `backend/scripts/build_icon_pair.py`
 builds both of its files from the workbook's own formulas and a curated caption file
@@ -575,7 +575,7 @@ accepted. Only remove a veto you can show never fires on the corpus.
    that are never computed. Keep `node_id == canonical_key`.
 5. **`side` and `allow_contra` have no reader.** Do not rely on them.
 6. **`children_if_decomposed` without `is_gross_parent` does nothing.**
-7. **Code comments carry stale counts** (475 / 539 / 549 items, Ind AS "276"). Trust the files.
+7. **Code comments carry stale counts** (475 / 539 / 549 items, Ind AS "276" or "256"). Trust the files.
 8. **The deployment's `llm_focus_keys`** must name the new keys, or no line is asked (§3.3).
 
 ---
@@ -603,7 +603,7 @@ pytest -q tests/test_formula_in_config.py tests/test_pattern_overlap.py \
 1. register it in `backend/app/sample/reference.py` `_EXTRA_PAIRS`;
 2. classify both files in `scripts/validate_reference_data.py` `FILE_ROLES`;
 3. add a row to `backend/app/sample/templates/README.md`;
-4. follow `tests/test_the_ind_as_set.py`, the precedent for a second set's own tests.
+4. follow `tests/test_the_ind_as_set_is_the_schedule_iii_face.py`, the precedent for a second set's own tests.
 
 **Measure on real filings.** Run the pipeline on the sample filings of the regime. For each
 filing report:

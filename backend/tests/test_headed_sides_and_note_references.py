@@ -28,8 +28,9 @@ from app.services.mapping import normalize_label
 from app.services.note_sourced import resolve, select_rows
 from app.services.row_reconstruct import Word, build_line_items
 
+# The note parts are the HK set's: the Ind AS set reads the faces only.
 SEED = (pathlib.Path(__file__).resolve().parents[1]
-        / "app/sample/templates/output_csv_indas_line_items.json")
+        / "app/sample/templates/output_csv_hk_line_items.json")
 
 
 def _words(rows):

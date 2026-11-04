@@ -113,9 +113,9 @@ def test_every_known_defect_is_still_found(report):
         "them: " + "; ".join(f"{k.file} {k.check} {k.subject}" for k in report.stale))
 
 
-# The shipped files carry no known defect any more, so these use a stand-in entry: the Ind AS gross
-# profit given a term naming a line the set lacks — the defect the list last held.
-_STAND_IN = V.KnownDefect(INDAS_SET, "dangling-ref", "is_pl__gross_profit", "stand-in for the test")
+# The shipped files carry no known defect any more, so these use a stand-in entry: the Ind AS total
+# income given a term naming a line the set lacks — the shape of the defect the list last held.
+_STAND_IN = V.KnownDefect(INDAS_SET, "dangling-ref", "is_pl__total_income", "stand-in for the test")
 
 
 def _foreign_term(key):
@@ -129,7 +129,7 @@ def test_a_known_defect_is_an_error_and_never_a_warning(shipped, monkeypatch):
     """The list excuses ERRORs. A WARN is already reported without failing, so an entry for one
     would only hide it from the report."""
     monkeypatch.setattr(V, "KNOWN_DEFECTS", (_STAND_IN,))
-    r = _run(shipped, (INDAS_TEMPLATE, INDAS_SET), _foreign_term("is_pl__gross_profit"))
+    r = _run(shipped, (INDAS_TEMPLATE, INDAS_SET), _foreign_term("is_pl__total_income"))
     assert r.known and not r.errors() and r.exit_code == 0
     assert {f.level for f, _k in r.known} == {"ERROR"}
     assert all((f.file, f.check, f.subject) == (k.file, k.check, k.subject) for f, k in r.known)
@@ -140,12 +140,12 @@ def test_a_known_defect_excuses_only_the_finding_it_names(shipped, monkeypatch):
     monkeypatch.setattr(V, "KNOWN_DEFECTS", (_STAND_IN,))
 
     def both(files):
-        _foreign_term("is_pl__gross_profit")(files)
+        _foreign_term("is_pl__total_income")(files)
         _foreign_term("is_pl__profit_loss_before_tax")(files)
 
     r = _run(shipped, (INDAS_TEMPLATE, INDAS_SET), both)
     assert _found(r, "dangling-ref", "is_pl__profit_loss_before_tax")
-    assert [k.subject for _f, k in r.known] == ["is_pl__gross_profit"]
+    assert [k.subject for _f, k in r.known] == ["is_pl__total_income"]
 
 
 def test_a_fixed_known_defect_is_reported_as_a_stale_entry(shipped, monkeypatch):
@@ -153,9 +153,9 @@ def test_a_fixed_known_defect_is_reported_as_a_stale_entry(shipped, monkeypatch)
     and fails the script on its own as well as this suite."""
     monkeypatch.setattr(V, "KNOWN_DEFECTS", (_STAND_IN,))
     r = _run(shipped, (INDAS_TEMPLATE, INDAS_SET))
-    assert not _found(r, "dangling-ref", "is_pl__gross_profit")
+    assert not _found(r, "dangling-ref", "is_pl__total_income")
     assert [(k.file, k.check, k.subject) for k in r.stale] == [
-        (INDAS_SET, "dangling-ref", "is_pl__gross_profit")]
+        (INDAS_SET, "dangling-ref", "is_pl__total_income")]
     assert "STALE ALLOWLIST ENTRY" in r.render()
     assert r.exit_code == 1
 
@@ -183,14 +183,15 @@ def test_the_report_is_grouped_by_file_and_the_exit_code_follows_the_errors(tmp_
 
 # ── templates: what every gate accepted ───────────────────────────────────────────────────────
 
-@pytest.mark.parametrize("template_name", [HK_TEMPLATE, INDAS_TEMPLATE])
-def test_a_rollup_cycle_is_an_error_in_either_regime(shipped, template_name):
+@pytest.mark.parametrize("template_name,total,parent", [
+    (HK_TEMPLATE, "is_pl__total_cost_of_sales", "is_pl__gross_profit"),
+    (INDAS_TEMPLATE, "is_pl__sales_revenues", "is_pl__total_income")])
+def test_a_rollup_cycle_is_an_error_in_either_regime(shipped, template_name, total, parent):
     def cycle(files):
-        _node(files[template_name], "is_pl__total_cost_of_sales")["rollup"]["children"].append(
-            "is_pl__gross_profit")
+        _node(files[template_name], total)["rollup"]["children"].append(parent)
 
     assert _found(_run(shipped, (template_name,), cycle), "rollup-cycle",
-                  "is_pl__gross_profit, is_pl__total_cost_of_sales")
+                  ", ".join(sorted((parent, total))))
 
 
 def test_a_repeated_node_id_is_an_error(shipped):

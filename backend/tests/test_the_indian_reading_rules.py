@@ -120,13 +120,16 @@ def test_the_entity_signals_name_standalone_and_consolidated(indas):
     assert indas.scope_selection.entity_scope.default == "consolidated"
 
 
-def test_the_company_only_marker_names_a_key_this_set_has(indas):
+def test_the_company_only_marker_names_a_caption_this_set_binds(indas):
     """The HK set's marker cited `bs_non_current_assets__investments_in_subsidiaries`, a key from
     another namespace that appears nowhere in this set — so the rule named nothing a reader could
-    check it against."""
+    check it against. It names the CAPTION now, as ICON's does, and that caption is one a line of
+    this set binds: a standalone balance sheet's investments in subsidiaries are Investments."""
     markers = " ".join(indas.scope_selection.entity_scope.company_only_markers)
-    assert "bs_nca__investment_in_subsidiaries" in markers, markers
-    assert {i.key for i in indas.items} >= {"bs_nca__investment_in_subsidiaries"}
+    assert "Investments in subsidiaries" in markers, markers
+    assert "__" not in markers, markers
+    investments = {i.key: i for i in indas.items}["bs_nca__investments"]
+    assert "Investments in subsidiaries" in (investments.aliases or []), investments.aliases
 
 
 def test_the_note_column_rule_is_stated_in_a_field_the_schema_declares(indas):

@@ -116,7 +116,7 @@ def test_a_set_with_one_pl_section_reads_its_parts_as_that_section():
 
 
 @pytest.mark.parametrize("caption,section,key", [
-    ("Other expenses", "IV. Expenses", "is_pl__other_operating_expenses"),
+    ("Other expenses", "IV. Expenses", "is_pl__other_expenses"),
     ("Profit for the year", "VIII. Tax expense:", "is_pl__profit_for_the_year"),
     ("Current tax", "VIII. Tax expense:", "is_pl__current_income_taxes"),
 ])
@@ -132,7 +132,7 @@ def test_the_icon_set_keeps_reading_the_parts_it_scopes():
 
 
 @pytest.mark.parametrize("caption,section,key", [
-    ("Other expenses", "IV. Expenses", "is_pl__other_operating_expenses"),
+    ("Other expenses", "IV. Expenses", "is_pl__other_expenses"),
     ("Profit for the year", "VIII. Tax expense:", "is_pl__profit_for_the_year"),
     ("Current tax", "VIII. Tax expense:", "is_pl__current_income_taxes"),
 ])

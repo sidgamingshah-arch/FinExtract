@@ -1,0 +1,490 @@
+{
+ "_note": "The Indian reading rules of the Ind AS line-item set, carried verbatim from the set it replaces: how an Indian filing prints its units, entity columns, note references and banners, and the one residual framework. scripts/build_indas_pair.py writes them into output_csv_indas_line_items.json, and scripts/build_icon_pair.py reads them back from there, so ICON shares them unchanged.",
+ "vocabulary": {
+  "section_banners": [
+   {
+    "token": "notes",
+    "headings": [
+     "notes to the consolidated financial statements",
+     "notes to the financial statements",
+     "notes to financial statements",
+     "notes to the standalone financial statements",
+     "notes forming part of the standalone financial statements",
+     "notes forming part of the consolidated financial statements",
+     "notes forming part of the financial statements"
+    ],
+    "heading_row": false
+   },
+   {
+    "token": "non_current_liabilities",
+    "headings": [
+     "non current liabilities",
+     "noncurrent liabilities",
+     "non-current liabilities"
+    ],
+    "heading_row": true
+   },
+   {
+    "token": "non_current_assets",
+    "headings": [
+     "non current assets",
+     "noncurrent assets",
+     "non-current assets"
+    ],
+    "heading_row": true
+   },
+   {
+    "token": "current_liabilities",
+    "headings": [
+     "current liabilities"
+    ],
+    "heading_row": true
+   },
+   {
+    "token": "current_assets",
+    "headings": [
+     "current assets"
+    ],
+    "heading_row": true
+   },
+   {
+    "token": "equity",
+    "headings": [
+     "equity",
+     "capital and reserves"
+    ],
+    "heading_row": true
+   },
+   {
+    "token": "cash_flow_from_operating_activities",
+    "headings": [
+     "operating activities"
+    ],
+    "heading_row": true
+   },
+   {
+    "token": "cash_flow_from_investing_activities",
+    "headings": [
+     "investing activities"
+    ],
+    "heading_row": true
+   },
+   {
+    "token": "cash_flow_from_financing_activities",
+    "headings": [
+     "financing activities"
+    ],
+    "heading_row": true
+   },
+   {
+    "token": "other_comprehensive_income",
+    "headings": [
+     "other comprehensive income"
+    ],
+    "heading_row": false
+   },
+   {
+    "token": "income_and_expenses",
+    "headings": [
+     "income_and_expenses",
+     "income and expenses",
+     "income expenses"
+    ],
+    "heading_row": false
+   },
+   {
+    "token": "adjustments_to_retained_profits",
+    "headings": [
+     "adjustments to retained profits",
+     "adjustments to retained earnings"
+    ],
+    "heading_row": false
+   },
+   {
+    "token": "total_comprehensive_income_attributable_to",
+    "headings": [
+     "comprehensive"
+    ],
+    "heading_row": false
+   },
+   {
+    "token": "profit_attributable_to",
+    "headings": [
+     "profit attributable",
+     "loss attributable",
+     "attributable to"
+    ],
+    "heading_row": false
+   },
+   {
+    "token": "non_operating_expenses",
+    "headings": [
+     "non operating",
+     "nonoperating"
+    ],
+    "heading_row": false
+   },
+   {
+    "token": "exceptional_items",
+    "headings": [
+     "exceptional"
+    ],
+    "heading_row": false
+   },
+   {
+    "token": "tax_expense",
+    "headings": [
+     "tax expense",
+     "taxation"
+    ],
+    "heading_row": false
+   },
+   {
+    "token": "expenses",
+    "headings": [
+     "expenses"
+    ],
+    "heading_row": false
+   },
+   {
+    "token": "income",
+    "headings": [
+     "revenue",
+     "turnover"
+    ],
+    "heading_row": false
+   }
+  ],
+  "umbrella_banners": [
+   {
+    "id": "equity_and_liabilities",
+    "groups": [
+     [
+      "equity"
+     ],
+     [
+      "liabilit"
+     ]
+    ],
+    "note": "IFRS statements print EQUITY AND LIABILITIES above the Equity, Non-current and Current sub-banners; reading it as equity would refuse every liability line item beneath it."
+   },
+   {
+    "id": "assets_banner",
+    "groups": [
+     [
+      "assets"
+     ]
+    ],
+    "note": "Schedule III prints ASSETS as an umbrella over the Non-Current and Current sub-banners. Reading it as a section of its own would scope every asset line to a section no concept declares."
+   }
+  ],
+  "scope_tokens": {
+   "bs_nca": "non_current_assets",
+   "bs_ca": "current_assets",
+   "bs_ncl": "non_current_liabilities",
+   "bs_cl": "current_liabilities",
+   "bs_equity": "equity",
+   "is_pl": "income_and_expenses",
+   "is_oci": "other_comprehensive_income",
+   "is_retained": "adjustments_to_retained_profits",
+   "cf_oper_indirect": "cash_flow_from_operating_activities",
+   "cf_oper_direct": "cash_flow_from_operating_activities",
+   "cf_investing": "cash_flow_from_investing_activities",
+   "cf_financing": "cash_flow_from_financing_activities"
+  },
+  "statement_prefixes": {
+   "bs": "balance_sheet",
+   "pl": "profit_and_loss",
+   "cf": "cash_flow",
+   "eq": "changes_in_equity"
+  },
+  "statement_spellings": {
+   "equity_changes": "changes_in_equity"
+  },
+  "exclusive_vocabularies": [
+   {
+    "id": "cash_flow_activities",
+    "members": [
+     "operating",
+     "investing",
+     "financing"
+    ],
+    "note": "IAS 7 divides cash flows into exactly three activities and a statement labels each subtotal with its own, so naming one rules out the others."
+   }
+  ],
+  "families": [],
+  "section_overrides": {},
+  "caption_characters": {
+   "brackets": [
+    [
+     "(",
+     ")"
+    ],
+    [
+     "（",
+     "）"
+    ]
+   ],
+   "quote_marks": [
+    "\"",
+    "'",
+    "“",
+    "”",
+    "‘",
+    "’",
+    "「",
+    "」",
+    "『",
+    "』",
+    "《",
+    "》"
+   ],
+   "note_word_latin": [
+    "note"
+   ],
+   "note_word_han": [
+    "附註",
+    "附注"
+   ],
+   "colon_marks": [
+    ":",
+    "："
+   ],
+   "digit_ranges": [
+    [
+     "0030",
+     "0039"
+    ],
+    [
+     "FF10",
+     "FF19"
+    ]
+   ],
+   "han_ranges": [
+    [
+     "3400",
+     "4DBF"
+    ],
+    [
+     "4E00",
+     "9FFF"
+    ],
+    [
+     "F900",
+     "FAFF"
+    ]
+   ],
+   "han_ranges_required": [
+    [
+     "3400",
+     "4DBF"
+    ],
+    [
+     "4E00",
+     "9FFF"
+    ]
+   ],
+   "cas_enumerators": [
+    "一",
+    "二",
+    "三",
+    "四",
+    "五",
+    "六",
+    "七",
+    "八",
+    "九",
+    "十"
+   ],
+   "cas_enumerator_delimiters": [
+    "、",
+    "."
+   ],
+   "cas_arabic_delimiters": [
+    "、"
+   ],
+   "cas_component_markers": [
+    "其中",
+    "加",
+    "减"
+   ],
+   "cas_sign_note_words": [
+    "号",
+    "填列"
+   ]
+  }
+ },
+ "normalisation": {
+  "note": "Applied to every candidate row label and every alias before comparison. The quoted literals in each step are that step's own vocabulary — `row_reconstruct._quoted_examples` harvests them — so they are configuration, not illustration.",
+  "pipeline": [
+   "Unicode NFKC.",
+   "Case fold (English).",
+   "Full-width to half-width punctuation; map ╱ ／ ⁄ to /; map （） to ().",
+   "Strip footnote and note markers: trailing digits in parentheses, superscripts, '(note 12)', '(Refer note 36)', '(Refer Note 2A)', and the asterisk, caret, hash and dagger an Indian filing hangs off a caption to key it to a sub-note: '*', '^', '#', '†'.",
+   "Strip leading numbering and bullets: '1.', '(a)', '(i)', 'A.', '-'. Schedule III numbers its own sub-captions this way.",
+   "Strip trailing colons and dashes used to introduce sub-captions ('Trade Payables:', 'Total Outstanding dues of -').",
+   "Strip inline unit and currency annotations: '(₹ in Crores)', '(₹ in Lakhs)', '(` in Crores)', '(` in crores)', 'Rs. in crores', 'Rs. in lakhs', 'INR in million', '₹', '(unaudited)', '(Audited)'. THE GRAVE ACCENT IS NOT A TYPO: an Indian PDF whose font lacks the ₹ glyph substitutes ` for it, and both forms occur in one document.",
+   "Collapse internal whitespace to a single space; strip zero-width characters and soft hyphens.",
+   "Join a wrapped caption to its continuation line before matching, then also retain the bare fragment as a fallback candidate."
+  ],
+  "wrapped_caption_rule": "A Schedule III statement prints a mandatory 'Note No.' column BETWEEN the caption and the figures, and its captions are long enough to wrap in the width that leaves: 'Total Outstanding dues of creditors other than Micro Enterprises' / 'and Small Enterprises' is one caption on two physical lines, and read as two it matches neither. Reassemble from the value row upward before matching; match the reassembled string first, and use the bare fragment only if that fails.\n\nTHE NOTE COLUMN IS NOT A FIGURE. That same mandatory column is numeric and sits left of the amounts, so its value is the first number on the row and reads as the current period unless it is removed. Resolve it geometrically where the column can be located and by shape otherwise — a bare one- or two-digit integer, optionally suffixed A or B ('2A', '4B', '11A'), followed on the row by a real amount."
+ },
+ "binding": {
+  "note": "Precedence is section-first. A concept can only claim a row printed inside one of its section_scope values.",
+  "order": [
+   "1. Resolve the statement (balance_sheet / profit_and_loss / cash_flow) from the page or table caption.",
+   "2. Resolve the printed section from the nearest preceding section header. If no header is resolvable, the row is unbound: route to review, never guess a section. (A row WITH a resolved section that no concept claims is not unbound — it is swept into that section's residual; see unbound_row_policy.)",
+   "3. Restrict the candidate concept set to concepts whose section_scope contains the resolved section.",
+   "4. Rule tier: exact normalised alias, then regex_hints, in descending match_priority. Any exclude_hints hit is a hard veto, not a score penalty.",
+   "5. Semantic tier over the restricted set only, using definition + include + exclude. Never over the full ontology.",
+   "6. Tie between concepts listed in each other's confusable_with: resolve with section_disambiguation; if still tied, emit both as candidates and route to review. Never pick by declaration order.",
+   "7. Residual sweep (see residual_framework) runs last, over rows no dedicated concept claimed.",
+   "8. Reconcile the section against its reported subtotal."
+  ],
+  "unbound_row_policy": "Route an unclaimed face value only to the residual for its resolved printed section. Never borrow a neighbouring concept or cross a section. After all mapping and gap-closing opportunities, the engine-level face_mapping_contract gives any remaining face value a unique engine_unclassified_face key outside the ontology/template namespaces. This keeps the row stored and reviewable without feeding it into an unrelated calculation. Verified non-additive aggregates replaced by mapped components remain evidence-only.",
+  "match_priority": "Integer 0-99, higher evaluated first. Long specific captions rank above short generic ones so 'Total assets less current liabilities' cannot be pre-empted by 'Total current liabilities' on token overlap. Residuals are 0 and unreachable by matching."
+ },
+ "global_rules": {
+  "source_fact_id": "document_id|entity_scope|period|currency|unit|page|table_or_note|source_row_id",
+  "sign_convention": {
+   "stored_value": "The reported value after paren-to-negative conversion.",
+   "expenses_and_outflows": "Stored NEGATIVE. This is required by the template: pl_gross_profit = sum(revenue, cost_of_goods_sold) and pl_profit_before_exceptional_items_and_tax = sum(total_income, total_operating_cost, total_non_operating_expense) only hold if expense concepts carry a negative sign.",
+   "unsigned_source": "Where a filing prints expenses as unsigned positives in a by-nature list, negate on load and set sign_normalised: true on the fact so the transformation is auditable.",
+   "either": "Subtotals, working-capital movements, fair-value changes, share of results, OCI and net cash flows are sign-indeterminate. Retain the reported sign; never coerce.",
+   "validation": "A concept whose sign_convention is positive_expected or negative_expected but whose loaded value carries the opposite sign is a review trigger, not an auto-correction."
+  },
+  "face_only_default": "Concepts default to face_only: true. Notes are evidence for a face amount, never an independent source of one, unless note_use is decomposition_allowed.",
+  "duplicate_fact_rule": "The same economic fact on the face and in a note is one fact with multiple evidence references, not two additive values. This also applies to two face captions that report the same amount (see equivalence blocks).",
+  "parent_child_allocation": [
+   "Build containment before populating concepts.",
+   "Never load a gross parent and its separately mapped children additively.",
+   "Residual = reported parent minus confirmed included children.",
+   "Subtract only on explicit inclusion wording, hierarchy, reconciliation or arithmetic support.",
+   "If containment is uncertain, retain the parent as evidence and route to review."
+  ],
+  "no_fabricated_split": "Never invent a decomposition. Where only a combined figure is reported, load the combined concept and leave the children empty. The one exception is a concept declaring sole_component_of: assigning a whole undifferentiated figure to a single child divides nothing, and it is refused as soon as any sibling child is evidenced on the face or in the subtotal's own note.",
+  "totals_policy": "Compute totals from mutually exclusive concept outputs. Use reported totals only for validation, never as an input to the components.",
+  "mutually_exclusive_groups": []
+ },
+ "scope_selection": {
+  "note": "An Indian annual report presents the STANDALONE and the CONSOLIDATED financial statements in full, one after the other, in the same document — so the entity has to be resolved for two complete sets of statements, not for two columns of one.",
+  "entity_scope": {
+   "default": "consolidated",
+   "rule": "Resolve the entity from the statement's own title and column headings, never from position. An Indian filing titles them 'Balance Sheet' / 'Consolidated Balance Sheet' and 'Statement of Profit and Loss' / 'Consolidated Statement of Profit and Loss'; the standalone set is usually printed first and the consolidated set after it, but neither order is universal. Record entity_scope on every fact and never mix the two sets within one statement.",
+   "signals": [
+    "Consolidated",
+    "Standalone",
+    "Separate",
+    "Group",
+    "Company"
+   ],
+   "company_only_markers": [
+    "Presence of bs_nca__investment_in_subsidiaries on the face is strong evidence the statement is STANDALONE, since consolidation eliminates it. An Indian standalone balance sheet prints 'Investments in Subsidiaries and Associates' as its own non-current caption, which the consolidated one replaces with 'Investments in Associates and Joint Ventures' accounted for under the equity method."
+   ]
+  },
+  "period_selection": {
+   "default": "current_reporting_period",
+   "rule": "The Indian financial year ends 31 March, and columns are headed 'As at 31.03.2026' / 'As at 31st March 2026' on the balance sheet and 'Year 2025-26' or 'For the year ended 31st March 2026' on the profit and loss. Identify the current period from the heading date rather than from column position, and load comparatives only into the comparative slot.",
+   "restatement_rule": "Where a comparative is labelled restated, or reopened by a scheme of amalgamation or arrangement ('Restated balance as at 1st April 2024', 'Changes on account of amalgamation'), load it as the comparative and set restated: true. Keep both figures with the flag rather than overwriting an original comparative already loaded — a court- or NCLT-approved scheme routinely restates the opening balance sheet."
+  },
+  "units_and_currency": {
+   "rule": "Resolve currency and scale from the statement header, not the cover page, and re-resolve per statement — an Indian report commonly states the financial statements in crores and a subsidiary schedule or a BRSR table in lakhs or absolute rupees. Persist unit on every fact; never normalise scale silently. 1 crore = 10 million = 100 lakh.",
+   "signals": [
+    "₹ in Crores",
+    "₹ in Lakhs",
+    "₹ in crores",
+    "₹ in lakhs",
+    "` in Crores",
+    "` in crores",
+    "` in Lakhs",
+    "Rs. in crores",
+    "Rs. in lakhs",
+    "Rupees in lakhs",
+    "INR in million",
+    "₹ in million",
+    "₹ crores",
+    "₹ lakhs"
+   ],
+   "conflict": "If the header scale and a printed subtotal are inconsistent by a factor of 100 or 1,000, trust neither and route the statement to review. The factor of 100 is the one to watch on an Indian filing, because it is the lakh-to-crore step and a mis-read there is not an order of magnitude but two."
+  },
+  "column_guard": "Every fact carries the resolved (entity_scope, period, currency, unit). Two facts for the same canonical_key that differ on any of these are distinct facts, not duplicates — which is what keeps the standalone and the consolidated set of the same filing from colliding."
+ },
+ "residual_framework": {
+  "note": "One definition governing the 11 output-template subsection residuals. Each uses an existing template line; no template row is added.",
+  "applies_to": "every concept with value_scope: exclusive_residual",
+  "alias_matching": "disabled",
+  "population": "sweep_only",
+  "sweep": {
+   "runs": "after all dedicated concepts in the section have been resolved, before section reconciliation",
+   "candidate_set": "every printed value row on the FACE of the statement whose resolved section equals the residual's single section_scope value",
+   "eligibility": [
+    "The row printed a value for the selected entity_scope, period, currency and unit.",
+    "No dedicated concept whose section_scope contains this section claimed the row.",
+    "The row is not a section subtotal, statement total, section header, attribution caption, per-share figure, narrative row, note-reference-only row, truncated caption, an \"of which\" breakdown of the row above it or a sub-enumerated component of it ((a)… or 1.… beneath a numbered head) — each of those amounts is already inside the row above, so sweeping it counts the same money twice.",
+    "The row was printed INSIDE this section. A row printed in any other section is ineligible however similar its wording — there is no cross-section rescue.",
+    "The row's sign agrees with the section's sign_convention, where the section states one. A row signed against its section is evidence the SECTION is wrong, not the amount, so it goes to review rather than into the bucket — a cost swept into income moves the income subtotal and every total below it."
+   ],
+   "cross_section": false,
+   "notes_as_source": false,
+   "derivation": "forbidden",
+   "plug_behaviour": "forbidden — the residual is never computed as (reported subtotal − mapped children)",
+   "literal_others_caption": "A row captioned 'Others' or 'Miscellaneous' is simply one unmapped face row and sweeps in as a single component. It gets no privileged treatment and no dedicated concept."
+  },
+  "itemisation": {
+   "required": true,
+   "component_fields": [
+    "source_row_label",
+    "source_row_label_normalised",
+    "source_row_locale",
+    "value",
+    "sign_as_reported",
+    "source_fact_id",
+    "rejected_candidates"
+   ],
+   "aggregation": "sum_of_components",
+   "rule": "The residual's value is the arithmetic sum of its components. Original labels and signs are always retained; a swept row is never relabelled to 'Others'."
+  },
+  "reconciliation": {
+   "identity": "reported_section_subtotal − Σ(dedicated concepts in section) − Σ(residual components) = 0",
+   "tolerance": "one rounding unit per contributing row",
+   "on_failure": "Emit an unallocated_gap fact carrying the difference and route the section to review. Never adjust the residual, and never adjust a dedicated concept, to close the gap.",
+   "sections_without_reported_subtotal": "If the section prints no subtotal, the residual is still itemised but is flagged unreconciled and carries lower confidence."
+  },
+  "review_triggers": [
+   "|residual| exceeds 5% of |reported section subtotal|",
+   "any single component exceeds 2% of |reported section subtotal|",
+   "component count exceeds 6",
+   "a component label scored at or above the semantic threshold against a dedicated concept but was vetoed by exclude_hints",
+   "residual sign is opposite to the section's sign_convention",
+   "the section reconciliation emitted an unallocated_gap"
+  ],
+  "prohibitions": [
+   "Never a balancing plug.",
+   "Never populated by alias, regex or embedding match.",
+   "Never carries a value with no itemised components.",
+   "Never absorbs a row a dedicated concept could have claimed but was not tested for — all dedicated concepts in the section must be evaluated first.",
+   "Never spans sections, statements, periods, entity scopes or units."
+  ]
+ },
+ "prose_grammar": {
+  "note": "How a filing places a figure in a sentence. Authored once: measured over the 28 hand-written patterns this replaces, the subject and the connective were identical on all seven prose lines and only the destination differed.",
+  "connective": [
+   "included in",
+   "charged to",
+   "recognised in",
+   "recognized in",
+   "borne by",
+   "allocated to",
+   "presented in",
+   "reported in",
+   "reported within"
+  ],
+  "subjects": {
+   "depreciation": [
+    "depreciation",
+    "amortisation",
+    "amortization"
+   ]
+  }
+ }
+}

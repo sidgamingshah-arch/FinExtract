@@ -61,7 +61,9 @@ from app.stages.residual import _Residual, _by_canonical_key, _vetoed_by_never_s
 
 TEMPLATES = Path(__file__).resolve().parents[1] / "app" / "sample" / "templates"
 HK_TEMPLATE = TEMPLATES / "output_csv_hk_v1_template.json"
-SHIPPED_TEMPLATES = (HK_TEMPLATE, TEMPLATES / "output_csv_indas_v1_template.json")
+# The Ind AS template prints Schedule III's equity — share capital, other equity, owners' share,
+# non-controlling interests — and not this block.
+SHIPPED_TEMPLATES = (HK_TEMPLATE,)
 
 PERMANENT = "bs_equity__permanent_equity"
 RETAINED = "bs_equity__retained_profits"

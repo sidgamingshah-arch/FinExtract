@@ -62,8 +62,8 @@ def _answer(row):
 
 # --- the Yes/No rows -------------------------------------------------------------------------
 
-@pytest.mark.parametrize("template", ["output_csv_hk_v1_template.json",
-                                      "output_csv_indas_v1_template.json"])
+# The Ind AS template reads the faces only and carries no notes lines, so no Yes/No row.
+@pytest.mark.parametrize("template", ["output_csv_hk_v1_template.json"])
 @pytest.mark.parametrize("found", [[], [{"key": "going_concern", "present": True}],
                                    [{"key": "auditor_qualification", "present": True},
                                     {"key": "commitments", "present": True}]],

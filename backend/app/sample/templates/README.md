@@ -9,8 +9,8 @@ scripts, or fixtures for tests, or both; editing one changes no extracted figure
 | --- | --- | --- | --- |
 | `output_csv_hk_v1_template.json` | live | boot seed (`reference._EXTRA_PAIRS`) | the template every `output_csv_hk` run targets — 480 nodes, **fixed** |
 | `output_csv_hk_line_items.json` | live | boot seed; `services/line_item_config.SEED`; `services/row_reconstruct.in_force_rules` | THE configuration: the line-item set for `output_csv_hk_v1` |
-| `output_csv_indas_v1_template.json` | live | boot seed (`reference._EXTRA_PAIRS`) | the Ind AS template |
-| `output_csv_indas_line_items.json` | live | boot seed (`reference._EXTRA_PAIRS`) | the Ind AS line-item set, for `output_csv_indas_v1` |
+| `output_csv_indas_v1_template.json` | live | boot seed (`reference._EXTRA_PAIRS`) | the Ind AS template (Schedule III Division II face, 111 lines); built by `scripts/build_indas_pair.py` |
+| `output_csv_indas_line_items.json` | live | boot seed (`reference._EXTRA_PAIRS`) | the Ind AS line-item set, for `output_csv_indas_v1`; face-only; built by `scripts/build_indas_pair.py` |
 | `output_csv_icon_v1_template.json` | live | boot seed (`reference._EXTRA_PAIRS`) | the ICON template (Indian bank credit-monitoring spread); built by `scripts/build_icon_pair.py` |
 | `output_csv_icon_line_items.json` | live | boot seed (`reference._EXTRA_PAIRS`) | the ICON line-item set, for `output_csv_icon_v1`; built by `scripts/build_icon_pair.py` |
 | `hkfrs_hk_china_template.json` | live | boot seed (`reference._TEMPLATE`) | the primary template, seeded with no configuration beside it |
