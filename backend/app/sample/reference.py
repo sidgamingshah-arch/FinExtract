@@ -95,6 +95,10 @@ _EXTRA_PAIRS: list[tuple[Path, Path]] = [
     # template and its own set (`target_template_key: output_csv_icon_v1`), built by
     # `scripts/build_icon_pair.py` from the Company v3 workbook draft.
     (_DIR / "output_csv_icon_v1_template.json", _DIR / "output_csv_icon_line_items.json"),
+    # US GAAP, for a Form 10-K: the face of the consolidated balance sheets, statements of
+    # operations and statements of cash flows, its own template and set
+    # (`target_template_key: output_csv_usgaap_v1`), built by `scripts/build_usgaap_pair.py`.
+    (_DIR / "output_csv_usgaap_v1_template.json", _DIR / "output_csv_usgaap_line_items.json"),
 ]
 
 # Item-level keys the line-item schema does not declare AND whose loss is already measured,

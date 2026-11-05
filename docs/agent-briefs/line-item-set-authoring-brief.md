@@ -13,13 +13,13 @@ This brief has four parts:
 - the rules your output must pass, the pitfalls the code records, and what to hand back
   (§6–§9).
 
-Paths are relative to the repository root. The three shipped sets are your working examples:
+Paths are relative to the repository root. The four shipped sets are your working examples:
 
-| | HK (HKFRS / CAS filings) | Ind AS (Schedule III filings) | ICON (Indian bank CMA spread) |
-|---|---|---|---|
-| Template | `backend/app/sample/templates/output_csv_hk_v1_template.json` | `backend/app/sample/templates/output_csv_indas_v1_template.json` | `backend/app/sample/templates/output_csv_icon_v1_template.json` |
-| Line-item set | `backend/app/sample/templates/output_csv_hk_line_items.json` | `backend/app/sample/templates/output_csv_indas_line_items.json` | `backend/app/sample/templates/output_csv_icon_line_items.json` |
-| Size | 480 keyed nodes (18 section headers + 462 figure lines); 529 items (462 template + 67 internal) | 121 nodes (10 section headers + 111 figure lines); 111 items, no internal parts — face only, built by `backend/scripts/build_indas_pair.py` | 199 nodes (17 headers + 182 figure lines); 182 items, no internal parts |
+| | HK (HKFRS / CAS filings) | Ind AS (Schedule III filings) | ICON (Indian bank CMA spread) | US GAAP (Form 10-K filings) |
+|---|---|---|---|---|
+| Template | `backend/app/sample/templates/output_csv_hk_v1_template.json` | `backend/app/sample/templates/output_csv_indas_v1_template.json` | `backend/app/sample/templates/output_csv_icon_v1_template.json` | `backend/app/sample/templates/output_csv_usgaap_v1_template.json` |
+| Line-item set | `backend/app/sample/templates/output_csv_hk_line_items.json` | `backend/app/sample/templates/output_csv_indas_line_items.json` | `backend/app/sample/templates/output_csv_icon_line_items.json` | `backend/app/sample/templates/output_csv_usgaap_line_items.json` |
+| Size | 480 keyed nodes (18 section headers + 462 figure lines); 529 items (462 template + 67 internal) | 121 nodes (10 section headers + 111 figure lines); 111 items, no internal parts — face only, built by `backend/scripts/build_indas_pair.py` | 199 nodes (17 headers + 182 figure lines); 182 items, no internal parts | 109 nodes (10 section headers + 99 figure lines); 99 items, no internal parts — face only, built by `backend/scripts/build_usgaap_pair.py` |
 
 ICON is the closest example of a set made from a client workbook: `backend/scripts/build_icon_pair.py`
 builds both of its files from the workbook's own formulas and a curated caption file

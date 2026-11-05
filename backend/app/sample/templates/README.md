@@ -1,6 +1,6 @@
 # Reference data — which of these files the product reads
 
-Fourteen files ship here. **Seven are read by the product**: `app/sample/reference.py` seeds them into
+Sixteen files ship here. **Nine are read by the product**: `app/sample/reference.py` seeds them into
 the versioned tables at every boot (and holds the database to them on every restart), and a run
 reads them from there. **The other seven are read by no boot and no run.** They are inputs to build
 scripts, or fixtures for tests, or both; editing one changes no extracted figure.
@@ -13,6 +13,8 @@ scripts, or fixtures for tests, or both; editing one changes no extracted figure
 | `output_csv_indas_line_items.json` | live | boot seed (`reference._EXTRA_PAIRS`) | the Ind AS line-item set, for `output_csv_indas_v1`; face-only; built by `scripts/build_indas_pair.py` |
 | `output_csv_icon_v1_template.json` | live | boot seed (`reference._EXTRA_PAIRS`) | the ICON template (Indian bank credit-monitoring spread); built by `scripts/build_icon_pair.py` |
 | `output_csv_icon_line_items.json` | live | boot seed (`reference._EXTRA_PAIRS`) | the ICON line-item set, for `output_csv_icon_v1`; built by `scripts/build_icon_pair.py` |
+| `output_csv_usgaap_v1_template.json` | live | boot seed (`reference._EXTRA_PAIRS`) | the US GAAP template (Form 10-K face: balance sheet, statement of operations, cash flows); built by `scripts/build_usgaap_pair.py` |
+| `output_csv_usgaap_line_items.json` | live | boot seed (`reference._EXTRA_PAIRS`) | the US GAAP line-item set, for `output_csv_usgaap_v1`; face-only; built by `scripts/build_usgaap_pair.py` |
 | `hkfrs_hk_china_template.json` | live | boot seed (`reference._TEMPLATE`) | the primary template, seeded with no configuration beside it |
 | `output_csv_hk_ontology.json` | build input | `scripts/build_line_items.py`; about a dozen test files | the old rulebook; the build projects it into the line-item set |
 | `output_csv_hk_line_items_configured.json` | build input | `scripts/build_line_items.py` | the hand-maintained half of that build's merge |

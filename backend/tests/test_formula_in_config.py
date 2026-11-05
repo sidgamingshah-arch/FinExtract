@@ -39,10 +39,13 @@ INDAS_SEED = TEMPLATES / "output_csv_indas_line_items.json"
 INDAS_TEMPLATE = TEMPLATES / "output_csv_indas_v1_template.json"
 ICON_SEED = TEMPLATES / "output_csv_icon_line_items.json"
 ICON_TEMPLATE = TEMPLATES / "output_csv_icon_v1_template.json"
+USGAAP_SEED = TEMPLATES / "output_csv_usgaap_line_items.json"
+USGAAP_TEMPLATE = TEMPLATES / "output_csv_usgaap_v1_template.json"
 # Every regime is held to its OWN template. The Ind AS set once carried the HK set's terms
 # verbatim — 19 subtotals naming 230 keys it does not define.
-REGIMES = [(SEED, TEMPLATE), (INDAS_SEED, INDAS_TEMPLATE), (ICON_SEED, ICON_TEMPLATE)]
-_IDS = ["hk", "indas", "icon"]
+REGIMES = [(SEED, TEMPLATE), (INDAS_SEED, INDAS_TEMPLATE), (ICON_SEED, ICON_TEMPLATE),
+           (USGAAP_SEED, USGAAP_TEMPLATE)]
+_IDS = ["hk", "indas", "icon", "usgaap"]
 
 # The two whose rollup subtracts from their own reported total.
 SELF_REFERENCING = {"bs_ca__inventories", "bs_equity__retained_profits"}
