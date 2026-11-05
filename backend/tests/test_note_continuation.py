@@ -151,6 +151,9 @@ def test_a_split_note_heading_is_recovered_as_one_note():
      "the middle of an English sentence"),
     ("28. 36% (2024: 28.36%) in Porchester", "a percentage split across its decimal point"),
     ("14. ;", "punctuation names nothing"),
+    # A bare number and a dash is a wrapped reference, not a heading: Asian Paints prints "Ind AS"
+    # at the end of one line and this at the start of the next.
+    ("107 – Financial Instruments: Disclosures: The", "a standard's number wrapped onto a new line"),
 ])
 def test_prose_is_not_a_note_heading(text, why):
     from app.core.models.geometry import BBox
@@ -170,6 +173,10 @@ def test_prose_is_not_a_note_heading(text, why):
     ("27. CASH AND CASH EQUIVALENTS, 27. 現金及現金等價物、受限制現金", "27"),
     ("Note 15: Trade receivables", "15"),
     ("15. Trade receivables", "15"),
+    # The forms a US 10-K prints: "Note" and a dash, en or em.
+    ("Note 4 – Consolidated Financial Statement Details", "4"),
+    ("NOTE 5 — INVENTORIES", "5"),
+    ("Note 12 - Related Party Transactions", "12"),
     # A Chinese-only heading, which is the case the sentence-punctuation guard must not catch.
     ("17. 無形資產", "17"),
 ])

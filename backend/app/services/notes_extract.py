@@ -792,6 +792,15 @@ def _is_heading(row: list[Word]) -> tuple[str, str] | None:
         return None
     no = m.group("no")
     title = m.group("title").strip(" :.-")
+    # A US 10-K SETS ITS NOTE HEADINGS WITH A DASH: "Note 4 – Consolidated Financial Statement
+    # Details", "NOTE 5 — INVENTORIES". The en and em dash were not separators here, so the title
+    # began with one, which names nothing, and every such heading was refused: on two 10-K layouts
+    # the reader found no note at all. Only after "Note", because a bare number and a dash is how
+    # prose reads when a reference wraps — Asian Paints 2025-26 prints "Ind AS" / "107 – Financial
+    # Instruments: Disclosures: The …", and no "Note N –" line is printed by any of the five
+    # reference filings or the two Ind AS filings, so the change reads no line of theirs differently.
+    if starts_note:
+        title = title.lstrip("–— ").strip(" :.-")
     # Require an explicit "Note" prefix OR a title, so a bare number isn't a false heading.
     if not starts_note and not title:
         return None
