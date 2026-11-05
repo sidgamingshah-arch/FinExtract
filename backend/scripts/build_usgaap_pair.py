@@ -1,4 +1,4 @@
-"""Build the US GAAP (Form 10-K) template and its line-item set: the face of three statements.
+"""Build the US GAAP (Form 10-K) template and its line-item set: three statements and additional items.
 
     python scripts/build_usgaap_pair.py     # writes app/sample/templates/output_csv_usgaap_*
 
@@ -11,6 +11,13 @@ WHAT IT DECIDES, and why:
   ``note_source``, and the set declares ``strict_face_route``, so no stage puts a note's figure on
   a line: a row the face does not print is left empty. The statement of comprehensive income, the
   statement of stockholders' equity, earnings per share and share counts are not carried.
+* ADDITIONAL ITEMS, READ FROM THE NOTES AND THE AUDITOR'S REPORT, as a fourth statement of the
+  template (`NOTE_LINES`): the supplemental cash flow disclosures, debt maturities, principal and
+  fair value, the current and deferred tax and the effective tax rate, the inventory split,
+  property at cost and accumulated depreciation, the auditor's report (the firm, the opinion's
+  heading and sentences, the internal-control opinion, the going-concern paragraph, the first
+  critical audit matter), contingent liabilities and related-party transactions. They are the
+  only lines not read off a statement's face, and none of them feeds a statement's arithmetic.
 * THE LINES ARE THE ROWS 10-K FILERS PRINT MOST. Which rows those are is not guessed: the face
   rows of the XBRL financial data filed with 10-Ks, ranked by how often a filer prints each one,
   put Total assets, Total liabilities and stockholders' equity, Retained earnings, Cash and cash
@@ -95,6 +102,7 @@ SECTIONS = [
     ("cf_financing", "Financing activities", "cash_flow", ["cf_financing"], "either",
      "cash_flow_financing"),
 ]
+NOTES_LABEL = "Additional Items"
 STATEMENT_LABELS = {"balance_sheet": "Consolidated Balance Sheets",
                     "profit_and_loss": "Consolidated Statements of Operations",
                     "cash_flow": "Consolidated Statements of Cash Flows"}
@@ -1053,6 +1061,315 @@ LINES = {
 # stops at a statement-level total (`stages.residual`, the `*_top_level` scopes).
 SCOPE_OVERRIDES = {"cf_financing__end_of_period_cash_and_cash_equiv": ["cf_top_level"]}
 
+# ── ADDITIONAL ITEMS: read from the notes and the auditor's report ─────────────────────────────
+#
+# A fourth statement of the template, `notes`, and the only lines of the set that are not read
+# off a statement's face. Each says where it is read from and nothing more:
+#
+#   * a figure the note TABULATES under a caption 10-K filers print the same way ("Raw materials",
+#     "Total current", "Thereafter", "Accumulated depreciation") is read by a `note_source` with
+#     row patterns, inside the note its title names — and the model may still cite it;
+#   * a figure whose caption is not fixed or that is often stated in a sentence (letters of credit
+#     outstanding, the fair value of debt) is the model's alone, with `note_terms` saying which
+#     notes it is shown. THE DEBT MATURITY TABLE IS THE MODEL'S, row patterns or not, and cited
+#     from the page text: a note's second table reads on the first table's column grid, so on two
+#     test layouts the single-column maturities landed under the comparative's "2024" heading, their
+#     year captions lost or cut to "Fiscal", and a "Thereafter" row pattern put this year's figure
+#     in the prior year;
+#   * TEXT is lifted off the page as printed (`phrase`) and checked against that page: the
+#     auditor, the opinion heading and sentences, the going-concern paragraph, the first critical
+#     audit matter, the contingencies and related-party sentences, and the effective tax rate with
+#     its percent sign, so no statement unit can scale it. Nothing is GENERATED: a `prose` line
+#     cannot be loaded (its prompt is folded into the definition before the check that requires
+#     one) and nothing downstream reads one (`services.text_lines`), and a written summary could
+#     not be checked against the page in any case.
+#
+# NO NOTE LINE DECLARES A SECTION SCOPE. A note-reading line scoped to a section is closed to a
+# note the face cites from a different one (`note_sections.open_to`), and every note here is
+# cited from the face — "Long-term debt (Note 5)" ties the debt note to the non-current
+# liabilities. Unscoped, the line is open to every note, and its title patterns choose.
+NOTE_SECTIONS = [
+    ("notes_cash", "Cash flow supplemental"),
+    ("notes_debt", "Debt"),
+    ("notes_tax", "Income taxes"),
+    ("notes_assets", "Inventories and property"),
+    ("notes_audit", "Auditor's report"),
+    ("notes_contingencies", "Commitments and contingencies"),
+    ("notes_related", "Related parties"),
+]
+
+
+def NS(title=(), rows=(), none=(), terms=()):
+    """A `note_source`: the note's title patterns, the rows that count, the rows that never do,
+    and the plain terms that say which notes the model is shown."""
+    out = {}
+    if title:
+        out["note_title_any"] = list(title)
+    if rows:
+        out["row_caption_any"] = list(rows)
+    if none:
+        out["row_caption_none"] = list(none)
+    if terms:
+        out["note_terms"] = list(terms)
+    return out
+
+
+def N(key, label, definition, *, route="note_tables", note=None, structure="value",
+      statements=("notes",), aliases=(), regex=(), exclude=(), scope=(), sign="either",
+      instant=False):
+    """One additional item."""
+    return {"key": key, "label": label, "definition": definition, "route": route, "note": note,
+            "structure": structure, "statements": list(statements),
+            "aliases": list(aliases), "regex": list(regex), "exclude": list(exclude),
+            "scope": list(scope), "sign": sign, "instant": instant}
+
+
+_DEBT_TITLE = [r"\bdebt\b", r"\bborrowings\b", r"notes\s+payable", r"credit\s+(?:facilities|agreements?)"]
+_DEBT_TERMS = ["debt", "long-term debt", "term debt", "borrowings", "notes payable", "senior notes",
+               "credit facility", "maturities of debt"]
+_TAX_TITLE = [r"income\s+tax", r"taxes\s+on\s+income"]
+_TAX_TERMS = ["income taxes", "provision for income taxes", "current and deferred income taxes",
+              "effective tax rate"]
+_DETAIL = r"(?:financial\s+statement|balance\s+sheet)\s+(?:details|components|information)"
+_INV_TITLE = [r"inventor", _DETAIL]
+_PPE_TITLE = [r"property(?:,)?\s+(?:plant(?:,)?\s+)?(?:and\s+)?equipment", r"fixed\s+assets", _DETAIL]
+_AUDIT_TERMS = ["report of independent registered public accounting firm", ("opinion on the "
+                "financial statements"), "critical audit matters", ("internal control over financial "
+                "reporting")]
+_CC_TITLE = [r"commitments", r"contingenc", r"guarantees", r"legal\s+proceedings"]
+_CC_TERMS = ["commitments and contingencies", "contingencies", "legal proceedings", "litigation",
+             "guarantees", "letters of credit", "purchase obligations"]
+_RP_TITLE = [r"related[\s-]+part(?:y|ies)", r"transactions\s+with\s+affiliates"]
+_RP_TERMS = ["related party transactions", "related parties", "transactions with affiliates"]
+# The title a 10-K's auditor's report prints at its head: the name that sends a text line the page.
+_REPORT = ["Report of Independent Registered Public Accounting Firm"]
+_YEAR_WORDS = {1: "first", 2: "second", 3: "third", 4: "fourth", 5: "fifth"}
+
+NOTE_LINES = {
+    "notes_cash": [
+        N("notes_cash__interest_paid", "Cash paid for interest",
+          "Interest paid in cash during the year, net of amounts capitalised where the filing nets "
+          "them, as the supplemental cash flow disclosure prints it: below the statement of cash "
+          "flows or in a note. Not interest received.",
+          route="anywhere", statements=("cash_flow", "notes"), scope=["cf_top_level"],
+          aliases=["Cash paid for interest", "Interest paid", "Cash paid for interest, net of amounts capitalized",
+                   "Interest paid, net of capitalized interest", "Cash paid during the year for interest"],
+          regex=[E + r"(?:cash\s+paid\s+(?:during\s+the\s+(?:year|period)\s+)?for\s+interest|interest\s+paid)\b.*$"],
+          exclude=[r"received", r"income\s+tax"],
+          note=NS(title=[r"supplemental", r"cash\s+flow\s+information"],
+                  rows=[r"^\s*(?:cash\s+paid\s+(?:during\s+the\s+(?:year|period)\s+)?for\s+)?interest(?:\s+paid)?\b"],
+                  none=[r"received|income|capitali[sz]ed\s+interest\s*$"],
+                  terms=["supplemental cash flow information", "cash paid for interest"])),
+        N("notes_cash__income_taxes_paid", "Cash paid for income taxes",
+          "Income taxes paid in cash during the year, net of refunds where the filing nets them, "
+          "as the supplemental cash flow disclosure prints it: below the statement of cash flows "
+          "or in a note.",
+          route="anywhere", statements=("cash_flow", "notes"), scope=["cf_top_level"],
+          aliases=["Cash paid for income taxes, net", "Income taxes paid", "Cash paid for income taxes",
+                   "Income taxes paid, net of refunds", "Cash paid during the year for income taxes"],
+          regex=[E + r"(?:cash\s+paid\s+(?:during\s+the\s+(?:year|period)\s+)?for\s+(?:income\s+)?taxes|"
+                 r"(?:income\s+)?taxes\s+paid)\b.*$"],
+          exclude=[r"interest", r"refunds?\s+received"],
+          note=NS(title=[r"supplemental", r"cash\s+flow\s+information"],
+                  rows=[(r"^\s*(?:cash\s+paid\s+(?:during\s+the\s+(?:year|period)\s+)?for\s+)?(?:income\s+)?taxes"
+                        r"(?:\s+paid)?\b")],
+                  none=[r"interest|deferred|payable"],
+                  terms=["supplemental cash flow information", "cash paid for income taxes"])),
+    ],
+    "notes_debt": [
+        *[N(f"notes_debt__due_in_year_{n}", f"Debt maturing in year {n}",
+            f"The principal of debt due in the {_YEAR_WORDS[n]} fiscal year after the balance-sheet "
+            f"date, from the debt note's table of future principal payments or maturities: the row "
+            f"for that year ('{2025 + n}' for a 2025 year-end). Principal, before unamortised "
+            f"discount and issuance costs; the current year-end only. Lease payments and interest "
+            f"are not this line. Cite the printed table line from the page.",
+            route="anywhere", note=NS(terms=_DEBT_TERMS), instant=True) for n in range(1, 6)],
+        N("notes_debt__due_thereafter", "Debt maturing thereafter",
+          "The principal of debt due after the fifth fiscal year following the balance-sheet date: "
+          "the 'Thereafter' row of the debt note's table of future principal payments. Lease "
+          "payments and interest are not this line. Cite the printed table line from the page.",
+          route="anywhere", note=NS(terms=_DEBT_TERMS), instant=True),
+        N("notes_debt__total_principal", "Total debt principal",
+          "The total principal (face) amount of debt outstanding at the balance-sheet date, as the "
+          "debt note prints it: the total of the table of future principal payments or the 'total "
+          "principal' row, before unamortised discount, premium and issuance costs and before the "
+          "current portion is deducted.",
+          note=NS(title=_DEBT_TITLE,
+                  rows=[r"^\s*total\s+(?:term\s+|long[\s-]+term\s+)?(?:debt|borrowings|notes)\s+principal\b",
+                        r"^\s*total\s+(?:principal|face)\s+(?:amount|value)\b",
+                        r"^\s*total\s+principal\b"],
+                  none=[r"fair\s+value|current\s+portion|less|net\s+of|unamortized|carrying"],
+                  terms=_DEBT_TERMS), instant=True),
+        N("notes_debt__fair_value", "Fair value of debt",
+          "The estimated fair value of the filer's debt at the balance-sheet date, as the debt or "
+          "fair-value note states it, often in a sentence ('the fair value of our long-term debt "
+          "was $88.4 billion'). Expressed in the statements' unit.",
+          route="anywhere", note=NS(terms=_DEBT_TERMS + ["fair value"]), instant=True),
+    ],
+    "notes_tax": [
+        N("notes_tax__current_income_tax", "Current income tax expense",
+          "The current part of the income tax expense for the year, federal, state and foreign "
+          "together: the 'Total current' row of the income tax note's table of the components of "
+          "the provision.",
+          note=NS(title=_TAX_TITLE,
+                  rows=[r"^\s*total\s+current\b(?!\s+(?:assets|liabilit))",
+                        r"^\s*current\s+(?:income\s+)?tax(?:es)?(?:\s+(?:expense|provision))?\s*$"],
+                  none=[r"deferred|\bassets?\b|liabilit|payable|receivable"], terms=_TAX_TERMS)),
+        N("notes_tax__deferred_income_tax", "Deferred income tax expense (benefit)",
+          "The deferred part of the income tax expense or benefit for the year: the 'Total "
+          "deferred' row of the income tax note's table of the components of the provision. Not "
+          "the deferred tax assets or liabilities at the year-end.",
+          note=NS(title=_TAX_TITLE,
+                  rows=[r"^\s*total\s+deferred\b(?!\s+(?:income\s+)?tax(?:es)?\s+(?:assets|liabilit))",
+                        r"^\s*deferred\s+(?:income\s+)?tax(?:es)?\s+(?:expense|benefit|provision)\b",
+                        r"^\s*deferred\s+(?:income\s+)?tax(?:es)?\s*$"],
+                  none=[r"\bassets?\b|liabilit|valuation"], terms=_TAX_TERMS)),
+        N("notes_tax__effective_tax_rate", "Effective tax rate",
+          "The effective income tax rate for the year as the filing prints it, with its percent "
+          "sign ('16.0%'): from the income tax note's rate reconciliation or the sentence stating "
+          "it. The current year only.",
+          route="anywhere", structure="phrase", note=NS(terms=_TAX_TERMS)),
+    ],
+    "notes_assets": [
+        N("notes_assets__raw_materials", "Inventories: raw materials",
+          "Raw materials and supplies held in inventory at the year-end, from the inventories note "
+          "or the balance-sheet details note.",
+          note=NS(title=_INV_TITLE, rows=[r"^\s*raw\s+materials?\b"], none=[r"total|reserve|lifo"],
+                  terms=["inventories", "raw materials"]), instant=True, sign="positive_expected"),
+        N("notes_assets__work_in_process", "Inventories: work in process",
+          "Work in process held in inventory at the year-end, from the inventories note or the "
+          "balance-sheet details note.",
+          note=NS(title=_INV_TITLE, rows=[r"^\s*work[\s-]+in[\s-]+(?:process|progress)\b"],
+                  none=[r"total|reserve|lifo"], terms=["inventories", "work in process"]),
+          instant=True, sign="positive_expected"),
+        N("notes_assets__finished_goods", "Inventories: finished goods",
+          "Finished goods (or finished products) held in inventory at the year-end, from the "
+          "inventories note or the balance-sheet details note.",
+          note=NS(title=_INV_TITLE, rows=[r"^\s*finished\s+(?:goods|products)\b"],
+                  none=[r"total|reserve|lifo"], terms=["inventories", "finished goods"]),
+          instant=True, sign="positive_expected"),
+        N("notes_assets__ppe_at_cost", "Property, plant and equipment, at cost",
+          "Property, plant and equipment at cost, before accumulated depreciation: the gross total "
+          "of the property note's table ('Gross property, plant and equipment', 'Total, at cost').",
+          note=NS(title=_PPE_TITLE,
+                  rows=[r"^\s*(?:total\s+)?gross\s+property\b",
+                        (r"^\s*(?:total\s+)?property(?:,)?\s+(?:plant(?:,)?\s+)?(?:and\s+)?equipment(?:,)?\s+"
+                        r"(?:at\s+cost|gross)\b"),
+                        r"^\s*total(?:,)?\s+at\s+cost\b"],
+                  none=[r"\bnet\b", r"accumulated", r"expense"],
+                  terms=["property, plant and equipment", "gross"]), instant=True,
+          sign="positive_expected"),
+        N("notes_assets__accumulated_depreciation", "Accumulated depreciation",
+          "Accumulated depreciation and amortisation of property, plant and equipment at the "
+          "year-end, with the sign the property note gives it (usually printed as a deduction).",
+          note=NS(title=_PPE_TITLE,
+                  rows=[r"^\s*(?:less\s*:?\s*)?accumulated\s+depreciation\b"],
+                  none=[r"expense|charge|for\s+the\s+year|intangible"],
+                  terms=["property, plant and equipment", "accumulated depreciation"]), instant=True),
+    ],
+    "notes_audit": [
+        N("notes_audit__auditor", "Independent auditor",
+          "The registered public accounting firm that signs the report on the consolidated "
+          "financial statements, as printed in its signature without the '/s/' (for example "
+          "'Hartwell & Rowe LLP'). Not the engagement partner.",
+          route="anywhere", structure="phrase", note=NS(terms=_AUDIT_TERMS), aliases=_REPORT),
+        N("notes_audit__opinion_type", "Audit opinion (as headed)",
+          "The kind of opinion the auditor expresses on the consolidated financial statements, as "
+          "the report names it: the heading of its opinion section, copied as printed. A US "
+          "report heads an unqualified opinion 'Opinion on the Financial Statements', and a "
+          "modified one 'Qualified Opinion', 'Adverse Opinion' or 'Disclaimer of Opinion'. Not "
+          "the heading of the opinion on internal control.",
+          route="anywhere", structure="phrase", note=NS(terms=_AUDIT_TERMS),
+          aliases=["Audit Opinion"] + _REPORT),
+        N("notes_audit__opinion_on_financial_statements", "Opinion on the financial statements",
+          "The auditor's opinion on the consolidated financial statements, in the auditor's own "
+          "words: the sentence of the report's opinion section that begins 'In our opinion', "
+          "copied as printed. Not the opinion on internal control.",
+          route="anywhere", structure="phrase", note=NS(terms=_AUDIT_TERMS), aliases=_REPORT),
+        N("notes_audit__opinion_on_internal_control", "Opinion on internal control",
+          "The auditor's opinion on the filer's internal control over financial reporting, in the "
+          "auditor's own words: the sentence of that report's opinion section that begins 'In our "
+          "opinion', copied as printed, whether it finds control effective or not. Empty where the "
+          "10-K carries no auditor's report on internal control.",
+          route="anywhere", structure="phrase", note=NS(terms=_AUDIT_TERMS), aliases=_REPORT),
+        N("notes_audit__going_concern", "Going concern paragraph",
+          "The first sentence of the auditor's going-concern paragraph, copied as printed: the "
+          "sentence stating that conditions raise substantial doubt about the filer's ability to "
+          "continue as a going concern. Empty when the report includes no such paragraph.",
+          route="anywhere", structure="phrase", note=NS(terms=_AUDIT_TERMS + ["going concern"]),
+          aliases=_REPORT),
+        N("notes_audit__critical_audit_matter", "Critical audit matter",
+          "The title of the first critical audit matter the auditor's report communicates, copied "
+          "as printed (for example 'Uncertain Tax Positions'); or the report's sentence stating that "
+          "there are no critical audit matters.",
+          route="anywhere", structure="phrase", note=NS(terms=_AUDIT_TERMS), aliases=_REPORT),
+    ],
+    "notes_contingencies": [
+        N("notes_contingencies__assessment", "Contingencies: the filer's assessment",
+          "The sentence of the commitments and contingencies note (or the legal proceedings note) "
+          "that states the filer's conclusion on its legal proceedings, claims and other "
+          "contingencies, copied as printed: whether a loss is probable, an amount is accrued, or "
+          "the outcome is not expected to have a material adverse effect (ASC 450). Empty when "
+          "the notes disclose no contingencies.",
+          route="anywhere", structure="phrase", note=NS(terms=_CC_TERMS)),
+        N("notes_contingencies__guarantees_and_letters_of_credit", "Guarantees and letters of credit",
+          "The guarantees, standby letters of credit and surety bonds the filer has issued and that "
+          "are outstanding at the balance-sheet date, summed: the maximum potential amount of future "
+          "payments the notes state (ASC 460). Not the undrawn capacity of a credit facility.",
+          route="anywhere", note=NS(terms=_CC_TERMS), instant=True),
+        N("notes_contingencies__accrued_loss_contingencies", "Accrued loss contingencies",
+          "The amount recognised as a liability at the balance-sheet date for loss contingencies "
+          "(litigation, claims, environmental and similar matters), as the notes state it. Empty "
+          "where the filing states no amount.",
+          route="anywhere", note=NS(terms=_CC_TERMS), instant=True),
+        N("notes_contingencies__purchase_obligations", "Purchase obligations",
+          "The total of the filer's unconditional purchase obligations and purchase commitments at "
+          "the balance-sheet date, as the commitments note prints or states it.",
+          route="anywhere",
+          note=NS(title=_CC_TITLE,
+                  rows=[r"^\s*total\s+(?:unconditional\s+)?purchase\s+(?:obligations|commitments)\b"],
+                  terms=_CC_TERMS), instant=True),
+    ],
+    "notes_related": [
+        N("notes_related__disclosure", "Related parties: the disclosure",
+          "The sentence of the related-party note that describes the principal related-party "
+          "relationship and the transactions with it, or that states the filer had no material "
+          "related-party transactions, copied as printed (ASC 850). Empty when the filing says "
+          "nothing about related parties.",
+          route="anywhere", structure="phrase", note=NS(terms=_RP_TERMS)),
+        N("notes_related__sales_to_related_parties", "Sales to related parties",
+          "Revenue from sales of goods and services to related parties during the year, as the "
+          "related-party note prints or states it.",
+          route="anywhere",
+          note=NS(title=_RP_TITLE,
+                  rows=[r"^\s*(?:net\s+)?(?:sales|revenues?)\s+(?:to|from)\b"],
+                  none=[r"due|receivable|payable|balance"], terms=_RP_TERMS)),
+        N("notes_related__purchases_from_related_parties", "Purchases from related parties",
+          "Purchases of goods and services from related parties during the year, including rent and "
+          "fees paid to them, as the related-party note prints or states it; where the note prints "
+          "several kinds on separate rows, the rows are added.",
+          route="anywhere",
+          note=NS(title=_RP_TITLE,
+                  rows=[r"^\s*purchases?\s+(?:of\s+[a-z ]{0,40}?)?from\b",
+                        r"^\s*(?:fees|rent|payments)\s+(?:paid\s+)?to\b"],
+                  none=[r"due|receivable|payable|balance"], terms=_RP_TERMS)),
+        N("notes_related__due_from_related_parties", "Amounts due from related parties",
+          "Receivables from related parties at the balance-sheet date, as the related-party note "
+          "prints or states them.",
+          route="anywhere",
+          note=NS(title=_RP_TITLE,
+                  rows=[r"^\s*(?:amounts?\s+)?(?:due|receivables?)\s+from\b"],
+                  terms=_RP_TERMS), instant=True),
+        N("notes_related__due_to_related_parties", "Amounts due to related parties",
+          "Payables to related parties at the balance-sheet date, as the related-party note prints "
+          "or states them.",
+          route="anywhere",
+          note=NS(title=_RP_TITLE,
+                  rows=[r"^\s*(?:amounts?\s+)?(?:due|payables?)\s+to\b"],
+                  terms=_RP_TERMS), instant=True),
+    ],
+}
+
 
 def _hint(aliases: list[str], statement: str) -> list[str]:
     """The line's own captions as one rule-tier regex, behind a leading enumerator, a "Less:" and
@@ -1129,9 +1446,12 @@ PROMPT = (
     "GAAP: the Consolidated Balance Sheets, the Consolidated Statements of Operations (or Income) "
     "and the Consolidated Statements of Cash Flows. Amounts are in US dollars, usually in millions or "
     "thousands except per-share amounts; the statements of operations and of cash flows print three "
-    "years and the balance sheet two. Every line of this template is a row the face of those "
+    "years and the balance sheet two. Every line of the three statements is a row the face of those "
     "statements prints: cite the printed statement row, never a note, and leave a line empty when the "
-    "face does not print it. A 10-K balance sheet usually prints no 'Non-current assets' or "
+    "face does not print it. The additional items are read from the notes, the supplemental cash flow "
+    "disclosures and the report of the independent registered public accounting firm, as each line "
+    "says; a text item is copied or written exactly as its line asks, and left empty when the filing "
+    "does not disclose it. A 10-K balance sheet usually prints no 'Non-current assets' or "
     "'Non-current liabilities' heading: the rows after 'Total current assets' and before 'Total "
     "assets' are non-current assets, and the rows after 'Total current liabilities' and before the "
     "equity are non-current liabilities. Expenses are read as printed, positive.")
@@ -1161,6 +1481,14 @@ def build() -> tuple[dict, dict]:
             assert child in section_of, (spec["key"], child)
         for pattern in spec["regex"] + spec["exclude"]:
             re.compile(pattern)
+    for sid, _slabel in NOTE_SECTIONS:
+        for spec in NOTE_LINES[sid]:
+            assert spec["key"] not in section_of, spec["key"]
+            section_of[spec["key"]] = sid
+            note = spec["note"] or {}
+            for pattern in (spec["regex"] + spec["exclude"] + note.get("note_title_any", [])
+                            + note.get("row_caption_any", []) + note.get("row_caption_none", [])):
+                re.compile(pattern)
 
     # ── template ────────────────────────────────────────────────────────────────────────────────
     statements = []
@@ -1187,8 +1515,16 @@ def build() -> tuple[dict, dict]:
                                  "rhs": {"op": "sum",
                                          "children": ["bs_cl__total_equity_and_liabilities"]}}]
         statements.append(st)
+    statements.append({
+        "type": "notes", "label": NOTES_LABEL, "label_i18n": {"en": NOTES_LABEL},
+        "sections": [{"node_id": sid, "canonical_key": sid, "label": slabel,
+                      "label_i18n": {"en": slabel}, "role": "header",
+                      "children": [{"node_id": spec["key"], "canonical_key": spec["key"],
+                                    "label": spec["label"], "label_i18n": {"en": spec["label"]},
+                                    "role": "line"} for spec in NOTE_LINES[sid]]}
+                     for sid, slabel in NOTE_SECTIONS]})
     template = {"schema_version": 1, "template_key": TEMPLATE_KEY,
-                "name": "US GAAP (Form 10-K) — face of the statements",
+                "name": "US GAAP (Form 10-K) — the statements and additional items",
                 "statements": statements, "kpis": KPIS}
 
     # ── line-item set ───────────────────────────────────────────────────────────────────────────
@@ -1246,12 +1582,49 @@ def build() -> tuple[dict, dict]:
                                              for x in spec["exclude"]]
             items.append(item)
 
+    face_lines = len(items)
+    for sid, _slabel in NOTE_SECTIONS:
+        section_defaults[sid] = {"statement": "notes", "section_scope": [],
+                                 "temporality": "duration", "sign_convention": "either"}
+        for spec in NOTE_LINES[sid]:
+            order += 1
+            k = spec["key"]
+            text = spec["structure"] != "value"
+            item = {
+                "key": k, "label": spec["label"], "type": "extracted",
+                "namespace": "template", "in_output": True, "inherits": sid,
+                "statements": list(spec["statements"]), "section_scope": list(spec["scope"]),
+                "order": order, "definition": icon._prose(spec["definition"]),
+                "temporality": "instant" if spec["instant"] else "duration",
+                "unit_of_account": "balance" if spec["instant"] else "flow",
+                "sign_convention": spec["sign"], "analyst_bucket": "others",
+                "match_priority": 80, "route": spec["route"],
+            }
+            if text:
+                item["output_structure"] = spec["structure"]
+            if spec["note"]:
+                item["note_source"] = copy.deepcopy(spec["note"])
+            if spec["aliases"] and text:
+                # A TEXT LINE'S NAMES choose the pages it is sent (`text_lines.select_pages`); it
+                # binds no row, so it carries no pattern.
+                item["aliases"] = list(spec["aliases"])
+                item["aliases_i18n"] = {"en": list(spec["aliases"])}
+            elif spec["aliases"]:
+                aliases, held = icon._variants(spec["aliases"])
+                item["aliases"] = aliases
+                item["aliases_i18n"] = {"en": list(aliases)}
+                item["regex_hints"] = (_hint(aliases, spec["statements"][0])
+                                       + [icon._printed_hint(h) for h in held] + spec["regex"])
+            if spec["exclude"]:
+                item["exclude_hints"] = [f"(?i){x}" for x in spec["exclude"]]
+            items.append(item)
+
     rules = copy.deepcopy(policy["global_rules"])
     rules["sign_convention"] = {**SIGN_CONVENTION,
                                 "either": policy["global_rules"]["sign_convention"]["either"],
                                 "validation": policy["global_rules"]["sign_convention"]["validation"]}
 
-    n_lines = len(items)
+    n_notes = len(items) - face_lines
     line_items = {
         "schema_version": 1, "line_items_key": LINE_ITEMS_KEY,
         "target_template_key": TEMPLATE_KEY, "target_template_version": None,
@@ -1262,9 +1635,14 @@ def build() -> tuple[dict, dict]:
                 ("Built by scripts/build_usgaap_pair.py: the rows the face of a Form 10-K's "
                  "consolidated balance sheets, statements of operations and indirect-method "
                  "statements of cash flows print."),
-                (f"{n_lines} lines, every one read from the face (strict_face_route); no internal "
-                 "parts, no note or sentence routes. One leftover line per balance-sheet and "
-                 "cash-flow section; none in the statement of operations."),
+                (f"{face_lines} statement lines, every one read from the face (strict_face_route); "
+                 "no internal parts. One leftover line per asset, liability and cash-flow section; "
+                 "none in the statement of operations or in stockholders' equity."),
+                (f"{n_notes} additional items, read from the notes and the auditor's report: the "
+                 "supplemental cash flow disclosures, debt maturities, principal and fair value, "
+                 "the current and deferred tax and the effective tax rate, the inventory split, "
+                 "property at cost and accumulated depreciation, the audit opinion, contingent "
+                 "liabilities and related-party transactions."),
             ],
             "breaking_changes": [],
             "vocabulary_note": "English captions in the wording 10-K filers print, with the "

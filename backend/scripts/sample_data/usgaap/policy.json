@@ -388,8 +388,16 @@
    "restatement_rule": "Where a comparative is labelled 'As Adjusted', 'Restated' or 'Recast', load it as the comparative and set restated: true. Keep both figures with the flag rather than overwriting an original comparative already loaded."
   },
   "units_and_currency": {
-   "rule": "Resolve currency and scale from the statement header, not the cover page, and re-resolve per statement: a 10-K states its statements in millions or thousands of US dollars 'except per share amounts', and share counts are often in a different scale again. Persist unit on every fact; never normalise scale silently.",
+   "rule": "Resolve currency and scale from the statement header, not the cover page, and re-resolve per statement: a 10-K states its statements in millions or thousands of US dollars 'except per share amounts', and share counts are often in a different scale again. Persist unit on every fact; never normalise scale silently. A header that names two scales names the statements' first: '(In millions, except number of shares, which are reflected in thousands, and per-share amounts)' is in millions, so the '..., except' signals are declared, and matched longest first, ahead of the bare ones.",
    "signals": [
+    "In millions, except",
+    "In thousands, except",
+    "in millions, except",
+    "in thousands, except",
+    "Dollars in millions, except",
+    "Dollars in thousands, except",
+    "Amounts in millions, except",
+    "Amounts in thousands, except",
     "In millions",
     "In thousands",
     "in millions",

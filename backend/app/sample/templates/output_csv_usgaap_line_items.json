@@ -12,7 +12,8 @@
   "version": "1",
   "changes": [
    "Built by scripts/build_usgaap_pair.py: the rows the face of a Form 10-K's consolidated balance sheets, statements of operations and indirect-method statements of cash flows print.",
-   "99 lines, every one read from the face (strict_face_route); no internal parts, no note or sentence routes. One leftover line per balance-sheet and cash-flow section; none in the statement of operations."
+   "99 statement lines, every one read from the face (strict_face_route); no internal parts. One leftover line per asset, liability and cash-flow section; none in the statement of operations or in stockholders' equity.",
+   "33 additional items, read from the notes and the auditor's report: the supplemental cash flow disclosures, debt maturities, principal and fair value, the current and deferred tax and the effective tax rate, the inventory split, property at cost and accumulated depreciation, the audit opinion, contingent liabilities and related-party transactions."
   ],
   "breaking_changes": [],
   "vocabulary_note": "English captions in the wording 10-K filers print, with the variants of the most-printed face rows."
@@ -95,6 +96,48 @@
    "section_scope": [
     "cf_financing"
    ],
+   "temporality": "duration",
+   "sign_convention": "either"
+  },
+  "notes_cash": {
+   "statement": "notes",
+   "section_scope": [],
+   "temporality": "duration",
+   "sign_convention": "either"
+  },
+  "notes_debt": {
+   "statement": "notes",
+   "section_scope": [],
+   "temporality": "duration",
+   "sign_convention": "either"
+  },
+  "notes_tax": {
+   "statement": "notes",
+   "section_scope": [],
+   "temporality": "duration",
+   "sign_convention": "either"
+  },
+  "notes_assets": {
+   "statement": "notes",
+   "section_scope": [],
+   "temporality": "duration",
+   "sign_convention": "either"
+  },
+  "notes_audit": {
+   "statement": "notes",
+   "section_scope": [],
+   "temporality": "duration",
+   "sign_convention": "either"
+  },
+  "notes_contingencies": {
+   "statement": "notes",
+   "section_scope": [],
+   "temporality": "duration",
+   "sign_convention": "either"
+  },
+  "notes_related": {
+   "statement": "notes",
+   "section_scope": [],
    "temporality": "duration",
    "sign_convention": "either"
   }
@@ -443,7 +486,7 @@
   "unbound_row_policy": "Route an unclaimed face value only to the residual for its resolved printed section. Never borrow a neighbouring concept or cross a section. After all mapping and gap-closing opportunities, the engine-level face_mapping_contract gives any remaining face value a unique engine_unclassified_face key outside the ontology/template namespaces. This keeps the row stored and reviewable without feeding it into an unrelated calculation. Verified non-additive aggregates replaced by mapped components remain evidence-only.",
   "match_priority": "Integer 0-99, higher evaluated first. Long specific captions rank above short generic ones so 'Total assets less current liabilities' cannot be pre-empted by 'Total current liabilities' on token overlap. Residuals are 0 and unreachable by matching."
  },
- "prompt": "These are the consolidated financial statements of a US registrant filed on Form 10-K under US GAAP: the Consolidated Balance Sheets, the Consolidated Statements of Operations (or Income) and the Consolidated Statements of Cash Flows. Amounts are in US dollars, usually in millions or thousands except per-share amounts; the statements of operations and of cash flows print three years and the balance sheet two. Every line of this template is a row the face of those statements prints: cite the printed statement row, never a note, and leave a line empty when the face does not print it. A 10-K balance sheet usually prints no 'Non-current assets' or 'Non-current liabilities' heading: the rows after 'Total current assets' and before 'Total assets' are non-current assets, and the rows after 'Total current liabilities' and before the equity are non-current liabilities. Expenses are read as printed, positive.",
+ "prompt": "These are the consolidated financial statements of a US registrant filed on Form 10-K under US GAAP: the Consolidated Balance Sheets, the Consolidated Statements of Operations (or Income) and the Consolidated Statements of Cash Flows. Amounts are in US dollars, usually in millions or thousands except per-share amounts; the statements of operations and of cash flows print three years and the balance sheet two. Every line of the three statements is a row the face of those statements prints: cite the printed statement row, never a note, and leave a line empty when the face does not print it. The additional items are read from the notes, the supplemental cash flow disclosures and the report of the independent registered public accounting firm, as each line says; a text item is copied or written exactly as its line asks, and left empty when the filing does not disclose it. A 10-K balance sheet usually prints no 'Non-current assets' or 'Non-current liabilities' heading: the rows after 'Total current assets' and before 'Total assets' are non-current assets, and the rows after 'Total current liabilities' and before the equity are non-current liabilities. Expenses are read as printed, positive.",
  "global_rules": {
   "source_fact_id": "document_id|entity_scope|period|currency|unit|page|table_or_note|source_row_id",
   "sign_convention": {
@@ -488,8 +531,16 @@
    "restatement_rule": "Where a comparative is labelled 'As Adjusted', 'Restated' or 'Recast', load it as the comparative and set restated: true. Keep both figures with the flag rather than overwriting an original comparative already loaded."
   },
   "units_and_currency": {
-   "rule": "Resolve currency and scale from the statement header, not the cover page, and re-resolve per statement: a 10-K states its statements in millions or thousands of US dollars 'except per share amounts', and share counts are often in a different scale again. Persist unit on every fact; never normalise scale silently.",
+   "rule": "Resolve currency and scale from the statement header, not the cover page, and re-resolve per statement: a 10-K states its statements in millions or thousands of US dollars 'except per share amounts', and share counts are often in a different scale again. Persist unit on every fact; never normalise scale silently. A header that names two scales names the statements' first: '(In millions, except number of shares, which are reflected in thousands, and per-share amounts)' is in millions, so the '..., except' signals are declared, and matched longest first, ahead of the bare ones.",
    "signals": [
+    "In millions, except",
+    "In thousands, except",
+    "in millions, except",
+    "in thousands, except",
+    "Dollars in millions, except",
+    "Dollars in thousands, except",
+    "Amounts in millions, except",
+    "Amounts in thousands, except",
     "In millions",
     "In thousands",
     "in millions",
@@ -5570,6 +5621,1227 @@
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}cash\\b.*\\b(?:end\\s+of\\s+(?:the\\s+)?(?:period|year|fiscal\\s+year)|ending\\s+balances?)\\b.*$",
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:balance\\s+)?(?:at\\s+)?(?:the\\s+)?end\\s+of\\s+(?:the\\s+)?(?:period|year)$"
    ]
+  },
+  {
+   "key": "notes_cash__interest_paid",
+   "label": "Cash paid for interest",
+   "type": "extracted",
+   "namespace": "template",
+   "in_output": true,
+   "inherits": "notes_cash",
+   "statements": [
+    "cash_flow",
+    "notes"
+   ],
+   "section_scope": [
+    "cf_top_level"
+   ],
+   "order": 100,
+   "definition": "Interest paid in cash during the year, net of amounts capitalised where the filing nets them, as the supplemental cash flow disclosure prints it: below the statement of cash flows or in a note. Not interest received.",
+   "temporality": "duration",
+   "unit_of_account": "flow",
+   "sign_convention": "either",
+   "analyst_bucket": "others",
+   "match_priority": 80,
+   "route": "anywhere",
+   "note_source": {
+    "note_title_any": [
+     "supplemental",
+     "cash\\s+flow\\s+information"
+    ],
+    "row_caption_any": [
+     "^\\s*(?:cash\\s+paid\\s+(?:during\\s+the\\s+(?:year|period)\\s+)?for\\s+)?interest(?:\\s+paid)?\\b"
+    ],
+    "row_caption_none": [
+     "received|income|capitali[sz]ed\\s+interest\\s*$"
+    ],
+    "note_terms": [
+     "supplemental cash flow information",
+     "cash paid for interest"
+    ]
+   },
+   "aliases": [
+    "Cash paid for interest",
+    "Interest paid",
+    "Cash paid for interest, net of amounts capitalized",
+    "Interest paid, net of capitalized interest",
+    "Cash paid during the year for interest"
+   ],
+   "aliases_i18n": {
+    "en": [
+     "Cash paid for interest",
+     "Interest paid",
+     "Cash paid for interest, net of amounts capitalized",
+     "Interest paid, net of capitalized interest",
+     "Cash paid during the year for interest"
+    ]
+   },
+   "regex_hints": [
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity|(?:cash\\s+flows?\\s+(?:from|provided\\s+by|used\\s+in)\\s+)?(?:operating|investing|financing)\\s+activities|operations|investing|financing|adjustments?\\s+to\\s+reconcile\\s+(?:\\w+\\s+){1,4}?to\\s+(?:\\w+\\s+){0,6}?operating\\s+activities|changes\\s+in\\s+(?:certain\\s+|operating\\s+)?assets\\s+and\\s+liabilities(?:\\s+net\\s+of\\s+(?:\\w+\\s+){0,6}?(?:acquisitions?|acquired|divestitures?))?|(?:net\\s+)?changes?\\s+in\\s+working\\s+capital)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+|plus\\s+)?(?:cash\\s+paid\\s+for\\s+interest\\s+net\\s+of\\s+amounts\\s+capitalized|interest\\s+paid\\s+net\\s+of\\s+capitalized\\s+interest|cash\\s+paid\\s+during\\s+the\\s+year\\s+for\\s+interest|cash\\s+paid\\s+for\\s+interest|interest\\s+paid)$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:cash\\s+paid\\s+(?:during\\s+the\\s+(?:year|period)\\s+)?for\\s+interest|interest\\s+paid)\\b.*$"
+   ],
+   "exclude_hints": [
+    "(?i)received",
+    "(?i)income\\s+tax"
+   ]
+  },
+  {
+   "key": "notes_cash__income_taxes_paid",
+   "label": "Cash paid for income taxes",
+   "type": "extracted",
+   "namespace": "template",
+   "in_output": true,
+   "inherits": "notes_cash",
+   "statements": [
+    "cash_flow",
+    "notes"
+   ],
+   "section_scope": [
+    "cf_top_level"
+   ],
+   "order": 101,
+   "definition": "Income taxes paid in cash during the year, net of refunds where the filing nets them, as the supplemental cash flow disclosure prints it: below the statement of cash flows or in a note.",
+   "temporality": "duration",
+   "unit_of_account": "flow",
+   "sign_convention": "either",
+   "analyst_bucket": "others",
+   "match_priority": 80,
+   "route": "anywhere",
+   "note_source": {
+    "note_title_any": [
+     "supplemental",
+     "cash\\s+flow\\s+information"
+    ],
+    "row_caption_any": [
+     "^\\s*(?:cash\\s+paid\\s+(?:during\\s+the\\s+(?:year|period)\\s+)?for\\s+)?(?:income\\s+)?taxes(?:\\s+paid)?\\b"
+    ],
+    "row_caption_none": [
+     "interest|deferred|payable"
+    ],
+    "note_terms": [
+     "supplemental cash flow information",
+     "cash paid for income taxes"
+    ]
+   },
+   "aliases": [
+    "Cash paid for income taxes, net",
+    "Income taxes paid",
+    "Cash paid for income taxes",
+    "Income taxes paid, net of refunds",
+    "Cash paid during the year for income taxes"
+   ],
+   "aliases_i18n": {
+    "en": [
+     "Cash paid for income taxes, net",
+     "Income taxes paid",
+     "Cash paid for income taxes",
+     "Income taxes paid, net of refunds",
+     "Cash paid during the year for income taxes"
+    ]
+   },
+   "regex_hints": [
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity|(?:cash\\s+flows?\\s+(?:from|provided\\s+by|used\\s+in)\\s+)?(?:operating|investing|financing)\\s+activities|operations|investing|financing|adjustments?\\s+to\\s+reconcile\\s+(?:\\w+\\s+){1,4}?to\\s+(?:\\w+\\s+){0,6}?operating\\s+activities|changes\\s+in\\s+(?:certain\\s+|operating\\s+)?assets\\s+and\\s+liabilities(?:\\s+net\\s+of\\s+(?:\\w+\\s+){0,6}?(?:acquisitions?|acquired|divestitures?))?|(?:net\\s+)?changes?\\s+in\\s+working\\s+capital)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+|plus\\s+)?(?:cash\\s+paid\\s+during\\s+the\\s+year\\s+for\\s+income\\s+taxes|income\\s+taxes\\s+paid\\s+net\\s+of\\s+refunds|cash\\s+paid\\s+for\\s+income\\s+taxes\\s+net|cash\\s+paid\\s+for\\s+income\\s+taxes|income\\s+taxes\\s+paid)$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:cash\\s+paid\\s+(?:during\\s+the\\s+(?:year|period)\\s+)?for\\s+(?:income\\s+)?taxes|(?:income\\s+)?taxes\\s+paid)\\b.*$"
+   ],
+   "exclude_hints": [
+    "(?i)interest",
+    "(?i)refunds?\\s+received"
+   ]
+  },
+  {
+   "key": "notes_debt__due_in_year_1",
+   "label": "Debt maturing in year 1",
+   "type": "extracted",
+   "namespace": "template",
+   "in_output": true,
+   "inherits": "notes_debt",
+   "statements": [
+    "notes"
+   ],
+   "section_scope": [],
+   "order": 102,
+   "definition": "The principal of debt due in the first fiscal year after the balance-sheet date, from the debt note's table of future principal payments or maturities: the row for that year ('2026' for a 2025 year-end). Principal, before unamortised discount and issuance costs; the current year-end only. Lease payments and interest are not this line. Cite the printed table line from the page.",
+   "temporality": "instant",
+   "unit_of_account": "balance",
+   "sign_convention": "either",
+   "analyst_bucket": "others",
+   "match_priority": 80,
+   "route": "anywhere",
+   "note_source": {
+    "note_terms": [
+     "debt",
+     "long-term debt",
+     "term debt",
+     "borrowings",
+     "notes payable",
+     "senior notes",
+     "credit facility",
+     "maturities of debt"
+    ]
+   }
+  },
+  {
+   "key": "notes_debt__due_in_year_2",
+   "label": "Debt maturing in year 2",
+   "type": "extracted",
+   "namespace": "template",
+   "in_output": true,
+   "inherits": "notes_debt",
+   "statements": [
+    "notes"
+   ],
+   "section_scope": [],
+   "order": 103,
+   "definition": "The principal of debt due in the second fiscal year after the balance-sheet date, from the debt note's table of future principal payments or maturities: the row for that year ('2027' for a 2025 year-end). Principal, before unamortised discount and issuance costs; the current year-end only. Lease payments and interest are not this line. Cite the printed table line from the page.",
+   "temporality": "instant",
+   "unit_of_account": "balance",
+   "sign_convention": "either",
+   "analyst_bucket": "others",
+   "match_priority": 80,
+   "route": "anywhere",
+   "note_source": {
+    "note_terms": [
+     "debt",
+     "long-term debt",
+     "term debt",
+     "borrowings",
+     "notes payable",
+     "senior notes",
+     "credit facility",
+     "maturities of debt"
+    ]
+   }
+  },
+  {
+   "key": "notes_debt__due_in_year_3",
+   "label": "Debt maturing in year 3",
+   "type": "extracted",
+   "namespace": "template",
+   "in_output": true,
+   "inherits": "notes_debt",
+   "statements": [
+    "notes"
+   ],
+   "section_scope": [],
+   "order": 104,
+   "definition": "The principal of debt due in the third fiscal year after the balance-sheet date, from the debt note's table of future principal payments or maturities: the row for that year ('2028' for a 2025 year-end). Principal, before unamortised discount and issuance costs; the current year-end only. Lease payments and interest are not this line. Cite the printed table line from the page.",
+   "temporality": "instant",
+   "unit_of_account": "balance",
+   "sign_convention": "either",
+   "analyst_bucket": "others",
+   "match_priority": 80,
+   "route": "anywhere",
+   "note_source": {
+    "note_terms": [
+     "debt",
+     "long-term debt",
+     "term debt",
+     "borrowings",
+     "notes payable",
+     "senior notes",
+     "credit facility",
+     "maturities of debt"
+    ]
+   }
+  },
+  {
+   "key": "notes_debt__due_in_year_4",
+   "label": "Debt maturing in year 4",
+   "type": "extracted",
+   "namespace": "template",
+   "in_output": true,
+   "inherits": "notes_debt",
+   "statements": [
+    "notes"
+   ],
+   "section_scope": [],
+   "order": 105,
+   "definition": "The principal of debt due in the fourth fiscal year after the balance-sheet date, from the debt note's table of future principal payments or maturities: the row for that year ('2029' for a 2025 year-end). Principal, before unamortised discount and issuance costs; the current year-end only. Lease payments and interest are not this line. Cite the printed table line from the page.",
+   "temporality": "instant",
+   "unit_of_account": "balance",
+   "sign_convention": "either",
+   "analyst_bucket": "others",
+   "match_priority": 80,
+   "route": "anywhere",
+   "note_source": {
+    "note_terms": [
+     "debt",
+     "long-term debt",
+     "term debt",
+     "borrowings",
+     "notes payable",
+     "senior notes",
+     "credit facility",
+     "maturities of debt"
+    ]
+   }
+  },
+  {
+   "key": "notes_debt__due_in_year_5",
+   "label": "Debt maturing in year 5",
+   "type": "extracted",
+   "namespace": "template",
+   "in_output": true,
+   "inherits": "notes_debt",
+   "statements": [
+    "notes"
+   ],
+   "section_scope": [],
+   "order": 106,
+   "definition": "The principal of debt due in the fifth fiscal year after the balance-sheet date, from the debt note's table of future principal payments or maturities: the row for that year ('2030' for a 2025 year-end). Principal, before unamortised discount and issuance costs; the current year-end only. Lease payments and interest are not this line. Cite the printed table line from the page.",
+   "temporality": "instant",
+   "unit_of_account": "balance",
+   "sign_convention": "either",
+   "analyst_bucket": "others",
+   "match_priority": 80,
+   "route": "anywhere",
+   "note_source": {
+    "note_terms": [
+     "debt",
+     "long-term debt",
+     "term debt",
+     "borrowings",
+     "notes payable",
+     "senior notes",
+     "credit facility",
+     "maturities of debt"
+    ]
+   }
+  },
+  {
+   "key": "notes_debt__due_thereafter",
+   "label": "Debt maturing thereafter",
+   "type": "extracted",
+   "namespace": "template",
+   "in_output": true,
+   "inherits": "notes_debt",
+   "statements": [
+    "notes"
+   ],
+   "section_scope": [],
+   "order": 107,
+   "definition": "The principal of debt due after the fifth fiscal year following the balance-sheet date: the 'Thereafter' row of the debt note's table of future principal payments. Lease payments and interest are not this line. Cite the printed table line from the page.",
+   "temporality": "instant",
+   "unit_of_account": "balance",
+   "sign_convention": "either",
+   "analyst_bucket": "others",
+   "match_priority": 80,
+   "route": "anywhere",
+   "note_source": {
+    "note_terms": [
+     "debt",
+     "long-term debt",
+     "term debt",
+     "borrowings",
+     "notes payable",
+     "senior notes",
+     "credit facility",
+     "maturities of debt"
+    ]
+   }
+  },
+  {
+   "key": "notes_debt__total_principal",
+   "label": "Total debt principal",
+   "type": "extracted",
+   "namespace": "template",
+   "in_output": true,
+   "inherits": "notes_debt",
+   "statements": [
+    "notes"
+   ],
+   "section_scope": [],
+   "order": 108,
+   "definition": "The total principal (face) amount of debt outstanding at the balance-sheet date, as the debt note prints it: the total of the table of future principal payments or the 'total principal' row, before unamortised discount, premium and issuance costs and before the current portion is deducted.",
+   "temporality": "instant",
+   "unit_of_account": "balance",
+   "sign_convention": "either",
+   "analyst_bucket": "others",
+   "match_priority": 80,
+   "route": "note_tables",
+   "note_source": {
+    "note_title_any": [
+     "\\bdebt\\b",
+     "\\bborrowings\\b",
+     "notes\\s+payable",
+     "credit\\s+(?:facilities|agreements?)"
+    ],
+    "row_caption_any": [
+     "^\\s*total\\s+(?:term\\s+|long[\\s-]+term\\s+)?(?:debt|borrowings|notes)\\s+principal\\b",
+     "^\\s*total\\s+(?:principal|face)\\s+(?:amount|value)\\b",
+     "^\\s*total\\s+principal\\b"
+    ],
+    "row_caption_none": [
+     "fair\\s+value|current\\s+portion|less|net\\s+of|unamortized|carrying"
+    ],
+    "note_terms": [
+     "debt",
+     "long-term debt",
+     "term debt",
+     "borrowings",
+     "notes payable",
+     "senior notes",
+     "credit facility",
+     "maturities of debt"
+    ]
+   }
+  },
+  {
+   "key": "notes_debt__fair_value",
+   "label": "Fair value of debt",
+   "type": "extracted",
+   "namespace": "template",
+   "in_output": true,
+   "inherits": "notes_debt",
+   "statements": [
+    "notes"
+   ],
+   "section_scope": [],
+   "order": 109,
+   "definition": "The estimated fair value of the filer's debt at the balance-sheet date, as the debt or fair-value note states it, often in a sentence ('the fair value of our long-term debt was $88.4 billion'). Expressed in the statements' unit.",
+   "temporality": "instant",
+   "unit_of_account": "balance",
+   "sign_convention": "either",
+   "analyst_bucket": "others",
+   "match_priority": 80,
+   "route": "anywhere",
+   "note_source": {
+    "note_terms": [
+     "debt",
+     "long-term debt",
+     "term debt",
+     "borrowings",
+     "notes payable",
+     "senior notes",
+     "credit facility",
+     "maturities of debt",
+     "fair value"
+    ]
+   }
+  },
+  {
+   "key": "notes_tax__current_income_tax",
+   "label": "Current income tax expense",
+   "type": "extracted",
+   "namespace": "template",
+   "in_output": true,
+   "inherits": "notes_tax",
+   "statements": [
+    "notes"
+   ],
+   "section_scope": [],
+   "order": 110,
+   "definition": "The current part of the income tax expense for the year, federal, state and foreign together: the 'Total current' row of the income tax note's table of the components of the provision.",
+   "temporality": "duration",
+   "unit_of_account": "flow",
+   "sign_convention": "either",
+   "analyst_bucket": "others",
+   "match_priority": 80,
+   "route": "note_tables",
+   "note_source": {
+    "note_title_any": [
+     "income\\s+tax",
+     "taxes\\s+on\\s+income"
+    ],
+    "row_caption_any": [
+     "^\\s*total\\s+current\\b(?!\\s+(?:assets|liabilit))",
+     "^\\s*current\\s+(?:income\\s+)?tax(?:es)?(?:\\s+(?:expense|provision))?\\s*$"
+    ],
+    "row_caption_none": [
+     "deferred|\\bassets?\\b|liabilit|payable|receivable"
+    ],
+    "note_terms": [
+     "income taxes",
+     "provision for income taxes",
+     "current and deferred income taxes",
+     "effective tax rate"
+    ]
+   }
+  },
+  {
+   "key": "notes_tax__deferred_income_tax",
+   "label": "Deferred income tax expense (benefit)",
+   "type": "extracted",
+   "namespace": "template",
+   "in_output": true,
+   "inherits": "notes_tax",
+   "statements": [
+    "notes"
+   ],
+   "section_scope": [],
+   "order": 111,
+   "definition": "The deferred part of the income tax expense or benefit for the year: the 'Total deferred' row of the income tax note's table of the components of the provision. Not the deferred tax assets or liabilities at the year-end.",
+   "temporality": "duration",
+   "unit_of_account": "flow",
+   "sign_convention": "either",
+   "analyst_bucket": "others",
+   "match_priority": 80,
+   "route": "note_tables",
+   "note_source": {
+    "note_title_any": [
+     "income\\s+tax",
+     "taxes\\s+on\\s+income"
+    ],
+    "row_caption_any": [
+     "^\\s*total\\s+deferred\\b(?!\\s+(?:income\\s+)?tax(?:es)?\\s+(?:assets|liabilit))",
+     "^\\s*deferred\\s+(?:income\\s+)?tax(?:es)?\\s+(?:expense|benefit|provision)\\b",
+     "^\\s*deferred\\s+(?:income\\s+)?tax(?:es)?\\s*$"
+    ],
+    "row_caption_none": [
+     "\\bassets?\\b|liabilit|valuation"
+    ],
+    "note_terms": [
+     "income taxes",
+     "provision for income taxes",
+     "current and deferred income taxes",
+     "effective tax rate"
+    ]
+   }
+  },
+  {
+   "key": "notes_tax__effective_tax_rate",
+   "label": "Effective tax rate",
+   "type": "extracted",
+   "namespace": "template",
+   "in_output": true,
+   "inherits": "notes_tax",
+   "statements": [
+    "notes"
+   ],
+   "section_scope": [],
+   "order": 112,
+   "definition": "The effective income tax rate for the year as the filing prints it, with its percent sign ('16.0%'): from the income tax note's rate reconciliation or the sentence stating it. The current year only.",
+   "temporality": "duration",
+   "unit_of_account": "flow",
+   "sign_convention": "either",
+   "analyst_bucket": "others",
+   "match_priority": 80,
+   "route": "anywhere",
+   "output_structure": "phrase",
+   "note_source": {
+    "note_terms": [
+     "income taxes",
+     "provision for income taxes",
+     "current and deferred income taxes",
+     "effective tax rate"
+    ]
+   }
+  },
+  {
+   "key": "notes_assets__raw_materials",
+   "label": "Inventories: raw materials",
+   "type": "extracted",
+   "namespace": "template",
+   "in_output": true,
+   "inherits": "notes_assets",
+   "statements": [
+    "notes"
+   ],
+   "section_scope": [],
+   "order": 113,
+   "definition": "Raw materials and supplies held in inventory at the year-end, from the inventories note or the balance-sheet details note.",
+   "temporality": "instant",
+   "unit_of_account": "balance",
+   "sign_convention": "positive_expected",
+   "analyst_bucket": "others",
+   "match_priority": 80,
+   "route": "note_tables",
+   "note_source": {
+    "note_title_any": [
+     "inventor",
+     "(?:financial\\s+statement|balance\\s+sheet)\\s+(?:details|components|information)"
+    ],
+    "row_caption_any": [
+     "^\\s*raw\\s+materials?\\b"
+    ],
+    "row_caption_none": [
+     "total|reserve|lifo"
+    ],
+    "note_terms": [
+     "inventories",
+     "raw materials"
+    ]
+   }
+  },
+  {
+   "key": "notes_assets__work_in_process",
+   "label": "Inventories: work in process",
+   "type": "extracted",
+   "namespace": "template",
+   "in_output": true,
+   "inherits": "notes_assets",
+   "statements": [
+    "notes"
+   ],
+   "section_scope": [],
+   "order": 114,
+   "definition": "Work in process held in inventory at the year-end, from the inventories note or the balance-sheet details note.",
+   "temporality": "instant",
+   "unit_of_account": "balance",
+   "sign_convention": "positive_expected",
+   "analyst_bucket": "others",
+   "match_priority": 80,
+   "route": "note_tables",
+   "note_source": {
+    "note_title_any": [
+     "inventor",
+     "(?:financial\\s+statement|balance\\s+sheet)\\s+(?:details|components|information)"
+    ],
+    "row_caption_any": [
+     "^\\s*work[\\s-]+in[\\s-]+(?:process|progress)\\b"
+    ],
+    "row_caption_none": [
+     "total|reserve|lifo"
+    ],
+    "note_terms": [
+     "inventories",
+     "work in process"
+    ]
+   }
+  },
+  {
+   "key": "notes_assets__finished_goods",
+   "label": "Inventories: finished goods",
+   "type": "extracted",
+   "namespace": "template",
+   "in_output": true,
+   "inherits": "notes_assets",
+   "statements": [
+    "notes"
+   ],
+   "section_scope": [],
+   "order": 115,
+   "definition": "Finished goods (or finished products) held in inventory at the year-end, from the inventories note or the balance-sheet details note.",
+   "temporality": "instant",
+   "unit_of_account": "balance",
+   "sign_convention": "positive_expected",
+   "analyst_bucket": "others",
+   "match_priority": 80,
+   "route": "note_tables",
+   "note_source": {
+    "note_title_any": [
+     "inventor",
+     "(?:financial\\s+statement|balance\\s+sheet)\\s+(?:details|components|information)"
+    ],
+    "row_caption_any": [
+     "^\\s*finished\\s+(?:goods|products)\\b"
+    ],
+    "row_caption_none": [
+     "total|reserve|lifo"
+    ],
+    "note_terms": [
+     "inventories",
+     "finished goods"
+    ]
+   }
+  },
+  {
+   "key": "notes_assets__ppe_at_cost",
+   "label": "Property, plant and equipment, at cost",
+   "type": "extracted",
+   "namespace": "template",
+   "in_output": true,
+   "inherits": "notes_assets",
+   "statements": [
+    "notes"
+   ],
+   "section_scope": [],
+   "order": 116,
+   "definition": "Property, plant and equipment at cost, before accumulated depreciation: the gross total of the property note's table ('Gross property, plant and equipment', 'Total, at cost').",
+   "temporality": "instant",
+   "unit_of_account": "balance",
+   "sign_convention": "positive_expected",
+   "analyst_bucket": "others",
+   "match_priority": 80,
+   "route": "note_tables",
+   "note_source": {
+    "note_title_any": [
+     "property(?:,)?\\s+(?:plant(?:,)?\\s+)?(?:and\\s+)?equipment",
+     "fixed\\s+assets",
+     "(?:financial\\s+statement|balance\\s+sheet)\\s+(?:details|components|information)"
+    ],
+    "row_caption_any": [
+     "^\\s*(?:total\\s+)?gross\\s+property\\b",
+     "^\\s*(?:total\\s+)?property(?:,)?\\s+(?:plant(?:,)?\\s+)?(?:and\\s+)?equipment(?:,)?\\s+(?:at\\s+cost|gross)\\b",
+     "^\\s*total(?:,)?\\s+at\\s+cost\\b"
+    ],
+    "row_caption_none": [
+     "\\bnet\\b",
+     "accumulated",
+     "expense"
+    ],
+    "note_terms": [
+     "property, plant and equipment",
+     "gross"
+    ]
+   }
+  },
+  {
+   "key": "notes_assets__accumulated_depreciation",
+   "label": "Accumulated depreciation",
+   "type": "extracted",
+   "namespace": "template",
+   "in_output": true,
+   "inherits": "notes_assets",
+   "statements": [
+    "notes"
+   ],
+   "section_scope": [],
+   "order": 117,
+   "definition": "Accumulated depreciation and amortisation of property, plant and equipment at the year-end, with the sign the property note gives it (usually printed as a deduction).",
+   "temporality": "instant",
+   "unit_of_account": "balance",
+   "sign_convention": "either",
+   "analyst_bucket": "others",
+   "match_priority": 80,
+   "route": "note_tables",
+   "note_source": {
+    "note_title_any": [
+     "property(?:,)?\\s+(?:plant(?:,)?\\s+)?(?:and\\s+)?equipment",
+     "fixed\\s+assets",
+     "(?:financial\\s+statement|balance\\s+sheet)\\s+(?:details|components|information)"
+    ],
+    "row_caption_any": [
+     "^\\s*(?:less\\s*:?\\s*)?accumulated\\s+depreciation\\b"
+    ],
+    "row_caption_none": [
+     "expense|charge|for\\s+the\\s+year|intangible"
+    ],
+    "note_terms": [
+     "property, plant and equipment",
+     "accumulated depreciation"
+    ]
+   }
+  },
+  {
+   "key": "notes_audit__auditor",
+   "label": "Independent auditor",
+   "type": "extracted",
+   "namespace": "template",
+   "in_output": true,
+   "inherits": "notes_audit",
+   "statements": [
+    "notes"
+   ],
+   "section_scope": [],
+   "order": 118,
+   "definition": "The registered public accounting firm that signs the report on the consolidated financial statements, as printed in its signature without the '/s/' (for example 'Hartwell & Rowe LLP'). Not the engagement partner.",
+   "temporality": "duration",
+   "unit_of_account": "flow",
+   "sign_convention": "either",
+   "analyst_bucket": "others",
+   "match_priority": 80,
+   "route": "anywhere",
+   "output_structure": "phrase",
+   "note_source": {
+    "note_terms": [
+     "report of independent registered public accounting firm",
+     "opinion on the financial statements",
+     "critical audit matters",
+     "internal control over financial reporting"
+    ]
+   },
+   "aliases": [
+    "Report of Independent Registered Public Accounting Firm"
+   ],
+   "aliases_i18n": {
+    "en": [
+     "Report of Independent Registered Public Accounting Firm"
+    ]
+   }
+  },
+  {
+   "key": "notes_audit__opinion_type",
+   "label": "Audit opinion (as headed)",
+   "type": "extracted",
+   "namespace": "template",
+   "in_output": true,
+   "inherits": "notes_audit",
+   "statements": [
+    "notes"
+   ],
+   "section_scope": [],
+   "order": 119,
+   "definition": "The kind of opinion the auditor expresses on the consolidated financial statements, as the report names it: the heading of its opinion section, copied as printed. A US report heads an unqualified opinion 'Opinion on the Financial Statements', and a modified one 'Qualified Opinion', 'Adverse Opinion' or 'Disclaimer of Opinion'. Not the heading of the opinion on internal control.",
+   "temporality": "duration",
+   "unit_of_account": "flow",
+   "sign_convention": "either",
+   "analyst_bucket": "others",
+   "match_priority": 80,
+   "route": "anywhere",
+   "output_structure": "phrase",
+   "note_source": {
+    "note_terms": [
+     "report of independent registered public accounting firm",
+     "opinion on the financial statements",
+     "critical audit matters",
+     "internal control over financial reporting"
+    ]
+   },
+   "aliases": [
+    "Audit Opinion",
+    "Report of Independent Registered Public Accounting Firm"
+   ],
+   "aliases_i18n": {
+    "en": [
+     "Audit Opinion",
+     "Report of Independent Registered Public Accounting Firm"
+    ]
+   }
+  },
+  {
+   "key": "notes_audit__opinion_on_financial_statements",
+   "label": "Opinion on the financial statements",
+   "type": "extracted",
+   "namespace": "template",
+   "in_output": true,
+   "inherits": "notes_audit",
+   "statements": [
+    "notes"
+   ],
+   "section_scope": [],
+   "order": 120,
+   "definition": "The auditor's opinion on the consolidated financial statements, in the auditor's own words: the sentence of the report's opinion section that begins 'In our opinion', copied as printed. Not the opinion on internal control.",
+   "temporality": "duration",
+   "unit_of_account": "flow",
+   "sign_convention": "either",
+   "analyst_bucket": "others",
+   "match_priority": 80,
+   "route": "anywhere",
+   "output_structure": "phrase",
+   "note_source": {
+    "note_terms": [
+     "report of independent registered public accounting firm",
+     "opinion on the financial statements",
+     "critical audit matters",
+     "internal control over financial reporting"
+    ]
+   },
+   "aliases": [
+    "Report of Independent Registered Public Accounting Firm"
+   ],
+   "aliases_i18n": {
+    "en": [
+     "Report of Independent Registered Public Accounting Firm"
+    ]
+   }
+  },
+  {
+   "key": "notes_audit__opinion_on_internal_control",
+   "label": "Opinion on internal control",
+   "type": "extracted",
+   "namespace": "template",
+   "in_output": true,
+   "inherits": "notes_audit",
+   "statements": [
+    "notes"
+   ],
+   "section_scope": [],
+   "order": 121,
+   "definition": "The auditor's opinion on the filer's internal control over financial reporting, in the auditor's own words: the sentence of that report's opinion section that begins 'In our opinion', copied as printed, whether it finds control effective or not. Empty where the 10-K carries no auditor's report on internal control.",
+   "temporality": "duration",
+   "unit_of_account": "flow",
+   "sign_convention": "either",
+   "analyst_bucket": "others",
+   "match_priority": 80,
+   "route": "anywhere",
+   "output_structure": "phrase",
+   "note_source": {
+    "note_terms": [
+     "report of independent registered public accounting firm",
+     "opinion on the financial statements",
+     "critical audit matters",
+     "internal control over financial reporting"
+    ]
+   },
+   "aliases": [
+    "Report of Independent Registered Public Accounting Firm"
+   ],
+   "aliases_i18n": {
+    "en": [
+     "Report of Independent Registered Public Accounting Firm"
+    ]
+   }
+  },
+  {
+   "key": "notes_audit__going_concern",
+   "label": "Going concern paragraph",
+   "type": "extracted",
+   "namespace": "template",
+   "in_output": true,
+   "inherits": "notes_audit",
+   "statements": [
+    "notes"
+   ],
+   "section_scope": [],
+   "order": 122,
+   "definition": "The first sentence of the auditor's going-concern paragraph, copied as printed: the sentence stating that conditions raise substantial doubt about the filer's ability to continue as a going concern. Empty when the report includes no such paragraph.",
+   "temporality": "duration",
+   "unit_of_account": "flow",
+   "sign_convention": "either",
+   "analyst_bucket": "others",
+   "match_priority": 80,
+   "route": "anywhere",
+   "output_structure": "phrase",
+   "note_source": {
+    "note_terms": [
+     "report of independent registered public accounting firm",
+     "opinion on the financial statements",
+     "critical audit matters",
+     "internal control over financial reporting",
+     "going concern"
+    ]
+   },
+   "aliases": [
+    "Report of Independent Registered Public Accounting Firm"
+   ],
+   "aliases_i18n": {
+    "en": [
+     "Report of Independent Registered Public Accounting Firm"
+    ]
+   }
+  },
+  {
+   "key": "notes_audit__critical_audit_matter",
+   "label": "Critical audit matter",
+   "type": "extracted",
+   "namespace": "template",
+   "in_output": true,
+   "inherits": "notes_audit",
+   "statements": [
+    "notes"
+   ],
+   "section_scope": [],
+   "order": 123,
+   "definition": "The title of the first critical audit matter the auditor's report communicates, copied as printed (for example 'Uncertain Tax Positions'); or the report's sentence stating that there are no critical audit matters.",
+   "temporality": "duration",
+   "unit_of_account": "flow",
+   "sign_convention": "either",
+   "analyst_bucket": "others",
+   "match_priority": 80,
+   "route": "anywhere",
+   "output_structure": "phrase",
+   "note_source": {
+    "note_terms": [
+     "report of independent registered public accounting firm",
+     "opinion on the financial statements",
+     "critical audit matters",
+     "internal control over financial reporting"
+    ]
+   },
+   "aliases": [
+    "Report of Independent Registered Public Accounting Firm"
+   ],
+   "aliases_i18n": {
+    "en": [
+     "Report of Independent Registered Public Accounting Firm"
+    ]
+   }
+  },
+  {
+   "key": "notes_contingencies__assessment",
+   "label": "Contingencies: the filer's assessment",
+   "type": "extracted",
+   "namespace": "template",
+   "in_output": true,
+   "inherits": "notes_contingencies",
+   "statements": [
+    "notes"
+   ],
+   "section_scope": [],
+   "order": 124,
+   "definition": "The sentence of the commitments and contingencies note (or the legal proceedings note) that states the filer's conclusion on its legal proceedings, claims and other contingencies, copied as printed: whether a loss is probable, an amount is accrued, or the outcome is not expected to have a material adverse effect (ASC 450). Empty when the notes disclose no contingencies.",
+   "temporality": "duration",
+   "unit_of_account": "flow",
+   "sign_convention": "either",
+   "analyst_bucket": "others",
+   "match_priority": 80,
+   "route": "anywhere",
+   "output_structure": "phrase",
+   "note_source": {
+    "note_terms": [
+     "commitments and contingencies",
+     "contingencies",
+     "legal proceedings",
+     "litigation",
+     "guarantees",
+     "letters of credit",
+     "purchase obligations"
+    ]
+   }
+  },
+  {
+   "key": "notes_contingencies__guarantees_and_letters_of_credit",
+   "label": "Guarantees and letters of credit",
+   "type": "extracted",
+   "namespace": "template",
+   "in_output": true,
+   "inherits": "notes_contingencies",
+   "statements": [
+    "notes"
+   ],
+   "section_scope": [],
+   "order": 125,
+   "definition": "The guarantees, standby letters of credit and surety bonds the filer has issued and that are outstanding at the balance-sheet date, summed: the maximum potential amount of future payments the notes state (ASC 460). Not the undrawn capacity of a credit facility.",
+   "temporality": "instant",
+   "unit_of_account": "balance",
+   "sign_convention": "either",
+   "analyst_bucket": "others",
+   "match_priority": 80,
+   "route": "anywhere",
+   "note_source": {
+    "note_terms": [
+     "commitments and contingencies",
+     "contingencies",
+     "legal proceedings",
+     "litigation",
+     "guarantees",
+     "letters of credit",
+     "purchase obligations"
+    ]
+   }
+  },
+  {
+   "key": "notes_contingencies__accrued_loss_contingencies",
+   "label": "Accrued loss contingencies",
+   "type": "extracted",
+   "namespace": "template",
+   "in_output": true,
+   "inherits": "notes_contingencies",
+   "statements": [
+    "notes"
+   ],
+   "section_scope": [],
+   "order": 126,
+   "definition": "The amount recognised as a liability at the balance-sheet date for loss contingencies (litigation, claims, environmental and similar matters), as the notes state it. Empty where the filing states no amount.",
+   "temporality": "instant",
+   "unit_of_account": "balance",
+   "sign_convention": "either",
+   "analyst_bucket": "others",
+   "match_priority": 80,
+   "route": "anywhere",
+   "note_source": {
+    "note_terms": [
+     "commitments and contingencies",
+     "contingencies",
+     "legal proceedings",
+     "litigation",
+     "guarantees",
+     "letters of credit",
+     "purchase obligations"
+    ]
+   }
+  },
+  {
+   "key": "notes_contingencies__purchase_obligations",
+   "label": "Purchase obligations",
+   "type": "extracted",
+   "namespace": "template",
+   "in_output": true,
+   "inherits": "notes_contingencies",
+   "statements": [
+    "notes"
+   ],
+   "section_scope": [],
+   "order": 127,
+   "definition": "The total of the filer's unconditional purchase obligations and purchase commitments at the balance-sheet date, as the commitments note prints or states it.",
+   "temporality": "instant",
+   "unit_of_account": "balance",
+   "sign_convention": "either",
+   "analyst_bucket": "others",
+   "match_priority": 80,
+   "route": "anywhere",
+   "note_source": {
+    "note_title_any": [
+     "commitments",
+     "contingenc",
+     "guarantees",
+     "legal\\s+proceedings"
+    ],
+    "row_caption_any": [
+     "^\\s*total\\s+(?:unconditional\\s+)?purchase\\s+(?:obligations|commitments)\\b"
+    ],
+    "note_terms": [
+     "commitments and contingencies",
+     "contingencies",
+     "legal proceedings",
+     "litigation",
+     "guarantees",
+     "letters of credit",
+     "purchase obligations"
+    ]
+   }
+  },
+  {
+   "key": "notes_related__disclosure",
+   "label": "Related parties: the disclosure",
+   "type": "extracted",
+   "namespace": "template",
+   "in_output": true,
+   "inherits": "notes_related",
+   "statements": [
+    "notes"
+   ],
+   "section_scope": [],
+   "order": 128,
+   "definition": "The sentence of the related-party note that describes the principal related-party relationship and the transactions with it, or that states the filer had no material related-party transactions, copied as printed (ASC 850). Empty when the filing says nothing about related parties.",
+   "temporality": "duration",
+   "unit_of_account": "flow",
+   "sign_convention": "either",
+   "analyst_bucket": "others",
+   "match_priority": 80,
+   "route": "anywhere",
+   "output_structure": "phrase",
+   "note_source": {
+    "note_terms": [
+     "related party transactions",
+     "related parties",
+     "transactions with affiliates"
+    ]
+   }
+  },
+  {
+   "key": "notes_related__sales_to_related_parties",
+   "label": "Sales to related parties",
+   "type": "extracted",
+   "namespace": "template",
+   "in_output": true,
+   "inherits": "notes_related",
+   "statements": [
+    "notes"
+   ],
+   "section_scope": [],
+   "order": 129,
+   "definition": "Revenue from sales of goods and services to related parties during the year, as the related-party note prints or states it.",
+   "temporality": "duration",
+   "unit_of_account": "flow",
+   "sign_convention": "either",
+   "analyst_bucket": "others",
+   "match_priority": 80,
+   "route": "anywhere",
+   "note_source": {
+    "note_title_any": [
+     "related[\\s-]+part(?:y|ies)",
+     "transactions\\s+with\\s+affiliates"
+    ],
+    "row_caption_any": [
+     "^\\s*(?:net\\s+)?(?:sales|revenues?)\\s+(?:to|from)\\b"
+    ],
+    "row_caption_none": [
+     "due|receivable|payable|balance"
+    ],
+    "note_terms": [
+     "related party transactions",
+     "related parties",
+     "transactions with affiliates"
+    ]
+   }
+  },
+  {
+   "key": "notes_related__purchases_from_related_parties",
+   "label": "Purchases from related parties",
+   "type": "extracted",
+   "namespace": "template",
+   "in_output": true,
+   "inherits": "notes_related",
+   "statements": [
+    "notes"
+   ],
+   "section_scope": [],
+   "order": 130,
+   "definition": "Purchases of goods and services from related parties during the year, including rent and fees paid to them, as the related-party note prints or states it; where the note prints several kinds on separate rows, the rows are added.",
+   "temporality": "duration",
+   "unit_of_account": "flow",
+   "sign_convention": "either",
+   "analyst_bucket": "others",
+   "match_priority": 80,
+   "route": "anywhere",
+   "note_source": {
+    "note_title_any": [
+     "related[\\s-]+part(?:y|ies)",
+     "transactions\\s+with\\s+affiliates"
+    ],
+    "row_caption_any": [
+     "^\\s*purchases?\\s+(?:of\\s+[a-z ]{0,40}?)?from\\b",
+     "^\\s*(?:fees|rent|payments)\\s+(?:paid\\s+)?to\\b"
+    ],
+    "row_caption_none": [
+     "due|receivable|payable|balance"
+    ],
+    "note_terms": [
+     "related party transactions",
+     "related parties",
+     "transactions with affiliates"
+    ]
+   }
+  },
+  {
+   "key": "notes_related__due_from_related_parties",
+   "label": "Amounts due from related parties",
+   "type": "extracted",
+   "namespace": "template",
+   "in_output": true,
+   "inherits": "notes_related",
+   "statements": [
+    "notes"
+   ],
+   "section_scope": [],
+   "order": 131,
+   "definition": "Receivables from related parties at the balance-sheet date, as the related-party note prints or states them.",
+   "temporality": "instant",
+   "unit_of_account": "balance",
+   "sign_convention": "either",
+   "analyst_bucket": "others",
+   "match_priority": 80,
+   "route": "anywhere",
+   "note_source": {
+    "note_title_any": [
+     "related[\\s-]+part(?:y|ies)",
+     "transactions\\s+with\\s+affiliates"
+    ],
+    "row_caption_any": [
+     "^\\s*(?:amounts?\\s+)?(?:due|receivables?)\\s+from\\b"
+    ],
+    "note_terms": [
+     "related party transactions",
+     "related parties",
+     "transactions with affiliates"
+    ]
+   }
+  },
+  {
+   "key": "notes_related__due_to_related_parties",
+   "label": "Amounts due to related parties",
+   "type": "extracted",
+   "namespace": "template",
+   "in_output": true,
+   "inherits": "notes_related",
+   "statements": [
+    "notes"
+   ],
+   "section_scope": [],
+   "order": 132,
+   "definition": "Payables to related parties at the balance-sheet date, as the related-party note prints or states them.",
+   "temporality": "instant",
+   "unit_of_account": "balance",
+   "sign_convention": "either",
+   "analyst_bucket": "others",
+   "match_priority": 80,
+   "route": "anywhere",
+   "note_source": {
+    "note_title_any": [
+     "related[\\s-]+part(?:y|ies)",
+     "transactions\\s+with\\s+affiliates"
+    ],
+    "row_caption_any": [
+     "^\\s*(?:amounts?\\s+)?(?:due|payables?)\\s+to\\b"
+    ],
+    "note_terms": [
+     "related party transactions",
+     "related parties",
+     "transactions with affiliates"
+    ]
+   }
   }
  ],
  "others_master": {

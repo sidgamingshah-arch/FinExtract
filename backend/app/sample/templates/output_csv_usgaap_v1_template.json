@@ -1,7 +1,7 @@
 {
  "schema_version": 1,
  "template_key": "output_csv_usgaap_v1",
- "name": "US GAAP (Form 10-K) — face of the statements",
+ "name": "US GAAP (Form 10-K) — the statements and additional items",
  "statements": [
   {
    "type": "balance_sheet",
@@ -1193,6 +1193,389 @@
          "cf_financing__beg_of_period_cash_and_cash_equiv"
         ]
        }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "type": "notes",
+   "label": "Additional Items",
+   "label_i18n": {
+    "en": "Additional Items"
+   },
+   "sections": [
+    {
+     "node_id": "notes_cash",
+     "canonical_key": "notes_cash",
+     "label": "Cash flow supplemental",
+     "label_i18n": {
+      "en": "Cash flow supplemental"
+     },
+     "role": "header",
+     "children": [
+      {
+       "node_id": "notes_cash__interest_paid",
+       "canonical_key": "notes_cash__interest_paid",
+       "label": "Cash paid for interest",
+       "label_i18n": {
+        "en": "Cash paid for interest"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "notes_cash__income_taxes_paid",
+       "canonical_key": "notes_cash__income_taxes_paid",
+       "label": "Cash paid for income taxes",
+       "label_i18n": {
+        "en": "Cash paid for income taxes"
+       },
+       "role": "line"
+      }
+     ]
+    },
+    {
+     "node_id": "notes_debt",
+     "canonical_key": "notes_debt",
+     "label": "Debt",
+     "label_i18n": {
+      "en": "Debt"
+     },
+     "role": "header",
+     "children": [
+      {
+       "node_id": "notes_debt__due_in_year_1",
+       "canonical_key": "notes_debt__due_in_year_1",
+       "label": "Debt maturing in year 1",
+       "label_i18n": {
+        "en": "Debt maturing in year 1"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "notes_debt__due_in_year_2",
+       "canonical_key": "notes_debt__due_in_year_2",
+       "label": "Debt maturing in year 2",
+       "label_i18n": {
+        "en": "Debt maturing in year 2"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "notes_debt__due_in_year_3",
+       "canonical_key": "notes_debt__due_in_year_3",
+       "label": "Debt maturing in year 3",
+       "label_i18n": {
+        "en": "Debt maturing in year 3"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "notes_debt__due_in_year_4",
+       "canonical_key": "notes_debt__due_in_year_4",
+       "label": "Debt maturing in year 4",
+       "label_i18n": {
+        "en": "Debt maturing in year 4"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "notes_debt__due_in_year_5",
+       "canonical_key": "notes_debt__due_in_year_5",
+       "label": "Debt maturing in year 5",
+       "label_i18n": {
+        "en": "Debt maturing in year 5"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "notes_debt__due_thereafter",
+       "canonical_key": "notes_debt__due_thereafter",
+       "label": "Debt maturing thereafter",
+       "label_i18n": {
+        "en": "Debt maturing thereafter"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "notes_debt__total_principal",
+       "canonical_key": "notes_debt__total_principal",
+       "label": "Total debt principal",
+       "label_i18n": {
+        "en": "Total debt principal"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "notes_debt__fair_value",
+       "canonical_key": "notes_debt__fair_value",
+       "label": "Fair value of debt",
+       "label_i18n": {
+        "en": "Fair value of debt"
+       },
+       "role": "line"
+      }
+     ]
+    },
+    {
+     "node_id": "notes_tax",
+     "canonical_key": "notes_tax",
+     "label": "Income taxes",
+     "label_i18n": {
+      "en": "Income taxes"
+     },
+     "role": "header",
+     "children": [
+      {
+       "node_id": "notes_tax__current_income_tax",
+       "canonical_key": "notes_tax__current_income_tax",
+       "label": "Current income tax expense",
+       "label_i18n": {
+        "en": "Current income tax expense"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "notes_tax__deferred_income_tax",
+       "canonical_key": "notes_tax__deferred_income_tax",
+       "label": "Deferred income tax expense (benefit)",
+       "label_i18n": {
+        "en": "Deferred income tax expense (benefit)"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "notes_tax__effective_tax_rate",
+       "canonical_key": "notes_tax__effective_tax_rate",
+       "label": "Effective tax rate",
+       "label_i18n": {
+        "en": "Effective tax rate"
+       },
+       "role": "line"
+      }
+     ]
+    },
+    {
+     "node_id": "notes_assets",
+     "canonical_key": "notes_assets",
+     "label": "Inventories and property",
+     "label_i18n": {
+      "en": "Inventories and property"
+     },
+     "role": "header",
+     "children": [
+      {
+       "node_id": "notes_assets__raw_materials",
+       "canonical_key": "notes_assets__raw_materials",
+       "label": "Inventories: raw materials",
+       "label_i18n": {
+        "en": "Inventories: raw materials"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "notes_assets__work_in_process",
+       "canonical_key": "notes_assets__work_in_process",
+       "label": "Inventories: work in process",
+       "label_i18n": {
+        "en": "Inventories: work in process"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "notes_assets__finished_goods",
+       "canonical_key": "notes_assets__finished_goods",
+       "label": "Inventories: finished goods",
+       "label_i18n": {
+        "en": "Inventories: finished goods"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "notes_assets__ppe_at_cost",
+       "canonical_key": "notes_assets__ppe_at_cost",
+       "label": "Property, plant and equipment, at cost",
+       "label_i18n": {
+        "en": "Property, plant and equipment, at cost"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "notes_assets__accumulated_depreciation",
+       "canonical_key": "notes_assets__accumulated_depreciation",
+       "label": "Accumulated depreciation",
+       "label_i18n": {
+        "en": "Accumulated depreciation"
+       },
+       "role": "line"
+      }
+     ]
+    },
+    {
+     "node_id": "notes_audit",
+     "canonical_key": "notes_audit",
+     "label": "Auditor's report",
+     "label_i18n": {
+      "en": "Auditor's report"
+     },
+     "role": "header",
+     "children": [
+      {
+       "node_id": "notes_audit__auditor",
+       "canonical_key": "notes_audit__auditor",
+       "label": "Independent auditor",
+       "label_i18n": {
+        "en": "Independent auditor"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "notes_audit__opinion_type",
+       "canonical_key": "notes_audit__opinion_type",
+       "label": "Audit opinion (as headed)",
+       "label_i18n": {
+        "en": "Audit opinion (as headed)"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "notes_audit__opinion_on_financial_statements",
+       "canonical_key": "notes_audit__opinion_on_financial_statements",
+       "label": "Opinion on the financial statements",
+       "label_i18n": {
+        "en": "Opinion on the financial statements"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "notes_audit__opinion_on_internal_control",
+       "canonical_key": "notes_audit__opinion_on_internal_control",
+       "label": "Opinion on internal control",
+       "label_i18n": {
+        "en": "Opinion on internal control"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "notes_audit__going_concern",
+       "canonical_key": "notes_audit__going_concern",
+       "label": "Going concern paragraph",
+       "label_i18n": {
+        "en": "Going concern paragraph"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "notes_audit__critical_audit_matter",
+       "canonical_key": "notes_audit__critical_audit_matter",
+       "label": "Critical audit matter",
+       "label_i18n": {
+        "en": "Critical audit matter"
+       },
+       "role": "line"
+      }
+     ]
+    },
+    {
+     "node_id": "notes_contingencies",
+     "canonical_key": "notes_contingencies",
+     "label": "Commitments and contingencies",
+     "label_i18n": {
+      "en": "Commitments and contingencies"
+     },
+     "role": "header",
+     "children": [
+      {
+       "node_id": "notes_contingencies__assessment",
+       "canonical_key": "notes_contingencies__assessment",
+       "label": "Contingencies: the filer's assessment",
+       "label_i18n": {
+        "en": "Contingencies: the filer's assessment"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "notes_contingencies__guarantees_and_letters_of_credit",
+       "canonical_key": "notes_contingencies__guarantees_and_letters_of_credit",
+       "label": "Guarantees and letters of credit",
+       "label_i18n": {
+        "en": "Guarantees and letters of credit"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "notes_contingencies__accrued_loss_contingencies",
+       "canonical_key": "notes_contingencies__accrued_loss_contingencies",
+       "label": "Accrued loss contingencies",
+       "label_i18n": {
+        "en": "Accrued loss contingencies"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "notes_contingencies__purchase_obligations",
+       "canonical_key": "notes_contingencies__purchase_obligations",
+       "label": "Purchase obligations",
+       "label_i18n": {
+        "en": "Purchase obligations"
+       },
+       "role": "line"
+      }
+     ]
+    },
+    {
+     "node_id": "notes_related",
+     "canonical_key": "notes_related",
+     "label": "Related parties",
+     "label_i18n": {
+      "en": "Related parties"
+     },
+     "role": "header",
+     "children": [
+      {
+       "node_id": "notes_related__disclosure",
+       "canonical_key": "notes_related__disclosure",
+       "label": "Related parties: the disclosure",
+       "label_i18n": {
+        "en": "Related parties: the disclosure"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "notes_related__sales_to_related_parties",
+       "canonical_key": "notes_related__sales_to_related_parties",
+       "label": "Sales to related parties",
+       "label_i18n": {
+        "en": "Sales to related parties"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "notes_related__purchases_from_related_parties",
+       "canonical_key": "notes_related__purchases_from_related_parties",
+       "label": "Purchases from related parties",
+       "label_i18n": {
+        "en": "Purchases from related parties"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "notes_related__due_from_related_parties",
+       "canonical_key": "notes_related__due_from_related_parties",
+       "label": "Amounts due from related parties",
+       "label_i18n": {
+        "en": "Amounts due from related parties"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "notes_related__due_to_related_parties",
+       "canonical_key": "notes_related__due_to_related_parties",
+       "label": "Amounts due to related parties",
+       "label_i18n": {
+        "en": "Amounts due to related parties"
+       },
+       "role": "line"
       }
      ]
     }

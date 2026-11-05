@@ -1,11 +1,13 @@
-"""THE US GAAP TEMPLATE IS THE FACE OF A FORM 10-K'S THREE PRIMARY STATEMENTS, AND NOTHING MORE.
+"""THE US GAAP TEMPLATE: THE FACE OF A FORM 10-K'S THREE STATEMENTS, AND ITS ADDITIONAL ITEMS.
 
 The pair is built by `scripts/build_usgaap_pair.py`. These are the properties that make it what it
 says it is:
 
   * the shipped files are exactly what the script builds, so the script is the reviewable source;
-  * every line is a template line read from the FACE: no internal part, no note or sentence route,
-    and the set is strict about it;
+  * every line of the three statements is a template line read from the FACE: no internal part, no
+    note or sentence route, and the set is strict about it;
+  * the additional items are read from the notes and the auditor's report, are open to every note,
+    and their text is lifted off the page, never generated;
   * each asset, liability and cash-flow section has one leftover line; the statement of operations
     and stockholders' equity have none, and each leftover line refuses the totals printed in its
     section;
@@ -94,14 +96,162 @@ def test_the_pair_is_seeded_at_boot():
 
 # ── face only ──────────────────────────────────────────────────────────────────────────────────
 
-def test_every_line_is_a_face_line_of_the_three_statements(raw, usgaap):
+NOTES = "notes"
+
+
+def _statement_lines(raw):
+    return [i for i in raw[1]["items"] if NOTES not in i["statements"]]
+
+
+def _additional_items(raw):
+    return [i for i in raw[1]["items"] if NOTES in i["statements"]]
+
+
+def test_every_statement_line_is_a_face_line(raw, usgaap):
     assert usgaap.strict_face_route is True
     for item in raw[1]["items"]:
         assert item["namespace"] == "template" and item["in_output"] is True, item["key"]
         assert not item["key"].startswith("sub__"), item["key"]
+    for item in _statement_lines(raw):
         assert item["route"] == "face", item["key"]
         assert "note_source" not in item and "cascade" not in item, item["key"]
-    assert [st["type"] for st in raw[0]["statements"]] == [BS, PL, CF]
+    assert [st["type"] for st in raw[0]["statements"]] == [BS, PL, CF, NOTES]
+
+
+def test_the_additional_items_are_the_ones_agreed(raw):
+    """The recommended set, with the auditor's report, contingent liabilities and related parties."""
+    (notes,) = [st for st in raw[0]["statements"] if st["type"] == NOTES]
+    assert [sec["node_id"] for sec in notes["sections"]] == [
+        "notes_cash", "notes_debt", "notes_tax", "notes_assets", "notes_audit",
+        "notes_contingencies", "notes_related"]
+    keys = {i["key"] for i in _additional_items(raw)}
+    assert {"notes_cash__interest_paid", "notes_cash__income_taxes_paid",
+            *(f"notes_debt__due_in_year_{n}" for n in range(1, 6)), "notes_debt__due_thereafter",
+            "notes_debt__total_principal", "notes_debt__fair_value",
+            "notes_tax__current_income_tax", "notes_tax__deferred_income_tax",
+            "notes_tax__effective_tax_rate", "notes_assets__raw_materials",
+            "notes_assets__work_in_process", "notes_assets__finished_goods",
+            "notes_assets__ppe_at_cost", "notes_assets__accumulated_depreciation",
+            "notes_audit__auditor", "notes_audit__opinion_type",
+            "notes_audit__opinion_on_financial_statements",
+            "notes_audit__opinion_on_internal_control", "notes_audit__going_concern",
+            "notes_audit__critical_audit_matter", "notes_contingencies__assessment",
+            "notes_contingencies__guarantees_and_letters_of_credit",
+            "notes_contingencies__accrued_loss_contingencies",
+            "notes_contingencies__purchase_obligations", "notes_related__disclosure",
+            "notes_related__sales_to_related_parties",
+            "notes_related__purchases_from_related_parties",
+            "notes_related__due_from_related_parties",
+            "notes_related__due_to_related_parties"} == keys
+
+
+def test_an_additional_item_is_read_off_a_note_or_a_page_never_the_face_alone(raw):
+    for item in _additional_items(raw):
+        assert item["type"] == "extracted", item["key"]
+        assert item["route"] in ("note_tables", "anywhere"), item["key"]
+        assert item.get("note_source"), item["key"]
+
+
+def test_an_additional_item_is_open_to_every_note(raw):
+    """`note_sections.open_to` closes a scoped line to a note the face cites from another section,
+    and every note here is cited from the face. Only the two supplemental cash-flow lines, which
+    may bind the row printed under the statement of cash flows, name a scope — the statement's top
+    level, which no banner constrains."""
+    for item in _additional_items(raw):
+        if item["key"].startswith("notes_cash__"):
+            assert item["section_scope"] == ["cf_top_level"], item["key"]
+        else:
+            assert item["section_scope"] == [], item["key"]
+
+
+def test_text_is_lifted_off_the_page_never_generated(raw):
+    """A `phrase` is checked against the page it is copied from; a `prose` line cannot be loaded
+    and nothing downstream reads one. The effective tax rate is text, so no statement unit scales
+    its percentage."""
+    text = {i["key"] for i in raw[1]["items"] if i.get("output_structure", "value") != "value"}
+    assert all(i.get("output_structure") == "phrase" for i in raw[1]["items"] if i["key"] in text)
+    assert {k for k in text if k.startswith("notes_audit__")} == {
+        i["key"] for i in _additional_items(raw) if i["key"].startswith("notes_audit__")}
+    assert {"notes_tax__effective_tax_rate", "notes_contingencies__assessment",
+            "notes_related__disclosure"} <= text
+    assert all(not i.get("prompt") for i in raw[1]["items"])
+
+
+@pytest.mark.parametrize("key,title,caption", [
+    ("notes_assets__raw_materials", "Note 4 – Consolidated Financial Statement Details", "Raw materials"),
+    ("notes_assets__work_in_process", "NOTE 5 — INVENTORIES", "Work in process"),
+    ("notes_assets__finished_goods", "Note 3. Inventories", "Finished goods"),
+    ("notes_assets__ppe_at_cost", "NOTE 6 — PROPERTY AND EQUIPMENT", "Total, at cost"),
+    ("notes_assets__ppe_at_cost", "Note 4. Property and Equipment", "Property and equipment, at cost"),
+    ("notes_assets__ppe_at_cost", "Property, Plant and Equipment, Net", "Gross property, plant and equipment"),
+    ("notes_assets__accumulated_depreciation", "NOTE 6 — PROPERTY AND EQUIPMENT", "Accumulated depreciation"),
+    ("notes_assets__accumulated_depreciation", "Note 4. Property and Equipment", "Less accumulated depreciation"),
+    ("notes_tax__current_income_tax", "Note 7 – Income Taxes", "Total current"),
+    ("notes_tax__current_income_tax", "NOTE 12 — INCOME TAXES", "Current taxes"),
+    ("notes_tax__current_income_tax", "Note 9. Income Taxes", "Total current tax provision"),
+    ("notes_tax__deferred_income_tax", "Note 7 – Income Taxes", "Total deferred"),
+    ("notes_tax__deferred_income_tax", "NOTE 12 — INCOME TAXES", "Deferred taxes"),
+    ("notes_tax__deferred_income_tax", "Note 9. Income Taxes", "Total deferred tax expense (benefit)"),
+    ("notes_debt__total_principal", "Note 9 – Debt", "Total term debt principal"),
+    ("notes_debt__total_principal", "NOTE 11 — DEBT", "Total face value"),
+    ("notes_contingencies__purchase_obligations", "NOTE 17 — COMMITMENTS", "Total purchase commitments"),
+    ("notes_related__sales_to_related_parties", "Note 12. Related Party Transactions", "Sales to affiliates"),
+    ("notes_related__purchases_from_related_parties", "NOTE 18 — RELATED PARTY TRANSACTIONS",
+     "Purchases of services from related parties"),
+    ("notes_related__purchases_from_related_parties", "Note 12. Related Party Transactions",
+     "Rent paid to related parties"),
+    ("notes_related__due_from_related_parties", "Note 12. Related Party Transactions",
+     "Amounts due from affiliates"),
+    ("notes_related__due_to_related_parties", "NOTE 18 — RELATED PARTY TRANSACTIONS", "Due to related parties"),
+    ("notes_cash__interest_paid", "NOTE 19 — SUPPLEMENTAL CASH FLOW INFORMATION", "Interest on debt"),
+    ("notes_cash__income_taxes_paid", "NOTE 19 — SUPPLEMENTAL CASH FLOW INFORMATION",
+     "Income taxes, net of refunds"),
+])
+def test_a_tabulated_note_row_is_read_by_its_line(raw, key, title, caption):
+    note = {i["key"]: i for i in raw[1]["items"]}[key]["note_source"]
+    assert any(re.search(p, title, re.IGNORECASE) for p in note["note_title_any"]), (key, title)
+    assert any(re.search(p, caption, re.IGNORECASE) for p in note["row_caption_any"]), (key, caption)
+    assert not any(re.search(p, caption, re.IGNORECASE)
+                   for p in note.get("row_caption_none", ())), (key, caption)
+
+
+@pytest.mark.parametrize("key,title,caption", [
+    # The deferred tax assets table sits in the same note as the provision.
+    ("notes_tax__deferred_income_tax", "Note 7 – Income Taxes", "Total deferred tax assets"),
+    ("notes_tax__current_income_tax", "Note 7 – Income Taxes", "Total current deferred tax assets"),
+    # Gross is not net.
+    ("notes_assets__ppe_at_cost", "NOTE 6 — PROPERTY AND EQUIPMENT", "Total, net"),
+    ("notes_related__sales_to_related_parties", "Note 12. Related Party Transactions",
+     "Amounts due from affiliates"),
+])
+def test_a_note_row_that_is_not_the_line_is_not_read(raw, key, title, caption):
+    note = {i["key"]: i for i in raw[1]["items"]}[key]["note_source"]
+    titled = any(re.search(p, title, re.IGNORECASE) for p in note["note_title_any"])
+    counted = (any(re.search(p, caption, re.IGNORECASE) for p in note["row_caption_any"])
+               and not any(re.search(p, caption, re.IGNORECASE)
+                           for p in note.get("row_caption_none", ())))
+    assert not (titled and counted), (key, title, caption)
+
+
+def test_the_debt_maturities_are_cited_from_the_page(raw):
+    """A note's second table reads on the first table's column grid: measured on two test layouts,
+    the single-column maturities landed under the comparative's heading with their year captions
+    lost, and a row pattern on "Thereafter" put this year's figure in the prior year. So no row
+    pattern reads them, and the model may cite the printed line from the page."""
+    items = {i["key"]: i for i in raw[1]["items"]}
+    for key in [f"notes_debt__due_in_year_{n}" for n in range(1, 6)] + ["notes_debt__due_thereafter"]:
+        assert items[key]["route"] == "anywhere", key
+        assert "row_caption_any" not in items[key]["note_source"], key
+
+
+@pytest.mark.parametrize("caption,key", [
+    ("Cash paid for income taxes, net", "notes_cash__income_taxes_paid"),
+    ("Income taxes paid", "notes_cash__income_taxes_paid"),
+    ("Interest paid", "notes_cash__interest_paid"),
+])
+def test_a_supplemental_cash_flow_row_under_the_statement_binds_its_item(matcher, caption, key):
+    hit = matcher.match(caption, statement=CF, section=None)
+    assert hit.canonical_key == key and hit.confidence >= 0.9, (caption, hit.canonical_key)
 
 
 def test_the_keys_application_code_names_are_kept(usgaap):
@@ -336,7 +486,6 @@ def test_a_10k_caption_binds_its_line(matcher, caption, statement, section, key)
     ("Diluted net income per common share attributable to Bluegate", PL, None),
     ("Vendor non-trade receivables", BS, "Current assets"),
     ("Dividends paid to noncontrolling interest", CF, "Financing activities"),
-    ("Cash paid for income taxes, net", CF, None),
 ])
 def test_a_row_no_line_names_binds_nothing(matcher, caption, statement, section):
     hit = matcher.match(caption, statement=statement, section=section)
