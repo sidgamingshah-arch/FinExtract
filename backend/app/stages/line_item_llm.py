@@ -2136,9 +2136,21 @@ def _refuse_derivative_citations(item, resolved: list[dict]) -> tuple[list[dict]
 
 
 def _current_period(doc) -> str | None:
-    """The label the STATEMENTS use for the reporting year, so a prose figure lands in a real column."""
+    """The label the STATEMENTS use for the reporting year, so a prose figure lands in a real column.
+
+    "current" WHEREVER THE STATEMENTS USE IT, and only otherwise the first label found. The first
+    label found is the first column printed, which is the reporting year only on a filing that
+    prints it first: Alphabet's 2025 10-K prints 2024 before 2025, its first value is "Cash and
+    cash equivalents" for 2024, and every figure the model cited from a sentence — the guarantees,
+    the purchase commitments, the six debt maturities, the fair value of debt — was filed as the
+    prior year, the current cell left empty.
+    """
+    first: str | None = None
     for li in doc.line_items:
         for ev in (li.values or {}).values():
-            if getattr(ev, "column_index", None) is None and getattr(ev, "period_label", None):
-                return str(ev.period_label)
-    return None
+            label = getattr(ev, "period_label", None)
+            if getattr(ev, "column_index", None) is None and label:
+                if str(label) == "current":
+                    return "current"
+                first = first or str(label)
+    return first

@@ -2168,13 +2168,60 @@ def _page_sentence(stated: str, quote: str, page: int,
     scale_word, prior = prose_context(found, text[start:])
     before = text[max(0, start - 16): start]
     after = text[best.end(): best.end() + 24] if best is not None else ""
+    money = _currency_beside(before, after)
+    # A LINE OF A TABLE THE PAGE DECLARES IN MONEY. A US table prints its unit once, in the
+    # sentence that introduces it ("…were as follows (in millions):"), and "$" on its first line
+    # and its total only: Alphabet's debt maturities "2026 $ 2,000 / 2027 1,000 / … / Thereafter
+    # 36,145 / Total $ 49,085". The bare lines were read as counts — stored at scale 1 with no
+    # currency — while "2026 $ 2,000" was money in millions.
+    if not money and best is not None and scale_word is None:
+        declared = _money_table_above(text, start)
+        if declared is not None:
+            money, scale_word = True, declared
     return {"note": "", "statement": "", "title": "", "page": int(page),
             "figures": {"prose": str(found)},
             "provenance": {"page_index": int(page) - 1, "source": "page_prose"},
             "quote": quote, "prose": True, "on_face": False,
             "prose_scale": str(scale_word) if scale_word else None,
             "prose_prior": str(prior) if prior is not None else None,
-            "prose_money": _currency_beside(before, after)}, ""
+            "prose_money": money}, ""
+
+
+# "(in millions)", "(in thousands, except per share amounts)", "(dollars in millions)": the unit a
+# US filer prints once over a table. Searched for in the text just above an amount.
+_TABLE_UNIT = re.compile(r"\((?:(?:amounts|dollars|\$)\s+)?in\s+(millions|thousands|billions)\b[^)]{0,60}\)",
+                         re.I)
+_TABLE_UNIT_FACTOR = {"thousands": Decimal(1_000), "millions": Decimal(1_000_000),
+                      "billions": Decimal(1_000_000_000)}
+
+
+def _money_table_above(text: str, start: int, reach: int = 900) -> Decimal | None:
+    """The scale factor of the money table an amount at `start` is a line of, or None.
+
+    A table, not a sentence: the unit is declared above the amount (`_TABLE_UNIT`, the nearest one
+    within `reach` characters), a "$" is printed on a line between that declaration and the amount
+    (the table's first line), and nothing between them ends a sentence — a full stop followed by
+    a capital opens prose, and a number in prose with no currency beside it is still not money.
+    """
+    # THE AMOUNT ENDS A SHORT LINE OF ITS OWN, as a table line does ("Thereafter 36,145"); a number
+    # inside a sentence ("we had 190,820 employees.") is not a line of the table above it.
+    line_start = text.rfind("\n", 0, start) + 1
+    line_end = text.find("\n", start)
+    line_end = len(text) if line_end < 0 else line_end
+    line = text[line_start:line_end]
+    if len(line.strip()) > 70 or not re.search(r"[\d)]\s*$", line):
+        return None
+    window = text[max(0, start - reach): start]
+    found = list(_TABLE_UNIT.finditer(window))
+    if not found:
+        return None
+    unit = found[-1]
+    between = window[unit.end():]
+    # …WITH NO PARAGRAPH BETWEEN: a blank line or a sentence ending ends the table.
+    if ("$" not in between or re.search(r"\n\s*\n", between)
+            or re.search(r"[a-z]\.\s+[A-Z]", between)):
+        return None
+    return _TABLE_UNIT_FACTOR[unit.group(1).lower()]
 
 
 # A CURRENCY PRINTED AGAINST AN AMOUNT: a sign or code before it ("HK$529,841,000", "RMB 20,878",

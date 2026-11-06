@@ -7912,6 +7912,9 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
     # from banks" over the banks. See `_under_sub_heading` for when a row leaves one.
     sub_stack: list[tuple[float, str]] = list(getattr(carry_group, "stack", ()) or ())
     sub_open = bool(sub_stack)
+    # A HEADING THAT FOLLOWS A CLOSED BLOCK heads the rows indented beneath it: (its left edge,
+    # whether its first row has been read). See where it is set.
+    inset_head: tuple[float, bool] | None = None
     if not on_face:
         for i, row in enumerate(rows[:-1]):
             lw, nref, vw = _scan_row(row, number_format, extract_note_refs=False)
@@ -8317,6 +8320,7 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                     # The leftovers of a caption that wrapped, which is not a section even when it
                     # reads as one on its own line — see ``_TAIL_CONTINUATION``.
                     continue
+                inset_head = None       # every heading starts its own scope; see below
                 if banner is not None or (heading and not _ends_with_colon(label, steps)):
                     section = shown
                     group = ""          # a new section ends the sub-heading's scope
@@ -8340,6 +8344,18 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                     group = heading_path(sub_stack)
                 else:
                     sub_stack.clear()
+                    # …AND THE BLOCK THE STACK HELD IS OVER, so its end is not still pending. Left
+                    # pending, it fired on the first row under THIS heading and emptied `group`
+                    # after it: Alphabet's tax note prints "Current:" (an indented block) and then
+                    # "Deferred:", and only "Federal and state" kept "Deferred:" — "Foreign" and
+                    # "Total" lost it, so the deferred total could not be cited by its group. The
+                    # heading now heads the rows indented beneath it and ends at the first row set
+                    # back to its own edge (`inset_head`), which is where the pending end used to
+                    # cut it when the first row is flush. Only here: a heading after no block keeps
+                    # its group as it always has.
+                    if sub_open:
+                        inset_head = (min(w.bbox.x0 for w in label_words), False)
+                    sub_open = False
                 # THE ONE BOUNDARY THAT DECIDES ANYTHING, and three others were removed for saying
                 # so falsely: a promotion needs members, and members only accumulate under a
                 # heading, so a reset paired with `group = ""` is code a reader reasons about for
@@ -8446,6 +8462,16 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
         if sub_stack:
             group = _under_sub_heading(sub_stack, label_words, label, promoted)
             sub_open = True
+            inset_head = None
+        end_inset_after = False
+        if inset_head is not None and group and label_words and not on_face:
+            inboard = min(w.bbox.x0 for w in label_words) > inset_head[0] + _INDENT_MIN
+            if not inset_head[1]:
+                inset_head = (inset_head[0], True)
+                end_inset_after = not inboard      # a flush first row: the heading's alone
+            elif not inboard:
+                group = ""                          # set back to the heading's edge: the block ended
+                inset_head = None
         li = LineItem(source_label=label, ordinal=ordinal,
                       role=(LineRole.SUBTOTAL if promoted
                             else LineRole.TOTAL if statement_line else LineRole.LINE),
@@ -8459,6 +8485,9 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
             sub_open = False
         if close_group_after:
             group = ""
+        if end_inset_after:
+            group = ""
+            inset_head = None
         # THE HEADING'S BOX FOR A BORROWED CAPTION. A promoted row has no label words of its own, so
         # this was None — and `_prov_anchor` then falls back to the value box's vertical band alone,
         # which two sub-tables printed on one baseline share. The judgement layer refuses to attribute
