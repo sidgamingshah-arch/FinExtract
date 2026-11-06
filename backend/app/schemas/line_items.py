@@ -92,8 +92,13 @@ LineItemType = Literal["extracted", "calculated", "intermediate", "derived"]
 #              reconciles or checks an identity assumes this.
 #   "phrase" — a short piece of text taken FROM the document (an audit opinion's wording, a going-
 #              concern statement, a covenant's stated threshold as printed).
-#   "prose"  — text GENERATED for this line by the model from the line's own `prompt`. Nothing is
-#              read off the page; the prompt is the specification.
+#   "prose"  — a short narrative WRITTEN for this line by the model, from the line's own `prompt`
+#              (folded into `definition` on load) and ONLY from the pages it is sent: what a
+#              filing's notes disclose about its contingent liabilities, say. The one place the
+#              model writes rather than locates, so it is a deliberate, labelled exception: every
+#              number it writes is checked against the pages it cites, and the fact it writes is
+#              flagged `llm_prose` so no reader takes it for words the filing prints
+#              (`services.text_lines.check_prose`, `stages.line_item_llm._ask_text`).
 #
 # A NON-NUMERIC LINE IS NOT A FIGURE, and the arithmetic must not pretend otherwise: it has no sign
 # to expect, no unit of account, and it cannot be a component of a subtotal or appear in a balance
@@ -1104,13 +1109,18 @@ class LineItemDef(BaseModel):
                 f"{self.key}: a `{self.output_structure}` line is text, and a `{self.type}` line "
                 f"gets its value from arithmetic — there is no calculation that produces a "
                 f"sentence. Set the type to `extracted`, or the output structure back to `value`.")
-        # PROSE IS SPECIFIED BY THE PROMPT AND BY NOTHING ELSE. With no prompt there is nothing to
-        # generate from, so the line would publish an empty cell for a reason no reader could see.
-        if self.output_structure == "prose" and not self.prompt.strip():
+        # PROSE IS SPECIFIED BY ITS INSTRUCTION AND BY NOTHING ELSE. The instruction is the line's
+        # `prompt`, which `_merge_prompt_into_definition` has already folded into `definition` and
+        # emptied — so the check reads the merged field. (It used to read `prompt`, which the fold
+        # had always just cleared: every prose line was refused, and none could be loaded.) With
+        # no text in either there is nothing to write from, so the line would publish an empty
+        # cell for a reason no reader could see.
+        if self.output_structure == "prose" and not ((self.definition or "").strip()
+                                                     or (self.prompt or "").strip()):
             raise ValueError(
                 f"{self.key}: a `prose` line is written by the model from this line's own prompt, "
-                f"and no prompt is set — there is nothing to generate from. Write the prompt, or "
-                f"choose `phrase` to lift the text off the page instead.")
+                f"and no prompt or definition is set — there is nothing to write from. Write the "
+                f"prompt, or choose `phrase` to lift the text off the page instead.")
         if self.prompt.strip() and self.type != "extracted":
             raise ValueError(
                 f"{self.key}: a prompt is only sent for an `extracted` line, and this one is "

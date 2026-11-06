@@ -211,6 +211,17 @@ closing full stop do not count): `right` or `wrong_text`, `missed` for no text. 
 run's text request is graded. The older scratch shape (numbers instead of strings,
 `units`, `source` for `where`, `confidence`) is accepted and converted.
 
+A NARRATIVE line (`output_structure: prose` — the 10-K set's contingent-liabilities and
+related-party narratives) is the one kind the model writes rather than copies. Its request is a
+request of its own (system text `PROSE_REPLY_CONTRACT`, plus `PROSE_REPORT_GUIDE` when it is
+asked with the whole report; schema `LineItemProseReply`: `text` and a list of `pages`), and the
+answerer writes what the line's definition asks from the pages alone, copying every amount, date
+and name as printed. The gateway refuses a narrative that cites no page, cites a page the request
+did not carry, or writes a number none of its cited pages prints (`text_lines.check_prose`;
+`run/log.txt` says `narrative REFUSED (llm_prose_number_not_on_page) …`); one that passes is
+written with the flag `llm_prose:pages …` (`narrative WRITTEN BY THE MODEL` in the log). A
+narrative has no printed text to compare with a key, so `grade` does not grade one.
+
 ## The report
 
 - **Requests:** total, by stage, answered, pending, sizes.

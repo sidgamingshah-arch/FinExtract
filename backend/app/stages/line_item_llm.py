@@ -74,10 +74,18 @@ _RESPONSE_TOKENS_PER_ANSWER = 200
 # answers of the HK filings: median 125 tokens, 99th percentile 379, the longest 1,961; a sentence
 # citation carries its quote. 400 a line holds a batch in which several run long.
 _REPORT_RESPONSE_TOKENS_PER_ANSWER = 400
+# A NARRATIVE IS WRITTEN, NOT CITED: up to `text_lines.PROSE_MAX_CHARS` (2,000 characters, about
+# 500 tokens) and its reason, so a narrative answer is allowed twice a report answer.
+_PROSE_RESPONSE_TOKENS_PER_ANSWER = 800
+
+#: The flag a narrative the model WROTE carries on its line (`_write_narrative`), beside the cited
+#: pages: `llm_prose:pages 41, 42`. A phrase copied off a page carries `llm_text:page 41`.
+NARRATIVE_FLAG = "llm_prose"
 
 
-def _max_tokens(n_answers: int, *, report: bool = False) -> int:
-    per = _REPORT_RESPONSE_TOKENS_PER_ANSWER if report else _RESPONSE_TOKENS_PER_ANSWER
+def _max_tokens(n_answers: int, *, report: bool = False, prose: bool = False) -> int:
+    per = (_PROSE_RESPONSE_TOKENS_PER_ANSWER if prose
+           else _REPORT_RESPONSE_TOKENS_PER_ANSWER if report else _RESPONSE_TOKENS_PER_ANSWER)
     return _RESPONSE_RESERVE + max(1, n_answers) * per
 
 
@@ -676,6 +684,13 @@ class LineItemLlmStage(Stage):
         is sent the whole annual report instead, the same message the figure requests carry, and
         every page of it is a page the text may be copied from. `page_texts` is the run's page text
         when the caller has read it already.
+
+        A NARRATIVE LINE (`text_lines.is_prose_line`) is asked in a request of its own, with the
+        same pages, under `line_item_llm.PROSE_REPLY_CONTRACT` and its reply schema: the model
+        WRITES its value, so the answer is checked as far as a written text can be
+        (`text_lines.check_prose` — it cites pages that were sent, and every number it writes is
+        printed on one of them), refused and logged when it fails, and written with the
+        `llm_prose` label when it passes (`_write_narrative`). A plan holding both kinds is split.
         """
         if page_texts is None and text_plans:
             page_texts = _page_texts(doc, ctx, why="text_lines_skipped")
@@ -688,29 +703,40 @@ class LineItemLlmStage(Stage):
             if page_texts is not None or report is not None:
                 ctx.log("line_item_llm:text_lines_skipped(the document has no page text)")
             return 0, 0, 0
-        calls = failures = answered = 0
+        calls = failures = answered = written = 0
         todo = [(plan, False) for plan in (text_plans if page_texts else ())]
         todo += [(plan, True) for plan in report_plans]
-        for plan, whole in todo:
+        for plan, whole, prose in _by_text_kind(todo, by_key):
             items = [by_key[k] for k in plan.keys if k in by_key]
+            contract = (line_item_llm.PROSE_REPLY_CONTRACT if prose
+                        else line_item_llm.TEXT_REPLY_CONTRACT)
+            output = "narrative" if prose else "text"
             if whole:
                 pages = list((report or {}).get("pages") or ())
-                request = line_item_llm.build_text_request(plan, by_key, [])
-                system = line_item_llm.TEXT_REPLY_CONTRACT + "\n\n" + line_item_llm.TEXT_REPORT_GUIDE
+                request = line_item_llm.build_text_request(plan, by_key, [], output=output)
+                system = contract + "\n\n" + (line_item_llm.PROSE_REPORT_GUIDE if prose
+                                              else line_item_llm.TEXT_REPORT_GUIDE)
             else:
-                pages = text_lines.text_pages(
-                    page_texts, [n for it in items for n in line_item_notes.printed_names(it)],
-                    doc)
-                request = line_item_llm.build_text_request(plan, by_key, pages)
-                system = line_item_llm.TEXT_REPLY_CONTRACT
+                names = (text_lines.prose_names if prose else line_item_notes.printed_names)
+                pages = text_lines.text_pages(page_texts, [n for it in items for n in names(it)],
+                                              doc)
+                if prose and not pages:
+                    # NOTHING TO WRITE FROM: no page names what the line is about, and a narrative
+                    # is never written from no page at all.
+                    ctx.log(f"line_item_llm:prose_request({plan.name}) not sent — no page prints "
+                            f"what {', '.join(plan.keys)} is about")
+                    continue
+                request = line_item_llm.build_text_request(plan, by_key, pages, output=output)
+                system = contract
             if not request["line_items"]:
                 continue
             try:
                 reply, meta = line_item_llm.ask(
                     provider, system, request,
-                    max_tokens=_max_tokens(len(request["line_items"]), report=whole),
+                    max_tokens=_max_tokens(len(request["line_items"]), report=whole, prose=prose),
                     document=report_text if whole else None,
-                    schema=line_item_llm.LineItemTextReply)
+                    schema=(line_item_llm.LineItemProseReply if prose
+                            else line_item_llm.LineItemTextReply))
             except Exception as exc:  # noqa: BLE001 — the request is the unit of failure
                 failures += 1
                 ctx.llm_failures += 1
@@ -739,6 +765,25 @@ class LineItemLlmStage(Stage):
                     continue
                 seen.add(key)
                 text = " ".join(str(answer.text or "").split())
+                if prose:
+                    if not text:
+                        ctx.log(f"line_item_llm:{key}: narrative line — the pages disclose "
+                                f"nothing it asks about; nothing written")
+                        continue
+                    why = text_lines.check_prose(text, answer.pages, pages)
+                    if why is not None:
+                        # REFUSED, LOGGED, NOT WRITTEN, and no row is made, as a phrase no page
+                        # prints is not: a narrative with a number the filing does not print, or
+                        # resting on a page nobody sent, is not a summary of the filing.
+                        ctx.log(f"line_item_llm:{key}: narrative REFUSED ({why}) — "
+                                f"{text[:120]!r}")
+                        continue
+                    self._write_narrative(doc, by_concept, by_key[key], text,
+                                          list(dict.fromkeys(int(p) for p in answer.pages)),
+                                          answer, ctx)
+                    written += 1
+                    answered += 1
+                    continue
                 if not text:
                     ctx.log(f"line_item_llm:{key}: text line — no supplied page prints it")
                     continue
@@ -753,37 +798,34 @@ class LineItemLlmStage(Stage):
                 self._write_text(doc, by_concept, by_key[key], text, page, answer, ctx)
                 answered += 1
         ctx.log(f"line_item_llm:text_lines requests={calls} failed={failures} "
-                f"texts_written={answered}")
+                f"texts_written={answered - written}"
+                + (f" narratives_written={written}" if written else ""))
         return calls, failures, answered
 
     @staticmethod
-    def _write_text(doc, by_concept: dict, item, text: str, page: int, answer, ctx) -> None:
-        """Put a located text on its line: a `value_text` fact, no figure, on the page it was read.
+    def _write_narrative(doc, by_concept: dict, item, text: str, pages: list[int], answer,
+                         ctx) -> None:
+        """Put a checked narrative on its line: a `value_text` fact, no figure, LABELLED as written.
 
-        Filed under the reporting period and the basis the statements print — a text has no column
-        of its own, so it takes the one the filing's statements are presented on, as a prose figure
-        does (`note_sourced._prose_basis`).
+        Written as a located phrase is (`_write_text`) — the reporting period, the basis the
+        statements print, the first page it cites as its provenance's page — with two differences
+        that say what it is: the provenance's producer is `line_item_llm:prose`, and the line's
+        flag is `llm_prose:pages …`, naming every page it was written from, where a phrase's is
+        `llm_text:page …`. The export passes the flag through (`routes.extractions._text_facts`),
+        so no reader takes a narrative the model wrote for words the filing prints.
         """
-        from app.core.models.enums import Basis
-        from app.core.models.geometry import Provenance
-        from app.core.models.line_item import ExtractedValue
-        row = _text_row(doc, by_concept, item)
-        try:
-            basis = Basis(_prose_basis(doc) or "consolidated")
-        except ValueError:
-            basis = Basis.CONSOLIDATED
-        for k in [k for k, ev in row.values.items()
-                  if ev.basis == basis and ev.period_label == "current"]:
-            del row.values[k]
-        row.set_value(ExtractedValue(
-            basis=basis, period_label="current", value_text=text, derived=True,
-            provenance=Provenance(page_index=page - 1, text_snippet=text[:500],
-                                  producer="line_item_llm:text")))
-        row.confidence.method = MappingMethod.LLM.value
-        row.confidence.mapping = float(answer.confidence or 0.0)
-        row.confidence.flags.append(f"llm_text:page {page}")
-        if answer.reason:
-            row.confidence.flags.append(f"llm_reason:{answer.reason}")
+        cited = ", ".join(map(str, pages))
+        _put_text(doc, by_concept, item, text, page=pages[0], producer="line_item_llm:prose",
+                  flag=f"{NARRATIVE_FLAG}:pages {cited}", answer=answer)
+        ctx.log(f"line_item_llm:{item.key} = narrative WRITTEN BY THE MODEL "
+                f"({NARRATIVE_FLAG}, pages {cited}): {text[:160]!r}")
+
+    @staticmethod
+    def _write_text(doc, by_concept: dict, item, text: str, page: int, answer, ctx) -> None:
+        """Put a located text on its line: a `value_text` fact, no figure, on the page it was read
+        (`_put_text`)."""
+        _put_text(doc, by_concept, item, text, page=page, producer="line_item_llm:text",
+                  flag=f"llm_text:page {page}", answer=answer)
         ctx.log(f"line_item_llm:{item.key} = {text[:80]!r} (page {page})")
 
     def _write(self, doc, by_concept: dict, item, answer, resolved: list[dict],
@@ -1523,6 +1565,26 @@ def _split_text_plans(plans, by_key: dict) -> tuple[list, list]:
     return figures, texts
 
 
+def _by_text_kind(todo, by_key: dict) -> list[tuple]:
+    """``[(plan, whole, prose)]``: each text plan of `todo` (``(plan, whole)``) as its phrase lines
+    and its narrative lines (`text_lines.is_prose_line`), each kind a plan of its own — they are
+    asked under different contracts with different reply schemas. A plan of one kind is kept as it
+    is; the narrative half of a mixed one is named `<plan>:prose`. The report batches are already of
+    one kind (`line_item_requests.report_plans`); a grouped plan of the selected context may not be.
+    """
+    from dataclasses import replace
+    out = []
+    for plan, whole in todo:
+        prose = tuple(k for k in plan.keys if k in by_key and text_lines.is_prose_line(by_key[k]))
+        phrase = tuple(k for k in plan.keys if k not in prose)
+        if phrase:
+            out.append((plan if not prose else replace(plan, keys=phrase), whole, False))
+        if prose:
+            out.append((plan if not phrase else replace(plan, name=f"{plan.name}:prose",
+                                                        keys=prose), whole, True))
+    return out
+
+
 def _text_row(doc, by_concept: dict, item) -> LineItem:
     """The line's row for a text: the one already holding it, else a new one."""
     row = by_concept.get(item.key)
@@ -1531,6 +1593,36 @@ def _text_row(doc, by_concept: dict, item) -> LineItem:
         doc.line_items.append(row)
         by_concept[item.key] = row
     return row
+
+
+def _put_text(doc, by_concept: dict, item, text: str, *, page: int, producer: str, flag: str,
+              answer) -> None:
+    """Write `text` on the line as a `value_text` fact, no figure, its provenance on `page`
+    (1-based), and `flag` on the line saying how the words arrived.
+
+    Filed under the reporting period and the basis the statements print — a text has no column of
+    its own, so it takes the one the filing's statements are presented on, as a prose figure does
+    (`note_sourced._prose_basis`).
+    """
+    from app.core.models.enums import Basis
+    from app.core.models.geometry import Provenance
+    from app.core.models.line_item import ExtractedValue
+    row = _text_row(doc, by_concept, item)
+    try:
+        basis = Basis(_prose_basis(doc) or "consolidated")
+    except ValueError:
+        basis = Basis.CONSOLIDATED
+    for k in [k for k, ev in row.values.items()
+              if ev.basis == basis and ev.period_label == "current"]:
+        del row.values[k]
+    row.set_value(ExtractedValue(
+        basis=basis, period_label="current", value_text=text, derived=True,
+        provenance=Provenance(page_index=page - 1, text_snippet=text[:500], producer=producer)))
+    row.confidence.method = MappingMethod.LLM.value
+    row.confidence.mapping = float(answer.confidence or 0.0)
+    row.confidence.flags.append(flag)
+    if answer.reason:
+        row.confidence.flags.append(f"llm_reason:{answer.reason}")
 
 
 def _review(row) -> None:

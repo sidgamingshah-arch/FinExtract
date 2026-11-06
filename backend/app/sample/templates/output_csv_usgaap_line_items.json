@@ -13,7 +13,7 @@
   "changes": [
    "Built by scripts/build_usgaap_pair.py: the rows the face of a Form 10-K's consolidated balance sheets, statements of operations and indirect-method statements of cash flows print.",
    "99 statement lines, every one read from the face (strict_face_route); no internal parts. One leftover line per asset, liability and cash-flow section; none in the statement of operations or in stockholders' equity.",
-   "35 additional items, read from the notes and the auditor's report: the supplemental cash flow disclosures, debt maturities, principal and fair value, the current and deferred tax and the effective tax rate, the inventory split, property at cost and accumulated depreciation, the audit opinion, contingent liabilities and related-party transactions."
+   "37 additional items, read from the notes and the auditor's report: the supplemental cash flow disclosures, debt maturities, principal and fair value, the current and deferred tax and the effective tax rate, the inventory split, property at cost and accumulated depreciation, the audit opinion, contingent liabilities and related-party transactions, with a short narrative of each of the last two written by the model and labelled as such."
   ],
   "breaking_changes": [],
   "vocabulary_note": "English captions in the wording 10-K filers print, with the variants of the most-printed face rows."
@@ -6645,6 +6645,39 @@
    }
   },
   {
+   "key": "notes_contingencies__narrative",
+   "label": "Contingent liabilities: narrative",
+   "type": "extracted",
+   "namespace": "template",
+   "in_output": true,
+   "inherits": "notes_contingencies",
+   "statements": [
+    "notes"
+   ],
+   "section_scope": [],
+   "order": 127,
+   "definition": "A short narrative of the contingent liabilities the filing discloses (ASC 450 loss contingencies, ASC 460 guarantees), WRITTEN BY THE MODEL from the pages of the notes and labelled as such: every amount, date and name in it as the filing prints it.",
+   "temporality": "duration",
+   "unit_of_account": "flow",
+   "sign_convention": "either",
+   "analyst_bucket": "others",
+   "match_priority": 80,
+   "route": "anywhere",
+   "output_structure": "prose",
+   "prompt": "In at most four sentences, describe the contingent liabilities the notes disclose — material legal proceedings, claims, regulatory, tax and environmental matters, and guarantees: what each is, whether an amount is accrued and how much, and any estimate of the reasonably possible loss. Write 'None disclosed.' when the notes disclose none.",
+   "note_source": {
+    "note_terms": [
+     "commitments and contingencies",
+     "contingencies",
+     "legal proceedings",
+     "litigation",
+     "guarantees",
+     "letters of credit",
+     "purchase obligations"
+    ]
+   }
+  },
+  {
    "key": "notes_contingencies__guarantees_and_letters_of_credit",
    "label": "Guarantees and letters of credit",
    "type": "extracted",
@@ -6655,7 +6688,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 127,
+   "order": 128,
    "definition": "The guarantees, standby letters of credit and surety bonds the filer has issued and that are outstanding at the balance-sheet date, summed: the maximum potential amount of future payments the notes state (ASC 460). Not the undrawn capacity of a credit facility.",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -6686,7 +6719,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 128,
+   "order": 129,
    "definition": "The amount recognised as a liability at the balance-sheet date for loss contingencies (litigation, claims, environmental and similar matters), as the notes state it. Empty where the filing states no amount.",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -6717,7 +6750,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 129,
+   "order": 130,
    "definition": "The total of the filer's unconditional purchase obligations and purchase commitments at the balance-sheet date, as the commitments note prints or states it.",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -6757,7 +6790,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 130,
+   "order": 131,
    "definition": "The sentence of the related-party note that describes the principal related-party relationship and the transactions with it, or that states the filer had no material related-party transactions, copied as printed (ASC 850). Empty when the filing says nothing about related parties.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -6766,6 +6799,35 @@
    "match_priority": 80,
    "route": "anywhere",
    "output_structure": "phrase",
+   "note_source": {
+    "note_terms": [
+     "related party transactions",
+     "related parties",
+     "transactions with affiliates"
+    ]
+   }
+  },
+  {
+   "key": "notes_related__narrative",
+   "label": "Related party transactions: narrative",
+   "type": "extracted",
+   "namespace": "template",
+   "in_output": true,
+   "inherits": "notes_related",
+   "statements": [
+    "notes"
+   ],
+   "section_scope": [],
+   "order": 132,
+   "definition": "A short narrative of the related-party transactions the filing discloses (ASC 850), WRITTEN BY THE MODEL from the pages of the notes and labelled as such: every amount, date and name in it as the filing prints it.",
+   "temporality": "duration",
+   "unit_of_account": "flow",
+   "sign_convention": "either",
+   "analyst_bucket": "others",
+   "match_priority": 80,
+   "route": "anywhere",
+   "output_structure": "prose",
+   "prompt": "In at most three sentences, describe the related-party transactions the notes disclose: who the related parties are by their relationship to the filer, what the transactions are, and their amounts for the year. Write 'None disclosed.' when the filing states there are none.",
    "note_source": {
     "note_terms": [
      "related party transactions",
@@ -6785,7 +6847,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 131,
+   "order": 133,
    "definition": "Revenue from sales of goods and services to related parties during the year, as the related-party note prints or states it.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -6822,7 +6884,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 132,
+   "order": 134,
    "definition": "Purchases of goods and services from related parties during the year, including rent and fees paid to them, as the related-party note prints or states it; where the note prints several kinds on separate rows, the rows are added.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -6860,7 +6922,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 133,
+   "order": 135,
    "definition": "Receivables from related parties at the balance-sheet date, as the related-party note prints or states them.",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -6894,7 +6956,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 134,
+   "order": 136,
    "definition": "Payables to related parties at the balance-sheet date, as the related-party note prints or states them.",
    "temporality": "instant",
    "unit_of_account": "balance",

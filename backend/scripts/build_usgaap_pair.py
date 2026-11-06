@@ -1078,11 +1078,17 @@ SCOPE_OVERRIDES = {"cf_financing__end_of_period_cash_and_cash_equiv": ["cf_top_l
 #     in the prior year;
 #   * TEXT is lifted off the page as printed (`phrase`) and checked against that page: the
 #     auditor, the opinion heading and sentences, the going-concern paragraph, up to three
-#     critical audit matters, the contingencies and related-party sentences, and the effective tax rate with
-#     its percent sign, so no statement unit can scale it. Nothing is GENERATED: a `prose` line
-#     cannot be loaded (its prompt is folded into the definition before the check that requires
-#     one) and nothing downstream reads one (`services.text_lines`), and a written summary could
-#     not be checked against the page in any case.
+#     critical audit matters, the contingencies and related-party sentences, and the effective
+#     tax rate with its percent sign, so no statement unit can scale it;
+#   * TWO NARRATIVES ARE WRITTEN BY THE MODEL (`prose`), at the user's request: a few sentences on
+#     the contingent liabilities and on the related-party transactions the notes disclose, which
+#     no span of one page holds. They are the only lines of any shipped set the model writes rather
+#     than locates, and they are held to what can be held: each line's `prompt` is its instruction
+#     (folded into its definition on load), the narrative is written from the report's pages alone,
+#     it cites the pages it drew from, every number it writes must be printed on one of them or the
+#     answer is refused (`services.text_lines.check_prose`), and the fact it writes is labelled
+#     `llm_prose` so no reader takes it for words the filing prints. They sit beside the copied
+#     contingencies and related-party sentences, which stay.
 #
 # NO NOTE LINE DECLARES A SECTION SCOPE. A note-reading line scoped to a section is closed to a
 # note the face cites from a different one (`note_sections.open_to`), and every note here is
@@ -1116,12 +1122,14 @@ def NS(title=(), rows=(), none=(), terms=()):
 
 def N(key, label, definition, *, route="note_tables", note=None, structure="value",
       statements=("notes",), aliases=(), regex=(), exclude=(), scope=(), sign="either",
-      instant=False):
-    """One additional item."""
+      instant=False, prompt=""):
+    """One additional item. `prompt` is a narrative line's instruction to the model (a `prose`
+    line is refused without one); the loader folds it into the definition."""
+    assert (structure == "prose") == bool(prompt), (key, "a prompt is a prose line's, and only its")
     return {"key": key, "label": label, "definition": definition, "route": route, "note": note,
             "structure": structure, "statements": list(statements),
             "aliases": list(aliases), "regex": list(regex), "exclude": list(exclude),
-            "scope": list(scope), "sign": sign, "instant": instant}
+            "scope": list(scope), "sign": sign, "instant": instant, "prompt": prompt}
 
 
 _DEBT_TITLE = [r"\bdebt\b", r"\bborrowings\b", r"notes\s+payable", r"credit\s+(?:facilities|agreements?)"]
@@ -1317,6 +1325,16 @@ NOTE_LINES = {
           "the outcome is not expected to have a material adverse effect (ASC 450). Empty when "
           "the notes disclose no contingencies.",
           route="anywhere", structure="phrase", note=NS(terms=_CC_TERMS)),
+        N("notes_contingencies__narrative", "Contingent liabilities: narrative",
+          "A short narrative of the contingent liabilities the filing discloses (ASC 450 loss "
+          "contingencies, ASC 460 guarantees), WRITTEN BY THE MODEL from the pages of the notes "
+          "and labelled as such: every amount, date and name in it as the filing prints it.",
+          route="anywhere", structure="prose", note=NS(terms=_CC_TERMS),
+          prompt="In at most four sentences, describe the contingent liabilities the notes "
+                 "disclose — material legal proceedings, claims, regulatory, tax and "
+                 "environmental matters, and guarantees: what each is, whether an amount is "
+                 "accrued and how much, and any estimate of the reasonably possible loss. Write "
+                 "'None disclosed.' when the notes disclose none."),
         N("notes_contingencies__guarantees_and_letters_of_credit", "Guarantees and letters of credit",
           "The guarantees, standby letters of credit and surety bonds the filer has issued and that "
           "are outstanding at the balance-sheet date, summed: the maximum potential amount of future "
@@ -1342,6 +1360,15 @@ NOTE_LINES = {
           "related-party transactions, copied as printed (ASC 850). Empty when the filing says "
           "nothing about related parties.",
           route="anywhere", structure="phrase", note=NS(terms=_RP_TERMS)),
+        N("notes_related__narrative", "Related party transactions: narrative",
+          "A short narrative of the related-party transactions the filing discloses (ASC 850), "
+          "WRITTEN BY THE MODEL from the pages of the notes and labelled as such: every amount, "
+          "date and name in it as the filing prints it.",
+          route="anywhere", structure="prose", note=NS(terms=_RP_TERMS),
+          prompt="In at most three sentences, describe the related-party transactions the notes "
+                 "disclose: who the related parties are by their relationship to the filer, what "
+                 "the transactions are, and their amounts for the year. Write 'None disclosed.' "
+                 "when the filing states there are none."),
         N("notes_related__sales_to_related_parties", "Sales to related parties",
           "Revenue from sales of goods and services to related parties during the year, as the "
           "related-party note prints or states it.",
@@ -1607,6 +1634,10 @@ def build() -> tuple[dict, dict]:
             }
             if text:
                 item["output_structure"] = spec["structure"]
+            if spec["prompt"]:
+                # A NARRATIVE LINE'S INSTRUCTION, sent to the model as part of its definition
+                # (`LineItemDef._merge_prompt_into_definition`).
+                item["prompt"] = icon._prose(spec["prompt"])
             if spec["note"]:
                 item["note_source"] = copy.deepcopy(spec["note"])
             if spec["aliases"] and text:
@@ -1647,7 +1678,8 @@ def build() -> tuple[dict, dict]:
                  "supplemental cash flow disclosures, debt maturities, principal and fair value, "
                  "the current and deferred tax and the effective tax rate, the inventory split, "
                  "property at cost and accumulated depreciation, the audit opinion, contingent "
-                 "liabilities and related-party transactions."),
+                 "liabilities and related-party transactions, with a short narrative of each of "
+                 "the last two written by the model and labelled as such."),
             ],
             "breaking_changes": [],
             "vocabulary_note": "English captions in the wording 10-K filers print, with the "
