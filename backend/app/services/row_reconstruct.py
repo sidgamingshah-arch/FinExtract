@@ -6390,6 +6390,25 @@ def _dash_inside_a_caption(row: list[Word], i: int) -> bool:
             and bool(re.search(r"[A-Za-z]{2,}", after.text)))
 
 
+# One end of a printed range: a year ("2027", "2060") or a rate ("0.80%", "5.70%").
+_RANGE_END = re.compile(r"^(?:(?:19|20)\d{2}|\d{1,3}(?:\.\d+)?%)$")
+
+
+def _ranges_read_as_cells(rows: list[list[Word]]) -> bool:
+    """Whether a row prints a RANGE whose dash the matrix test counts as a nil cell: a dash set
+    tight between two years or two rates ("2027 - 2060", "0.80% - 2.25%"). Alphabet's 2025 debt
+    note prints three such rows, which is what made a terms table pass for a matrix."""
+    for row in rows:
+        for i in range(1, len(row) - 1):
+            w = row[i]
+            if (_NIL_CELL.match(_cell_text(w.text)) and _tight_after(row[i - 1], w)
+                    and _tight_after(w, row[i + 1])
+                    and _RANGE_END.match(row[i - 1].text.strip())
+                    and _RANGE_END.match(row[i + 1].text.strip())):
+                return True
+    return False
+
+
 def _strong_cells(cells: list[Word], fmt=None) -> int:
     """How many cells are a real amount or a nil dash — i.e. not a bare 1–2 digit integer.
     A footnote line that prints a figure one digit per glyph ("9 , 3 5 8 , 6 1 1 , 0 0 0",
@@ -7295,10 +7314,14 @@ def _caption_years(rows: list[list[Word]], value_bands: list[float], fmt=None,
         if (_column_index(_xc(year), value_bands) is not None
                 or year.bbox.x1 > first_band - _COL_TOL):
             continue
+        # …AND AN AMOUNT PRINTED WITH A THOUSANDS SEPARATOR IS NO DATE, whatever its value:
+        # Alphabet's first maturity is "2026 $ 2,000", and 2,000 read as the year 2000 vetoed the
+        # row, so its schedule began at 2027 and the first year's principal was nowhere.
         amounts = [w for w in value_words[1:]
                    if _column_index(_xc(w), value_bands) is not None
                    and _is_money_like(w.text, fmt)
-                   and not _is_date_ish(_num(w.text, fmt))]
+                   and (_AMOUNT_SHAPED.match(w.text.strip())
+                        or not _is_date_ish(_num(w.text, fmt)))]
         if amounts:
             found.append((year.bbox.y0, int(year.text.strip()), year))
     found.sort(key=lambda f: f[0])
@@ -7565,7 +7588,7 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
             return items + more, ordinal
         # A matrix face declares its unit in its own header like any other statement, and
         # "persist unit on every fact" is not qualified by layout.
-        return _matrix_items(matrix, names, page_index=page_index, document_id=document_id,
+        read = _matrix_items(matrix, names, page_index=page_index, document_id=document_id,
                              source_kind=source_kind, ordinal_start=ordinal_start,
                              fmt=number_format,
                              unit_ctx=_unit_context(_statement_unit(matrix.rows, unit_signals,
@@ -7573,6 +7596,21 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                              dims=dims, log=log,
                              # FACE ONLY, exactly as the two-column path applies it below.
                              page_scope=page_scope if on_face else None, on_face=on_face)
+        # A NOTE THE MATRIX READER MAKES NOTHING OF IS READ AS ROWS. A US debt note prints each
+        # issue's terms as ranges beside its balances — "2020 US dollar notes  2027 - 2060
+        # 0.80% - 2.25%  0.93% - 2.33%  10,000  9,000" — and the ranges' dashes, nil cells to the
+        # matrix test, gave three rows of eight "columns": the page passed for a matrix and came
+        # out with no rows at all. Alphabet's 2025 note 6 lost "Total face value of long-term debt
+        # 12,000 49,085", and the header it reported was carried onto the next page's maturity
+        # schedule. A matrix that reads rows is kept; one that reads none was never one, and its
+        # header is withdrawn with it. ONLY THAT CASE: a matrix that reads no rows for another
+        # reason is left as it was (`_ranges_read_as_cells`).
+        if read[0] or on_face or not _ranges_read_as_cells(matrix.rows):
+            return read
+        if log:
+            log(f"extract:page={page_index}:matrix_read_no_rows(read as rows)")
+        if header_out is not None and len(names) == len(matrix.bands) and header_out:
+            header_out.pop()
     if statement == "changes_in_equity":
         # A named matrix we cannot attribute is worse than nothing: every figure would be filed
         # under a period that does not exist. Report it and emit no rows for the page. A page
