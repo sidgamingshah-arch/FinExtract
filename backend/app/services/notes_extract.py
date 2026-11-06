@@ -539,6 +539,98 @@ def _opens_a_sub_table(row: list[Word]) -> bool:
     return not _carries_amounts(_fuse_bucket_numbers(row))
 
 
+# THE MARKS A FIGURE COLUMN PRINTS BESIDE ITS AMOUNTS, which `_scan_row` files with the caption
+# ("Total $ 97,341" reads the caption "Total $"). They stand in the value columns, so they are no
+# measure of where the captions end.
+_CURRENCY_MARK = re.compile(r"^(?:\$|US\$|HK\$|RMB|€|£|¥|₹)$")
+# A UNITS CAPTION in a header line ("RMB'000", "HK$'000", "$'000", "千元"): the HKEX header band's
+# second line. Its presence says the band is the HKEX one, which is read as it always was.
+_UNITS_MARK = re.compile(r"['’`]0{3}|千元|百萬|百万|thousands?|millions?", re.IGNORECASE)
+
+
+#: A word a one-line column heading is made of: a capitalised word ("Amount", "Year", "Ending"),
+#: a bare year, or a day of the month with its comma ("30,"). A lower-case word is a sentence's or
+#: a wrapped caption's, and a dotted or ranged date ("31.03.2026", "2025-26") is an Ind AS
+#: heading, which this does not read.
+_HEADING_WORD = re.compile(r"^(?:[A-Z][A-Za-z'’\-]*[,:]?|(?:19|20)\d{2}[,:]?|\d{1,2},)$")
+_HEADING_WORDS_MAX = 6
+
+
+def _opens_a_headed_table(rows: list[list[Word]], i: int, section: dict) -> bool:
+    """Whether row ``i`` is the column header of a SECOND TABLE of the open note — a schedule of
+    ONE column, printed under a heading of its own after a table of several, with no numbered
+    heading between the two.
+
+    A 10-K debt note prints a summary table over two years and then, after a sentence, its future
+    principal payments in ONE column:
+
+        Total term debt principal        $ 97,341   $ 105,982       <- "2025" | "2024"
+        …
+        As of September 27, 2025, the future principal payments … were as follows:
+                                                        Amount
+        2026                                         $ 10,950
+        2027                                            12,342
+        …
+        Total                                        $ 97,341
+
+    Read as one section the second table took the first one's grid: its column at the right edge
+    was the summary's PRIOR column, so every maturity was filed under "2024" — and the "Amount"
+    heading was folded onto the first year row as its caption. Measured on two synthetic 10-K
+    notes (northwind's note 9, cascade's note 11, "Year Ending June 30,"); on both, every figure of
+    the maturity table came back as last year's.
+
+    THE SHAPE, and every part of it is a veto, because a split that should not happen hands the
+    second half of a table no header at all. Measured against the reference filings, a looser
+    reading of "a figure-less line over the figures" fired on prose fragments, nil dashes,
+    percentages and Ind AS date bands; this one fires on none of them.
+
+    * ONE HEADING, a few capitalised words, years or a day ("Amount", "Year Ending June 30,") —
+      no lower-case word, no figure, no Han text, no units caption (`_HEADING_WORD`);
+    * set wholly RIGHT of every caption the open table prints — it heads a column, it names no
+      row (the currency mark a figure column prints is not a caption);
+    * directly over a row printing ONE figure, which stands under the heading;
+    * after rows printing two or more figures in one row — the open table had several columns,
+      so its grid cannot be the schedule's.
+
+    A header repeating the open table's grid, a bilingual HKEX header band (its years stand over a
+    units line, never directly over a figure row) and a mainland header (it names its caption
+    column, 项目) are none of these, and read as they always did.
+    """
+    row = sorted(rows[i], key=lambda w: w.bbox.x0)
+    if not row or i + 1 >= len(rows) or len(row) > _HEADING_WORDS_MAX:
+        return False
+    tokens = [w.text.strip() for w in row]
+    if not all(_HEADING_WORD.match(t) for t in tokens) or not any(
+            re.search(r"[A-Za-z]", t) for t in tokens):
+        return False
+    if any(_HAS_HAN.search(w.text) or _UNITS_MARK.search(w.text) for w in row):
+        return False
+    if len(_x_runs(row, _CAPTION_GAP)) != 1:
+        return False
+    nxt = rows[i + 1]
+    _nl, _nr, nxt_values = _scan_row(nxt, extract_note_refs=False)
+    amounts = [w for w in nxt_values if _carries_amounts([w])]
+    if len(amounts) != 1:
+        return False
+    xc = (amounts[0].bbox.x0 + amounts[0].bbox.x1) / 2
+    if not row[0].bbox.x0 - 0.02 <= xc <= row[-1].bbox.x1 + 0.02:
+        return False
+    held = [r for r in _rows_since(rows, i, section) if _carries_amounts(r)]
+    if not held:
+        return False
+    caption_right = None
+    widest = 0
+    for r in held:
+        labels, _ref, values = _scan_row(r, extract_note_refs=False)
+        edges = [w.bbox.x1 for w in labels if not _CURRENCY_MARK.match(w.text.strip())]
+        if edges:
+            caption_right = max(edges + ([caption_right] if caption_right is not None else []))
+        widest = max(widest, sum(1 for w in values if _carries_amounts([w])))
+    if caption_right is None or row[0].bbox.x0 <= caption_right:
+        return False
+    return widest >= 2
+
+
 #: A running paragraph's lines, as `running_text_words` reads them.
 _RUN_MIN_WORDS = 6          # a line of a sentence, not a caption with a figure or two
 _RUN_FULL_WIDTH = 0.85      # of the section's own extent: the line is wrapped, not a caption cell
@@ -1168,6 +1260,19 @@ _HAN_DIGITS = {"〇": 0, "零": 0, "一": 1, "二": 2, "三": 3, "四": 4,
                "五": 5, "六": 6, "七": 7, "八": 8, "九": 9}
 _HAN_YEAR_IN_CAPTION = re.compile(r"([〇零一二三四五六七八九]{4})\s*年")
 _MAX_ANCHOR_CHARS = 48
+# ONE PERIOD PHRASE OVER SEVERAL YEARS IS A COLUMN HEADER, NOT A BLOCK. A 10-K heads a
+# three-year table with "Year Ended June 30," set over "2025 | 2024 | 2023", and the line that
+# carries the phrase is close enough to the year line to be grouped with it: cascade's note 19
+# (supplemental cash flow information) came through as the row "Year Ended June 2024 2023". Read
+# as an anchor, it OPENED a block of 2024 — the newest year the note named — so every row beneath
+# was hinted `current`, `note_sourced.select_rows` read the note as a movement table whose rows
+# only a total column can place, and "Interest on debt $ 1,789 $ 2,010 $ 1,968" was read by
+# nothing. A block names ONE period; a caption ending in two or more bare years names the columns'.
+# No anchor of the five reference filings or the two Ind AS ones ends that way — the two-year
+# anchors there read "At 31 December 2022 and 於二零二二年…" — so none of them moves.
+# (A header naming its years in other forms — "於二零二五年 於二零二六年" on 佳明, "As at 31.03.2026
+# As at 31.03.2025" on Asian Paints — is read as an anchor too, and is deliberately left alone.)
+_SPANNED_YEARS = re.compile(r"(?:^|\s)(?:19|20)\d{2}(?:\s+(?:19|20)\d{2})+\s*$")
 
 
 def _year_of(caption: str) -> int | None:
@@ -1259,6 +1364,9 @@ def _period_anchors(rows: list[list[Word]], fmt=None) -> list[tuple[float, int, 
                            if id(w) not in skip).strip()
         if not caption or len(caption) > _MAX_ANCHOR_CHARS \
                 or not _PERIOD_PREFIX.match(caption):
+            continue
+        # A PERIOD PHRASE SPANNING A ROW OF YEAR COLUMNS IS THEIR HEADER — see `_SPANNED_YEARS`.
+        if not figures and _SPANNED_YEARS.search(caption):
             continue
         # BOTH SCRIPTS, through one reader — see `_year_of`.
         year = _year_of(caption)
@@ -1662,10 +1770,15 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
                 sections.append(current)
                 i += 1
                 continue
-            if (_opens_a_sub_table(row) and i > 0
-                    and any(_carries_amounts(r) for r in _rows_since(rows, i, current))):
+            headed = i > 0 and _opens_a_headed_table(rows, i, current)
+            if headed and log:
+                log(f"notes:page={page_index}:note={current.get('no')}:second_table_header="
+                    f"{' '.join(w.text for w in sorted(row, key=lambda w: w.bbox.x0))!r}")
+            if headed or (_opens_a_sub_table(row) and i > 0
+                          and any(_carries_amounts(r) for r in _rows_since(rows, i, current))):
                 # A SECOND TABLE OF THE SAME NOTE, under its own column header — see
-                # `_opens_a_sub_table`. The caption line just above the header goes with it.
+                # `_opens_a_sub_table` and `_opens_a_headed_table`. The caption line just above the
+                # header goes with it.
                 prev = rows[i - 1]
                 lead = list(prev) if _title_only_row(prev) is not None else []
                 # …and the line that NAMES the table, a line or two above its header ("出售商品/
