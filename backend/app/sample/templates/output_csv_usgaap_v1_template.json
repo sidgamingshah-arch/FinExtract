@@ -516,6 +516,15 @@
        "role": "line"
       },
       {
+       "node_id": "bs_equity__other_equity",
+       "canonical_key": "bs_equity__other_equity",
+       "label": "Other stockholders' equity",
+       "label_i18n": {
+        "en": "Other stockholders' equity"
+       },
+       "role": "line"
+      },
+      {
        "node_id": "bs_equity__equity_attributable_to_owners",
        "canonical_key": "bs_equity__equity_attributable_to_owners",
        "label": "Total stockholders' equity",
@@ -531,7 +540,8 @@
          "bs_equity__additional_paid_in_capital",
          "bs_equity__retained_earnings",
          "bs_equity__accumulated_other_comprehensive_income",
-         "bs_equity__treasury_stock"
+         "bs_equity__treasury_stock",
+         "bs_equity__other_equity"
         ]
        }
       },

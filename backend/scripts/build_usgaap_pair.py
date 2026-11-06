@@ -26,25 +26,28 @@ WHAT IT DECIDES, and why:
   its section's leftover line rather than given one of its own.
 * A US BALANCE SHEET PRINTS NO "NON-CURRENT" HEADING. It prints "Current assets:", then "Total
   current assets", then the non-current rows with no banner over them, and the same for the
-  liabilities. The reader carries the "Current assets" banner on past its total, so a non-current
-  line here is also allowed under the current banner (its ``section_scope`` names the current
-  section second, after its own): the first scope is the one it adds up in, the second only lets
-  it bind. A current line is not given the reverse. A bare caption some filers print in BOTH
-  places ("Operating lease liabilities", "Term debt") is an alias of neither line: under the
-  carried banner both rows would bind the current line and be added. It is left to the request
-  text, which closes a section at its own total. "Deferred income taxes", printed among the assets
-  and again among the liabilities, is told apart by the banner: the asset line is not allowed
-  under a liability banner, nor the liability line under an asset one.
-* ONE LEFTOVER LINE PER ASSET, LIABILITY AND CASH-FLOW SECTION. The rows of those sections that
-  no line claims are swept into the section's "Other ..." line, itemised, so every section still
-  adds up to the total it prints. The statement of operations has none: its layout differs too
-  much from one filer to the next ("Products" and "Services" under Net sales and again under Cost
-  of sales), and a row no line claims is left for review rather than hidden in a bucket. Nor has
-  stockholders' equity: every row a 10-K prints there has a line, and the sweep places a row the
-  carried banner cannot place by the next subtotal printed below it — on a balance sheet that
-  prints no "Total liabilities", the equity total. Measured on a retailer's layout, two long-term
-  liability rows were swept into equity. With no equity bucket such a row is left for review, and
-  the balance-sheet total that no longer adds up says so.
+  liabilities. The reader carries the "Current assets" banner on past its total; the mapper reads a
+  row after a current section's own total, under no banner of its own, in the non-current half of
+  the same side (`stages.map_ontology._balance_sheet_past_total`). So every line is scoped to its
+  own section alone, and the non-current lines bind there whether or not the filer prints a
+  "Non-current ..." banner. A bare caption some filers print in BOTH places ("Operating lease
+  liabilities", "Term debt") is an alias of neither line: where the row stands is all that tells
+  the two apart, and a row the mapper reads in no section — one a grand total has ended, or one on
+  a page the reader gives no banner — would bind whichever line comes first. It is left to the
+  request text and the leftover lines. "Deferred income taxes", printed among the assets and again
+  among the liabilities, is told apart by the side: the asset line is not allowed in a liability
+  section, nor the liability line in an asset one.
+* ONE LEFTOVER LINE PER ASSET, LIABILITY, EQUITY AND CASH-FLOW SECTION. The rows of those sections
+  that no line claims are swept into the section's "Other ..." line, itemised, so every section
+  still adds up to the total it prints. The statement of operations has none: its layout differs
+  too much from one filer to the next ("Products" and "Services" under Net sales and again under
+  Cost of sales), and a row no line claims is left for review rather than hidden in a bucket.
+  Stockholders' equity has one, and the rows printed above it cannot reach it: the sweep places a
+  row whose banner is spent by the next subtotal printed below it, but no further than the next
+  banner (`stages.residual`), so on a balance sheet that prints no "Total liabilities" a long-term
+  liability row is not placed by the equity total printed after the "Equity:" banner. The equity
+  leftover also refuses what is not the stockholders' own: noncontrolling and redeemable
+  interests, and a caption naming a liability, debt, a lease or deferred tax.
 * TEMPORARY EQUITY HAS A SECTION OF ITS OWN. Redeemable noncontrolling interests and redeemable
   preferred stock are printed between the liabilities and the equity and are neither. In the
   equity section they would break its reconciliation; swept, they would land in whichever section
@@ -80,8 +83,6 @@ LINE_ITEMS_KEY = "output_csv_usgaap"
 PL = ["is_pl"]
 ATTRIBUTION = ["profit_attributable_to", "is_pl"]
 TOP = ["bs_top_level"]
-NCA = ["bs_nca", "bs_ca"]
-NCL = ["bs_ncl", "bs_cl"]
 
 # (id, label, statement, section_scope, sign convention, analyst bucket)
 SECTIONS = [
@@ -119,9 +120,9 @@ def L(key, label, aliases=(), definition="", *, exclude=(), regex=(), sign="posi
             "roll": roll, "role": role, "bucket": bucket}
 
 
-def R(key, label, definition, exclude=(), aliases=()):
+def R(key, label, definition, exclude=(), aliases=(), sign="positive_expected"):
     """A section's leftover line: filled by the sweep, never by a caption match."""
-    d = L(key, label, aliases, definition, exclude=list(_TOTALS) + list(exclude))
+    d = L(key, label, aliases, definition, exclude=list(_TOTALS) + list(exclude), sign=sign)
     d["residual"] = True
     return d
 
@@ -221,7 +222,6 @@ LINES = {
           "Marketable securities and other investments held beyond a year: debt securities, equity "
           "securities and non-marketable investments. Investments accounted for by the equity "
           "method are the next line.",
-          scope=NCA,
           exclude=[r"equity\s+method", r"affiliat", r"unconsolidated", r"subsidiar", r"short\s+term"],
           regex=[E + r"(?:long\s+term\s+|non\s*current\s+)?(?:marketable\s+securities|investments)"
                  r"(?:\s+non\s*current)?$"]),
@@ -231,7 +231,6 @@ LINES = {
            "Investments in equity affiliates", "Investments in associates"],
           "Investments in affiliates and joint ventures the filer accounts for by the equity method "
           "(ASC 323), as one printed row.",
-          scope=NCA,
           regex=[E + r"investments?\s+in\s+(?:and\s+advances\s+to\s+)?(?:unconsolidated\s+|equity\s+|"
                  r"nonconsolidated\s+)?(?:affiliates?|affiliated\s+companies|associates|joint\s+ventures)\b.*$",
                  E + r"equity\s+method\s+investments?\b.*$"]),
@@ -242,7 +241,6 @@ LINES = {
           "Land, buildings, machinery and equipment net of accumulated depreciation, as the balance "
           "sheet prints them. Assets held under finance leases printed on their own row are left "
           "to the other non-current assets.",
-          scope=NCA,
           exclude=[r"financ", r"right\s+of\s+use", r"investment\s+property"],
           regex=[E + r"(?:net\s+)?property(?:\s+plant)?(?:\s+and)?\s+equipment(?:\s+and\s+software)?"
                  r"(?:\s+net)?(?:\s+(?:of|less)\b.*)?$"]),
@@ -250,27 +248,27 @@ LINES = {
           ["Operating lease right-of-use assets", "Operating lease assets", "Right-of-use assets",
            "Operating lease right-of-use assets, net", "Operating lease ROU assets"],
           "The right to use leased assets under operating leases (ASC 842), as one printed row.",
-          scope=NCA, exclude=[r"financ"],
+          exclude=[r"financ"],
           regex=[E + r"(?:operating\s+lease\s+)?(?:right\s+of\s+use|rou)\s+assets?(?:\s+net)?$",
                  E + r"operating\s+lease\s+(?:right\s+of\s+use\s+|rou\s+)?assets?(?:\s+net)?$"]),
         L("bs_nca__goodwill", "Goodwill", ["Goodwill", "Goodwill, net"],
           "The excess of the price paid for acquired businesses over the fair value of their net "
           "identifiable assets, as the balance sheet prints it.",
-          scope=NCA, regex=[E + r"goodwill(?:\s+net)?$"]),
+          regex=[E + r"goodwill(?:\s+net)?$"]),
         L("bs_nca__intangible_assets", "Intangible assets, net",
           ["Intangible assets, net", "Other intangible assets, net", "Acquired intangible assets, net",
            "Intangibles, net", "Intangible assets", "Identifiable intangible assets, net",
            "Purchased intangible assets, net", "Other intangible assets"],
           "Identifiable intangible assets other than goodwill (customer relationships, technology, "
           "trade names, licences), net of accumulated amortisation.",
-          scope=NCA, exclude=[r"^\W*goodwill"],
+          exclude=[r"^\W*goodwill"],
           regex=[E + r"(?:other\s+|acquired\s+|identifiable\s+|purchased\s+|finite\s+lived\s+)?"
                  r"intangibles?(?:\s+assets?)?(?:\s+other\s+than\s+goodwill)?(?:\s+net)?\b.*$"]),
         L("bs_nca__deferred_tax_assets", "Deferred income tax assets",
           ["Deferred income taxes", "Deferred tax assets", "Deferred income tax assets",
            "Deferred taxes", "Deferred income taxes, net", "Deferred tax assets, net"],
           "Deferred tax assets net of any valuation allowance, printed among the assets.",
-          scope=NCA, exclude=[r"liabilit"],
+          exclude=[r"liabilit"],
           regex=[E + r"deferred\s+(?:income\s+)?tax(?:es)?(?:\s+assets?)?(?:\s+net)?$"]),
         R("bs_nca__other_non_current_assets", "Other non-current assets",
           "Every non-current-asset row the face prints that no line above claims, itemised: other "
@@ -392,7 +390,6 @@ LINES = {
           "the balance sheet prints them, and the long-term part of finance lease obligations, "
           "which a credit analyst counts as debt; the rows are added. Operating lease liabilities "
           "are not this line.",
-          scope=NCL,
           exclude=[r"operating\s+lease", r"^\W*current\s+(?:portion|maturities)", r"due\s+within\s+one\s+year"],
           regex=[E + r"long\s+term\s+(?:debt|borrowings?|notes(?:\s+payable)?|obligations)\b.*$",
                  E + r"(?:non\s*current|noncurrent)\s+(?:debt|borrowings)\b.*$",
@@ -407,7 +404,6 @@ LINES = {
            "Operating lease liabilities, less current portion",
            "Operating lease liabilities, net of current portion"],
           "The part of operating lease liabilities (ASC 842) due after a year.",
-          scope=NCL,
           exclude=[r"due\s+within\s+one\s+year", r"short\s+term",
                    r"^\W*current\s+(?:portion\s+of\s+)?operating"],
           regex=[E + r"(?:long\s+term|non\s*current)\s+operating\s+lease\s+(?:liabilities|liability|"
@@ -419,7 +415,7 @@ LINES = {
            "Deferred taxes", "Deferred income taxes, net", "Deferred tax liabilities, net"],
           "Deferred tax liabilities, printed among the liabilities; where the face prints them together "
           "with other long-term liabilities as one row, that row.",
-          scope=NCL, exclude=[r"\bassets?\b"],
+          exclude=[r"\bassets?\b"],
           regex=[E + r"deferred\s+(?:income\s+)?tax(?:es)?(?:\s+liabilit(?:y|ies))?(?:\s+net)?"
                  r"(?:\s+and\s+other(?:\s+(?:long\s+term\s+|non\s*current\s+)?liabilities)?)?$"]),
         L("bs_ncl__deferred_revenue", "Deferred revenue, non-current",
@@ -428,7 +424,6 @@ LINES = {
            "Deferred revenue, net of current portion", "Long-term contract liabilities",
            "Contract liabilities, non-current"],
           "Consideration received for goods or services to be delivered after a year.",
-          scope=NCL,
           regex=[E + r"(?:long\s+term|non\s*current)\s+(?:deferred|unearned)\s+revenues?\b.*$",
                  E + r"(?:deferred|unearned)\s+revenues?\s+(?:non\s*current|long\s+term|net\s+of\s+current"
                  r"\s+portion|less\s+current\s+portion)\b.*$",
@@ -442,7 +437,6 @@ LINES = {
            "Retirement benefits", "Postretirement benefits other than pensions"],
           "The unfunded obligation for defined-benefit pensions and other postretirement and "
           "postemployment benefits, as the balance sheet prints it.",
-          scope=NCL,
           regex=[E + r"(?:accrued\s+|liabilit(?:y|ies)\s+for\s+)?(?:pension|post\s*retirement|"
                  r"post\s*employment|retirement)\b.*$",
                  E + r"employee\s+benefit\s+obligations?\b.*$"]),
@@ -524,6 +518,17 @@ LINES = {
           sign="either",
           regex=[E + LESS + r"(?:(?:common\s+)?(?:stock|shares)\s+held\s+in\s+treasury|treasury\s+"
                  r"(?:stock|shares))\b.*$"]),
+        R("bs_equity__other_equity", "Other stockholders' equity",
+          "Every stockholders' equity row the face prints that no line above claims, itemised: "
+          "deferred or unearned compensation, notes receivable from stockholders, shares held by "
+          "an employee stock ownership plan, other components of the stockholders' equity. "
+          "Noncontrolling interests are the next line, and redeemable interests are temporary "
+          "equity, not this line.",
+          aliases=["Other equity", "Other stockholders' equity", "Other shareholders' equity"],
+          exclude=[r"non\s*controlling", r"minority", r"redeemable", r"temporary\s+equity",
+                   r"commitments\s+and\s+contingencies", r"liabilit", r"\bdebt\b", r"\blease",
+                   r"deferred\s+(?:income\s+)?tax"],
+          sign="either"),
         L("bs_equity__equity_attributable_to_owners", "Total stockholders' equity",
           ["Total stockholders' equity", "Total shareholders' equity",
            "Total stockholders' equity (deficit)", "Total shareholders' equity (deficit)",
@@ -538,7 +543,7 @@ LINES = {
           roll=("sum", ["bs_equity__preferred_stock", "bs_equity__common_stock",
                         "bs_equity__additional_paid_in_capital", "bs_equity__retained_earnings",
                         "bs_equity__accumulated_other_comprehensive_income",
-                        "bs_equity__treasury_stock"])),
+                        "bs_equity__treasury_stock", "bs_equity__other_equity"])),
         L("bs_equity__non_controlling_interests", "Noncontrolling interests",
           ["Noncontrolling interests", "Noncontrolling interest", "Non-controlling interests",
            "Non-controlling interest", "Minority interest", "Minority interests"],
@@ -1636,8 +1641,9 @@ def build() -> tuple[dict, dict]:
                  "consolidated balance sheets, statements of operations and indirect-method "
                  "statements of cash flows print."),
                 (f"{face_lines} statement lines, every one read from the face (strict_face_route); "
-                 "no internal parts. One leftover line per asset, liability and cash-flow section; "
-                 "none in the statement of operations or in stockholders' equity."),
+                 "no internal parts. One leftover line per asset, liability, stockholders' equity "
+                 "and cash-flow section; none in the statement of operations or in temporary "
+                 "equity."),
                 (f"{n_notes} additional items, read from the notes and the auditor's report: the "
                  "supplemental cash flow disclosures, debt maturities, principal and fair value, "
                  "the current and deferred tax and the effective tax rate, the inventory split, "
@@ -1657,10 +1663,10 @@ def build() -> tuple[dict, dict]:
         "scope_selection": copy.deepcopy(policy["scope_selection"]),
         "residual_framework": copy.deepcopy(policy["residual_framework"]),
         "items": items,
-        "others_master": {"note": "One leftover line per balance-sheet and cash-flow section: the "
-                                  "rows of the section no line claims are swept there, itemised. "
-                                  "The statement of operations has none, so a row no line claims "
-                                  "is left for review.",
+        "others_master": {"note": "One leftover line per asset, liability, stockholders' equity "
+                                  "and cash-flow section: the rows of the section no line claims "
+                                  "are swept there, itemised. The statement of operations has "
+                                  "none, so a row no line claims is left for review.",
                           "keys": residuals},
         "cross_check_master": {"note": "The calculated lines a filing prints: the printed figure "
                                        "is read and compared with the one the lines add up to.",

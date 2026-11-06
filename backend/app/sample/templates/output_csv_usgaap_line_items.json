@@ -12,7 +12,7 @@
   "version": "1",
   "changes": [
    "Built by scripts/build_usgaap_pair.py: the rows the face of a Form 10-K's consolidated balance sheets, statements of operations and indirect-method statements of cash flows print.",
-   "99 statement lines, every one read from the face (strict_face_route); no internal parts. One leftover line per asset, liability and cash-flow section; none in the statement of operations or in stockholders' equity.",
+   "100 statement lines, every one read from the face (strict_face_route); no internal parts. One leftover line per asset, liability, stockholders' equity and cash-flow section; none in the statement of operations or in temporary equity.",
    "33 additional items, read from the notes and the auditor's report: the supplemental cash flow disclosures, debt maturities, principal and fair value, the current and deferred tax and the effective tax rate, the inventory split, property at cost and accumulated depreciation, the audit opinion, contingent liabilities and related-party transactions."
   ],
   "breaking_changes": [],
@@ -997,8 +997,7 @@
     "balance_sheet"
    ],
    "section_scope": [
-    "bs_nca",
-    "bs_ca"
+    "bs_nca"
    ],
    "order": 9,
    "definition": "Marketable securities and other investments held beyond a year: debt securities, equity securities and non-marketable investments. Investments accounted for by the equity method are the next line.",
@@ -1055,8 +1054,7 @@
     "balance_sheet"
    ],
    "section_scope": [
-    "bs_nca",
-    "bs_ca"
+    "bs_nca"
    ],
    "order": 10,
    "definition": "Investments in affiliates and joint ventures the filer accounts for by the equity method (ASC 323), as one printed row.",
@@ -1103,8 +1101,7 @@
     "balance_sheet"
    ],
    "section_scope": [
-    "bs_nca",
-    "bs_ca"
+    "bs_nca"
    ],
    "order": 11,
    "definition": "Land, buildings, machinery and equipment net of accumulated depreciation, as the balance sheet prints them. Assets held under finance leases printed on their own row are left to the other non-current assets.",
@@ -1165,8 +1162,7 @@
     "balance_sheet"
    ],
    "section_scope": [
-    "bs_nca",
-    "bs_ca"
+    "bs_nca"
    ],
    "order": 12,
    "definition": "The right to use leased assets under operating leases (ASC 842), as one printed row.",
@@ -1212,8 +1208,7 @@
     "balance_sheet"
    ],
    "section_scope": [
-    "bs_nca",
-    "bs_ca"
+    "bs_nca"
    ],
    "order": 13,
    "definition": "The excess of the price paid for acquired businesses over the fair value of their net identifiable assets, as the balance sheet prints it.",
@@ -1249,8 +1244,7 @@
     "balance_sheet"
    ],
    "section_scope": [
-    "bs_nca",
-    "bs_ca"
+    "bs_nca"
    ],
    "order": 14,
    "definition": "Identifiable intangible assets other than goodwill (customer relationships, technology, trade names, licences), net of accumulated amortisation.",
@@ -1301,8 +1295,7 @@
     "balance_sheet"
    ],
    "section_scope": [
-    "bs_nca",
-    "bs_ca"
+    "bs_nca"
    ],
    "order": 15,
    "definition": "Deferred tax assets net of any valuation allowance, printed among the assets.",
@@ -1971,8 +1964,7 @@
     "balance_sheet"
    ],
    "section_scope": [
-    "bs_ncl",
-    "bs_cl"
+    "bs_ncl"
    ],
    "order": 28,
    "definition": "Borrowings due after a year (notes, bonds, term loans), net of the current portion, as the balance sheet prints them, and the long-term part of finance lease obligations, which a credit analyst counts as debt; the rows are added. Operating lease liabilities are not this line.",
@@ -2033,8 +2025,7 @@
     "balance_sheet"
    ],
    "section_scope": [
-    "bs_ncl",
-    "bs_cl"
+    "bs_ncl"
    ],
    "order": 29,
    "definition": "The part of operating lease liabilities (ASC 842) due after a year.",
@@ -2088,8 +2079,7 @@
     "balance_sheet"
    ],
    "section_scope": [
-    "bs_ncl",
-    "bs_cl"
+    "bs_ncl"
    ],
    "order": 30,
    "definition": "Deferred tax liabilities, printed among the liabilities; where the face prints them together with other long-term liabilities as one row, that row.",
@@ -2136,8 +2126,7 @@
     "balance_sheet"
    ],
    "section_scope": [
-    "bs_ncl",
-    "bs_cl"
+    "bs_ncl"
    ],
    "order": 31,
    "definition": "Consideration received for goods or services to be delivered after a year.",
@@ -2192,8 +2181,7 @@
     "balance_sheet"
    ],
    "section_scope": [
-    "bs_ncl",
-    "bs_cl"
+    "bs_ncl"
    ],
    "order": 32,
    "definition": "The unfunded obligation for defined-benefit pensions and other postretirement and postemployment benefits, as the balance sheet prints it.",
@@ -2699,6 +2687,53 @@
    ]
   },
   {
+   "key": "bs_equity__other_equity",
+   "label": "Other stockholders' equity",
+   "type": "extracted",
+   "namespace": "template",
+   "in_output": true,
+   "inherits": "bs_equity",
+   "statements": [
+    "balance_sheet"
+   ],
+   "section_scope": [
+    "bs_equity"
+   ],
+   "order": 43,
+   "definition": "Every stockholders' equity row the face prints that no line above claims, itemised: deferred or unearned compensation, notes receivable from stockholders, shares held by an employee stock ownership plan, other components of the stockholders' equity. Noncontrolling interests are the next line, and redeemable interests are temporary equity, not this line.",
+   "temporality": "instant",
+   "unit_of_account": "balance",
+   "sign_convention": "either",
+   "analyst_bucket": "equity",
+   "match_priority": 0,
+   "route": "face",
+   "exclude_hints": [
+    "^\\W*(?:sub[\\s-]*)?total\\b",
+    "^\\W*net\\s+cash\\b",
+    "non\\s*controlling",
+    "minority",
+    "redeemable",
+    "temporary\\s+equity",
+    "commitments\\s+and\\s+contingencies",
+    "liabilit",
+    "\\bdebt\\b",
+    "\\blease",
+    "deferred\\s+(?:income\\s+)?tax"
+   ],
+   "aliases": [
+    "Other equity",
+    "Other stockholders' equity",
+    "Other shareholders' equity"
+   ],
+   "aliases_i18n": {
+    "en": [
+     "Other equity",
+     "Other stockholders' equity",
+     "Other shareholders' equity"
+    ]
+   }
+  },
+  {
    "key": "bs_equity__equity_attributable_to_owners",
    "label": "Total stockholders' equity",
    "type": "calculated",
@@ -2711,7 +2746,7 @@
    "section_scope": [
     "bs_equity"
    ],
-   "order": 43,
+   "order": 44,
    "definition": "The equity of the filer's own stockholders, as printed: the sum of the equity lines above, before noncontrolling interests.",
    "temporality": "instant",
    "unit_of_account": "subtotal",
@@ -2743,6 +2778,10 @@
     },
     {
      "ref": "bs_equity__treasury_stock",
+     "sign": 1
+    },
+    {
+     "ref": "bs_equity__other_equity",
      "sign": 1
     }
    ],
@@ -2787,7 +2826,7 @@
    "section_scope": [
     "bs_equity"
    ],
-   "order": 44,
+   "order": 45,
    "definition": "The equity in consolidated subsidiaries not owned by the filer, classified in equity. Redeemable noncontrolling interests are temporary equity; a 'nonredeemable' one is this line.",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -2835,7 +2874,7 @@
    "section_scope": [
     "bs_equity"
    ],
-   "order": 45,
+   "order": 46,
    "definition": "Total equity as printed: the stockholders' equity and the noncontrolling interests.",
    "temporality": "instant",
    "unit_of_account": "subtotal",
@@ -2887,7 +2926,7 @@
    "section_scope": [
     "bs_top_level"
    ],
-   "order": 46,
+   "order": 47,
    "definition": "The balance-sheet total on the right-hand side: total liabilities, temporary equity and total equity. It equals total assets.",
    "temporality": "instant",
    "unit_of_account": "subtotal",
@@ -2954,7 +2993,7 @@
    "section_scope": [
     "is_pl"
    ],
-   "order": 47,
+   "order": 48,
    "definition": "Revenue from the sale of goods and services, where the face prints it as a row of its own above other revenue. A face printing one revenue figure prints it as total revenues.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -2994,7 +3033,7 @@
    "section_scope": [
     "is_pl"
    ],
-   "order": 48,
+   "order": 49,
    "definition": "Revenue the face prints beside net sales: membership fees, franchise and licence income, other operating revenue.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -3036,7 +3075,7 @@
    "section_scope": [
     "is_pl"
    ],
-   "order": 49,
+   "order": 50,
    "definition": "Total revenues as printed: the top line of the statement of operations. Where the face prints net sales and other revenues it is their sum.",
    "temporality": "duration",
    "unit_of_account": "subtotal",
@@ -3127,7 +3166,7 @@
    "section_scope": [
     "is_pl"
    ],
-   "order": 50,
+   "order": 51,
    "definition": "The cost of the goods and services sold, as printed, positive; where the face prints a product and a service cost and their total, the total.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -3184,7 +3223,7 @@
    "section_scope": [
     "is_pl"
    ],
-   "order": 51,
+   "order": 52,
    "definition": "Total revenues less cost of revenue. Where the face prints it, that figure is read and compared.",
    "temporality": "duration",
    "unit_of_account": "subtotal",
@@ -3235,7 +3274,7 @@
    "section_scope": [
     "is_pl"
    ],
-   "order": 52,
+   "order": 53,
    "definition": "Research and development expense printed as an operating expense row of its own, as printed, positive.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -3287,7 +3326,7 @@
    "section_scope": [
     "is_pl"
    ],
-   "order": 53,
+   "order": 54,
    "definition": "Selling, marketing, general and administrative expense, as printed, positive. Where the face prints sales and marketing and general and administrative on separate rows, the rows are added.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -3357,7 +3396,7 @@
    "section_scope": [
     "is_pl"
    ],
-   "order": 54,
+   "order": 55,
    "definition": "Depreciation and amortisation printed as its own operating expense row; where the face prints amortisation of intangibles separately, the rows are added. Empty where the face includes it in cost of revenue and the other expense lines.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -3404,7 +3443,7 @@
    "section_scope": [
     "is_pl"
    ],
-   "order": 55,
+   "order": 56,
    "definition": "Restructuring, exit and impairment charges printed as operating expense rows of their own; the rows are added.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -3454,7 +3493,7 @@
    "section_scope": [
     "is_pl"
    ],
-   "order": 56,
+   "order": 57,
    "definition": "Other operating expense or income printed as a row of its own within operating expenses, with the sign the face gives it.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -3496,7 +3535,7 @@
    "section_scope": [
     "is_pl"
    ],
-   "order": 57,
+   "order": 58,
    "definition": "Total operating expenses as printed. A multi-step statement prints it below gross profit, excluding cost of revenue; it is read as printed and not recomputed.",
    "temporality": "duration",
    "unit_of_account": "subtotal",
@@ -3532,7 +3571,7 @@
    "section_scope": [
     "is_pl"
    ],
-   "order": 58,
+   "order": 59,
    "definition": "Total costs and expenses as printed. A single-step statement prints it below total revenues, including cost of revenue; it is read as printed and not recomputed.",
    "temporality": "duration",
    "unit_of_account": "subtotal",
@@ -3585,7 +3624,7 @@
    "section_scope": [
     "is_pl"
    ],
-   "order": 59,
+   "order": 60,
    "definition": "Operating income or loss as printed; read as printed and not recomputed.",
    "temporality": "duration",
    "unit_of_account": "subtotal",
@@ -3636,7 +3675,7 @@
    "section_scope": [
     "is_pl"
    ],
-   "order": 60,
+   "order": 61,
    "definition": "Interest expense on debt, as printed; where the face prints interest only net of interest income, that net figure.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -3681,7 +3720,7 @@
    "section_scope": [
     "is_pl"
    ],
-   "order": 61,
+   "order": 62,
    "definition": "Interest and investment income on cash and securities, printed as a non-operating row of its own, with the sign the face gives it.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -3734,7 +3773,7 @@
    "section_scope": [
     "is_pl"
    ],
-   "order": 62,
+   "order": 63,
    "definition": "Other non-operating income and expense printed as a row of its own, with the sign the face gives it.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -3797,7 +3836,7 @@
    "section_scope": [
     "is_pl"
    ],
-   "order": 63,
+   "order": 64,
    "definition": "Total non-operating income and expense as printed; read as printed and not recomputed.",
    "temporality": "duration",
    "unit_of_account": "subtotal",
@@ -3841,7 +3880,7 @@
    "section_scope": [
     "is_pl"
    ],
-   "order": 64,
+   "order": 65,
    "definition": "Income or loss before income taxes as printed; read as printed and not recomputed.",
    "temporality": "duration",
    "unit_of_account": "subtotal",
@@ -3887,7 +3926,7 @@
    "section_scope": [
     "is_pl"
    ],
-   "order": 65,
+   "order": 66,
    "definition": "The income tax expense or benefit for the year, current and deferred together, as printed.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -3943,7 +3982,7 @@
    "section_scope": [
     "is_pl"
    ],
-   "order": 66,
+   "order": 67,
    "definition": "The filer's share of the earnings of equity-method investees, as printed.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -3986,7 +4025,7 @@
    "section_scope": [
     "is_pl"
    ],
-   "order": 67,
+   "order": 68,
    "definition": "Income or loss from continuing operations after income taxes, where the face prints it.",
    "temporality": "duration",
    "unit_of_account": "subtotal",
@@ -4033,7 +4072,7 @@
    "section_scope": [
     "is_pl"
    ],
-   "order": 68,
+   "order": 69,
    "definition": "The result of operations the filer has disposed of or classified as held for sale, net of tax, as printed below income from continuing operations.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -4079,7 +4118,7 @@
    "section_scope": [
     "is_pl"
    ],
-   "order": 69,
+   "order": 70,
    "definition": "Net income or loss for the year as printed, including any part attributable to noncontrolling interests.",
    "temporality": "duration",
    "unit_of_account": "subtotal",
@@ -4140,7 +4179,7 @@
     "profit_attributable_to",
     "is_pl"
    ],
-   "order": 70,
+   "order": 71,
    "definition": "The part of net income attributable to noncontrolling interests, with the sign the face gives it (often printed as a deduction).",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -4189,7 +4228,7 @@
     "profit_attributable_to",
     "is_pl"
    ],
-   "order": 71,
+   "order": 72,
    "definition": "The part of net income attributable to the filer's own stockholders, where the face prints it; empty where the filer has no noncontrolling interests and prints net income alone.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -4239,7 +4278,7 @@
    "section_scope": [
     "cf_oper_indirect"
    ],
-   "order": 72,
+   "order": 73,
    "definition": "Net income or loss, the first row of the operating activities under the indirect method.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -4293,7 +4332,7 @@
    "section_scope": [
     "cf_oper_indirect"
    ],
-   "order": 73,
+   "order": 74,
    "definition": "Depreciation and amortisation added back to net income; where the face prints amortisation of intangibles separately, the rows are added.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -4345,7 +4384,7 @@
    "section_scope": [
     "cf_oper_indirect"
    ],
-   "order": 74,
+   "order": 75,
    "definition": "Stock-based compensation expense, a non-cash charge, added back to net income among the adjustments to operating cash flow.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -4388,7 +4427,7 @@
    "section_scope": [
     "cf_oper_indirect"
    ],
-   "order": 75,
+   "order": 76,
    "definition": "The deferred part of the income tax expense, added back to net income.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -4430,7 +4469,7 @@
    "section_scope": [
     "cf_oper_indirect"
    ],
-   "order": 76,
+   "order": 77,
    "definition": "The change in accounts receivable among the changes in operating assets and liabilities, with the sign the face gives it.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -4479,7 +4518,7 @@
    "section_scope": [
     "cf_oper_indirect"
    ],
-   "order": 77,
+   "order": 78,
    "definition": "The change in inventories among the changes in operating assets and liabilities.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -4517,7 +4556,7 @@
    "section_scope": [
     "cf_oper_indirect"
    ],
-   "order": 78,
+   "order": 79,
    "definition": "The change in accounts payable among the changes in operating assets and liabilities.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -4561,7 +4600,7 @@
    "section_scope": [
     "cf_oper_indirect"
    ],
-   "order": 79,
+   "order": 80,
    "definition": "Every operating-activities row the face prints that no line above claims, itemised: other adjustments to net income, gains and losses on sales, and the changes in other operating assets and liabilities.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -4600,7 +4639,7 @@
    "section_scope": [
     "cf_oper_indirect"
    ],
-   "order": 80,
+   "order": 81,
    "definition": "The operating activities total as printed, and the sum of the operating lines.",
    "temporality": "duration",
    "unit_of_account": "subtotal",
@@ -4680,7 +4719,7 @@
    "section_scope": [
     "cf_investing"
    ],
-   "order": 81,
+   "order": 82,
    "definition": "Cash paid for property, plant and equipment (capital expenditures), with the negative sign the face gives it.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -4735,7 +4774,7 @@
    "section_scope": [
     "cf_investing"
    ],
-   "order": 82,
+   "order": 83,
    "definition": "Cash received on the sale or disposal of property, plant and equipment.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -4779,7 +4818,7 @@
    "section_scope": [
     "cf_investing"
    ],
-   "order": 83,
+   "order": 84,
    "definition": "Cash paid to acquire businesses, net of the cash they held; where the face prints acquisitions together with purchases of intangible assets as one row, that row.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -4826,7 +4865,7 @@
    "section_scope": [
     "cf_investing"
    ],
-   "order": 84,
+   "order": 85,
    "definition": "Cash paid for marketable securities and other investments; where the face prints purchases of several kinds of securities on separate rows, the rows are added.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -4866,7 +4905,7 @@
    "section_scope": [
     "cf_investing"
    ],
-   "order": 85,
+   "order": 86,
    "definition": "Cash received on the sale, maturity or redemption of marketable securities and other investments; where the face prints sales and maturities on separate rows, the rows are added.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -4910,7 +4949,7 @@
    "section_scope": [
     "cf_investing"
    ],
-   "order": 86,
+   "order": 87,
    "definition": "Every investing-activities row the face prints that no line above claims, itemised: purchases of intangible assets, proceeds from divestitures, loans made and collected.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -4949,7 +4988,7 @@
    "section_scope": [
     "cf_investing"
    ],
-   "order": 87,
+   "order": 88,
    "definition": "The investing activities total as printed, and the sum of the investing lines.",
    "temporality": "duration",
    "unit_of_account": "subtotal",
@@ -5017,7 +5056,7 @@
    "section_scope": [
     "cf_financing"
    ],
-   "order": 88,
+   "order": 89,
    "definition": "Cash received from issuing long-term debt (notes, bonds, term loans), net of issuance costs where the face says so. Commercial paper is the next line but one.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -5064,7 +5103,7 @@
    "section_scope": [
     "cf_financing"
    ],
-   "order": 89,
+   "order": 90,
    "definition": "Cash paid to repay or retire long-term debt (notes, bonds, term loans), with the negative sign the face gives it.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -5113,7 +5152,7 @@
    "section_scope": [
     "cf_financing"
    ],
-   "order": 90,
+   "order": 91,
    "definition": "The net cash from or to commercial paper and other short-term borrowings, as one printed row.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -5153,7 +5192,7 @@
    "section_scope": [
     "cf_financing"
    ],
-   "order": 91,
+   "order": 92,
    "definition": "Cash paid to repurchase the filer's own common stock, whether retired or held in treasury, with the negative sign the face gives it.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -5197,7 +5236,7 @@
    "section_scope": [
     "cf_financing"
    ],
-   "order": 92,
+   "order": 93,
    "definition": "Cash dividends paid to the filer's stockholders. Dividends paid to noncontrolling interests are the leftover line's.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -5246,7 +5285,7 @@
    "section_scope": [
     "cf_financing"
    ],
-   "order": 93,
+   "order": 94,
    "definition": "Cash received from issuing stock, including under employee stock plans and option exercises.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -5289,7 +5328,7 @@
    "section_scope": [
     "cf_financing"
    ],
-   "order": 94,
+   "order": 95,
    "definition": "Every financing-activities row the face prints that no line above claims, itemised: taxes paid for the net share settlement of equity awards, finance lease payments, dividends paid to noncontrolling interests.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -5331,7 +5370,7 @@
    "section_scope": [
     "cf_financing"
    ],
-   "order": 95,
+   "order": 96,
    "definition": "The financing activities total as printed, and the sum of the financing lines.",
    "temporality": "duration",
    "unit_of_account": "subtotal",
@@ -5403,7 +5442,7 @@
    "section_scope": [
     "cf_financing"
    ],
-   "order": 96,
+   "order": 97,
    "definition": "The effect of exchange-rate changes on cash, cash equivalents and restricted cash.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -5447,7 +5486,7 @@
    "section_scope": [
     "cf_financing"
    ],
-   "order": 97,
+   "order": 98,
    "definition": "The net change in cash, cash equivalents and restricted cash for the year: the three activity totals and the effect of exchange rates.",
    "temporality": "duration",
    "unit_of_account": "subtotal",
@@ -5518,7 +5557,7 @@
    "section_scope": [
     "cf_financing"
    ],
-   "order": 98,
+   "order": 99,
    "definition": "Cash, cash equivalents and restricted cash at the start of the year.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -5571,7 +5610,7 @@
    "section_scope": [
     "cf_top_level"
    ],
-   "order": 99,
+   "order": 100,
    "definition": "Cash, cash equivalents and restricted cash at the end of the year: the opening balance and the net change.",
    "temporality": "duration",
    "unit_of_account": "subtotal",
@@ -5636,7 +5675,7 @@
    "section_scope": [
     "cf_top_level"
    ],
-   "order": 100,
+   "order": 101,
    "definition": "Interest paid in cash during the year, net of amounts capitalised where the filing nets them, as the supplemental cash flow disclosure prints it: below the statement of cash flows or in a note. Not interest received.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -5699,7 +5738,7 @@
    "section_scope": [
     "cf_top_level"
    ],
-   "order": 101,
+   "order": 102,
    "definition": "Income taxes paid in cash during the year, net of refunds where the filing nets them, as the supplemental cash flow disclosure prints it: below the statement of cash flows or in a note.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -5759,7 +5798,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 102,
+   "order": 103,
    "definition": "The principal of debt due in the first fiscal year after the balance-sheet date, from the debt note's table of future principal payments or maturities: the row for that year ('2026' for a 2025 year-end). Principal, before unamortised discount and issuance costs; the current year-end only. Lease payments and interest are not this line. Cite the printed table line from the page.",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -5791,7 +5830,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 103,
+   "order": 104,
    "definition": "The principal of debt due in the second fiscal year after the balance-sheet date, from the debt note's table of future principal payments or maturities: the row for that year ('2027' for a 2025 year-end). Principal, before unamortised discount and issuance costs; the current year-end only. Lease payments and interest are not this line. Cite the printed table line from the page.",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -5823,7 +5862,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 104,
+   "order": 105,
    "definition": "The principal of debt due in the third fiscal year after the balance-sheet date, from the debt note's table of future principal payments or maturities: the row for that year ('2028' for a 2025 year-end). Principal, before unamortised discount and issuance costs; the current year-end only. Lease payments and interest are not this line. Cite the printed table line from the page.",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -5855,7 +5894,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 105,
+   "order": 106,
    "definition": "The principal of debt due in the fourth fiscal year after the balance-sheet date, from the debt note's table of future principal payments or maturities: the row for that year ('2029' for a 2025 year-end). Principal, before unamortised discount and issuance costs; the current year-end only. Lease payments and interest are not this line. Cite the printed table line from the page.",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -5887,7 +5926,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 106,
+   "order": 107,
    "definition": "The principal of debt due in the fifth fiscal year after the balance-sheet date, from the debt note's table of future principal payments or maturities: the row for that year ('2030' for a 2025 year-end). Principal, before unamortised discount and issuance costs; the current year-end only. Lease payments and interest are not this line. Cite the printed table line from the page.",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -5919,7 +5958,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 107,
+   "order": 108,
    "definition": "The principal of debt due after the fifth fiscal year following the balance-sheet date: the 'Thereafter' row of the debt note's table of future principal payments. Lease payments and interest are not this line. Cite the printed table line from the page.",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -5951,7 +5990,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 108,
+   "order": 109,
    "definition": "The total principal (face) amount of debt outstanding at the balance-sheet date, as the debt note prints it: the total of the table of future principal payments or the 'total principal' row, before unamortised discount, premium and issuance costs and before the current portion is deducted.",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -5997,7 +6036,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 109,
+   "order": 110,
    "definition": "The estimated fair value of the filer's debt at the balance-sheet date, as the debt or fair-value note states it, often in a sentence ('the fair value of our long-term debt was $88.4 billion'). Expressed in the statements' unit.",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -6030,7 +6069,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 110,
+   "order": 111,
    "definition": "The current part of the income tax expense for the year, federal, state and foreign together: the 'Total current' row of the income tax note's table of the components of the provision.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -6069,7 +6108,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 111,
+   "order": 112,
    "definition": "The deferred part of the income tax expense or benefit for the year: the 'Total deferred' row of the income tax note's table of the components of the provision. Not the deferred tax assets or liabilities at the year-end.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -6109,7 +6148,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 112,
+   "order": 113,
    "definition": "The effective income tax rate for the year as the filing prints it, with its percent sign ('16.0%'): from the income tax note's rate reconciliation or the sentence stating it. The current year only.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -6138,7 +6177,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 113,
+   "order": 114,
    "definition": "Raw materials and supplies held in inventory at the year-end, from the inventories note or the balance-sheet details note.",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -6174,7 +6213,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 114,
+   "order": 115,
    "definition": "Work in process held in inventory at the year-end, from the inventories note or the balance-sheet details note.",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -6210,7 +6249,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 115,
+   "order": 116,
    "definition": "Finished goods (or finished products) held in inventory at the year-end, from the inventories note or the balance-sheet details note.",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -6246,7 +6285,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 116,
+   "order": 117,
    "definition": "Property, plant and equipment at cost, before accumulated depreciation: the gross total of the property note's table ('Gross property, plant and equipment', 'Total, at cost').",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -6287,7 +6326,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 117,
+   "order": 118,
    "definition": "Accumulated depreciation and amortisation of property, plant and equipment at the year-end, with the sign the property note gives it (usually printed as a deduction).",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -6324,7 +6363,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 118,
+   "order": 119,
    "definition": "The registered public accounting firm that signs the report on the consolidated financial statements, as printed in its signature without the '/s/' (for example 'Hartwell & Rowe LLP'). Not the engagement partner.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -6361,7 +6400,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 119,
+   "order": 120,
    "definition": "The kind of opinion the auditor expresses on the consolidated financial statements, as the report names it: the heading of its opinion section, copied as printed. A US report heads an unqualified opinion 'Opinion on the Financial Statements', and a modified one 'Qualified Opinion', 'Adverse Opinion' or 'Disclaimer of Opinion'. Not the heading of the opinion on internal control.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -6400,7 +6439,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 120,
+   "order": 121,
    "definition": "The auditor's opinion on the consolidated financial statements, in the auditor's own words: the sentence of the report's opinion section that begins 'In our opinion', copied as printed. Not the opinion on internal control.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -6437,7 +6476,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 121,
+   "order": 122,
    "definition": "The auditor's opinion on the filer's internal control over financial reporting, in the auditor's own words: the sentence of that report's opinion section that begins 'In our opinion', copied as printed, whether it finds control effective or not. Empty where the 10-K carries no auditor's report on internal control.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -6474,7 +6513,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 122,
+   "order": 123,
    "definition": "The first sentence of the auditor's going-concern paragraph, copied as printed: the sentence stating that conditions raise substantial doubt about the filer's ability to continue as a going concern. Empty when the report includes no such paragraph.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -6512,7 +6551,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 123,
+   "order": 124,
    "definition": "The title of the first critical audit matter the auditor's report communicates, copied as printed (for example 'Uncertain Tax Positions'); or the report's sentence stating that there are no critical audit matters.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -6549,7 +6588,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 124,
+   "order": 125,
    "definition": "The sentence of the commitments and contingencies note (or the legal proceedings note) that states the filer's conclusion on its legal proceedings, claims and other contingencies, copied as printed: whether a loss is probable, an amount is accrued, or the outcome is not expected to have a material adverse effect (ASC 450). Empty when the notes disclose no contingencies.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -6581,7 +6620,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 125,
+   "order": 126,
    "definition": "The guarantees, standby letters of credit and surety bonds the filer has issued and that are outstanding at the balance-sheet date, summed: the maximum potential amount of future payments the notes state (ASC 460). Not the undrawn capacity of a credit facility.",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -6612,7 +6651,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 126,
+   "order": 127,
    "definition": "The amount recognised as a liability at the balance-sheet date for loss contingencies (litigation, claims, environmental and similar matters), as the notes state it. Empty where the filing states no amount.",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -6643,7 +6682,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 127,
+   "order": 128,
    "definition": "The total of the filer's unconditional purchase obligations and purchase commitments at the balance-sheet date, as the commitments note prints or states it.",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -6683,7 +6722,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 128,
+   "order": 129,
    "definition": "The sentence of the related-party note that describes the principal related-party relationship and the transactions with it, or that states the filer had no material related-party transactions, copied as printed (ASC 850). Empty when the filing says nothing about related parties.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -6711,7 +6750,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 129,
+   "order": 130,
    "definition": "Revenue from sales of goods and services to related parties during the year, as the related-party note prints or states it.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -6748,7 +6787,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 130,
+   "order": 131,
    "definition": "Purchases of goods and services from related parties during the year, including rent and fees paid to them, as the related-party note prints or states it; where the note prints several kinds on separate rows, the rows are added.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -6786,7 +6825,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 131,
+   "order": 132,
    "definition": "Receivables from related parties at the balance-sheet date, as the related-party note prints or states them.",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -6820,7 +6859,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 132,
+   "order": 133,
    "definition": "Payables to related parties at the balance-sheet date, as the related-party note prints or states them.",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -6845,12 +6884,13 @@
   }
  ],
  "others_master": {
-  "note": "One leftover line per balance-sheet and cash-flow section: the rows of the section no line claims are swept there, itemised. The statement of operations has none, so a row no line claims is left for review.",
+  "note": "One leftover line per asset, liability, stockholders' equity and cash-flow section: the rows of the section no line claims are swept there, itemised. The statement of operations has none, so a row no line claims is left for review.",
   "keys": [
    "bs_ca__other_current_assets",
    "bs_nca__other_non_current_assets",
    "bs_cl__other_current_liabilities",
    "bs_ncl__other_non_current_liabilities",
+   "bs_equity__other_equity",
    "cf_oper_indirect__other_operating_items",
    "cf_investing__other_invest_cash_flows",
    "cf_financing__other_financing_cash_flows"

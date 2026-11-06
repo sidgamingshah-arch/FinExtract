@@ -8,14 +8,14 @@ says it is:
     note or sentence route, and the set is strict about it;
   * the additional items are read from the notes and the auditor's report, are open to every note,
     and their text is lifted off the page, never generated;
-  * each asset, liability and cash-flow section has one leftover line; the statement of operations
-    and stockholders' equity have none, and each leftover line refuses the totals printed in its
-    section;
+  * each asset, liability, equity and cash-flow section has one leftover line; the statement of
+    operations has none, and each leftover line refuses the totals printed in its section;
   * the statement-of-operations subtotals whose meaning depends on the filer's layout are read as
     printed;
-  * a US balance sheet prints no non-current banner, so a non-current line binds under the current
-    banner the reader carries past "Total current assets", and a caption printed in both places
-    binds neither line;
+  * a US balance sheet prints no non-current banner, and the mapper reads a row the reader carries
+    past "Total current assets" in the non-current half (`map_ontology._balance_sheet_past_total`),
+    so every line is scoped to its own section alone, and a caption printed in both places binds
+    neither line;
   * the captions 10-K filers print bind their lines.
 """
 from __future__ import annotations
@@ -277,21 +277,19 @@ def test_no_per_share_or_share_count_line_is_carried(raw):
 
 # ── sections, leftovers and totals ─────────────────────────────────────────────────────────────
 
-def test_each_asset_liability_and_cash_flow_section_has_one_leftover_line(raw):
+def test_each_asset_liability_equity_and_cash_flow_section_has_one_leftover_line(raw):
     residuals = set(raw[1]["others_master"]["keys"])
     by_section: dict[str, list[str]] = {}
     for _st, sec, node in _nodes(raw[0]):
         if node["canonical_key"] in residuals:
             by_section.setdefault(sec, []).append(node["canonical_key"])
-    assert set(by_section) == {"bs_ca", "bs_nca", "bs_cl", "bs_ncl", "cf_oper_indirect",
-                               "cf_investing", "cf_financing"}
+    assert set(by_section) == {"bs_ca", "bs_nca", "bs_cl", "bs_ncl", "bs_equity",
+                               "cf_oper_indirect", "cf_investing", "cf_financing"}
     assert all(len(v) == 1 for v in by_section.values()), by_section
 
 
 def test_a_leftover_line_has_one_section_to_sweep(usgaap):
-    """The sweep refuses a leftover line scoped to two sections, so the non-current leftovers keep
-    their own section alone even though the non-current lines beside them also name the current
-    one."""
+    """The sweep refuses a leftover line scoped to two sections."""
     residuals = {k for k in json.loads(SET.read_text("utf-8"))["others_master"]["keys"]}
     for item in usgaap.items:
         if item.key in residuals:
@@ -303,6 +301,14 @@ def test_a_leftover_line_has_one_section_to_sweep(usgaap):
     ("bs_ca__other_current_assets", "Total cash, cash equivalents, and short-term investments"),
     ("bs_ncl__other_non_current_liabilities", "Total liabilities"),
     ("bs_ncl__other_non_current_liabilities", "Redeemable noncontrolling interest"),
+    ("bs_equity__other_equity", "Total stockholders' equity"),
+    ("bs_equity__other_equity", "Total equity"),
+    # Not the stockholders' own, and not equity: the rows printed above the equity banner.
+    ("bs_equity__other_equity", "Nonredeemable noncontrolling interest"),
+    ("bs_equity__other_equity", "Commitments and contingencies Redeemable noncontrolling interest"),
+    ("bs_equity__other_equity", "Long-term finance lease obligations"),
+    ("bs_equity__other_equity", "Deferred income taxes and other"),
+    ("bs_equity__other_equity", "Other long-term liabilities"),
     ("cf_oper_indirect__other_operating_items", "Net cash provided by operating activities"),
     ("cf_investing__other_invest_cash_flows", "Net cash used in investing activities"),
     ("cf_financing__other_financing_cash_flows",
@@ -352,27 +358,54 @@ def test_a_layout_dependent_subtotal_is_read_as_printed(raw):
 
 # ── the US balance sheet's unheaded non-current rows ───────────────────────────────────────────
 
+def test_a_balance_sheet_line_is_scoped_to_its_own_section_alone(raw):
+    """The mapper reads a row printed after a current section's own total, under the banner the
+    reader carried past it, in the non-current half (`map_ontology._balance_sheet_past_total`), so
+    no line needs the current section as a second scope to bind there. Temporary equity, printed
+    between the liabilities and the equity, is the one line scoped to more than its own."""
+    for item in raw[1]["items"]:
+        if item["statements"] != [BS] or item["key"].startswith("bs_mezz__"):
+            continue
+        assert item["section_scope"] in ([item["inherits"]], ["bs_top_level"]), (
+            item["key"], item["section_scope"])
+
+
 @pytest.mark.parametrize("caption,banner,key", [
-    ("Property and equipment, net", "Current assets", "bs_nca__property_plant_and_equipment"),
-    ("Goodwill", "Current assets", "bs_nca__goodwill"),
-    ("Operating lease right-of-use assets", "Current assets",
+    ("Property and equipment, net", "Non-current assets", "bs_nca__property_plant_and_equipment"),
+    ("Goodwill", "Non-current assets", "bs_nca__goodwill"),
+    ("Operating lease right-of-use assets", "Non-current assets",
      "bs_nca__operating_lease_right_of_use_assets"),
-    ("Long-term debt", "Current liabilities", "bs_ncl__long_term_debt"),
-    ("Long-term operating lease obligations", "Current liabilities",
+    ("Long-term debt", "Non-current liabilities", "bs_ncl__long_term_debt"),
+    ("Long-term operating lease obligations", "Non-current liabilities",
      "bs_ncl__operating_lease_liabilities"),
-    # The same caption on both sides, told apart by the banner.
-    ("Deferred income taxes", "Current assets", "bs_nca__deferred_tax_assets"),
-    ("Deferred income taxes", "Current liabilities", "bs_ncl__deferred_tax_liabilities"),
+    # The same caption on both sides, told apart by the side.
+    ("Deferred income taxes", "Non-current assets", "bs_nca__deferred_tax_assets"),
+    ("Deferred income taxes", "Non-current liabilities", "bs_ncl__deferred_tax_liabilities"),
 ])
-def test_a_non_current_line_binds_under_the_carried_current_banner(matcher, caption, banner, key):
+def test_a_non_current_line_binds_in_the_half_the_mapper_reads_it_in(matcher, caption, banner,
+                                                                      key):
     hit = matcher.match(caption, statement=BS, section=banner)
     assert hit.canonical_key == key and hit.confidence >= 0.9, (caption, hit.canonical_key)
 
 
+@pytest.mark.parametrize("caption,banner", [
+    ("Property and equipment, net", "Current assets"), ("Goodwill", "Current assets"),
+    ("Long-term debt", "Current liabilities"), ("Deferred income taxes", "Current liabilities"),
+])
+def test_a_current_banner_admits_no_non_current_line(matcher, caption, banner):
+    """No second scope is left: what binds these rows under a carried banner is the mapper's
+    reading of where the row is printed, not the line's scope."""
+    hit = matcher.match(caption, statement=BS, section=banner)
+    assert hit.canonical_key is None or not hit.canonical_key.startswith(("bs_nca__", "bs_ncl__")), (
+        caption, hit.canonical_key)
+
+
 @pytest.mark.parametrize("caption", ["Operating lease liabilities", "Term debt"])
-@pytest.mark.parametrize("banner", ["Current liabilities", "Non-current liabilities"])
+@pytest.mark.parametrize("banner", ["Current liabilities", "Non-current liabilities", None])
 def test_a_caption_printed_on_both_sides_binds_neither_line(matcher, caption, banner):
-    """Under the carried banner both rows would bind the current line and be added together."""
+    """Where the row stands is all that tells the two apart, and a row the mapper reads in no
+    section — after a grand total, or on a page the reader gives no banner — would bind whichever
+    line comes first."""
     hit = matcher.match(caption, statement=BS, section=banner)
     assert hit.canonical_key is None or hit.confidence < 0.85, (caption, banner, hit.canonical_key)
 
@@ -390,8 +423,8 @@ def test_a_current_line_does_not_bind_under_a_non_current_banner(matcher):
      "Current assets", "bs_ca__accounts_receivable"),
     ("Merchandise inventories", BS, "Current assets", "bs_ca__inventories"),
     ("Property and equipment, net of accumulated depreciation of $93,653 and $76,421", BS,
-     "Current assets", "bs_nca__property_plant_and_equipment"),
-    ("Investments in and advances to affiliates", BS, "Current assets",
+     "Non-current assets", "bs_nca__property_plant_and_equipment"),
+    ("Investments in and advances to affiliates", BS, "Non-current assets",
      "bs_nca__equity_method_investments"),
     ("Commercial paper", BS, "Current liabilities", "bs_cl__short_term_debt"),
     ("Long-term debt due within one year", BS, "Current liabilities", "bs_cl__short_term_debt"),
@@ -402,13 +435,13 @@ def test_a_current_line_does_not_bind_under_a_non_current_banner(matcher):
     ("Short-term unearned revenue", BS, "Current liabilities", "bs_cl__deferred_revenue"),
     ("Operating lease obligations due within one year", BS, "Current liabilities",
      "bs_cl__operating_lease_liabilities_current"),
-    ("Long-term finance lease obligations", BS, "Current liabilities", "bs_ncl__long_term_debt"),
-    ("Deferred income taxes and other", BS, "Current liabilities",
+    ("Long-term finance lease obligations", BS, "Non-current liabilities", "bs_ncl__long_term_debt"),
+    ("Deferred income taxes and other", BS, "Non-current liabilities",
      "bs_ncl__deferred_tax_liabilities"),
-    ("Liability for postemployment benefits", BS, "Current liabilities",
+    ("Liability for postemployment benefits", BS, "Non-current liabilities",
      "bs_ncl__pension_and_postretirement"),
     ("Commitments and contingencies Redeemable noncontrolling interest", BS,
-     "Current liabilities", "bs_mezz__temporary_equity"),
+     "Non-current liabilities", "bs_mezz__temporary_equity"),
     (("Common stock and additional paid-in capital, $0.00001 par value: 50,400,000 shares "
      "authorized; 15,116,786 and 15,550,061 shares issued and outstanding, respectively"), BS,
      "Shareholders’ equity", "bs_equity__common_stock"),

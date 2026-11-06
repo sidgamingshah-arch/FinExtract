@@ -157,6 +157,29 @@ def _page_of_row(li) -> int | None:
     return None
 
 
+def _rows_past_their_total(doc: DocumentModel) -> frozenset[int]:
+    """``id(row)`` of each balance-sheet face row read under a banner whose section closed at its
+    OWN total above it, with no grand total since (`face_context.banners_past_their_total`) — in
+    every block the row is in. The rows the mapper reads in the section printed after their own
+    (`map_ontology._balance_sheet_past_total`), and the ones `_section_of_row` stops at the next
+    banner."""
+    try:
+        from app.services.face_context import _blocks_past_total, _face_blocks
+
+        blocks, _ = _face_blocks(doc, want={"balance_sheet"})
+        past = _blocks_past_total(doc, blocks)
+    except Exception:  # noqa: BLE001 — without it every row walks down as it always has
+        return frozenset()
+    members: dict[int, int] = {}
+    marked: dict[int, int] = {}
+    for key, rows in blocks.items():
+        for _page, row, _figures, _unit in rows:
+            members[id(row)] = members.get(id(row), 0) + 1
+            if (key, id(row)) in past:
+                marked[id(row)] = marked.get(id(row), 0) + 1
+    return frozenset(rid for rid, n in marked.items() if n == members.get(rid))
+
+
 def _statement_map(doc: DocumentModel):
     """(page -> statement) plus the per-row lookup both paths use.
 
@@ -1348,6 +1371,9 @@ class ResidualStage:
             section = closes_of.get(row.canonical_key or "")
             if section is not None and section not in closed_at:
                 closed_at[section] = position
+        # The balance-sheet rows past their own section's total, before any grand total — see
+        # `_section_of_row`.
+        past_total = _rows_past_their_total(doc)
         per_share = (_per_share_rows(ordered) if _PER_SHARE_PHRASE in terms.exclusions else set())
         broken_down = (_broken_down_rows(ordered) if _OF_WHICH_PHRASE in terms.exclusions
                        else set())
@@ -1396,10 +1422,10 @@ class ResidualStage:
             if _ATTRIBUTION_LINE.search(li.source_label or ""):
                 attribution_section = self._section_of_row(
                     idx, ordered, li, placeable_all, section_by_key,
-                    subtotal_of, stmt, statement_of, closed_at)
+                    subtotal_of, stmt, statement_of, closed_at, past_total)
 
             section = self._section_of_row(idx, ordered, li, placeable, section_by_key,
-                                           subtotal_of, stmt, statement_of, closed_at)
+                                           subtotal_of, stmt, statement_of, closed_at, past_total)
             target = by_section.get(section or "")
             if target is not None and target.statement and stmt and target.statement != stmt:
                 target = None
@@ -1527,7 +1553,8 @@ class ResidualStage:
     @staticmethod
     def _section_of_row(idx: int, ordered: list, li, placeable: dict, section_by_key: dict,
                         subtotal_of: dict, statement: str | None, statement_of,
-                        closed_at: dict[str, int]) -> str | None:
+                        closed_at: dict[str, int],
+                        past_total: frozenset[int] = frozenset()) -> str | None:
         """The rulebook section a row was printed inside, by the three signals in the docstring.
 
         ``placeable`` is every section a row can be printed inside — including the ones with no
@@ -1550,19 +1577,42 @@ class ResidualStage:
 
         A section's own subtotal is the end of it. Once ``Total non-current assets`` is above this
         row, no banner can put the row back inside that section, and the structure below decides.
+
+        A ROW PAST ITS OWN SECTION'S TOTAL STOPS AT THE NEXT BANNER. A balance-sheet row read under
+        a banner whose section closed at its OWN total above it, with no grand total since
+        (``past_total``, `face_context.banners_past_their_total`), is in the section printed after
+        that one — and a row printed above a section's banner is not inside it. So its walk down
+        stops at a recognised banner of a different section read afresh below it, and the structure
+        above decides. MEASURED on a 10-K layout that prints no "Total liabilities": 'Long-term
+        finance lease obligations' and 'Deferred income taxes and other', under the "Current
+        liabilities" banner carried past "Total current liabilities", were placed by the next
+        subtotal below them — "Total shareholders' equity", printed after an "Equity:" banner — and
+        swept into the equity leftover. Any other row walks down as before, across banners: a row
+        after a GRAND total is past the side it was carried from (PetroChina's CAS sheet prints
+        "Total liabilities" and then its equity rows under the carried non-current banner, the
+        equity heading glued to the first caption and only "Equity attributable to equity holders"
+        read as a banner, above the equity subtotal they are part of), and a row read under no
+        recognised banner — an income statement's, a continuation page's — has no structure but
+        the subtotal its section runs up to.
         """
-        if li.section_hint:
-            token = section_of_banner(li.section_hint)
-            if token:
-                for section, (sec_token, sec_stmt) in placeable.items():
-                    if sec_token != token or (statement and sec_stmt != statement):
-                        continue
-                    if closed_at.get(section, len(ordered)) < idx:
-                        break                   # spent: fall through to the structure below
-                    return section
+        token = section_of_banner(li.section_hint) if li.section_hint else None
+        if token:
+            for section, (sec_token, sec_stmt) in placeable.items():
+                if sec_token != token or (statement and sec_stmt != statement):
+                    continue
+                if closed_at.get(section, len(ordered)) < idx:
+                    break                   # spent: fall through to the structure below
+                return section
+        stops_at_a_banner = token is not None and id(li) in past_total
+        above = li
         for nxt in ordered[idx + 1:]:
             if statement and statement_of(nxt) not in (None, statement):
                 break
+            if (stops_at_a_banner and nxt.section_hint
+                    and nxt.section_hint != above.section_hint
+                    and section_of_banner(nxt.section_hint) not in (None, token)):
+                break                       # a new section begins above any subtotal below it
+            above = nxt
             section = subtotal_of.get(nxt.canonical_key or "")
             if section is None:
                 continue

@@ -249,14 +249,35 @@ def _face_blocks(doc, want=None) -> tuple[dict, dict]:
     return by_block, legends
 
 
-def _blocks_context(doc, by_block) -> dict[tuple[tuple, int], tuple[str, str]]:
-    """``{(block key, id(row)): (under, subheading)}`` — what each row of each block is shown
-    printed under (`block_context`), with the total an owners' / non-controlling row splits as its
-    sub-heading (`attribution_headings`, `named_total_headings`)."""
+def _chrome_and_titles(doc) -> tuple[set, set]:
+    """The page furniture and the statement titles the classifier matched — what `block_context`
+    does not take for a section."""
     chrome = set(getattr(doc, "page_chrome", None) or ())
     titles = {_fold_title(str((getattr(p, "evidence", None) or {}).get("matched_title") or ""))
               for p in (getattr(doc, "pages", None) or ())}
     titles.discard("")
+    return chrome, titles
+
+
+def _blocks_past_total(doc, by_block) -> dict[tuple[tuple, int], str]:
+    """``{(block key, id(row)): banner}`` for each row of each block read under a banner whose
+    section closed AT ITS OWN TOTAL above it (`banners_past_their_total`); rows that are not are
+    left out."""
+    chrome, titles = _chrome_and_titles(doc)
+    out: dict[tuple[tuple, int], str] = {}
+    for key, members in by_block.items():
+        ordered = [row for _p, row, _f, _u in sorted(members, key=lambda m: m[0])]
+        for row, banner in zip(ordered, banners_past_their_total(ordered, key[0], chrome, titles)):
+            if banner:
+                out[(key, id(row))] = banner
+    return out
+
+
+def _blocks_context(doc, by_block) -> dict[tuple[tuple, int], tuple[str, str]]:
+    """``{(block key, id(row)): (under, subheading)}`` — what each row of each block is shown
+    printed under (`block_context`), with the total an owners' / non-controlling row splits as its
+    sub-heading (`attribution_headings`, `named_total_headings`)."""
+    chrome, titles = _chrome_and_titles(doc)
     printed = [(st, _page_of(r), r) for st, _c, r in _face_index_rows(doc)]
     headings = attribution_headings(printed)
     named = named_total_headings(printed)
@@ -393,6 +414,23 @@ def block_context(rows, statement: str = "", chrome=(), titles=()) -> list[tuple
     after rows read under none, or under another — is a new section of that name: China SCE's
     operating and investing sections both read as "ACTIVITIES", the second line of each wrapped
     heading."""
+    return [(under, sub) for under, sub, _past in _read_block(rows, statement, chrome, titles)]
+
+
+def banners_past_their_total(rows, statement: str = "", chrome=(), titles=()) -> list[str]:
+    """For each row of one statement block, in the order given: the banner the reader carried over
+    it when that banner's section closed AT ITS OWN TOTAL above the row and no grand total has been
+    printed since, else "". Such a row is one `block_context` shows under no section — "Long-term
+    debt" read under the "Current liabilities" banner a 10-K's reader carries past "Total current
+    liabilities" — and this says which section it is past: the mapper reads it in the section
+    printed after that one (`stages.map_ontology`). A grand total itself, a row after one, and a row
+    whose section a grand total closed are not past a total of their own."""
+    return [past for _under, _sub, past in _read_block(rows, statement, chrome, titles)]
+
+
+def _read_block(rows, statement, chrome, titles) -> list[tuple[str, str, str]]:
+    """``(under, subheading, past)`` for each row — `block_context`'s answer and
+    `banners_past_their_total`'s, from one reading of the block."""
     rows = list(rows)
     captions = [str(getattr(r, "source_label", "") or "") for r in rows]
     own: list[str] = []
@@ -435,34 +473,41 @@ def block_context(rows, statement: str = "", chrome=(), titles=()) -> list[tuple
         return True
 
     closed: set[str] = set()
+    # The closed sections that ended at their OWN total, while no grand total has followed.
+    at_total: set[str] = set()
     in_force = ""
-    out: list[tuple[str, str]] = []
+    out: list[tuple[str, str, str]] = []
     for i, row in enumerate(rows):
         section = own[i]
         if section:
             if section in closed and _banner_read(i):
                 closed.discard(section)
+                at_total.discard(section)
             in_force = "" if section in closed else section
         elif not carry:
             in_force = ""
         under = in_force
+        past = section if section in at_total and not grand[i] and not bottom[i] else ""
         sub = str(getattr(row, "group_hint", "") or "").strip()
         if grand[i]:
             if under:
                 closed.add(under)
+            at_total.clear()
             under, in_force, sub = "", "", ""
         elif under and _closes(i, under):
             # The section's own total: printed in it, and the last row that is.
             closed.add(under)
+            at_total.add(under)
             in_force = ""
         elif bottom[i]:
             if under:
                 closed.add(under)
+            at_total.clear()
             under, in_force = "", ""
         heading = _joined_heading(captions[i])[0]
         if heading and not sub:
             sub = heading
-        out.append((under, sub))
+        out.append((under, sub, past))
     return out
 
 
