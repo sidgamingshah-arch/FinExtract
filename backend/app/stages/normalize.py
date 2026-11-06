@@ -140,6 +140,23 @@ _CCY = [("₹", "INR"), ("rs.", "INR"), ("inr", "INR"), ("rupee", "INR"),
 _MAX_FACE_SCAN = 12
 
 
+# A LATIN CURRENCY CODE IS A WORD OF ITS OWN. Matched as a bare substring, "rs." was found in
+# "years.", "others." and "officers.", and because the table is tried in its own order, every filing
+# whose scanned pages printed such a word read as rupees before "$" was ever tried: Alphabet's 2025
+# 10-K came out "million/INR", and its EPS was stamped "INR per share". The same held for "eur" in
+# "entrepreneur" and "inr" inside any word. Symbols ("$", "₹", "hk$") and Han tokens stand as they are.
+_LATIN_TOKEN = re.compile(r"^[a-z.]+$")
+# …in the singular or the plural: Laurus Labs declares "(All amounts in Crore Rupees …)".
+_CCY_RX = [(re.compile(rf"(?<![a-z]){re.escape(tok)}{'' if tok.endswith('.') else 's?'}(?![a-z])")
+            if _LATIN_TOKEN.match(tok) else None, tok, code) for tok, code in _CCY]
+
+
+def _currency_in(text: str) -> str | None:
+    """The first currency of `_CCY`, in the table's order, that `text` names."""
+    return next((code for rx, tok, code in _CCY_RX
+                 if (rx.search(text) if rx is not None else tok in text)), None)
+
+
 # A figure standing in front of the unit, across any amount of whitespace the text layer inserted.
 # "10.5 亿元" is a measurement; "单位： 亿元" is a declaration.
 _NO_FIGURE_BEFORE = re.compile(r"[\d.]\s*$")
@@ -237,7 +254,7 @@ def _detect_units(ctx: PipelineContext, fmt: str, doc: DocumentModel | None = No
             continue
         # Remember the first currency seen: the face page declaring the scale may print only
         # "'000" with the currency stated once, elsewhere.
-        currency = currency or next((code for tok, code in _CCY if tok in text), None)
+        currency = currency or _currency_in(text)
         scale_word = _scan_scale(text)
         if scale_word is None:
             continue
