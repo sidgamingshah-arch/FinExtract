@@ -83,3 +83,34 @@ def test_a_note_keeps_three_continuation_lines():
     captions = _captions(_page(LINES), on_face=False)
     capital = [c for c in captions if "issued and outstanding" in c]
     assert len(capital) == 1 and capital[0].startswith("par value per share"), captions
+
+
+# ── A CAPTION THAT BREAKS AFTER ITS PAR VALUE'S COLON ─────────────────────────────────────────
+#
+# Apple prints the same caption broken after a colon:
+#
+#     Common stock and additional paid-in capital, $0.00001 par value:
+#     50,400,000 shares authorized; 15,116,786 and 15,550,061 shares
+#     issued and outstanding, respectively                          83,276      73,812
+#
+# A line ending in a colon introduces the rows beneath it, so the head was let go and the line was
+# published as "50,400,000 shares authorized; …". A count of shares is never a caption's first word.
+
+APPLE = [
+    "Common stock and additional paid-in capital, $0.00001 par value:",
+    "50,400,000 shares authorized; 15,116,786 and 15,550,061 shares",
+    "issued and outstanding, respectively",
+]
+
+
+def test_a_colon_before_a_share_count_continues_the_caption():
+    captions = _captions(_page(APPLE), on_face=True)
+    capital = [c for c in captions if "issued and outstanding" in c]
+    assert len(capital) == 1, captions
+    assert capital[0].startswith("Common stock and additional paid-in capital"), capital
+
+
+def test_a_colon_heading_over_a_caption_still_heads_it():
+    lines = ["Stockholders' equity:", "Common stock, $0.01 par value; 1,000 shares authorized"]
+    captions = _captions(_page(lines), on_face=True)
+    assert not any(c.startswith("Stockholders") for c in captions), captions

@@ -171,9 +171,10 @@ def test_a_10k_non_current_row_binds_its_line_with_its_own_scope_alone(usgaap):
     # The same caption on both sides, told apart by the side the carried banner names.
     assert got["Deferred income taxes"] == "bs_nca__deferred_tax_assets"
     assert got["Deferred income taxes#1"] == "bs_ncl__deferred_tax_liabilities"
-    # Printed on both sides by some filers, so an alias of neither line.
-    assert got["Operating lease liabilities"] is None or got["Operating lease liabilities"].startswith(
-        "engine_unclassified")
+    # Printed on both sides by some filers, so an alias of the current AND the non-current line:
+    # below the current liabilities' total, as here, it is the non-current one (Cascade prints
+    # 24,823 there; Alphabet 2025 prints its 12,744 the same way).
+    assert got["Operating lease liabilities"] == "bs_ncl__operating_lease_liabilities"
     # The rows still inside their sections, and the grand totals, bind as before.
     assert got["Accrued liabilities"] == "bs_cl__accrued_liabilities"
     assert got["Total assets"] == "bs_ca__total_assets"

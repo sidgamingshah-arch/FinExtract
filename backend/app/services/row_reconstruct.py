@@ -1407,6 +1407,9 @@ def _translates(head_words: list[Word], label_words: list[Word]) -> bool:
             and _CJK_ONLY(label))
 
 
+_OPENS_ON_A_SHARE_COUNT = re.compile(r"(?i)^\(?\d[\d,.]*\)?\s+(?:million\s+|thousand\s+|billion\s+)?shares\b")
+
+
 def _is_wrapped_head(head: list[Word], cont: list[Word],
                      steps: tuple[tuple[str, object], ...] = ()) -> bool:
     """Whether an ALL-CAPS label-only line is the first line of a WRAPPED caption.
@@ -1426,8 +1429,13 @@ def _is_wrapped_head(head: list[Word], cont: list[Word],
     # the same statement `_heads_indented_block` makes on the matrix path. Tested through the
     # rulebook's fullwidth→halfwidth fold, because a CJK sub-heading ends in "：": untested, it
     # fell to the bilingual rule below and the heading was glued onto the first row under it.
+    # …UNLESS THE LINE BELOW OPENS ON A SHARE COUNT. A US balance sheet prints its share capital
+    # as one caption that breaks after the par value: Apple's "Common stock and additional paid-in
+    # capital, $0.00001 par value:" over "50,400,000 shares authorized; 15,116,786 and 15,550,061
+    # shares" over "issued and outstanding, respectively  83,276  73,812". A count of shares is
+    # never a caption's first word, so the colon introduces the rest of THIS caption, not rows.
     if _ends_with_colon(head_text, steps):
-        return False
+        return bool(_OPENS_ON_A_SHARE_COUNT.match(cont_text))
     # A bilingual filing prints the translation of the SAME caption on the next line. A
     # CJK-only continuation is therefore never a new banner — and without this the Chinese
     # line breaks the chain between an English wrap and the row carrying the figures.
