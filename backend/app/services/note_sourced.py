@@ -2169,6 +2169,11 @@ def _page_sentence(stated: str, quote: str, page: int,
     before = text[max(0, start - 16): start]
     after = text[best.end(): best.end() + 24] if best is not None else ""
     money = _currency_beside(before, after)
+    # A COMPARATIVE STATED THE US WAY: "$9.0 billion and $45.6 billion as of December 31, 2024 and
+    # December 31, 2025, respectively" — Alphabet's fair value of debt. `prose_context` reads only
+    # "(2024: X)", so the 2024 figure was lost although the sentence gives it.
+    if prior is None and best is not None:
+        prior = _respectively_prior(text, best.start(), best.end())
     # A LINE OF A TABLE THE PAGE DECLARES IN MONEY. A US table prints its unit once, in the
     # sentence that introduces it ("…were as follows (in millions):"), and "$" on its first line
     # and its total only: Alphabet's debt maturities "2026 $ 2,000 / 2027 1,000 / … / Thereafter
@@ -2185,6 +2190,41 @@ def _page_sentence(stated: str, quote: str, page: int,
             "prose_scale": str(scale_word) if scale_word else None,
             "prose_prior": str(prior) if prior is not None else None,
             "prose_money": money}, ""
+
+
+_SCALE_AFTER = r"(?:\s*({name}billion|million|thousand|bn|mn))?"
+_RESPECTIVELY: list = []        # compiled on first use: `_PROSE_NUMBER` is defined further down
+
+
+def _respectively_rx():
+    if not _RESPECTIVELY:
+        _RESPECTIVELY.append(re.compile(
+            r"\$?\s*(?P<a>" + _PROSE_NUMBER + r")" + _SCALE_AFTER.format(name="?P<sa>")
+            + r"\s*,?\s+and\s+\$?\s*(?P<b>" + _PROSE_NUMBER + r")" + _SCALE_AFTER.format(name="?P<sb>")
+            + r"[^.;]{0,80}?\b(?P<y1>(?:19|20)\d{2})\b[^.;]{0,40}?\band\b[^.;]{0,40}?\b"
+            r"(?P<y2>(?:19|20)\d{2})\b[^.;]{0,20}?\brespectively\b", re.I))
+    return _RESPECTIVELY[0]
+
+
+def _respectively_prior(text: str, start: int, end: int) -> Decimal | None:
+    """The earlier year's amount of an "A and B as of YEAR1 and YEAR2, respectively" sentence, when
+    the amount at `start`:`end` is the LATER year's and both are in the same scale; else None."""
+    lo = max(0, start - 120)
+    for m in _respectively_rx().finditer(text[lo:end + 200]):
+        spans = {"a": (m.start("a") + lo, m.end("a") + lo), "b": (m.start("b") + lo, m.end("b") + lo)}
+        mine = next((k for k, sp in spans.items() if sp == (start, end)), None)
+        if mine is None:
+            continue
+        other = "b" if mine == "a" else "a"
+        year = {"a": int(m.group("y1")), "b": int(m.group("y2"))}
+        scale = {"a": (m.group("sa") or "").lower(), "b": (m.group("sb") or "").lower()}
+        if year[mine] <= year[other] or scale[mine] != scale[other]:
+            return None
+        try:
+            return Decimal(re.sub(r"[^0-9.]", "", m.group(other)))
+        except (InvalidOperation, ValueError):
+            return None
+    return None
 
 
 # "(in millions)", "(in thousands, except per share amounts)", "(dollars in millions)": the unit a

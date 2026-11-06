@@ -104,3 +104,30 @@ def test_each_row_of_the_deferred_block_is_under_deferred():
     assert [g for _, g in groups[:3]] == ["Current:"] * 3, groups
     # Set back to the heading's own edge: the block has ended.
     assert groups[6] == ("Provision for income taxes $", ""), groups
+
+
+# ── a comparative stated the US way ──────────────────────────────────────────────────────────
+
+FAIR = ("The total estimated fair value of the outstanding notes was approximately $9.0 billion and "
+        "$45.6 billion as of December 31, 2024 and December 31, 2025, respectively. The fair value was "
+        "determined based on observable market prices.")
+
+
+def _sentence(amount, page):
+    entry, why = _page_sentence(amount, page[:60], 73, {73: page})
+    assert entry is not None, why
+    return entry
+
+
+def test_the_later_years_amount_takes_the_earlier_one_as_its_comparative():
+    # Alphabet's fair value of debt: "(2024: X)" is the only comparative the reader knew.
+    assert Decimal(_sentence("45.6", FAIR)["prose_prior"]) == Decimal("9.0")
+    page = ("The allowance for credit losses on accounts receivable was $879 million and $924 million "
+            "as of December 31, 2024 and 2025, respectively.")
+    assert Decimal(_sentence("924", page)["prose_prior"]) == Decimal("879")
+
+
+def test_the_earlier_years_amount_and_a_pair_in_two_scales_take_none():
+    assert _sentence("9.0", FAIR)["prose_prior"] is None
+    page = "costs of $10 million and $12 billion for 2024 and 2025, respectively"
+    assert _sentence("12", page)["prose_prior"] is None
