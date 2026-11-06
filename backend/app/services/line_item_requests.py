@@ -206,8 +206,14 @@ def report_plans(plans, by_key: dict) -> tuple[list[RequestPlan], list[RequestPl
     lines of one statement are asked together, and a balance-sheet total is asked beside the
     balance-sheet lines rather than beside a covenant. A line names its statement on the line
     (`LineItemDef.statement`); one naming none is batched under its section.
+
+    A NARRATIVE LINE IS BATCHED APART (`text_lines.is_prose_line`, `report:<place>:prose`): it is
+    asked under a contract and a reply schema of its own, so it shares no batch with the phrases
+    printed beside it, and adding one leaves every phrase batch as it was.
     """
     from dataclasses import replace
+
+    from app.services.text_lines import is_prose_line
 
     def anywhere(key: str) -> bool:
         return key in by_key and line_item_routes.reads_every_page(by_key[key])
@@ -235,13 +241,13 @@ def report_plans(plans, by_key: dict) -> tuple[list[RequestPlan], list[RequestPl
         return tok(getattr(item, "statement", None)) or str(getattr(item, "inherits", "") or "")
 
     position = {key: i for i, key in enumerate(moved)}
-    by_place: dict[str, list[str]] = {}
+    by_place: dict[tuple[str, bool], list[str]] = {}
     for key in sorted(moved, key=lambda k: (where(k), str(getattr(by_key[k], "inherits", "") or ""),
                                             position[k])):
-        by_place.setdefault(where(key), []).append(key)
+        by_place.setdefault((where(key), is_prose_line(by_key[key])), []).append(key)
     report: list[RequestPlan] = []
-    for place in sorted(by_place, key=lambda p: min(position[k] for k in by_place[p])):
-        keys = by_place[place]
+    for place, prose in sorted(by_place, key=lambda p: min(position[k] for k in by_place[p])):
+        keys = by_place[(place, prose)]
         batches = -(-len(keys) // REPORT_LINES_PER_REQUEST)
         size = -(-len(keys) // batches)
         for n in range(batches):
@@ -252,7 +258,8 @@ def report_plans(plans, by_key: dict) -> tuple[list[RequestPlan], list[RequestPl
             for key in chunk:
                 notes += [num for num in notes_of[key] if num not in notes]
             report.append(RequestPlan(
-                name=f"report:{place or 'unplaced'}" + (f"#{n + 1}" if batches > 1 else ""),
+                name=(f"report:{place or 'unplaced'}" + (":prose" if prose else "")
+                      + (f"#{n + 1}" if batches > 1 else "")),
                 keys=chunk, notes=tuple(notes), sections=_sections_of_keys(chunk, by_key)))
     return kept, report
 

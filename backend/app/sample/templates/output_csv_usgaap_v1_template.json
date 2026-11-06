@@ -1559,6 +1559,15 @@
        "role": "line"
       },
       {
+       "node_id": "notes_contingencies__narrative",
+       "canonical_key": "notes_contingencies__narrative",
+       "label": "Contingent liabilities: narrative",
+       "label_i18n": {
+        "en": "Contingent liabilities: narrative"
+       },
+       "role": "line"
+      },
+      {
        "node_id": "notes_contingencies__guarantees_and_letters_of_credit",
        "canonical_key": "notes_contingencies__guarantees_and_letters_of_credit",
        "label": "Guarantees and letters of credit",
@@ -1602,6 +1611,15 @@
        "label": "Related parties: the disclosure",
        "label_i18n": {
         "en": "Related parties: the disclosure"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "notes_related__narrative",
+       "canonical_key": "notes_related__narrative",
+       "label": "Related party transactions: narrative",
+       "label_i18n": {
+        "en": "Related party transactions: narrative"
        },
        "role": "line"
       },

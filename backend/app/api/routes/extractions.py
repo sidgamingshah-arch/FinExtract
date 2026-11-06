@@ -282,11 +282,19 @@ def _is_text_row(li) -> bool:
     return bool(values) and all(getattr(ev, "value_text", None) is not None for ev in values)
 
 
+#: The flags that say how a text row's words arrived, and travel with it to the export:
+#: `llm_text:page N` — copied off page N as printed; `llm_prose:pages N, M` — a narrative the
+#: MODEL WROTE from those pages (`stages.line_item_llm._write_narrative`), which a reader must be
+#: able to tell from words the filing prints.
+_TEXT_FLAGS = ("llm_text", "llm_prose")
+
+
 def _text_facts(doc_model) -> dict[str, dict]:
     """Every text line the run located, by key: its text, the page it was read on, its confidence
     and flags. A text row is not served by `_serialize_rows` (its slots hold no figure, and every
     reader of a served row's `value` reads a number); it reaches the export here, as the row of
-    the template line it answers."""
+    the template line it answers. A narrative the model wrote reaches it the same way, its
+    `llm_prose` flag with it."""
     folio_of = _folio_lookup(doc_model) if getattr(doc_model, "pages", None) else (lambda _i: None)
     out: dict[str, dict] = {}
     for li in getattr(doc_model, "line_items", None) or ():
@@ -300,7 +308,7 @@ def _text_facts(doc_model) -> dict[str, dict]:
             "provenance": (_prov_dict(ev.provenance, folio_of)
                            if ev.provenance is not None else None),
             "confidence": float(li.confidence.mapping or 0.0),
-            "flags": [f for f in li.confidence.flags if str(f).startswith("llm_text")]}
+            "flags": [f for f in li.confidence.flags if str(f).startswith(_TEXT_FLAGS)]}
     return out
 
 
@@ -474,7 +482,9 @@ def _build_supplemental_rows(*, template_def: dict | None, base_rows: list[dict]
             # THE WORDS THE FILING PRINTS, as the model located them on a page and the page's own
             # text confirmed (`stages.line_item_llm._ask_text`). They outrank what this builder
             # would otherwise say: a constant ("Financial statements"), the file format, a presence
-            # scan that found no qualification, or nothing at all.
+            # scan that found no qualification, or nothing at all. A NARRATIVE THE MODEL WROTE
+            # (a `prose` line) arrives the same way and is not words the filing prints: its
+            # `llm_prose:pages …` flag rides with it, so a reader can tell the two apart.
             value = fact["text"]
             evidence = {"provenance": fact["provenance"], "confidence": fact["confidence"],
                         "flags": ["supplemental:text_line", *fact["flags"]]}

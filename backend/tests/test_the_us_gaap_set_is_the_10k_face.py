@@ -6,8 +6,10 @@ says it is:
   * the shipped files are exactly what the script builds, so the script is the reviewable source;
   * every line of the three statements is a template line read from the FACE: no internal part, no
     note or sentence route, and the set is strict about it;
-  * the additional items are read from the notes and the auditor's report, are open to every note,
-    and their text is lifted off the page, never generated;
+  * the additional items are read from the notes and the auditor's report and are open to every
+    note; their text is lifted off the page as printed, except two narratives the user asked for
+    — contingent liabilities and related-party transactions — which the model writes from the
+    pages, checked for numbers and labelled as written;
   * each asset, liability, equity and cash-flow section has one leftover line; the statement of
     operations has none, and each leftover line refuses the totals printed in its section;
   * the statement-of-operations subtotals whose meaning depends on the filer's layout are read as
@@ -122,7 +124,9 @@ def test_every_statement_line_is_a_face_line(raw, usgaap):
 
 
 def test_the_additional_items_are_the_ones_agreed(raw):
-    """The recommended set, with the auditor's report, contingent liabilities and related parties."""
+    """The recommended set, with the auditor's report, contingent liabilities and related parties
+    — and, beside the copied contingencies and related-party sentences, a narrative of each that
+    the model writes (`test_two_narratives_are_written_by_the_model_checked_and_labelled`)."""
     (notes,) = [st for st in raw[0]["statements"] if st["type"] == NOTES]
     assert [sec["node_id"] for sec in notes["sections"]] == [
         "notes_cash", "notes_debt", "notes_tax", "notes_assets", "notes_audit",
@@ -140,10 +144,11 @@ def test_the_additional_items_are_the_ones_agreed(raw):
             "notes_audit__opinion_on_internal_control", "notes_audit__going_concern",
             "notes_audit__critical_audit_matter_1", "notes_audit__critical_audit_matter_2",
             "notes_audit__critical_audit_matter_3", "notes_contingencies__assessment",
+            "notes_contingencies__narrative",
             "notes_contingencies__guarantees_and_letters_of_credit",
             "notes_contingencies__accrued_loss_contingencies",
             "notes_contingencies__purchase_obligations", "notes_related__disclosure",
-            "notes_related__sales_to_related_parties",
+            "notes_related__narrative", "notes_related__sales_to_related_parties",
             "notes_related__purchases_from_related_parties",
             "notes_related__due_from_related_parties",
             "notes_related__due_to_related_parties"} == keys
@@ -168,17 +173,36 @@ def test_an_additional_item_is_open_to_every_note(raw):
             assert item["section_scope"] == [], item["key"]
 
 
-def test_text_is_lifted_off_the_page_never_generated(raw):
-    """A `phrase` is checked against the page it is copied from; a `prose` line cannot be loaded
-    and nothing downstream reads one. The effective tax rate is text, so no statement unit scales
-    its percentage."""
-    text = {i["key"] for i in raw[1]["items"] if i.get("output_structure", "value") != "value"}
-    assert all(i.get("output_structure") == "phrase" for i in raw[1]["items"] if i["key"] in text)
+#: The two lines the model WRITES: the only `prose` lines of the set.
+NARRATIVES = {"notes_contingencies__narrative", "notes_related__narrative"}
+
+
+def test_text_is_lifted_off_the_page_and_two_narratives_are_written(raw, usgaap):
+    """A `phrase` is copied off a page and checked against the page it names. The two narratives
+    are the only lines the model WRITES (`prose`), at the user's request: each is specified by its
+    `prompt` — folded into the definition the model is sent — and written from the report's pages
+    alone, its numbers checked against the pages it cites and the fact labelled `llm_prose`
+    (`tests/test_prose_lines.py`). They bind no row, so they carry no alias. The effective tax rate
+    is text, so no statement unit scales its percentage."""
+    structure = {i["key"]: i.get("output_structure", "value") for i in raw[1]["items"]}
+    text = {k for k, s in structure.items() if s != "value"}
+    assert {k for k, s in structure.items() if s == "prose"} == NARRATIVES
     assert {k for k in text if k.startswith("notes_audit__")} == {
         i["key"] for i in _additional_items(raw) if i["key"].startswith("notes_audit__")}
+    # The copied sentences stay beside the narratives.
     assert {"notes_tax__effective_tax_rate", "notes_contingencies__assessment",
-            "notes_related__disclosure"} <= text
-    assert all(not i.get("prompt") for i in raw[1]["items"])
+            "notes_related__disclosure"} <= {k for k, s in structure.items() if s == "phrase"}
+    # A prompt is a narrative's instruction, and only a narrative carries one.
+    assert {i["key"] for i in raw[1]["items"] if i.get("prompt")} == NARRATIVES
+    by_key = {i["key"]: i for i in raw[1]["items"]}
+    loaded = {i.key: i for i in usgaap.items}
+    for key in NARRATIVES:
+        item = by_key[key]
+        assert item["route"] == "anywhere" and item["note_source"]["note_terms"], key
+        assert "aliases" not in item and "regex_hints" not in item, key
+        assert loaded[key].output_structure == "prose" and loaded[key].prompt == "", key
+        assert item["prompt"] in loaded[key].definition, key
+        assert "None disclosed." in loaded[key].definition, key
 
 
 @pytest.mark.parametrize("key,title,caption", [

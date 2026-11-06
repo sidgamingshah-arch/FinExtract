@@ -223,6 +223,15 @@ The face and its cited notes are processed in this order:
     request of the run. The system text gains one fixed paragraph (`REPORT_GUIDE`). Text lines
     with this route are asked the same way, under the text contract.
 
+    *A narrative line is the one line the model writes.* A `prose` line (on the 10-K set, the
+    contingent-liabilities and related-party narratives, at the user's request) is asked like a
+    text line, in a batch of its own, under `PROSE_REPLY_CONTRACT`: write what its prompt asks
+    from the supplied pages alone, cite the pages, copy every amount, date and name as printed.
+    The answer is checked before it is written (`text_lines.check_prose`): every cited page was
+    sent and every number in the text is printed on one of them, or it is refused and logged.
+    One that passes is a `value_text` fact flagged `llm_prose:pages …`, so the export and the
+    screens can tell it from words the filing prints (`llm_text:page …`).
+
     Such a line may cite a sentence on any page by its page, amount and quote. The amount is
     checked against that page's text (`note_sourced._page_sentence`). A number printed with no
     currency beside it is not divided by the statements' scale. The figure is written with that

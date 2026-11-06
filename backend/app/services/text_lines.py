@@ -30,8 +30,18 @@ WHAT A TEXT LINE IS. `LineItemDef.output_structure == "phrase"`: words lifted FR
     prose amount's rule (`note_sourced.resolve_sources`) applied to words: the model LOCATES what
     the page prints, it does not write it.
 
-A `prose` line (text the model GENERATES from the line's prompt) is not one of these: nothing it
-writes can be checked against a page, and no shipped line declares it.
+A `prose` LINE IS THE ONE DELIBERATE EXCEPTION, and it is labelled as one. Its value is a short
+narrative the model WRITES from the line's own instruction (`prompt`, folded into `definition`) and
+only from the pages it is sent: a summary of a 10-K's contingent liabilities, of its related-party
+transactions — what the user asked for, and what no span of one page holds. It is asked in the same
+kind of request as a phrase, with the same pages (or the whole report, for an `anywhere` line), under
+its own contract (`line_item_llm.PROSE_REPLY_CONTRACT`, reply `LineItemProseReply`: the text and the
+pages it drew from). A narrative cannot be located, so it is checked as far as it can be
+(`check_prose`): it cites at least one page, every page it cites was supplied, and EVERY NUMBER it
+writes — an amount, a percentage, a year — is printed on one of the pages it cites. An answer that
+fails is refused and nothing is written. One that passes is written as a phrase is, a `value_text`
+fact, flagged `llm_prose:pages …` rather than `llm_text:page …`, so the export and the screens can
+tell a narrative the model wrote from words the filing prints.
 """
 from __future__ import annotations
 
@@ -56,9 +66,34 @@ _SPACE = re.compile(r"\s+")
 _HYPHEN_BREAK = re.compile(r"(?<=\w)-\s*\n\s*(?=\w)")
 
 
+def _structure(item) -> str:
+    return str(getattr(item, "output_structure", "value") or "value")
+
+
 def is_text_line(item) -> bool:
-    """A line whose value is words lifted off the page (`output_structure: phrase`)."""
-    return str(getattr(item, "output_structure", "value") or "value") == "phrase"
+    """A line whose value is WORDS and not a figure: lifted off the page (`output_structure:
+    phrase`) or written by the model from the pages (`prose`). Either is asked with pages under a
+    text contract and taken out of every figure request; `is_prose_line` says which contract."""
+    return _structure(item) in ("phrase", "prose")
+
+
+def is_prose_line(item) -> bool:
+    """A line whose value is a narrative the MODEL WRITES from the pages it is sent (`output_structure:
+    prose`) — checked by `check_prose`, labelled `llm_prose`."""
+    return _structure(item) == "prose"
+
+
+def prose_names(item) -> list[str]:
+    """The names a prose line's pages are chosen by when it is not sent the whole report: its
+    printed names (`line_item_notes.printed_names`) and the plain terms its `note_source` says which
+    notes it is about ("commitments and contingencies", "related party transactions"). A narrative
+    line binds no row, so it carries no alias a caption could match; the note's own words are what
+    the pages it summarises print."""
+    from app.services.line_item_notes import printed_names
+
+    source = getattr(item, "note_source", None)
+    terms = [str(t) for t in (getattr(source, "note_terms", None) or ())]
+    return list(dict.fromkeys([*printed_names(item), *terms]))
 
 
 def fold(text) -> str:
@@ -532,4 +567,85 @@ def locate(text: str, page: int | None, supplied: list[dict]) -> int | None:
     for block in pages:
         if any(want in form for form in _forms(str(block.get("text") or ""))):
             return int(block["page"])
+    return None
+
+
+# ── A NARRATIVE THE MODEL WROTE: what can be checked ─────────────────────────────────────────
+#
+# A `prose` answer is not a span of a page, so `locate` cannot check it. What CAN be checked is
+# what would make a narrative wrong in a way its reader could not see: a page that was never sent,
+# and a number the filing does not print — an amount added up, converted, rounded or remembered
+# rather than copied. So the narrative must cite a page, and every number it writes must be printed
+# on a page it cites. The words between the numbers are the model's, which is what its label
+# (`llm_prose`) says.
+
+#: A narrative longer than this is refused: a line asks for a few sentences, and a reply that runs
+#: well past four or five long ones is not the summary the line asked for.
+PROSE_MAX_CHARS = 2000
+
+#: A number as it is written: digits, grouped by commas or not, with an optional decimal part.
+#: "$2,950 million" is 2,950, "21.0%" is 21.0, "December 31, 2024" is 31 and 2024. Compared as a
+#: VALUE (`_value`), so a currency sign, a scale word, a percent sign and a trailing zero after the
+#: point are no part of it, and "410" is never found inside "4,100" or "1410".
+_NUMBER = re.compile(r"(?<!\d)(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?(?!\d)")
+#: The spacing a PDF text layer puts inside a printed number: "2 ,950", "2, 950", or a no-break or
+#: thin space between digit groups ("2 950"). Closed up on the PAGE, as a second reading beside the
+#: page as printed; the narrative is read as written.
+_SPACED_COMMA = re.compile(r"(?<=\d)[    ]*,[    ]*(?=\d{3}(?!\d))")
+_SPACED_GROUP = re.compile(r"(?<=\d)[   ](?=\d{3}(?!\d))")
+
+
+def _value(number: str):
+    from decimal import Decimal
+
+    return Decimal(number.replace(",", ""))
+
+
+def prose_numbers(text) -> list[str]:
+    """Every number `text` writes, as written, in order: amounts, percentages, years, days."""
+    t = unicodedata.normalize("NFKC", str(text or ""))
+    return [m.group(0) for m in _NUMBER.finditer(t)]
+
+
+def page_numbers(page_text) -> set:
+    """Every number a page prints, as values (`_value`): read as printed, and read again with the
+    spacing a text layer puts inside a number closed up."""
+    raw = str(page_text or "")
+    closed = _SPACED_GROUP.sub("", _SPACED_COMMA.sub(",", raw))
+    out = set()
+    for form in (raw, closed):
+        t = unicodedata.normalize("NFKC", form)
+        out.update(_value(m.group(0)) for m in _NUMBER.finditer(t))
+    return out
+
+
+def check_prose(text: str, pages, supplied: list[dict]) -> str | None:
+    """Why a narrative the model wrote is REFUSED, or None when it passes — the check a `prose`
+    answer passes before anything is written.
+
+    `pages` are the 1-based `page` numbers the answer cites; `supplied` the page blocks the request
+    carried (`text_pages`, or the report's `pages`). Refused, the reason's code first:
+
+      * `llm_prose_too_long` — longer than `PROSE_MAX_CHARS`;
+      * `llm_prose_no_page` — it cites no page, so nothing it says can be traced;
+      * `llm_prose_page_not_supplied` — it cites a page the request did not carry;
+      * `llm_prose_number_not_on_page` — a number it writes (`prose_numbers`) is printed on none of
+        the pages it cites (`page_numbers`), thousands separators, currency signs and spacing aside.
+    """
+    by_page = {int(b["page"]): str(b.get("text") or "") for b in supplied or ()
+               if b.get("page") is not None}
+    cited = list(dict.fromkeys(int(p) for p in pages or ()))
+    if len(text) > PROSE_MAX_CHARS:
+        return f"llm_prose_too_long — {len(text)} characters, at most {PROSE_MAX_CHARS}"
+    if not cited:
+        return "llm_prose_no_page — the narrative cites no page it was written from"
+    missing = [p for p in cited if p not in by_page]
+    if missing:
+        return (f"llm_prose_page_not_supplied — page(s) {', '.join(map(str, missing))} "
+                f"were not sent with the request")
+    printed = set().union(*(page_numbers(by_page[p]) for p in cited))
+    absent = [n for n in dict.fromkeys(prose_numbers(text)) if _value(n) not in printed]
+    if absent:
+        return (f"llm_prose_number_not_on_page — {', '.join(absent)} printed on none of the "
+                f"cited page(s) {', '.join(map(str, cited))}")
     return None
