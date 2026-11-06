@@ -263,6 +263,9 @@ _ROUND_TRIP: dict[str, tuple[str, object]] = {
     # measurement
     "temporality": ("temporality", "instant"),
     "unit_of_account": ("unit_of_account", "balance"),
+    # What the figure is counted in. `shares` rather than the default, so the round trip writes
+    # something a stored set would otherwise omit (`LineItemDef._measure_only_when_declared`).
+    "measure": ("measure", "shares"),
     # THE RENAME, and the reason test_the_two_sign_fields_are_two_questions exists: the model field
     # `sign_convention` is the EXPECTATION review validation reads, and `ItemEdit.sign_convention`
     # is the legacy 3-token spelling that writes `sign_rule.convention` instead.

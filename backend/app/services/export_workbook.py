@@ -263,13 +263,18 @@ def build_template_workbook(rows: list[dict], template_def: dict, *, line_item_s
     rows_of = layout["rows"]
     printed_only_to = layout.get("printed_only_to") or {}
     placed: dict[tuple[str, str], float] = {}
+    # A per-share amount or a share count is written as printed: the denomination is money's
+    # (`export.not_money`).
+    from app.services.export import measured_lines
+
+    measured = measured_lines(rows)
 
     def value_of(key: str, p: str):
         v = shown[p].get(key)
         if v is None:
             return None
         v = abs(v) if key in magnitudes else v
-        return round(v * factor, 6)
+        return round(v * (1.0 if key in measured else factor), 6)
 
     def cell_of(key: str, p: str):
         spot = rows_of[key]

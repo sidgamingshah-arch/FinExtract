@@ -983,6 +983,18 @@ def _is_unit_flag(flag: str) -> bool:
     return "scale" in head or "unit" in head
 
 
+def _measure_fields(ev, doc_unit) -> dict:
+    """``{"measure", "unit"}`` for a figure that is not money (`services.units.measure_of`), else
+    nothing."""
+    from app.services import units
+
+    unit = getattr(ev, "unit_ctx", None)
+    measure = units.measure_of(unit)
+    if measure == units.MONEY:
+        return {}
+    return {"measure": measure, "unit": units.describe(unit, doc_unit)}
+
+
 def _serialize_rows(doc_model, working_view=None) -> list[dict]:
     """Extracted line items in a view-friendly shape, each value with its provenance
     (sheet+cell for Excel, page+bbox for PDF) so the UI can show click-to-source.
@@ -1016,6 +1028,7 @@ def _serialize_rows(doc_model, working_view=None) -> list[dict]:
     seg_of, label_of = _bucket_index(doc_model)
     notes_of = _linked_notes(doc_model)
     folio_of = _folio_lookup(doc_model)
+    doc_unit = getattr(doc_model, "unit_context", None)
     rows = []
     for li in doc_model.line_items:
         if _is_text_row(li):
@@ -1059,6 +1072,12 @@ def _serialize_rows(doc_model, working_view=None) -> list[dict]:
                 "scale": (str(ev.unit_ctx.scale_factor)
                           if getattr(ev, "unit_ctx", None) is not None
                           and getattr(ev.unit_ctx, "scale_factor", None) is not None else None),
+                # A PER-SHARE AMOUNT OR A SHARE COUNT SAYS SO, with the unit it is in ("USD per
+                # share", "shares (thousands)") — the document's `units` is money's, and every
+                # export converts a figure by it unless the figure says otherwise
+                # (`services.export`). Absent on a money figure, so a run whose lines declare no
+                # measure is served exactly as before.
+                **_measure_fields(ev, doc_unit),
                 "provenance": prov,
                 # Per-value confidence vector — the weakest signal and any flags let the UI
                 # colour and explain each number, not just the row.

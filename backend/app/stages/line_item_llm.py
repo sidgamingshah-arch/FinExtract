@@ -614,6 +614,15 @@ class LineItemLlmStage(Stage):
                                                     ctx, line_item_set)
         blanked += self._settle_shared_note_rows(doc, note_cells, by_concept, line_item_set, ctx)
         blanked += self._release_swept_rows(doc, face_claims, ctx, line_item_set)
+        # A FIGURE CITED FOR A PER-SHARE OR SHARE-COUNT LINE IS IN THAT LINE'S MEASURE — the row
+        # this stage wrote for the line, and the printed row it was cited from, which stays a row
+        # of its own (a bare "Basic" binds no line) and would otherwise go to every export as money
+        # in the statement's scale. See `services.units.stamp_measures`; a no-op for a set whose
+        # lines declare no measure.
+        from app.services.units import stamp_measures
+
+        stamp_measures(doc, line_item_set, raw=getattr(ctx, "raw_bytes", None), log=ctx.log,
+                       cited=face_claims)
         # THE RUN'S ONE-LINE TOKEN SUMMARY. `cached` is part of `input`, not added to it.
         hit = (100.0 * tok["cached"] / tok["input"]) if tok["input"] else 0.0
         ctx.log(f"line_item_llm:tokens document_context={doc_context} requests={calls} "

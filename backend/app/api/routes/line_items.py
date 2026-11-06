@@ -96,6 +96,7 @@ from app.schemas.line_items import (
     ValueScope,
     load_line_item_set,
 )
+from app.core.models.line_item import Measure
 from app.schemas.loader import load_template, unknown_keys
 from app.security.rbac import (Permission, Principal, current_principal,
                                require)
@@ -381,6 +382,9 @@ def _vocabulary(st: LineItemSet) -> dict:
         "alias_matching": _literal_values(AliasMatching),
         "temporalities": _literal_values(Temporality),
         "units_of_account": _literal_values(UnitOfAccount),
+        # WHAT A LINE'S FIGURE IS COUNTED IN — money, an amount per share, or a count of shares.
+        # See `LineItemDef.measure`.
+        "measures": _literal_values(Measure),
         # The EXPECTATION (`sign_expectation` on the edit body, `sign_convention` on the model)…
         "sign_expectations": _literal_values(SignExpectation),
         # …and the NORMALISATION (`sign_rule.convention`), which is a different question. Six
@@ -976,6 +980,9 @@ class ItemEdit(BaseModel):
     # ── measurement ───────────────────────────────────────────────────────────────────────────
     temporality: Temporality | None = None
     unit_of_account: UnitOfAccount | None = None
+    # Money, an amount per share or a count of shares — `LineItemDef.measure`. No null state: a
+    # line that is not per-share or a share count is `money`.
+    measure: Measure | None = None
     # `LineItemDef.sign_convention` — the EXPECTATION review validation reads. Named
     # `sign_expectation` on the wire because `sign_convention` is already taken by the legacy
     # 3-token spelling above, and one name for two fields is how an author changes the wrong one.
@@ -1056,6 +1063,7 @@ _EDIT_SCALARS: dict[str, str] = {
     "is_gross_parent": "is_gross_parent",
     "temporality": "temporality",
     "unit_of_account": "unit_of_account",
+    "measure": "measure",
     # THE ONE RENAME: `sign_expectation` on the wire is `sign_convention` on the model. See
     # `ItemEdit.sign_expectation`.
     "sign_expectation": "sign_convention",

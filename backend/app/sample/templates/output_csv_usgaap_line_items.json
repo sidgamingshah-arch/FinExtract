@@ -12,7 +12,8 @@
   "version": "1",
   "changes": [
    "Built by scripts/build_usgaap_pair.py: the rows the face of a Form 10-K's consolidated balance sheets, statements of operations and indirect-method statements of cash flows print.",
-   "100 statement lines, every one read from the face (strict_face_route); no internal parts. One leftover line per asset, liability, stockholders' equity and cash-flow section; none in the statement of operations or in temporary equity.",
+   "104 statement lines, every one read from the face (strict_face_route); no internal parts. One leftover line per asset, liability, stockholders' equity and cash-flow section; none in the statement of operations or in temporary equity.",
+   "Earnings per share (basic, diluted) and the weighted-average shares used to compute them (basic, diluted): four statement-of-operations lines declaring `measure: per_share` / `shares`, published as printed in dollars per share and in shares, never in the statements' scale; in no rollup and no KPI.",
    "35 additional items, read from the notes and the auditor's report: the supplemental cash flow disclosures, debt maturities, principal and fair value, the current and deferred tax and the effective tax rate, the inventory split, property at cost and accumulated depreciation, the audit opinion, contingent liabilities and related-party transactions."
   ],
   "breaking_changes": [],
@@ -486,7 +487,7 @@
   "unbound_row_policy": "Route an unclaimed face value only to the residual for its resolved printed section. Never borrow a neighbouring concept or cross a section. After all mapping and gap-closing opportunities, the engine-level face_mapping_contract gives any remaining face value a unique engine_unclassified_face key outside the ontology/template namespaces. This keeps the row stored and reviewable without feeding it into an unrelated calculation. Verified non-additive aggregates replaced by mapped components remain evidence-only.",
   "match_priority": "Integer 0-99, higher evaluated first. Long specific captions rank above short generic ones so 'Total assets less current liabilities' cannot be pre-empted by 'Total current liabilities' on token overlap. Residuals are 0 and unreachable by matching."
  },
- "prompt": "These are the consolidated financial statements of a US registrant filed on Form 10-K under US GAAP: the Consolidated Balance Sheets, the Consolidated Statements of Operations (or Income) and the Consolidated Statements of Cash Flows. Amounts are in US dollars, usually in millions or thousands except per-share amounts; the statements of operations and of cash flows print three years and the balance sheet two. Every line of the three statements is a row the face of those statements prints: cite the printed statement row, never a note, and leave a line empty when the face does not print it. The additional items are read from the notes, the supplemental cash flow disclosures and the report of the independent registered public accounting firm, as each line says; a text item is copied or written exactly as its line asks, and left empty when the filing does not disclose it. A 10-K balance sheet usually prints no 'Non-current assets' or 'Non-current liabilities' heading: the rows after 'Total current assets' and before 'Total assets' are non-current assets, and the rows after 'Total current liabilities' and before the equity are non-current liabilities. Expenses are read as printed, positive.",
+ "prompt": "These are the consolidated financial statements of a US registrant filed on Form 10-K under US GAAP: the Consolidated Balance Sheets, the Consolidated Statements of Operations (or Income) and the Consolidated Statements of Cash Flows. Amounts are in US dollars, usually in millions or thousands except per-share amounts; the statements of operations and of cash flows print three years and the balance sheet two. Earnings per share is an amount in dollars per share and the weighted-average shares are a count of shares, each as printed and neither in the statements' millions or thousands; a bare 'Basic' or 'Diluted' row is earnings per share under an 'Earnings per share' heading and a share count under a 'Shares used in computing earnings per share' or 'Weighted-average shares outstanding' heading, and its `subheading` names the heading. Every line of the three statements is a row the face of those statements prints: cite the printed statement row, never a note, and leave a line empty when the face does not print it. The additional items are read from the notes, the supplemental cash flow disclosures and the report of the independent registered public accounting firm, as each line says; a text item is copied or written exactly as its line asks, and left empty when the filing does not disclose it. A 10-K balance sheet usually prints no 'Non-current assets' or 'Non-current liabilities' heading: the rows after 'Total current assets' and before 'Total assets' are non-current assets, and the rows after 'Total current liabilities' and before the equity are non-current liabilities. Expenses are read as printed, positive.",
  "global_rules": {
   "source_fact_id": "document_id|entity_scope|period|currency|unit|page|table_or_note|source_row_id",
   "sign_convention": {
@@ -4283,6 +4284,308 @@
    ]
   },
   {
+   "key": "is_pl__eps_basic",
+   "label": "Earnings per share — basic",
+   "type": "extracted",
+   "namespace": "template",
+   "in_output": true,
+   "inherits": "is_pl",
+   "statements": [
+    "profit_and_loss"
+   ],
+   "section_scope": [
+    "is_pl"
+   ],
+   "order": 73,
+   "definition": "Basic earnings or loss per share for the year (ASC 260): net income attributable to the filer's common stockholders divided by the weighted-average common shares outstanding, in dollars per share as printed. A 10-K often prints it as a bare 'Basic' row under an 'Earnings per share' or 'Net income per share' heading; the 'Basic' printed under 'Shares used in computing earnings per share' or 'Weighted-average shares outstanding' is the share count, not this line. A single 'Basic and diluted' row is this line's. Not the per-share figure of continuing or discontinued operations alone, nor dividends declared per share. A per-share amount: it is not in the statements' millions or thousands.",
+   "temporality": "duration",
+   "unit_of_account": "flow",
+   "sign_convention": "either",
+   "analyst_bucket": "others",
+   "match_priority": 80,
+   "route": "face",
+   "measure": "per_share",
+   "aliases": [
+    "Earnings per share – basic",
+    "Earnings per share - basic",
+    "Earnings per share, basic",
+    "Earnings per common share – basic",
+    "Net income per share – basic",
+    "Net income per share, basic",
+    "Net income per common share – basic",
+    "Net income (loss) per share – basic",
+    "Net loss per share – basic",
+    "Net loss per share – basic and diluted",
+    "Net loss per share – basic & diluted",
+    "Earnings per share – basic and diluted",
+    "Earnings per share – basic & diluted"
+   ],
+   "aliases_i18n": {
+    "en": [
+     "Earnings per share – basic",
+     "Earnings per share - basic",
+     "Earnings per share, basic",
+     "Earnings per common share – basic",
+     "Net income per share – basic",
+     "Net income per share, basic",
+     "Net income per common share – basic",
+     "Net income (loss) per share – basic",
+     "Net loss per share – basic",
+     "Net loss per share – basic and diluted",
+     "Net loss per share – basic & diluted",
+     "Earnings per share – basic and diluted",
+     "Earnings per share – basic & diluted"
+    ]
+   },
+   "regex_hints": [
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+|plus\\s+)?(?:earnings\\s+per\\s+share\\s+basic\\s+and\\s+diluted|net\\s+loss\\s+per\\s+share\\s+basic\\s+and\\s+diluted|net\\s+income\\s+per\\s+common\\s+share\\s+basic|earnings\\s+per\\s+share\\s+basic\\s+diluted|net\\s+loss\\s+per\\s+share\\s+basic\\s+diluted|earnings\\s+per\\s+common\\s+share\\s+basic|net\\s+income\\s+loss\\s+per\\s+share\\s+basic|net\\s+income\\s+per\\s+share\\s+basic|earnings\\s+per\\s+share\\s+basic|net\\s+loss\\s+per\\s+share\\s+basic)$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}basic\\s+(?:and\\s+diluted\\s+)?(?:net\\s+)?(?:income|earnings|loss|profit)(?:\\s+(?:loss|income|earnings))?\\s+per\\s+(?:common\\s+|ordinary\\s+)?share\\b.*$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:net\\s+)?(?:income|earnings|loss|profit)(?:\\s+(?:loss|income|earnings))?\\s+per\\s+(?:common\\s+|ordinary\\s+)?share\\b.*\\bbasic(?:\\s+and\\s+diluted)?$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}basic\\s+(?:and\\s+diluted\\s+)?eps$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}eps\\s+basic(?:\\s+and\\s+diluted)?$"
+   ],
+   "exclude_hints": [
+    "(?i)(?<!and\\s)(?<!basic\\s)(?<!&\\s)(?<!&)(?<!/)(?<!/\\s)\\bdiluted\\b",
+    "(?i)continuing\\s+operations",
+    "(?i)discontinued\\s+operations",
+    "(?i)dividend",
+    "(?i)pro\\s*forma",
+    "(?i)adjusted",
+    "(?i)comprehensive",
+    "(?i)book\\s+value",
+    "(?i)cash\\s+flow",
+    "(?i)dilutive",
+    "(?i)weighted",
+    "(?i)shares\\s+used",
+    "(?i)shares\\s+outstanding",
+    "(?i)number\\s+of",
+    "(?i):\\s*$"
+   ]
+  },
+  {
+   "key": "is_pl__eps_diluted",
+   "label": "Earnings per share — diluted",
+   "type": "extracted",
+   "namespace": "template",
+   "in_output": true,
+   "inherits": "is_pl",
+   "statements": [
+    "profit_and_loss"
+   ],
+   "section_scope": [
+    "is_pl"
+   ],
+   "order": 74,
+   "definition": "Diluted earnings or loss per share for the year (ASC 260): net income attributable to the filer's common stockholders divided by the weighted-average shares outstanding together with the dilutive effect of options, restricted stock units and convertible securities, in dollars per share as printed. A 10-K often prints it as a bare 'Diluted' row under an 'Earnings per share' or 'Net income per share' heading; the 'Diluted' printed under 'Shares used in computing earnings per share' or 'Weighted-average shares outstanding' is the share count, not this line. A single 'Basic and diluted' row is the basic line's, and is not repeated here. Not the per-share figure of continuing or discontinued operations alone. A per-share amount: it is not in the statements' millions or thousands.",
+   "temporality": "duration",
+   "unit_of_account": "flow",
+   "sign_convention": "either",
+   "analyst_bucket": "others",
+   "match_priority": 80,
+   "route": "face",
+   "measure": "per_share",
+   "aliases": [
+    "Earnings per share – diluted",
+    "Earnings per share - diluted",
+    "Earnings per share, diluted",
+    "Earnings per common share – diluted",
+    "Net income per share – diluted",
+    "Net income per share, diluted",
+    "Net income per common share – diluted",
+    "Net income (loss) per share – diluted",
+    "Net loss per share – diluted"
+   ],
+   "aliases_i18n": {
+    "en": [
+     "Earnings per share – diluted",
+     "Earnings per share - diluted",
+     "Earnings per share, diluted",
+     "Earnings per common share – diluted",
+     "Net income per share – diluted",
+     "Net income per share, diluted",
+     "Net income per common share – diluted",
+     "Net income (loss) per share – diluted",
+     "Net loss per share – diluted"
+    ]
+   },
+   "regex_hints": [
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+|plus\\s+)?(?:net\\s+income\\s+per\\s+common\\s+share\\s+diluted|earnings\\s+per\\s+common\\s+share\\s+diluted|net\\s+income\\s+loss\\s+per\\s+share\\s+diluted|net\\s+income\\s+per\\s+share\\s+diluted|earnings\\s+per\\s+share\\s+diluted|net\\s+loss\\s+per\\s+share\\s+diluted)$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}diluted\\s+(?:net\\s+)?(?:income|earnings|loss|profit)(?:\\s+(?:loss|income|earnings))?\\s+per\\s+(?:common\\s+|ordinary\\s+)?share\\b.*$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:net\\s+)?(?:income|earnings|loss|profit)(?:\\s+(?:loss|income|earnings))?\\s+per\\s+(?:common\\s+|ordinary\\s+)?share\\b.*\\bdiluted$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}diluted\\s+eps$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}eps\\s+diluted$"
+   ],
+   "exclude_hints": [
+    "(?i)\\bbasic\\b",
+    "(?i)continuing\\s+operations",
+    "(?i)discontinued\\s+operations",
+    "(?i)dividend",
+    "(?i)pro\\s*forma",
+    "(?i)adjusted",
+    "(?i)comprehensive",
+    "(?i)book\\s+value",
+    "(?i)cash\\s+flow",
+    "(?i)dilutive",
+    "(?i)weighted",
+    "(?i)shares\\s+used",
+    "(?i)shares\\s+outstanding",
+    "(?i)number\\s+of",
+    "(?i):\\s*$"
+   ]
+  },
+  {
+   "key": "is_pl__weighted_average_shares_basic",
+   "label": "Weighted-average shares — basic",
+   "type": "extracted",
+   "namespace": "template",
+   "in_output": true,
+   "inherits": "is_pl",
+   "statements": [
+    "profit_and_loss"
+   ],
+   "section_scope": [
+    "is_pl"
+   ],
+   "order": 75,
+   "definition": "The weighted-average number of common shares outstanding during the year used to compute basic earnings per share, as printed: a count of shares, in the scale the statement's header gives shares ('number of shares, which are reflected in thousands'), or the statements' own where the header excepts only per-share amounts — never an amount of money. A 10-K often prints it as a bare 'Basic' row under a 'Shares used in computing earnings per share' or 'Weighted-average shares outstanding' heading; the 'Basic' printed under 'Earnings per share' is the per-share amount, not this line. Not the shares issued or outstanding at the year-end that the balance sheet prints.",
+   "temporality": "duration",
+   "unit_of_account": "flow",
+   "sign_convention": "positive_expected",
+   "analyst_bucket": "others",
+   "match_priority": 80,
+   "route": "face",
+   "measure": "shares",
+   "aliases": [
+    "Weighted-average shares outstanding – basic",
+    "Weighted average shares outstanding – basic",
+    "Weighted-average shares outstanding, basic",
+    "Weighted-average shares – basic",
+    "Weighted-average number of shares outstanding – basic",
+    "Weighted-average common shares outstanding – basic",
+    "Weighted average number of common shares outstanding – basic",
+    "Weighted-average basic shares outstanding",
+    "Shares used in computing earnings per share – basic",
+    "Shares used in computing basic earnings per share",
+    "Shares used in computing basic net income per share",
+    "Weighted-average shares outstanding – basic and diluted",
+    "Weighted-average shares outstanding – basic & diluted"
+   ],
+   "aliases_i18n": {
+    "en": [
+     "Weighted-average shares outstanding – basic",
+     "Weighted average shares outstanding – basic",
+     "Weighted-average shares outstanding, basic",
+     "Weighted-average shares – basic",
+     "Weighted-average number of shares outstanding – basic",
+     "Weighted-average common shares outstanding – basic",
+     "Weighted average number of common shares outstanding – basic",
+     "Weighted-average basic shares outstanding",
+     "Shares used in computing earnings per share – basic",
+     "Shares used in computing basic earnings per share",
+     "Shares used in computing basic net income per share",
+     "Weighted-average shares outstanding – basic and diluted",
+     "Weighted-average shares outstanding – basic & diluted"
+    ]
+   },
+   "regex_hints": [
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+|plus\\s+)?(?:weighted\\s+average\\s+number\\s+of\\s+common\\s+shares\\s+outstanding\\s+basic|weighted\\s+average\\s+shares\\s+outstanding\\s+basic\\s+and\\s+diluted|shares\\s+used\\s+in\\s+computing\\s+basic\\s+net\\s+income\\s+per\\s+share|weighted\\s+average\\s+number\\s+of\\s+shares\\s+outstanding\\s+basic|shares\\s+used\\s+in\\s+computing\\s+basic\\s+earnings\\s+per\\s+share|shares\\s+used\\s+in\\s+computing\\s+earnings\\s+per\\s+share\\s+basic|weighted\\s+average\\s+shares\\s+outstanding\\s+basic\\s+diluted|weighted\\s+average\\s+common\\s+shares\\s+outstanding\\s+basic|weighted\\s+average\\s+basic\\s+shares\\s+outstanding|weighted\\s+average\\s+shares\\s+outstanding\\s+basic|weighted\\s+average\\s+shares\\s+basic)$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}basic\\s+(?:and\\s+diluted\\s+)?(?:weighted\\s+average\\s+)?(?:number\\s+of\\s+)?(?:common\\s+|ordinary\\s+)?shares\\b.*$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}weighted\\s+average\\s+basic\\s+(?:and\\s+diluted\\s+)?(?:common\\s+|ordinary\\s+)?shares\\b.*$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}weighted\\s+average\\s+(?:number\\s+of\\s+)?(?:common\\s+|ordinary\\s+)?(?:shares|stock)\\b.*\\bbasic(?:\\s+and\\s+diluted)?$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:common\\s+)?shares\\s+used\\s+in\\s+(?:computing|calculating|(?:the\\s+)?(?:computation|calculation)\\s+of|per\\s+share\\s+computations?)\\b.*\\bbasic(?:\\s+and\\s+diluted)?$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:common\\s+)?shares\\s+used\\s+in\\s+(?:computing|calculating|(?:the\\s+)?(?:computation|calculation)\\s+of|per\\s+share\\s+computations?)\\s+basic\\b.*$"
+   ],
+   "exclude_hints": [
+    "(?i)(?<!and\\s)(?<!basic\\s)(?<!&\\s)(?<!&)(?<!/)(?<!/\\s)\\bdiluted\\b",
+    "(?i)continuing\\s+operations",
+    "(?i)discontinued\\s+operations",
+    "(?i)dividend",
+    "(?i)pro\\s*forma",
+    "(?i)adjusted",
+    "(?i)comprehensive",
+    "(?i)book\\s+value",
+    "(?i)cash\\s+flow",
+    "(?i)dilutive",
+    "(?i)^\\W*(?:basic\\s+|diluted\\s+)?(?:net\\s+)?(?:income|earnings|loss|profit)\\b",
+    "(?i)\\$",
+    "(?i):\\s*$"
+   ]
+  },
+  {
+   "key": "is_pl__weighted_average_shares_diluted",
+   "label": "Weighted-average shares — diluted",
+   "type": "extracted",
+   "namespace": "template",
+   "in_output": true,
+   "inherits": "is_pl",
+   "statements": [
+    "profit_and_loss"
+   ],
+   "section_scope": [
+    "is_pl"
+   ],
+   "order": 76,
+   "definition": "The weighted-average number of shares used to compute diluted earnings per share, as printed: the basic count together with the dilutive effect of options, restricted stock units and convertible securities — a count of shares, in the scale the statement's header gives shares, or the statements' own where the header excepts only per-share amounts; never an amount of money. A 10-K often prints it as a bare 'Diluted' row under a 'Shares used in computing earnings per share' or 'Weighted-average shares outstanding' heading; the 'Diluted' printed under 'Earnings per share' is the per-share amount, not this line. A single 'Basic and diluted' count is the basic line's. Not the effect of dilutive securities printed between the two counts.",
+   "temporality": "duration",
+   "unit_of_account": "flow",
+   "sign_convention": "positive_expected",
+   "analyst_bucket": "others",
+   "match_priority": 80,
+   "route": "face",
+   "measure": "shares",
+   "aliases": [
+    "Weighted-average shares outstanding – diluted",
+    "Weighted average shares outstanding – diluted",
+    "Weighted-average shares outstanding, diluted",
+    "Weighted-average shares – diluted",
+    "Weighted-average number of shares outstanding – diluted",
+    "Weighted-average common shares outstanding – diluted",
+    "Weighted average number of common shares outstanding – diluted",
+    "Weighted-average diluted shares outstanding",
+    "Shares used in computing earnings per share – diluted",
+    "Shares used in computing diluted earnings per share",
+    "Shares used in computing diluted net income per share"
+   ],
+   "aliases_i18n": {
+    "en": [
+     "Weighted-average shares outstanding – diluted",
+     "Weighted average shares outstanding – diluted",
+     "Weighted-average shares outstanding, diluted",
+     "Weighted-average shares – diluted",
+     "Weighted-average number of shares outstanding – diluted",
+     "Weighted-average common shares outstanding – diluted",
+     "Weighted average number of common shares outstanding – diluted",
+     "Weighted-average diluted shares outstanding",
+     "Shares used in computing earnings per share – diluted",
+     "Shares used in computing diluted earnings per share",
+     "Shares used in computing diluted net income per share"
+    ]
+   },
+   "regex_hints": [
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+|plus\\s+)?(?:weighted\\s+average\\s+number\\s+of\\s+common\\s+shares\\s+outstanding\\s+diluted|shares\\s+used\\s+in\\s+computing\\s+diluted\\s+net\\s+income\\s+per\\s+share|weighted\\s+average\\s+number\\s+of\\s+shares\\s+outstanding\\s+diluted|shares\\s+used\\s+in\\s+computing\\s+diluted\\s+earnings\\s+per\\s+share|shares\\s+used\\s+in\\s+computing\\s+earnings\\s+per\\s+share\\s+diluted|weighted\\s+average\\s+common\\s+shares\\s+outstanding\\s+diluted|weighted\\s+average\\s+diluted\\s+shares\\s+outstanding|weighted\\s+average\\s+shares\\s+outstanding\\s+diluted|weighted\\s+average\\s+shares\\s+diluted)$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}diluted\\s+(?:weighted\\s+average\\s+)?(?:number\\s+of\\s+)?(?:common\\s+|ordinary\\s+)?shares\\b.*$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}weighted\\s+average\\s+diluted\\s+(?:common\\s+|ordinary\\s+)?shares\\b.*$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}weighted\\s+average\\s+(?:number\\s+of\\s+)?(?:common\\s+|ordinary\\s+)?(?:shares|stock)\\b.*\\bdiluted$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:common\\s+)?shares\\s+used\\s+in\\s+(?:computing|calculating|(?:the\\s+)?(?:computation|calculation)\\s+of|per\\s+share\\s+computations?)\\b.*\\bdiluted$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:common\\s+)?shares\\s+used\\s+in\\s+(?:computing|calculating|(?:the\\s+)?(?:computation|calculation)\\s+of|per\\s+share\\s+computations?)\\s+diluted\\b.*$"
+   ],
+   "exclude_hints": [
+    "(?i)\\bbasic\\b",
+    "(?i)continuing\\s+operations",
+    "(?i)discontinued\\s+operations",
+    "(?i)dividend",
+    "(?i)pro\\s*forma",
+    "(?i)adjusted",
+    "(?i)comprehensive",
+    "(?i)book\\s+value",
+    "(?i)cash\\s+flow",
+    "(?i)dilutive",
+    "(?i)^\\W*(?:basic\\s+|diluted\\s+)?(?:net\\s+)?(?:income|earnings|loss|profit)\\b",
+    "(?i)\\$",
+    "(?i):\\s*$"
+   ]
+  },
+  {
    "key": "cf_oper_indirect__net_income",
    "label": "Net income",
    "type": "extracted",
@@ -4295,7 +4598,7 @@
    "section_scope": [
     "cf_oper_indirect"
    ],
-   "order": 73,
+   "order": 77,
    "definition": "Net income or loss, the first row of the operating activities under the indirect method.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -4349,7 +4652,7 @@
    "section_scope": [
     "cf_oper_indirect"
    ],
-   "order": 74,
+   "order": 78,
    "definition": "Depreciation and amortisation added back to net income; where the face prints amortisation of intangibles separately, the rows are added.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -4401,7 +4704,7 @@
    "section_scope": [
     "cf_oper_indirect"
    ],
-   "order": 75,
+   "order": 79,
    "definition": "Stock-based compensation expense, a non-cash charge, added back to net income among the adjustments to operating cash flow.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -4444,7 +4747,7 @@
    "section_scope": [
     "cf_oper_indirect"
    ],
-   "order": 76,
+   "order": 80,
    "definition": "The deferred part of the income tax expense, added back to net income.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -4486,7 +4789,7 @@
    "section_scope": [
     "cf_oper_indirect"
    ],
-   "order": 77,
+   "order": 81,
    "definition": "The change in accounts receivable among the changes in operating assets and liabilities, with the sign the face gives it.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -4535,7 +4838,7 @@
    "section_scope": [
     "cf_oper_indirect"
    ],
-   "order": 78,
+   "order": 82,
    "definition": "The change in inventories among the changes in operating assets and liabilities.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -4573,7 +4876,7 @@
    "section_scope": [
     "cf_oper_indirect"
    ],
-   "order": 79,
+   "order": 83,
    "definition": "The change in accounts payable among the changes in operating assets and liabilities.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -4617,7 +4920,7 @@
    "section_scope": [
     "cf_oper_indirect"
    ],
-   "order": 80,
+   "order": 84,
    "definition": "Every operating-activities row the face prints that no line above claims, itemised: other adjustments to net income, gains and losses on sales, and the changes in other operating assets and liabilities.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -4656,7 +4959,7 @@
    "section_scope": [
     "cf_oper_indirect"
    ],
-   "order": 81,
+   "order": 85,
    "definition": "The operating activities total as printed, and the sum of the operating lines.",
    "temporality": "duration",
    "unit_of_account": "subtotal",
@@ -4736,7 +5039,7 @@
    "section_scope": [
     "cf_investing"
    ],
-   "order": 82,
+   "order": 86,
    "definition": "Cash paid for property, plant and equipment (capital expenditures), with the negative sign the face gives it.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -4798,7 +5101,7 @@
    "section_scope": [
     "cf_investing"
    ],
-   "order": 83,
+   "order": 87,
    "definition": "Cash received on the sale or disposal of property, plant and equipment.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -4842,7 +5145,7 @@
    "section_scope": [
     "cf_investing"
    ],
-   "order": 84,
+   "order": 88,
    "definition": "Cash paid to acquire businesses, net of the cash they held; where the face prints acquisitions together with purchases of intangible assets as one row, that row.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -4890,7 +5193,7 @@
    "section_scope": [
     "cf_investing"
    ],
-   "order": 85,
+   "order": 89,
    "definition": "Cash paid for marketable securities and other investments; where the face prints purchases of several kinds of securities on separate rows, the rows are added.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -4930,7 +5233,7 @@
    "section_scope": [
     "cf_investing"
    ],
-   "order": 86,
+   "order": 90,
    "definition": "Cash received on the sale, maturity or redemption of marketable securities and other investments; where the face prints sales and maturities on separate rows, the rows are added.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -4974,7 +5277,7 @@
    "section_scope": [
     "cf_investing"
    ],
-   "order": 87,
+   "order": 91,
    "definition": "Every investing-activities row the face prints that no line above claims, itemised: purchases of intangible assets, proceeds from divestitures, loans made and collected.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -5013,7 +5316,7 @@
    "section_scope": [
     "cf_investing"
    ],
-   "order": 88,
+   "order": 92,
    "definition": "The investing activities total as printed, and the sum of the investing lines.",
    "temporality": "duration",
    "unit_of_account": "subtotal",
@@ -5081,7 +5384,7 @@
    "section_scope": [
     "cf_financing"
    ],
-   "order": 89,
+   "order": 93,
    "definition": "Cash received from issuing long-term debt (notes, bonds, term loans), net of issuance costs where the face says so. Commercial paper is the next line but one.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -5128,7 +5431,7 @@
    "section_scope": [
     "cf_financing"
    ],
-   "order": 90,
+   "order": 94,
    "definition": "Cash paid to repay or retire long-term debt (notes, bonds, term loans), with the negative sign the face gives it.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -5177,7 +5480,7 @@
    "section_scope": [
     "cf_financing"
    ],
-   "order": 91,
+   "order": 95,
    "definition": "The net cash from or to commercial paper and other short-term borrowings, as one printed row.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -5217,7 +5520,7 @@
    "section_scope": [
     "cf_financing"
    ],
-   "order": 92,
+   "order": 96,
    "definition": "Cash paid to repurchase the filer's own common stock, whether retired or held in treasury, with the negative sign the face gives it.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -5261,7 +5564,7 @@
    "section_scope": [
     "cf_financing"
    ],
-   "order": 93,
+   "order": 97,
    "definition": "Cash dividends paid to the filer's stockholders. Dividends paid to noncontrolling interests are the leftover line's.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -5310,7 +5613,7 @@
    "section_scope": [
     "cf_financing"
    ],
-   "order": 94,
+   "order": 98,
    "definition": "Cash received from issuing stock, including under employee stock plans and option exercises.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -5353,7 +5656,7 @@
    "section_scope": [
     "cf_financing"
    ],
-   "order": 95,
+   "order": 99,
    "definition": "Every financing-activities row the face prints that no line above claims, itemised: taxes paid for the net share settlement of equity awards, finance lease payments, dividends paid to noncontrolling interests.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -5395,7 +5698,7 @@
    "section_scope": [
     "cf_financing"
    ],
-   "order": 96,
+   "order": 100,
    "definition": "The financing activities total as printed, and the sum of the financing lines.",
    "temporality": "duration",
    "unit_of_account": "subtotal",
@@ -5467,7 +5770,7 @@
    "section_scope": [
     "cf_financing"
    ],
-   "order": 97,
+   "order": 101,
    "definition": "The effect of exchange-rate changes on cash, cash equivalents and restricted cash.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -5511,7 +5814,7 @@
    "section_scope": [
     "cf_financing"
    ],
-   "order": 98,
+   "order": 102,
    "definition": "The net change in cash, cash equivalents and restricted cash for the year: the three activity totals and the effect of exchange rates.",
    "temporality": "duration",
    "unit_of_account": "subtotal",
@@ -5582,7 +5885,7 @@
    "section_scope": [
     "cf_financing"
    ],
-   "order": 99,
+   "order": 103,
    "definition": "Cash, cash equivalents and restricted cash at the start of the year.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -5635,7 +5938,7 @@
    "section_scope": [
     "cf_top_level"
    ],
-   "order": 100,
+   "order": 104,
    "definition": "Cash, cash equivalents and restricted cash at the end of the year: the opening balance and the net change.",
    "temporality": "duration",
    "unit_of_account": "subtotal",
@@ -5700,7 +6003,7 @@
    "section_scope": [
     "cf_top_level"
    ],
-   "order": 101,
+   "order": 105,
    "definition": "Interest paid in cash during the year, net of amounts capitalised where the filing nets them, as the supplemental cash flow disclosure prints it: below the statement of cash flows or in a note. Not interest received.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -5764,7 +6067,7 @@
    "section_scope": [
     "cf_top_level"
    ],
-   "order": 102,
+   "order": 106,
    "definition": "Income taxes paid in cash during the year, net of refunds where the filing nets them, as the supplemental cash flow disclosure prints it: below the statement of cash flows or in a note.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -5825,7 +6128,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 103,
+   "order": 107,
    "definition": "The principal of debt due in the first fiscal year after the balance-sheet date, from the debt note's table of future principal payments or maturities: the row for that year ('2026' for a 2025 year-end). Principal, before unamortised discount and issuance costs; the current year-end only. Lease payments and interest are not this line. Cite the printed table line from the page.",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -5857,7 +6160,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 104,
+   "order": 108,
    "definition": "The principal of debt due in the second fiscal year after the balance-sheet date, from the debt note's table of future principal payments or maturities: the row for that year ('2027' for a 2025 year-end). Principal, before unamortised discount and issuance costs; the current year-end only. Lease payments and interest are not this line. Cite the printed table line from the page.",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -5889,7 +6192,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 105,
+   "order": 109,
    "definition": "The principal of debt due in the third fiscal year after the balance-sheet date, from the debt note's table of future principal payments or maturities: the row for that year ('2028' for a 2025 year-end). Principal, before unamortised discount and issuance costs; the current year-end only. Lease payments and interest are not this line. Cite the printed table line from the page.",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -5921,7 +6224,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 106,
+   "order": 110,
    "definition": "The principal of debt due in the fourth fiscal year after the balance-sheet date, from the debt note's table of future principal payments or maturities: the row for that year ('2029' for a 2025 year-end). Principal, before unamortised discount and issuance costs; the current year-end only. Lease payments and interest are not this line. Cite the printed table line from the page.",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -5953,7 +6256,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 107,
+   "order": 111,
    "definition": "The principal of debt due in the fifth fiscal year after the balance-sheet date, from the debt note's table of future principal payments or maturities: the row for that year ('2030' for a 2025 year-end). Principal, before unamortised discount and issuance costs; the current year-end only. Lease payments and interest are not this line. Cite the printed table line from the page.",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -5985,7 +6288,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 108,
+   "order": 112,
    "definition": "The principal of debt due after the fifth fiscal year following the balance-sheet date: the 'Thereafter' row of the debt note's table of future principal payments. Lease payments and interest are not this line. Cite the printed table line from the page.",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -6017,7 +6320,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 109,
+   "order": 113,
    "definition": "The total principal (face) amount of debt outstanding at the balance-sheet date, as the debt note prints it: the total of the table of future principal payments or the 'total principal' row, before unamortised discount, premium and issuance costs and before the current portion is deducted.",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -6063,7 +6366,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 110,
+   "order": 114,
    "definition": "The estimated fair value of the filer's debt at the balance-sheet date, as the debt or fair-value note states it, often in a sentence ('the fair value of our long-term debt was $88.4 billion'). Expressed in the statements' unit.",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -6096,7 +6399,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 111,
+   "order": 115,
    "definition": "The current part of the income tax expense for the year, federal, state and foreign together: the 'Total current' row of the income tax note's table of the components of the provision.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -6135,7 +6438,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 112,
+   "order": 116,
    "definition": "The deferred part of the income tax expense or benefit for the year: the 'Total deferred' row of the income tax note's table of the components of the provision. Not the deferred tax assets or liabilities at the year-end.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -6175,7 +6478,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 113,
+   "order": 117,
    "definition": "The effective income tax rate for the year as the filing prints it, with its percent sign ('16.0%'): from the income tax note's rate reconciliation or the sentence stating it. The current year only.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -6204,7 +6507,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 114,
+   "order": 118,
    "definition": "Raw materials and supplies held in inventory at the year-end, from the inventories note or the balance-sheet details note.",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -6240,7 +6543,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 115,
+   "order": 119,
    "definition": "Work in process held in inventory at the year-end, from the inventories note or the balance-sheet details note.",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -6276,7 +6579,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 116,
+   "order": 120,
    "definition": "Finished goods (or finished products) held in inventory at the year-end, from the inventories note or the balance-sheet details note.",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -6312,7 +6615,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 117,
+   "order": 121,
    "definition": "Property, plant and equipment at cost, before accumulated depreciation: the gross total of the property note's table ('Gross property, plant and equipment', 'Total, at cost').",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -6353,7 +6656,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 118,
+   "order": 122,
    "definition": "Accumulated depreciation and amortisation of property, plant and equipment at the year-end, with the sign the property note gives it (usually printed as a deduction).",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -6390,7 +6693,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 119,
+   "order": 123,
    "definition": "The registered public accounting firm that signs the report on the consolidated financial statements, as printed in its signature without the '/s/' (for example 'Hartwell & Rowe LLP'). Not the engagement partner.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -6427,7 +6730,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 120,
+   "order": 124,
    "definition": "The kind of opinion the auditor expresses on the consolidated financial statements, as the report names it: the heading of its opinion section, copied as printed. A US report heads an unqualified opinion 'Opinion on the Financial Statements', and a modified one 'Qualified Opinion', 'Adverse Opinion' or 'Disclaimer of Opinion'. Not the heading of the opinion on internal control.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -6466,7 +6769,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 121,
+   "order": 125,
    "definition": "The auditor's opinion on the consolidated financial statements, in the auditor's own words: the sentence of the report's opinion section that begins 'In our opinion', copied as printed. Not the opinion on internal control.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -6503,7 +6806,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 122,
+   "order": 126,
    "definition": "The auditor's opinion on the filer's internal control over financial reporting, in the auditor's own words: the sentence of that report's opinion section that begins 'In our opinion', copied as printed, whether it finds control effective or not. Empty where the 10-K carries no auditor's report on internal control.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -6540,7 +6843,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 123,
+   "order": 127,
    "definition": "The first sentence of the auditor's going-concern paragraph, copied as printed: the sentence stating that conditions raise substantial doubt about the filer's ability to continue as a going concern. Empty when the report includes no such paragraph.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -6578,7 +6881,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 124,
+   "order": 128,
    "definition": "The title of the first critical audit matter the auditor's report communicates, copied as printed (for example 'Uncertain Tax Positions'); or the report's sentence stating that there are no critical audit matters.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -6615,7 +6918,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 125,
+   "order": 129,
    "definition": "The title of the second critical audit matter the auditor's report communicates, copied as printed (for example 'Uncertain Tax Positions'). Empty when the report communicates fewer than 2.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -6652,7 +6955,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 126,
+   "order": 130,
    "definition": "The title of the third critical audit matter the auditor's report communicates, copied as printed (for example 'Uncertain Tax Positions'). Empty when the report communicates fewer than 3.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -6689,7 +6992,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 127,
+   "order": 131,
    "definition": "The sentence of the commitments and contingencies note (or the legal proceedings note) that states the filer's conclusion on its legal proceedings, claims and other contingencies, copied as printed: whether a loss is probable, an amount is accrued, or the outcome is not expected to have a material adverse effect (ASC 450). Empty when the notes disclose no contingencies.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -6721,7 +7024,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 128,
+   "order": 132,
    "definition": "The guarantees, standby letters of credit and surety bonds the filer has issued and that are outstanding at the balance-sheet date, summed: the maximum potential amount of future payments the notes state (ASC 460). Not the undrawn capacity of a credit facility.",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -6752,7 +7055,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 129,
+   "order": 133,
    "definition": "The amount recognised as a liability at the balance-sheet date for loss contingencies (litigation, claims, environmental and similar matters), as the notes state it. Empty where the filing states no amount.",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -6783,7 +7086,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 130,
+   "order": 134,
    "definition": "The total of the filer's unconditional purchase obligations and purchase commitments at the balance-sheet date, as the commitments note prints or states it.",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -6823,7 +7126,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 131,
+   "order": 135,
    "definition": "The sentence of the related-party note that describes the principal related-party relationship and the transactions with it, or that states the filer had no material related-party transactions, copied as printed (ASC 850). Empty when the filing says nothing about related parties.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -6851,7 +7154,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 132,
+   "order": 136,
    "definition": "Revenue from sales of goods and services to related parties during the year, as the related-party note prints or states it.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -6888,7 +7191,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 133,
+   "order": 137,
    "definition": "Purchases of goods and services from related parties during the year, including rent and fees paid to them, as the related-party note prints or states it; where the note prints several kinds on separate rows, the rows are added.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -6926,7 +7229,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 134,
+   "order": 138,
    "definition": "Receivables from related parties at the balance-sheet date, as the related-party note prints or states them.",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -6960,7 +7263,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 135,
+   "order": 139,
    "definition": "Payables to related parties at the balance-sheet date, as the related-party note prints or states them.",
    "temporality": "instant",
    "unit_of_account": "balance",

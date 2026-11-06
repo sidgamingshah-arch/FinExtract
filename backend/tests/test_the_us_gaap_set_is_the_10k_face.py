@@ -15,7 +15,10 @@ says it is:
   * a US balance sheet prints no non-current banner, and the mapper reads a row the reader carries
     past "Total current assets" in the non-current half (`map_ontology._balance_sheet_past_total`),
     so every line is scoped to its own section alone, and a caption printed in both places binds
-    neither line;
+    the line of the side it is printed on;
+  * earnings per share and the weighted-average share counts are four statement-of-operations
+    lines that say they are not money (`measure`), add into nothing, and leave a bare "Basic" /
+    "Diluted" to the model;
   * the captions 10-K filers print bind their lines.
 """
 from __future__ import annotations
@@ -286,12 +289,133 @@ def test_every_line_says_what_it_is(raw):
         assert not re.search(r"\bnotes?\s+\d", definition, re.IGNORECASE), item["key"]
 
 
-def test_no_per_share_or_share_count_line_is_carried(raw):
-    """EPS is a per-share amount and share counts are not in the statements' scale; the face
-    template carries neither."""
+# ── earnings per share and the share counts ────────────────────────────────────────────────────
+
+EPS = {"is_pl__eps_basic": "per_share", "is_pl__eps_diluted": "per_share",
+       "is_pl__weighted_average_shares_basic": "shares",
+       "is_pl__weighted_average_shares_diluted": "shares"}
+
+
+def test_eps_and_the_share_counts_are_statement_of_operations_lines_that_are_not_money(raw):
+    """Four face lines of the statement of operations, each declaring what it measures — so its
+    figure is published as printed, in dollars per share or in shares, and never in the statements'
+    scale (`services.units.stamp_measures`). Every other line is money and says nothing."""
+    items = {i["key"]: i for i in raw[1]["items"]}
+    for key, measure in EPS.items():
+        item = items[key]
+        assert item["measure"] == measure, key
+        assert item["statements"] == [PL] and item["section_scope"] == ["is_pl"], key
+        assert item["route"] == "face" and item["type"] == "extracted", key
+        assert item["temporality"] == "duration", key
+    assert {k for k, i in items.items() if "measure" in i} == set(EPS)
+    (pl,) = [st for st in raw[0]["statements"] if st["type"] == PL]
+    keys = [node["canonical_key"] for sec in pl["sections"] for node in sec["children"]]
+    assert keys[-4:] == list(EPS), "the four lines close the statement of operations"
+
+
+def test_a_per_share_amount_or_a_share_count_adds_into_nothing(raw):
+    """No rollup sums one with money, no ratio divides by one, and no cross-check reads one."""
+    for _st, _sec, node in _nodes(raw[0]):
+        assert not set((node.get("rollup") or {}).get("children") or ()) & set(EPS), node
+        assert node["canonical_key"] not in EPS or "rollup" not in node, node
+    for kpi in raw[0]["kpis"]["ratios"] + raw[0]["kpis"]["intermediates"]:
+        used = {t["key"] for side in ("numerator", "denominator") for t in kpi.get(side, [])}
+        assert not used & set(EPS), kpi["key"]
+    assert not set(raw[1]["cross_check_master"]["keys"]) & set(EPS)
+    assert not set(raw[1]["others_master"]["keys"]) & set(EPS)
     for item in raw[1]["items"]:
-        assert not re.search(r"per\s+share|weighted\s+average|shares\s+outstanding",
-                             item["label"], re.IGNORECASE), item["key"]
+        assert not {t["ref"] for t in item.get("terms") or ()} & set(EPS), item["key"]
+
+
+def test_a_bare_basic_or_diluted_is_no_lines_alias(raw):
+    """A 10-K prints "Basic" / "Diluted" under "Earnings per share:" and again under "Shares used
+    in computing earnings per share:". As an alias the bare word would bind both rows of a pair to
+    one line; the request shows each row's heading as its `subheading`, and the model places it."""
+    from app.services.mapping import normalize_label
+
+    for item in raw[1]["items"]:
+        names = {normalize_label(a) for a in item.get("aliases") or ()}
+        assert not names & {"basic", "diluted", "basic and diluted"}, item["key"]
+
+
+_HEADINGS = ["Earnings per share", "Earnings per common share", "Net income per share",
+             "Net income per common share", "Net loss per share", "Weighted average shares outstanding",
+             "Weighted-average number of shares outstanding", "Weighted average common shares outstanding",
+             "Shares used in computing earnings per share", "Shares used in per share computation"]
+
+
+@pytest.mark.parametrize("heading", _HEADINGS)
+@pytest.mark.parametrize("row", ["Basic", "Diluted", "Basic $", "Diluted $"])
+def test_the_heading_under_a_basic_or_diluted_row_is_not_read_as_its_tail(usgaap, row, heading):
+    """Row reconstruction takes a figure-less line under a row with figures as the rest of that
+    row's caption when the two together are a caption the set knows (its labels and aliases:
+    `mapping.known_captions`, `row_reconstruct._completes_the_caption_above`). A 10-K prints its
+    next heading straight under the "Diluted" row of a pair; with "Diluted weighted-average shares
+    outstanding" an alias, a 10-K's EPS "Diluted $ 13.64" was read as "Diluted $ Weighted average
+    shares outstanding:" and the share rows under it lost their heading. So no name of the set
+    opens on the word the pair's rows print, and the prefix forms are bound by pattern."""
+    from app.services.mapping import known_captions, normalize_label
+
+    known = known_captions(build_working_view(usgaap))
+    assert normalize_label(f"{row} {heading}:") not in known, (row, heading)
+
+
+def test_a_heading_glued_onto_an_eps_row_binds_no_share_count(matcher):
+    """The second guard: should a heading reach the matcher glued on anyway."""
+    for caption in ("Diluted $ Weighted average shares outstanding:",
+                    "Basic $ Shares used in computing earnings per share:",
+                    "Diluted Earnings per share:"):
+        hit = matcher.match(caption, statement=PL, section=None)
+        assert hit.canonical_key is None or hit.confidence < 0.85, (caption, hit.canonical_key)
+
+
+@pytest.mark.parametrize("caption,key", [
+    ("Basic net income per common share attributable to Bluegate", "is_pl__eps_basic"),
+    ("Diluted earnings per share", "is_pl__eps_diluted"),
+    ("Basic weighted-average shares outstanding", "is_pl__weighted_average_shares_basic"),
+    ("Diluted net income per common share attributable to Bluegate", "is_pl__eps_diluted"),
+    ("Basic earnings per share", "is_pl__eps_basic"),
+    ("Earnings per share – basic", "is_pl__eps_basic"),
+    ("Earnings per share – diluted", "is_pl__eps_diluted"),
+    ("Net income per share attributable to common stockholders – basic", "is_pl__eps_basic"),
+    ("Net income (loss) per share, diluted", "is_pl__eps_diluted"),
+    # One row for a filer with nothing dilutive: it is the basic figure.
+    ("Basic and diluted net loss per share", "is_pl__eps_basic"),
+    ("Net loss per share – basic and diluted", "is_pl__eps_basic"),
+    ("Weighted-average shares outstanding – basic", "is_pl__weighted_average_shares_basic"),
+    ("Weighted-average shares outstanding – diluted", "is_pl__weighted_average_shares_diluted"),
+    ("Basic weighted-average common shares outstanding", "is_pl__weighted_average_shares_basic"),
+    ("Shares used in computing earnings per share – basic", "is_pl__weighted_average_shares_basic"),
+    ("Shares used in computing diluted net income per share",
+     "is_pl__weighted_average_shares_diluted"),
+    ("Weighted average shares outstanding (in thousands) – diluted",
+     "is_pl__weighted_average_shares_diluted"),
+])
+def test_a_10k_per_share_or_share_count_caption_binds_its_line(matcher, caption, key):
+    hit = matcher.match(caption, statement=PL, section=None)
+    assert hit.canonical_key == key and hit.confidence >= 0.9, (caption, hit.canonical_key)
+
+
+@pytest.mark.parametrize("caption,section", [
+    ("Basic", "Earnings per share"), ("Diluted", "Earnings per share"),
+    ("Basic", "Shares used in computing earnings per share"),
+    ("Diluted", "Weighted average shares outstanding"),
+    ("Basic $", None),
+    # Part of the result, a dividend, and the dilutive securities between the two counts.
+    ("Basic earnings per share from continuing operations", None),
+    ("Cash dividends declared per common share", None),
+    ("Effect of dilutive securities", None),
+])
+def test_a_caption_that_is_not_one_of_the_four_binds_none_of_them(matcher, caption, section):
+    hit = matcher.match(caption, statement=PL, section=section)
+    assert hit.canonical_key is None or hit.confidence < 0.85, (caption, hit.canonical_key)
+
+
+def test_net_income_is_not_taken_by_a_per_share_caption(matcher):
+    for caption in ("Net income per share – basic", "Basic net income per common share",
+                    "Diluted net income per common share attributable to Bluegate"):
+        hit = matcher.match(caption, statement=PL, section=None)
+        assert hit.canonical_key in EPS, (caption, hit.canonical_key)
 
 
 # ── sections, leftovers and totals ─────────────────────────────────────────────────────────────
@@ -559,7 +683,6 @@ def test_a_10k_caption_binds_its_line(matcher, caption, statement, section, key)
 @pytest.mark.parametrize("caption,statement,section", [
     ("Products", PL, "Net sales"),
     ("Basic", PL, "Earnings per share"),
-    ("Diluted net income per common share attributable to Bluegate", PL, None),
     ("Vendor non-trade receivables", BS, "Current assets"),
     ("Dividends paid to noncontrolling interest", CF, "Financing activities"),
 ])

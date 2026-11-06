@@ -369,9 +369,12 @@ def items_of_rows(rows: Iterable[dict]) -> list[LineItem]:
             except (ValueError, ArithmeticError):
                 continue
             flags = list(((v.get("confidence") or {}).get("flags")) or ())
+            # The served figure's measure travels too (`routes.extractions._measure_fields`): a
+            # per-share amount at scale 1 is not a money figure at scale 1.
+            measure = v.get("measure") if v.get("measure") in ("per_share", "shares") else "money"
             li.values[str(i)] = ExtractedValue(
                 value=amount, value_raw=amount, basis=basis, period_label=v.get("period_label"),
-                unit_ctx=UnitContext(scale_factor=scale),
+                unit_ctx=UnitContext(scale_factor=scale, measure=measure),
                 confidence=ConfidenceVector(flags=flags))
         out.append(li)
     return out

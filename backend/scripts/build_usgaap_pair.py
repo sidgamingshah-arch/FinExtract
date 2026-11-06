@@ -9,8 +9,20 @@ WHAT IT DECIDES, and why:
   each line one of the rows Regulation S-X Article 5 (Rules 5-02 and 5-03) and ASC 230's indirect
   method lead a 10-K to print. Every line declares ``route: face``, none carries a
   ``note_source``, and the set declares ``strict_face_route``, so no stage puts a note's figure on
-  a line: a row the face does not print is left empty. The statement of comprehensive income, the
-  statement of stockholders' equity, earnings per share and share counts are not carried.
+  a line: a row the face does not print is left empty. The statement of comprehensive income and
+  the statement of stockholders' equity are not carried.
+* EARNINGS PER SHARE AND THE SHARE COUNTS ARE, AND THEY ARE NOT MONEY. Four lines of the statement
+  of operations — basic and diluted EPS, and the weighted-average shares used to compute each —
+  declare ``measure: per_share`` / ``shares`` (`LineItemDef.measure`). A 10-K's header gives them a
+  scale of their own ("In millions, except number of shares, which are reflected in thousands,
+  and per-share amounts"), and the row reader had given them the statements' millions; the
+  measure is what restates each figure's unit (`services.units.stamp_measures`) — "USD per share",
+  "shares (thousands)" — so it is published as printed and no export converts it with the money.
+  They are in no rollup and no KPI. A 10-K prints EPS as "Basic net income per common share
+  attributable to ...", which a caption pattern binds, or as a bare "Basic" / "Diluted" under an
+  "Earnings per share:" heading and the same pair again under "Shares used in computing earnings
+  per share:". The bare captions are no line's alias, since they would bind both pairs to one
+  line: the request shows each row's heading as its ``subheading``, and the model places them.
 * ADDITIONAL ITEMS, READ FROM THE NOTES AND THE AUDITOR'S REPORT, as a fourth statement of the
   template (`NOTE_LINES`): the supplemental cash flow disclosures, debt maturities, principal and
   fair value, the current and deferred tax and the effective tax rate, the inventory split,
@@ -115,11 +127,12 @@ _TOTALS = [r"^\W*(?:sub[\s-]*)?total\b", r"^\W*net\s+cash\b"]
 
 
 def L(key, label, aliases=(), definition="", *, exclude=(), regex=(), sign="positive_expected",
-      scope=None, roll=None, role=None, bucket=None):
-    """One line of the spec. ``roll`` is ``(op, [children])`` for a calculated line."""
+      scope=None, roll=None, role=None, bucket=None, measure="money"):
+    """One line of the spec. ``roll`` is ``(op, [children])`` for a calculated line. ``measure`` is
+    what the figure is counted in (`LineItemDef.measure`): money, an amount per share, or shares."""
     return {"key": key, "label": label, "aliases": list(aliases), "definition": definition,
             "exclude": list(exclude), "regex": list(regex), "sign": sign, "scope": scope,
-            "roll": roll, "role": role, "bucket": bucket}
+            "roll": roll, "role": role, "bucket": bucket, "measure": measure}
 
 
 def R(key, label, definition, exclude=(), aliases=(), sign="positive_expected"):
@@ -157,6 +170,38 @@ _SECURITIES = (r"(?:short\s+term\s+|long\s+term\s+|other\s+|non\s*marketable\s+)
                r"|equity\s+securities)")
 _DEBT = r"(?:long\s+term\s+|term\s+|senior\s+)?(?:debt|borrowings?|notes|loans|bonds)"
 _NOT_PER_SHARE = [r"per\s+(?:common\s+)?share", r"\bbasic\b", r"\bdiluted\b"]
+
+# EARNINGS PER SHARE AND THE SHARES BEHIND IT. Patterns run on the raw lowercased caption and on its
+# normalised form (`mapping.normalize_label`), and a veto holds on either — so "Basic & diluted"
+# arrives as "basic & diluted" and as "basic diluted", and the basic lines' veto on "diluted" lets
+# both through: a filer with no dilutive securities prints one row, and it is the basic figure.
+_PER = r"per\s+(?:common\s+|ordinary\s+)?share"
+_RESULT = r"(?:net\s+)?(?:income|earnings|loss|profit)(?:\s+(?:loss|income|earnings))?"
+_NOT_DILUTED = r"(?<!and\s)(?<!basic\s)(?<!&\s)(?<!&)(?<!/)(?<!/\s)\bdiluted\b"
+_SHARES_USED = (r"(?:common\s+)?shares\s+used\s+in\s+(?:computing|calculating|(?:the\s+)?"
+                r"(?:computation|calculation)\s+of|per\s+share\s+computations?)")
+_WEIGHTED = (r"weighted\s+average\s+(?:number\s+of\s+)?(?:common\s+|ordinary\s+)?(?:shares|stock)")
+# What neither kind of line is: a per-share figure of part of the result, a dividend, a non-GAAP
+# figure, and the dilutive securities an EPS reconciliation prints between the two counts.
+_EPS_NOT = [r"continuing\s+operations", r"discontinued\s+operations", r"dividend", r"pro\s*forma",
+            r"adjusted", r"comprehensive", r"book\s+value", r"cash\s+flow", r"dilutive"]
+# An EPS line is not a share count, and a share-count line is not EPS.
+_NOT_A_COUNT = [r"weighted", r"shares\s+used", r"shares\s+outstanding", r"number\s+of"]
+_NOT_AN_AMOUNT = [r"^\W*(?:basic\s+|diluted\s+)?(?:net\s+)?(?:income|earnings|loss|profit)\b"]
+# NO NAME OF THE FOUR OPENS ON "Basic" OR "Diluted", and the prefix forms a filer prints ("Diluted
+# earnings per share", "Basic weighted-average shares outstanding") are bound by the patterns
+# instead. A line's label and aliases are the vocabulary row reconstruction splices a wrapped
+# caption by (`mapping.known_captions`, `row_reconstruct._completes_the_caption_above`): a
+# figure-less line under a row with figures is taken as that row's tail when the two together are
+# a caption the set knows. A 10-K prints its next heading right under the "Diluted" row of a pair,
+# so with "Diluted weighted-average shares outstanding" an alias, measured on a 10-K layout, EPS
+# "Diluted $ 13.64" was read as "Diluted $ Weighted average shares outstanding:" — bound to the
+# diluted share count, and the share rows below it lost the heading that tells them apart.
+# A SECOND GUARD, should a heading be glued on some other way: a caption ending in the heading's
+# colon binds none of the four, and one printing a "$" — which a share count never does — binds
+# no share count.
+_GLUED_HEADING = [r":\s*$"]
+_NOT_A_COUNT_ROW = [r"\$"] + _GLUED_HEADING
 
 LINES = {
     # ── BALANCE SHEET ──────────────────────────────────────────────────────────────────────────
@@ -806,6 +851,107 @@ LINES = {
           exclude=list(_NOT_PER_SHARE) + [r"non\s*controlling", r"minority", r"comprehensive"],
           regex=[E + r"(?:consolidated\s+)?(?:net\s+)?(?:income|earnings|loss|profit)(?:\s+(?:loss|income|"
                  r"earnings|profit))?\s+(?:attributable|available)\s+to\s+.*$"]),
+        # ── earnings per share, and the shares it is computed on ──────────────────────────────
+        # NOT MONEY, and each line says so (`measure`): its figure is published as printed, in
+        # dollars per share or in shares, and no export converts it with the statements' scale.
+        # BARE "Basic" / "Diluted" IS NO ALIAS OF ANY OF THEM. A 10-K prints the pair twice, under
+        # "Earnings per share:" and again under "Shares used in computing earnings per share:",
+        # and an alias would bind both rows of a pair to one line; the request shows each row's
+        # heading as its `subheading`, and the model places them.
+        L("is_pl__eps_basic", "Earnings per share — basic",
+          ["Earnings per share – basic", "Earnings per share - basic", "Earnings per share, basic",
+           "Earnings per common share – basic", "Net income per share – basic",
+           "Net income per share, basic", "Net income per common share – basic",
+           "Net income (loss) per share – basic", "Net loss per share – basic",
+           "Net loss per share – basic and diluted", "Earnings per share – basic and diluted"],
+          "Basic earnings or loss per share for the year (ASC 260): net income attributable to the "
+          "filer's common stockholders divided by the weighted-average common shares outstanding, "
+          "in dollars per share as printed. A 10-K often prints it as a bare 'Basic' row under an "
+          "'Earnings per share' or 'Net income per share' heading; the 'Basic' printed under "
+          "'Shares used in computing earnings per share' or 'Weighted-average shares outstanding' "
+          "is the share count, not this line. A single 'Basic and diluted' row is this line's. Not "
+          "the per-share figure of continuing or discontinued operations alone, nor dividends "
+          "declared per share. A per-share amount: it is not in the statements' millions or "
+          "thousands.",
+          sign="either", measure="per_share",
+          exclude=[_NOT_DILUTED] + _EPS_NOT + _NOT_A_COUNT + _GLUED_HEADING,
+          regex=[E + rf"basic\s+(?:and\s+diluted\s+)?{_RESULT}\s+{_PER}\b.*$",
+                 E + rf"{_RESULT}\s+{_PER}\b.*\bbasic(?:\s+and\s+diluted)?$",
+                 E + r"basic\s+(?:and\s+diluted\s+)?eps$", E + r"eps\s+basic(?:\s+and\s+diluted)?$"]),
+        L("is_pl__eps_diluted", "Earnings per share — diluted",
+          ["Earnings per share – diluted", "Earnings per share - diluted", "Earnings per share, diluted",
+           "Earnings per common share – diluted", "Net income per share – diluted",
+           "Net income per share, diluted", "Net income per common share – diluted",
+           "Net income (loss) per share – diluted", "Net loss per share – diluted"],
+          "Diluted earnings or loss per share for the year (ASC 260): net income attributable to "
+          "the filer's common stockholders divided by the weighted-average shares outstanding "
+          "together with the dilutive effect of options, restricted stock units and convertible "
+          "securities, in dollars per share as printed. A 10-K often prints it as a bare 'Diluted' "
+          "row under an 'Earnings per share' or 'Net income per share' heading; the 'Diluted' "
+          "printed under 'Shares used in computing earnings per share' or 'Weighted-average shares "
+          "outstanding' is the share count, not this line. A single 'Basic and diluted' row is the "
+          "basic line's, and is not repeated here. Not the per-share figure of continuing or "
+          "discontinued operations alone. A per-share amount: it is not in the statements' "
+          "millions or thousands.",
+          sign="either", measure="per_share",
+          exclude=[r"\bbasic\b"] + _EPS_NOT + _NOT_A_COUNT + _GLUED_HEADING,
+          regex=[E + rf"diluted\s+{_RESULT}\s+{_PER}\b.*$",
+                 E + rf"{_RESULT}\s+{_PER}\b.*\bdiluted$",
+                 E + r"diluted\s+eps$", E + r"eps\s+diluted$"]),
+        L("is_pl__weighted_average_shares_basic", "Weighted-average shares — basic",
+          ["Weighted-average shares outstanding – basic", "Weighted average shares outstanding – basic",
+           "Weighted-average shares outstanding, basic", "Weighted-average shares – basic",
+           "Weighted-average number of shares outstanding – basic",
+           "Weighted-average common shares outstanding – basic",
+           "Weighted average number of common shares outstanding – basic",
+           "Weighted-average basic shares outstanding", "Shares used in computing earnings per share – basic",
+           "Shares used in computing basic earnings per share",
+           "Shares used in computing basic net income per share",
+           "Weighted-average shares outstanding – basic and diluted"],
+          "The weighted-average number of common shares outstanding during the year used to "
+          "compute basic earnings per share, as printed: a count of shares, in the scale the "
+          "statement's header gives shares ('number of shares, which are reflected in thousands'), "
+          "or the statements' own where the header excepts only per-share amounts — never an "
+          "amount of money. A 10-K often prints it as a bare 'Basic' row under a 'Shares used in "
+          "computing earnings per share' or 'Weighted-average shares outstanding' heading; the "
+          "'Basic' printed under 'Earnings per share' is the per-share amount, not this line. Not "
+          "the shares issued or outstanding at the year-end that the balance sheet prints.",
+          measure="shares",
+          exclude=[_NOT_DILUTED] + _EPS_NOT + _NOT_AN_AMOUNT + _NOT_A_COUNT_ROW,
+          regex=[E + r"basic\s+(?:and\s+diluted\s+)?(?:weighted\s+average\s+)?(?:number\s+of\s+)?"
+                 r"(?:common\s+|ordinary\s+)?shares\b.*$",
+                 E + r"weighted\s+average\s+basic\s+(?:and\s+diluted\s+)?(?:common\s+|ordinary\s+)?"
+                 r"shares\b.*$",
+                 E + _WEIGHTED + r"\b.*\bbasic(?:\s+and\s+diluted)?$",
+                 E + _SHARES_USED + r"\b.*\bbasic(?:\s+and\s+diluted)?$",
+                 E + _SHARES_USED + r"\s+basic\b.*$"]),
+        L("is_pl__weighted_average_shares_diluted", "Weighted-average shares — diluted",
+          ["Weighted-average shares outstanding – diluted", "Weighted average shares outstanding – diluted",
+           "Weighted-average shares outstanding, diluted", "Weighted-average shares – diluted",
+           "Weighted-average number of shares outstanding – diluted",
+           "Weighted-average common shares outstanding – diluted",
+           "Weighted average number of common shares outstanding – diluted",
+           "Weighted-average diluted shares outstanding",
+           "Shares used in computing earnings per share – diluted",
+           "Shares used in computing diluted earnings per share",
+           "Shares used in computing diluted net income per share"],
+          "The weighted-average number of shares used to compute diluted earnings per share, as "
+          "printed: the basic count together with the dilutive effect of options, restricted stock "
+          "units and convertible securities — a count of shares, in the scale the statement's "
+          "header gives shares, or the statements' own where the header excepts only per-share "
+          "amounts; never an amount of money. A 10-K often prints it as a bare 'Diluted' row under "
+          "a 'Shares used in computing earnings per share' or 'Weighted-average shares "
+          "outstanding' heading; the 'Diluted' printed under 'Earnings per share' is the "
+          "per-share amount, not this line. A single 'Basic and diluted' count is the basic "
+          "line's. Not the effect of dilutive securities printed between the two counts.",
+          measure="shares",
+          exclude=[r"\bbasic\b"] + _EPS_NOT + _NOT_AN_AMOUNT + _NOT_A_COUNT_ROW,
+          regex=[E + r"diluted\s+(?:weighted\s+average\s+)?(?:number\s+of\s+)?(?:common\s+|ordinary\s+)?"
+                 r"shares\b.*$",
+                 E + r"weighted\s+average\s+diluted\s+(?:common\s+|ordinary\s+)?shares\b.*$",
+                 E + _WEIGHTED + r"\b.*\bdiluted$",
+                 E + _SHARES_USED + r"\b.*\bdiluted$",
+                 E + _SHARES_USED + r"\s+diluted\b.*$"]),
     ],
     # ── STATEMENT OF CASH FLOWS ───────────────────────────────────────────────────────────────
     "cf_oper_indirect": [
@@ -1479,7 +1625,12 @@ PROMPT = (
     "GAAP: the Consolidated Balance Sheets, the Consolidated Statements of Operations (or Income) "
     "and the Consolidated Statements of Cash Flows. Amounts are in US dollars, usually in millions or "
     "thousands except per-share amounts; the statements of operations and of cash flows print three "
-    "years and the balance sheet two. Every line of the three statements is a row the face of those "
+    "years and the balance sheet two. Earnings per share is an amount in dollars per share and the "
+    "weighted-average shares are a count of shares, each as printed and neither in the statements' "
+    "millions or thousands; a bare 'Basic' or 'Diluted' row is earnings per share under an 'Earnings "
+    "per share' heading and a share count under a 'Shares used in computing earnings per share' or "
+    "'Weighted-average shares outstanding' heading, and its `subheading` names the heading. Every "
+    "line of the three statements is a row the face of those "
     "statements prints: cite the printed statement row, never a note, and leave a line empty when the "
     "face does not print it. The additional items are read from the notes, the supplemental cash flow "
     "disclosures and the report of the independent registered public accounting firm, as each line "
@@ -1509,11 +1660,18 @@ def build() -> tuple[dict, dict]:
             section_of[spec["key"]] = sec
     keys = list(section_of)
     assert len(keys) == len(set(keys)), "duplicate keys"
+    # A PER-SHARE AMOUNT OR A SHARE COUNT ADDS INTO NOTHING: no rollup sums one with money, and no
+    # ratio divides one by money.
+    measured = {s["key"] for sec in SECTIONS for s in LINES[sec[0]] if s["measure"] != "money"}
     for spec in (s for sec in SECTIONS for s in LINES[sec[0]]):
         for child in (spec["roll"] or ("", []))[1]:
             assert child in section_of, (spec["key"], child)
+            assert child not in measured, (spec["key"], child, "a measured line in a rollup")
         for pattern in spec["regex"] + spec["exclude"]:
             re.compile(pattern)
+    for kpi in KPIS["intermediates"] + KPIS["ratios"]:
+        used = {t["key"] for side in ("numerator", "denominator") for t in kpi.get(side, [])}
+        assert not used & measured, (kpi["key"], used & measured)
     for sid, _slabel in NOTE_SECTIONS:
         for spec in NOTE_LINES[sid]:
             assert spec["key"] not in section_of, spec["key"]
@@ -1588,6 +1746,11 @@ def build() -> tuple[dict, dict]:
                 "match_priority": 80,
                 "route": "face",
             }
+            if spec["measure"] != "money":
+                # Per-share amounts and share counts. Written only where it is not money, as the
+                # line-item model writes it (`LineItemDef._measure_only_when_declared`).
+                assert not calculated and not spec["role"], (k, "a measured line is a leaf")
+                item["measure"] = spec["measure"]
             if calculated:
                 op, kids = spec["roll"]
                 item["extraction_mode"] = "extract_or_derive"
@@ -1672,6 +1835,10 @@ def build() -> tuple[dict, dict]:
                  "no internal parts. One leftover line per asset, liability, stockholders' equity "
                  "and cash-flow section; none in the statement of operations or in temporary "
                  "equity."),
+                ("Earnings per share (basic, diluted) and the weighted-average shares used to "
+                 "compute them (basic, diluted): four statement-of-operations lines declaring "
+                 "`measure: per_share` / `shares`, published as printed in dollars per share and "
+                 "in shares, never in the statements' scale; in no rollup and no KPI."),
                 (f"{n_notes} additional items, read from the notes and the auditor's report: the "
                  "supplemental cash flow disclosures, debt maturities, principal and fair value, "
                  "the current and deferred tax and the effective tax rate, the inventory split, "

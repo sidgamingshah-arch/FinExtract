@@ -361,13 +361,27 @@ def build_line_items_sheet(wb, line_item_set, rows: list[dict], *, period_cols, 
             return None
         return _num(concept_value(group, basis, period))
 
-    def presented(value: float | None) -> float | None:
+    # A PER-SHARE AMOUNT OR A SHARE COUNT IS NOT CONVERTED with the money figures, and a per-share
+    # amount keeps its cents — the line's own declaration, or what its served figures say
+    # (`export.not_money`).
+    from app.services.export import PER_SHARE_FORMAT, measured_lines, unit_note
+
+    measure_of = {k: m for k, (m, _u) in measured_lines(rows).items()}
+    unit_of = {k: u for k, (_m, u) in measured_lines(rows).items()}
+    for item in items:
+        declared = str(getattr(item, "measure", "money") or "money")
+        if declared != "money":
+            measure_of.setdefault(getattr(item, "key", ""), declared)
+
+    def presented(value: float | None, key: str | None = None) -> float | None:
         if value is None:
             return None
+        if key in measure_of:
+            return value
         return round(value * scale) if scale != 1.0 else value
 
-    def figure_text(value: float | None) -> str:
-        return _amount_text(presented(value))
+    def figure_text(value: float | None, key: str | None = None) -> str:
+        return _amount_text(presented(value, key))
 
     def working_of(key: str, basis: str, period: str) -> dict | None:
         """How this line's figure adds up in one column, where its trail records the arithmetic
@@ -397,7 +411,10 @@ def build_line_items_sheet(wb, line_item_set, rows: list[dict], *, period_cols, 
         contrib_basis, contributions = contributions_of(key)
         terms = list(getattr(item, "terms", None) or ())
 
-        label = ws.cell(r, 1, str(getattr(item, "label", "") or key))
+        label = ws.cell(r, 1, str(getattr(item, "label", "") or key)
+                        + (f" {unit_note(unit_of[key])}" if unit_of.get(key) else ""))
+        line_fmt = PER_SHARE_FORMAT if measure_of.get(key) == "per_share" else num_fmt
+        line_text = (lambda v, _k=key: figure_text(v, _k))
         label.alignment = Alignment(indent=_INDENT.get(depth, 0))
         label.font = Font(bold=(depth == 0), color=ink, size=10)
         ws.cell(r, 2, key).font = Font(size=8, color="8A94A6")
@@ -412,11 +429,11 @@ def build_line_items_sheet(wb, line_item_set, rows: list[dict], *, period_cols, 
         for (basis, period) in period_cols:
             ci = first_val + period_cols.index((basis, period))
             col = get_column_letter(ci)
-            target = presented(value_of(key, basis, period))
+            target = presented(value_of(key, basis, period), key)
 
             formula = None
             if terms:
-                values = {k: presented(value_of(k, basis, period)) for k in row_of}
+                values = {k: presented(value_of(k, basis, period), k) for k in row_of}
                 formula = _terms_formula(terms, row_of, values, col, target)
                 if formula is None and target is not None:
                     unwritten.append(
@@ -425,10 +442,11 @@ def build_line_items_sheet(wb, line_item_set, rows: list[dict], *, period_cols, 
                         f"the server published (a term is absent, or its line carries no figure "
                         f"in this period). The number in the cell is the server's.")
             if formula is None and contributions and basis == contrib_basis:
-                formula = _sum_formula(contributions, period, col, r + 1, target, scale)
+                formula = _sum_formula(contributions, period, col, r + 1, target,
+                                       1.0 if key in measure_of else scale)
 
             cell = ws.cell(r, ci, formula if formula is not None else target)
-            cell.number_format = num_fmt
+            cell.number_format = line_fmt
             cell.alignment = right
             if depth == 0:
                 cell.font = Font(bold=True)
@@ -437,7 +455,7 @@ def build_line_items_sheet(wb, line_item_set, rows: list[dict], *, period_cols, 
             # than a column, so the sheet's columns stay where every reader of it expects them.
             w = working_of(key, basis, period)
             if w is not None:
-                cell.comment = Comment(derivation.working_text(w, figure_text, locale),
+                cell.comment = Comment(derivation.working_text(w, line_text, locale),
                                        "FinExtract", width=360, height=140)
 
         how = ((row or {}).get("mapping_method")
@@ -493,10 +511,10 @@ def build_line_items_sheet(wb, line_item_set, rows: list[dict], *, period_cols, 
                 # ONLY the basis these rows were read under. Another basis's column is left blank
                 # rather than filled with this one's figure — see `contributions_of`.
                 amount = (presented(_num(contribution.get("v1") if period == "current"
-                                         else contribution.get("v2")))
+                                         else contribution.get("v2")), key)
                           if basis == contrib_basis else None)
                 cell = ws.cell(r, ci, amount)
-                cell.number_format = num_fmt
+                cell.number_format = line_fmt
                 cell.alignment = right
                 cell.font = Font(size=9, color="4B5563")
             # "not taken" is not a footnote: an `alternatives` rollup lists rows it did NOT add,
@@ -507,7 +525,7 @@ def build_line_items_sheet(wb, line_item_set, rows: list[dict], *, period_cols, 
             ws.cell(r, src_col, _where(contribution.get("source")
                                        or contribution.get("source2"))
                     ).font = Font(size=9, color="8A94A6")
-            comment = _trail_comment(contribution, locale, figure_text)
+            comment = _trail_comment(contribution, locale, line_text)
             if comment:
                 caption.comment = Comment(comment, "FinExtract")
             r += 1
@@ -517,5 +535,5 @@ def build_line_items_sheet(wb, line_item_set, rows: list[dict], *, period_cols, 
         col = get_column_letter(first_val + period_cols.index((basis, period)))
         for key, at in row_of.items():
             cells[(key, basis, period)] = (f"{SHEET_REF}{col}{at}",
-                                           presented(value_of(key, basis, period)))
+                                           presented(value_of(key, basis, period), key))
     return cells
