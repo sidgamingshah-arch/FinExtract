@@ -114,8 +114,12 @@ def select_pages(page_texts, names, *, cap: int = TEXT_PAGES_CAP, anchored=(),
 
 #: The titles an auditor's report prints at its head, folded when compared. A line NAMES the
 #: auditor's report when one of its printed names contains one of these ("Independent Auditor's
-#: Report", 审计报告).
-REPORT_TITLES = ("审计报告", "審計報告", "核數師報告", "Auditor's Report", "Auditors' Report")
+#: Report", 审计报告). A US 10-K heads it "Report of Independent Registered Public Accounting
+#: Firm", which names no "Auditor's Report": its report opened no page, so no text line naming it
+#: was anchored to the report. No page of the five reference filings or the two Ind AS filings
+#: prints the US title.
+REPORT_TITLES = ("审计报告", "審計報告", "核數師報告", "Auditor's Report", "Auditors' Report",
+                 "Registered Public Accounting Firm")
 #: The auditor's report opens at most this many pages before the statements it reports on. The
 #: longest in the corpus (hkex_1966) is ten pages.
 REPORT_WINDOW = 15

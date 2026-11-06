@@ -365,6 +365,19 @@ llm_focus_keys = [
   "pl_icon__*",
   "bs_icon__*",
   "cov_icon__*",
+  # THE 10-K TEMPLATE'S ADDITIONAL ITEMS (`output_csv_usgaap`): the auditor's report, the debt
+  # maturities, the fair value of debt and the figures a 10-K states in a sentence are the model's
+  # alone, so without these a focus run left every one of them empty. One pattern per group of the
+  # template's fourth statement; no other shipped set has a key beginning with any of them, so no
+  # other set's run asks anything new. Its statement lines are not named: their captions are read
+  # by the deterministic tiers, as every other set's face lines are.
+  "notes_cash__*",
+  "notes_debt__*",
+  "notes_tax__*",
+  "notes_assets__*",
+  "notes_audit__*",
+  "notes_contingencies__*",
+  "notes_related__*",
 ]
 # THE ROW-LEVEL LLM SETTINGS THAT STOOD HERE ARE RETIRED.
 #

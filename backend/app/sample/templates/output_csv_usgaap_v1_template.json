@@ -1466,11 +1466,29 @@
        "role": "line"
       },
       {
-       "node_id": "notes_audit__critical_audit_matter",
-       "canonical_key": "notes_audit__critical_audit_matter",
-       "label": "Critical audit matter",
+       "node_id": "notes_audit__critical_audit_matter_1",
+       "canonical_key": "notes_audit__critical_audit_matter_1",
+       "label": "Critical audit matter 1",
        "label_i18n": {
-        "en": "Critical audit matter"
+        "en": "Critical audit matter 1"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "notes_audit__critical_audit_matter_2",
+       "canonical_key": "notes_audit__critical_audit_matter_2",
+       "label": "Critical audit matter 2",
+       "label_i18n": {
+        "en": "Critical audit matter 2"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "notes_audit__critical_audit_matter_3",
+       "canonical_key": "notes_audit__critical_audit_matter_3",
+       "label": "Critical audit matter 3",
+       "label_i18n": {
+        "en": "Critical audit matter 3"
        },
        "role": "line"
       }

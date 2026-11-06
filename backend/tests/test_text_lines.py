@@ -144,6 +144,26 @@ def test_the_auditors_report_opens_where_its_title_heads_the_page_before_the_sta
     assert text_lines.report_openings(CAS_PAGES, _cas_doc()) == [4]
 
 
+def test_a_10k_auditors_report_opens_where_its_us_title_heads_the_page():
+    """A 10-K heads its report "Report of Independent Registered Public Accounting Firm". The
+    management's report on internal control, which names the firm in a sentence, does not open it."""
+    from app.core.models.enums import PageKind
+
+    pages = [(0, "UNITED STATES SECURITIES AND EXCHANGE COMMISSION FORM 10-K"),
+             (1, "Management's Report on Internal Control over Financial Reporting\nManagement is "
+                 "responsible for establishing and maintaining adequate internal control. Our "
+                 "independent registered public accounting firm has issued an audit report."),
+             (2, "REPORT OF INDEPENDENT REGISTERED PUBLIC ACCOUNTING FIRM\nTo the Shareholders and "
+                 "the Board of Directors\nOpinion on the Financial Statements"),
+             (3, "CONSOLIDATED STATEMENTS OF OPERATIONS\n(In millions)")]
+    doc = SimpleNamespace(pages=[
+        PageSource(index=0, kind=PageKind.COVER), PageSource(index=1, kind=PageKind.OTHER),
+        PageSource(index=2, kind=PageKind.OTHER),
+        PageSource(index=3, kind=PageKind.FACE, statement="profit_and_loss",
+                   evidence={"matched_title": "CONSOLIDATED STATEMENTS OF OPERATIONS"})])
+    assert text_lines.report_openings(pages, doc) == [2]
+
+
 def test_a_face_is_anchored_by_the_title_the_run_identified_it_by_not_by_a_running_header(items):
     """statement_type names 年度报告, which the running header prints on every page, the faces
     included: it is not sent the faces. rounding names 资产负债表, which both balance sheets' titles

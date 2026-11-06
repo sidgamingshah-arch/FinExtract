@@ -15,8 +15,8 @@ WHAT IT DECIDES, and why:
   template (`NOTE_LINES`): the supplemental cash flow disclosures, debt maturities, principal and
   fair value, the current and deferred tax and the effective tax rate, the inventory split,
   property at cost and accumulated depreciation, the auditor's report (the firm, the opinion's
-  heading and sentences, the internal-control opinion, the going-concern paragraph, the first
-  critical audit matter), contingent liabilities and related-party transactions. They are the
+  heading and sentences, the internal-control opinion, the going-concern paragraph, up to three
+  critical audit matters), contingent liabilities and related-party transactions. They are the
   only lines not read off a statement's face, and none of them feeds a statement's arithmetic.
 * THE LINES ARE THE ROWS 10-K FILERS PRINT MOST. Which rows those are is not guessed: the face
   rows of the XBRL financial data filed with 10-Ks, ranked by how often a filer prints each one,
@@ -1077,8 +1077,8 @@ SCOPE_OVERRIDES = {"cf_financing__end_of_period_cash_and_cash_equiv": ["cf_top_l
 #     year captions lost or cut to "Fiscal", and a "Thereafter" row pattern put this year's figure
 #     in the prior year;
 #   * TEXT is lifted off the page as printed (`phrase`) and checked against that page: the
-#     auditor, the opinion heading and sentences, the going-concern paragraph, the first critical
-#     audit matter, the contingencies and related-party sentences, and the effective tax rate with
+#     auditor, the opinion heading and sentences, the going-concern paragraph, up to three
+#     critical audit matters, the contingencies and related-party sentences, and the effective tax rate with
 #     its percent sign, so no statement unit can scale it. Nothing is GENERATED: a `prose` line
 #     cannot be loaded (its prompt is folded into the definition before the check that requires
 #     one) and nothing downstream reads one (`services.text_lines`), and a written summary could
@@ -1144,6 +1144,9 @@ _RP_TERMS = ["related party transactions", "related parties", "transactions with
 # The title a 10-K's auditor's report prints at its head: the name that sends a text line the page.
 _REPORT = ["Report of Independent Registered Public Accounting Firm"]
 _YEAR_WORDS = {1: "first", 2: "second", 3: "third", 4: "fourth", 5: "fifth"}
+# A 10-K's auditor's report communicates one to three critical audit matters, each under its title:
+# a copied text is one span of the page, so each is a line of its own.
+_ORDINAL = _YEAR_WORDS
 
 NOTE_LINES = {
     "notes_cash": [
@@ -1298,11 +1301,13 @@ NOTE_LINES = {
           "continue as a going concern. Empty when the report includes no such paragraph.",
           route="anywhere", structure="phrase", note=NS(terms=_AUDIT_TERMS + ["going concern"]),
           aliases=_REPORT),
-        N("notes_audit__critical_audit_matter", "Critical audit matter",
-          "The title of the first critical audit matter the auditor's report communicates, copied "
-          "as printed (for example 'Uncertain Tax Positions'); or the report's sentence stating that "
-          "there are no critical audit matters.",
-          route="anywhere", structure="phrase", note=NS(terms=_AUDIT_TERMS), aliases=_REPORT),
+        *[N(f"notes_audit__critical_audit_matter_{n}", f"Critical audit matter {n}",
+            f"The title of the {_ORDINAL[n]} critical audit matter the auditor's report "
+            f"communicates, copied as printed (for example 'Uncertain Tax Positions')"
+            + ("; or the report's sentence stating that there are no critical audit matters."
+               if n == 1 else f". Empty when the report communicates fewer than {n}."),
+            route="anywhere", structure="phrase", note=NS(terms=_AUDIT_TERMS), aliases=_REPORT)
+          for n in (1, 2, 3)],
     ],
     "notes_contingencies": [
         N("notes_contingencies__assessment", "Contingencies: the filer's assessment",

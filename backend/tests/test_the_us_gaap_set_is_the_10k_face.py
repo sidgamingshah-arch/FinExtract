@@ -135,7 +135,8 @@ def test_the_additional_items_are_the_ones_agreed(raw):
             "notes_audit__auditor", "notes_audit__opinion_type",
             "notes_audit__opinion_on_financial_statements",
             "notes_audit__opinion_on_internal_control", "notes_audit__going_concern",
-            "notes_audit__critical_audit_matter", "notes_contingencies__assessment",
+            "notes_audit__critical_audit_matter_1", "notes_audit__critical_audit_matter_2",
+            "notes_audit__critical_audit_matter_3", "notes_contingencies__assessment",
             "notes_contingencies__guarantees_and_letters_of_credit",
             "notes_contingencies__accrued_loss_contingencies",
             "notes_contingencies__purchase_obligations", "notes_related__disclosure",
@@ -231,6 +232,21 @@ def test_a_note_row_that_is_not_the_line_is_not_read(raw, key, title, caption):
                and not any(re.search(p, caption, re.IGNORECASE)
                            for p in note.get("row_caption_none", ())))
     assert not (titled and counted), (key, title, caption)
+
+
+def test_a_focus_run_asks_every_additional_item_and_nothing_of_another_set(raw):
+    """The deployment asks the model only about `llm_focus_keys`, and most additional items are the
+    model's alone. Each group is named by a pattern no other shipped set's key begins with."""
+    from app.config import get_settings
+
+    named = get_settings().extraction.llm_focus_keys
+    ours = tuple(k[:-1] for k in named if k.endswith("*") and k.startswith("notes_"))
+    for item in _additional_items(raw):
+        assert item["key"].startswith(ours), item["key"]
+    for other in ("output_csv_hk_line_items.json", "output_csv_indas_line_items.json",
+                  "output_csv_icon_line_items.json"):
+        keys = [i["key"] for i in json.loads((TEMPLATES / other).read_text("utf-8"))["items"]]
+        assert not [k for k in keys if k.startswith(ours)], other
 
 
 def test_the_debt_maturities_are_cited_from_the_page(raw):
