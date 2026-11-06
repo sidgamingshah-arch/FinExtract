@@ -847,6 +847,42 @@
         "en": "Net income attributable to the company"
        },
        "role": "line"
+      },
+      {
+       "node_id": "is_pl__eps_basic",
+       "canonical_key": "is_pl__eps_basic",
+       "label": "Earnings per share — basic",
+       "label_i18n": {
+        "en": "Earnings per share — basic"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "is_pl__eps_diluted",
+       "canonical_key": "is_pl__eps_diluted",
+       "label": "Earnings per share — diluted",
+       "label_i18n": {
+        "en": "Earnings per share — diluted"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "is_pl__weighted_average_shares_basic",
+       "canonical_key": "is_pl__weighted_average_shares_basic",
+       "label": "Weighted-average shares — basic",
+       "label_i18n": {
+        "en": "Weighted-average shares — basic"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "is_pl__weighted_average_shares_diluted",
+       "canonical_key": "is_pl__weighted_average_shares_diluted",
+       "label": "Weighted-average shares — diluted",
+       "label_i18n": {
+        "en": "Weighted-average shares — diluted"
+       },
+       "role": "line"
       }
      ]
     }

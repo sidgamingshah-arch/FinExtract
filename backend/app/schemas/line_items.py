@@ -60,6 +60,7 @@ from typing import Callable, Iterable, Literal
 from pydantic import BaseModel, ConfigDict, Field, model_serializer, model_validator
 
 from app.core.models.enums import StatementType
+from app.core.models.line_item import Measure
 from app.schemas.ontology import (
     AliasMatching,
     Binding,
@@ -956,6 +957,29 @@ class LineItemDef(BaseModel):
     # exception can state one; `None` is the discriminator, which works here precisely because the
     # field has no non-null default.
     unit_of_account: UnitOfAccount | None = None
+    # WHAT THE LINE'S FIGURE MEASURES — money (the default), an amount PER SHARE, or a count of
+    # SHARES. See `core.models.line_item.Measure`. A NEW QUESTION, not `unit_of_account` in other
+    # words: that one says whether a figure is a position, a movement or a subtotal (and
+    # `rollups` reads `subtotal` to find the subtotals), while this says what the figure is
+    # counted in — earnings per share is a movement over the year AND an amount per share.
+    #
+    # READ WHEREVER A FIGURE'S SCALE IS APPLIED OR REPORTED. The row reader gives every row of a
+    # page its header's scale, so `services.units.stamp_measures` restates the unit of every
+    # figure bound to such a line — "USD per share", "shares (thousands)" — and the request text,
+    # the served rows and the exports read that unit rather than the statement's: no export
+    # converts it with the money figures. Written to a stored set only where it is not "money"
+    # (`_measure_only_when_declared`), so every set authored before the field reads back as it was.
+    measure: Measure = "money"
+
+    @model_serializer(mode="wrap")
+    def _measure_only_when_declared(self, handler):
+        # The same rule as `Term.received`: a stored set that predates the field, and every money
+        # line written after it, dumps byte for byte as before — the HK, Ind AS and ICON sets are
+        # compared against their files.
+        out = handler(self)
+        if isinstance(out, dict) and self.measure == "money":
+            out.pop("measure", None)
+        return out
     # An EXPECTATION, never a transformation — `sign_rule` performs the flip. Distinct again from
     # `Term.sign`, which is arithmetic inside one formula.
     sign_convention: SignExpectation | None = None
@@ -1104,6 +1128,13 @@ class LineItemDef(BaseModel):
                 f"{self.key}: a `{self.output_structure}` line is text, and a `{self.type}` line "
                 f"gets its value from arithmetic — there is no calculation that produces a "
                 f"sentence. Set the type to `extracted`, or the output structure back to `value`.")
+        # A MEASURE IS SAID OF A FIGURE. A text line holds words, and a per-share or share-count
+        # unit on it would be a unit over no number.
+        if self.measure != "money" and self.output_structure != "value":
+            raise ValueError(
+                f"{self.key}: `measure: {self.measure}` says what a figure is counted in, and a "
+                f"`{self.output_structure}` line holds text. Set the measure back to `money`, or "
+                f"the output structure back to `value`.")
         # PROSE IS SPECIFIED BY THE PROMPT AND BY NOTHING ELSE. With no prompt there is nothing to
         # generate from, so the line would publish an empty cell for a reason no reader could see.
         if self.output_structure == "prose" and not self.prompt.strip():

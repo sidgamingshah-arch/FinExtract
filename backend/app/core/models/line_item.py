@@ -13,7 +13,7 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, model_serializer, model_validator
 
 from .confidence import ConfidenceVector
 from .enums import (
@@ -28,6 +28,24 @@ from .enums import (
 from .geometry import Provenance
 
 
+# WHAT A FIGURE MEASURES. A statement's header gives one scale to every row of its page —
+# "(In millions, except number of shares, which are reflected in thousands, and per-share
+# amounts)" — and the row reader writes it onto every fact there, so a 10-K's "Basic $ 6.12"
+# carried scale 1,000,000 beside the revenue it was printed under. The header itself says the
+# opposite: a per-share amount is in currency units per share, and a share count is a number of
+# shares in whatever scale the header gives SHARES. Neither is money in the statement's scale.
+#
+#   "money"      the default, and every fact a line does not say otherwise of
+#   "per_share"  an amount per share: `currency` is the figure's own, `scale_factor` is 1 (0.01
+#                for one printed in cents), and no monetary scale ever applies
+#   "shares"     a count of shares: no currency, and `scale_factor` is the SHARE scale the
+#                filing states (1,000 for "shares in thousands"), never the statement's money one
+#
+# Set by `services.units.stamp_measures` from the line's own declaration (`LineItemDef.measure`),
+# so a fact is re-unitised only where a configured line says what it measures.
+Measure = Literal["money", "per_share", "shares"]
+
+
 class UnitContext(BaseModel):
     """Detected scale + currency for a value, at its most-specific scope."""
 
@@ -37,6 +55,19 @@ class UnitContext(BaseModel):
     scale_factor: Decimal = Decimal(1)   # lakh=1e5, crore=1e7, thousand=1e3, million=1e6
     units_label: str | None = None
     source_bbox_page: int | None = None
+    # See `Measure`. Read through `services.units.measure_of`, which every reader that applies or
+    # reports a scale asks first.
+    measure: Measure = "money"
+
+    @model_serializer(mode="wrap")
+    def _measure_only_when_not_money(self, handler):
+        # WRITTEN ONLY WHERE IT SAYS SOMETHING, so every stored fact that predates the field — and
+        # every money fact written after it — dumps exactly as it did. A run's facts are stored as
+        # JSON and compared, and a key added to all of them would change every one of them.
+        out = handler(self)
+        if isinstance(out, dict) and self.measure == "money":
+            out.pop("measure", None)
+        return out
 
 
 class NoteRef(BaseModel):

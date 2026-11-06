@@ -561,6 +561,7 @@ def _statement_unit(doc, basis: str):
     scale already agreed with the document's.
     """
     from app.core.models.enums import PrintedIn
+    from app.services.units import MONEY, measure_of
 
     counts: dict[tuple[str, str], int] = {}
     first: dict[tuple[str, str], object] = {}
@@ -572,7 +573,9 @@ def _statement_unit(doc, basis: str):
                     or _basis(ev) != basis):
                 continue
             uc = getattr(ev, "unit_ctx", None)
-            if uc is None:
+            # A per-share amount or a share count is not in the statement's unit, and a figure
+            # written beside the statement's rows must not take theirs (`units.stamp_measures`).
+            if uc is None or measure_of(uc) != MONEY:
                 continue
             key = (uc.currency or "", str(uc.scale_factor))
             counts[key] = counts.get(key, 0) + 1

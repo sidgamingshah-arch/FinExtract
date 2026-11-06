@@ -247,7 +247,10 @@ def build_rows_json(rows: list[dict], *, filename: str, disclosures: list[dict] 
                 **({"disclosure": r["disclosure"]} if r.get("disclosure") else {}),
                 "values": [
                     {"period": v.get("period_label"), "basis": v.get("basis"),
-                     "value": v.get("value"), "source": _prov_str(v.get("provenance"))}
+                     "value": v.get("value"), "source": _prov_str(v.get("provenance")),
+                     # What a figure that is not money is in — "USD per share", "shares
+                     # (thousands)" — where the document's units would mislabel it.
+                     **({"measure": v["measure"], "unit": v.get("unit")} if not_money(v) else {})}
                     for v in (r.get("values") or [])
                 ],
             }
@@ -276,6 +279,38 @@ def build_rows_json(rows: list[dict], *, filename: str, disclosures: list[dict] 
     return json.dumps(payload, indent=2, ensure_ascii=False).encode("utf-8")
 
 
+# A FIGURE THAT IS NOT MONEY IS NOT CONVERTED. `units_scale` turns the document's MONEY scale into
+# the requested one, and every builder below used to apply it to every figure — so earnings per
+# share printed $6.12 under "(In millions, except per-share amounts)" went out as 6,120,000 in
+# absolute units, and a share count in thousands was multiplied by the money scale too. A served
+# figure that measures something else says so (`routes.extractions._measure_fields`: "measure" and
+# "unit"), and it is written as printed, at the precision it was printed, with its unit beside it.
+_NOT_MONEY = ("per_share", "shares")
+# A per-share amount keeps its cents; the sheets' money format rounds to the unit.
+PER_SHARE_FORMAT = "#,##0.00##;(#,##0.00##)"
+
+
+def not_money(v: dict | None) -> bool:
+    """Whether a served figure measures something no money scale converts."""
+    return (v or {}).get("measure") in _NOT_MONEY
+
+
+def measured_lines(rows: list[dict]) -> dict[str, tuple[str, str]]:
+    """``{canonical_key: (measure, unit)}`` for every line whose served figures are not money."""
+    out: dict[str, tuple[str, str]] = {}
+    for r in rows:
+        key = r.get("canonical_key")
+        for v in (r.get("values") or []):
+            if key and key not in out and not_money(v):
+                out[key] = (str(v["measure"]), str(v.get("unit") or v["measure"]))
+    return out
+
+
+def unit_note(unit: str) -> str:
+    """A unit as a row label carries it: "(USD per share)", "(shares, thousands)"."""
+    return f"({unit.replace(' (', ', ').rstrip(')')})" if unit else ""
+
+
 _TARGET_UNIT_SCALE = {"absolute": 1.0, "thousands": 1e3, "lakh": 1e5, "lakhs": 1e5,
                       "millions": 1e6, "million": 1e6, "crore": 1e7, "crores": 1e7,
                       "billions": 1e9, "billion": 1e9}
@@ -302,7 +337,10 @@ def build_rows_xlsx(rows: list[dict], *, filename: str, scale: float = 1.0) -> b
     confidence, and the source cell/page of the first value for traceability."""
     import openpyxl
 
-    def _sc(v):
+    def _sc(v, served=None):
+        # A per-share amount or a share count is written exactly as an unconverted figure is.
+        if not_money(served):
+            return v
         n = _num(v)
         return round(n * scale) if (n is not None and scale != 1.0) else v
 
@@ -326,7 +364,7 @@ def build_rows_xlsx(rows: list[dict], *, filename: str, scale: float = 1.0) -> b
             r.get("canonical_key") or "",
             r.get("mapping_method") or "",
             f"{round(conf * 100)}%" if isinstance(conf, (int, float)) else "",
-            _sc(current), _sc(prior),
+            _sc(current, cur_v), _sc(prior, prior_v),
             r.get("formula") or "",                       # edited-item formula, if any
             _prov_str(values[0].get("provenance")) if values else "",
         ])
@@ -474,8 +512,11 @@ def build_rows_csv(rows: list[dict], *, locale: str = "en", scale: float = 1.0) 
     for r in rows:
         by_slot = {_slot_key(v): v for v in (r.get("values") or [])}
         label = str(r.get("source_label") or r.get("canonical_key") or "")
+        # A per-share amount or a share count is carried as printed whatever units were asked for
+        # (`not_money`).
         out.writerow([_csv_safe(label),
-                      *(_csv_figure((by_slot.get(k) or {}).get("value"), scale) for k in keys)])
+                      *(_csv_figure((by_slot.get(k) or {}).get("value"),
+                                    1.0 if not_money(by_slot.get(k)) else scale) for k in keys)])
     # utf-8-SIG: the byte-order mark is what makes Excel open the file as UTF-8. Without it Excel
     # on Windows reads a CSV as the system code page, so a Chinese, Arabic or French caption — this
     # product supports all three — arrives as mojibake in the export whose whole content is
@@ -666,6 +707,9 @@ def build_statement_workbook(rows: list[dict], template_def: dict, *, locale: st
         if r.get("canonical_key"):
             by_key.setdefault(r["canonical_key"], []).append(r)
     bases = _bases_present(rows)
+    # The lines whose figures are per-share amounts or share counts: written as printed, in their
+    # own unit, under a caption that states the money one (`not_money`).
+    measured = measured_lines(rows)
 
     # The template's CALCULATED lines, evaluated from their components — the same evaluation the
     # statement view uses, so the workbook and the screen cannot show a different subtotal. What
@@ -765,7 +809,7 @@ def build_statement_workbook(rows: list[dict], template_def: dict, *, locale: st
         r = hc + 1
         r = _emit_nodes(ws, stmt.get("sections", []), by_key, period_cols, first_val, conf_col,
                         src_col, locale, r, section_fill, total_fill, thin_top, dbl_top, right,
-                        num_fmt, ink, scale, calc, links)
+                        num_fmt, ink, scale, calc, links, measured)
 
         ws.freeze_panes = ws.cell(hc + 1, 1)
         ws.column_dimensions["A"].width = 46
@@ -1149,7 +1193,7 @@ def _emit_disclosure_working(ws, d: dict, ri: int, wrap, num_fmt, right) -> int:
 
 def _emit_nodes(ws, nodes, by_key, period_cols, first_val, conf_col, src_col, locale, r,
                 section_fill, total_fill, thin_top, dbl_top, right, num_fmt, ink, scale=1.0,
-                calc=None, links=None):
+                calc=None, links=None, measured=None):
     from openpyxl.styles import Alignment, Font
 
     for node in nodes:
@@ -1158,6 +1202,13 @@ def _emit_nodes(ws, nodes, by_key, period_cols, first_val, conf_col, src_col, lo
         group = by_key.get(key) or []
         row = group[0] if group else None
         label = _label(node, locale)
+        # A PER-SHARE AMOUNT OR A SHARE COUNT, under a caption stating the money unit: its label
+        # says its own, its figure is not converted, and a per-share amount keeps its cents.
+        measure, unit = (measured or {}).get(key, (None, ""))
+        if measure:
+            label = f"{label} {unit_note(unit)}"
+        line_scale = 1.0 if measure else scale
+        line_fmt = PER_SHARE_FORMAT if measure == "per_share" else num_fmt
 
         # A node that carries no figure: a section heading, or a `LineRole.SPACER` gap. Asked with the
         # same predicate `routes.templates` asks for its tree walk and its `line_items` count, so the
@@ -1180,7 +1231,7 @@ def _emit_nodes(ws, nodes, by_key, period_cols, first_val, conf_col, src_col, lo
             for child in node.get("children", []):
                 r = _emit_nodes(ws, [child], by_key, period_cols, first_val, conf_col, src_col,
                                 locale, r, section_fill, total_fill, thin_top, dbl_top, right,
-                                num_fmt, ink, scale, calc, links)
+                                num_fmt, ink, scale, calc, links, measured)
             continue
 
         is_bold = role in ("subtotal", "total")
@@ -1214,11 +1265,11 @@ def _emit_nodes(ws, nodes, by_key, period_cols, first_val, conf_col, src_col, lo
                     calc_notes.append(f"{_col('Current' if p == 'current' else 'Prior', locale)}: "
                                       f"printed {printed:,.0f}; none of this line's components "
                                       f"were extracted, so it could not be recomputed")
-            if val is not None and scale != 1.0:
-                val = round(val * scale)
+            if val is not None and line_scale != 1.0:
+                val = round(val * line_scale)
 
             cell = ws.cell(r, ci, val)
-            cell.number_format = num_fmt
+            cell.number_format = line_fmt
 
             # LINKED TO THE LINE ITEMS SHEET AS A HYPERLINK, KEEPING THE FIGURE IN THE CELL.
             #

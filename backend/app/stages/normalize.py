@@ -513,6 +513,17 @@ class NormalizeStage:
         if _negate_on_load_declared(ontology):
             self._negate_unsigned_expenses(doc, ctx, expected_sign)
         self._check_expectations(doc, ctx, ontology, expected_sign, temporality, unit_of_account)
+        # A PER-SHARE AMOUNT OR A SHARE COUNT IS NOT IN THE STATEMENT'S MONEY SCALE, whatever the
+        # page's header gave the row (`services.units.stamp_measures`). Here for the rows the
+        # caption match bound — after `_check_expectations`, which may unbind one — so the request
+        # the model is sent already states their unit; `LineItemLlmStage` repeats it for the
+        # figures the model's citations put on a line (and the printed rows they cite), and
+        # `AssembleComponentsStage` once more after every route has written. A no-op for a set
+        # whose lines declare no measure.
+        from app.services.units import stamp_measures
+
+        stamp_measures(doc, getattr(ctx, "line_items", None), raw=getattr(ctx, "raw_bytes", None),
+                       log=ctx.log)
         return doc
 
     @staticmethod
