@@ -28,6 +28,7 @@ from dataclasses import dataclass, field, replace
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from functools import lru_cache
+from itertools import pairwise
 
 from app.core.models.confidence import ConfidenceVector
 from app.core.models.enums import Basis, LineRole, ValueSource
@@ -819,6 +820,29 @@ def enumerated_rows(on: bool):
         _ENUMERATED_ROWS.reset(token)
 
 
+# A YEAR THAT IS A ROW'S CAPTION, not a figure. A 10-K debt note prints its future principal
+# payments one row per fiscal year — "2026  $ 10,950" / "2027  12,342" / … / "Thereafter  51,160" —
+# and a retailer's prints "Fiscal 2027  $ 2,598". Read token by token the year is a number, so it
+# went to the values: "2026" left its row with no caption at all (the row was then dropped, or took
+# the column heading "Amount" above it as a wrapped caption) and "Fiscal 2027" came back "Fiscal".
+# Measured on three synthetic 10-K notes, northwind's maturity table lost 2027–2030 outright, and
+# bluegate's five year rows all read "Fiscal".
+#
+# DECIDED BY GEOMETRY, in `build_line_items`, where the page's value columns are known — see
+# `_caption_years` — and handed to `_scan_row` through this variable, because the wrap merge and
+# every helper it calls scan rows on their own and must read the same caption. The words are held
+# BY IDENTITY (id -> the word itself), so a stale entry can only ever match the very word it was
+# decided for, never a later word that happens to reuse its id.
+_CAPTION_YEARS: ContextVar[dict[int, Word] | None] = ContextVar("caption_years", default=None)
+_CAPTION_YEAR = re.compile(r"^(?:19|20)\d{2}$")
+
+
+def _is_caption_year(w: Word) -> bool:
+    """Whether ``w`` was decided to be a year printed as its row's caption (`_caption_years`)."""
+    held = _CAPTION_YEARS.get()
+    return bool(held) and held.get(id(w)) is w
+
+
 def _bare_subtotal_of(value_words: list[Word],
                       recent: list[tuple[int, float, list[tuple[float, Decimal]]]],
                       headings: list[tuple[str, float, int]],
@@ -925,6 +949,11 @@ def _scan_row(row: list[Word], fmt=None, *, extract_note_refs: bool = True,
         i = 1
     while i < len(row):
         tok = row[i].text.strip()
+        # A YEAR PRINTED AS THE ROW'S CAPTION — "2026", "Fiscal 2027" — see `_CAPTION_YEARS`.
+        if not value_words and _is_caption_year(row[i]):
+            label_words.append(row[i])
+            i += 1
+            continue
         if (extract_note_refs and _NOTE.match(tok) and i + 1 < len(row) and _is_note_ref_token(row[i + 1].text)
                 and not (i and _tight_after(row[i - 1], row[i]))):
             note_ref = _note_ref_value(row[i + 1].text)
@@ -4197,6 +4226,48 @@ def _period_bands(rows: list[list[Word]], fmt=None) -> list[tuple[str, float]]:
     return best
 
 
+def _bands_from_a_sentence(rows: list[list[Word]], bands: list[tuple[str, float]],
+                           figures_from: float) -> bool:
+    """Whether a note's period bands were read off ONE RUN OF PROSE, set wholly left of its figures.
+
+    A note section is everything from its heading down, so its header region holds the note's
+    prose as well as the table's header — and the wrapped last line of a sentence naming two years
+    is read as a two-column header and wins, being printed first. Alphabet's 2025 10-K, note 7:
+    "The allowance for credit losses on accounts receivable was $879 million and $924 million as of
+    December 31," / "2024 and 2025, respectively." stands above the property and equipment table
+    headed "As of December 31," over "2024 | 2025". Both value columns took the nearer of the
+    sentence's two years, "2025", so no heading told them apart, the order fell back to position,
+    and the 2024 column — printed first — was read as the current year: accumulated depreciation
+    published current -79,390 (2024's) and prior -98,485 (2025's).
+
+    Two column headings stand apart, each over its own figures; a sentence's two years are joined
+    by its words ("2024 and 2025"). The same test `_basis_bands` makes of "The Group and the
+    Company…". Held to the shape measured: every band's phrase is a word of one tight run
+    (`_x_runs`), the run carries a word that is no part of a date, and the whole row stands left of
+    the figures (``figures_from``, the value area's left edge). No note of the five reference
+    filings or the two Ind AS ones has its bands read this way.
+    """
+    for row in rows:
+        ordered = sorted(row, key=lambda w: w.bbox.x0)
+        runs = _x_runs(ordered, _CAPTION_GAP)
+        hit_runs = set()
+        for text, x in bands:
+            parts = set(text.split())
+            idx = [k for k, run in enumerate(runs) for w in run
+                   if w.text.strip(" .,") in parts and abs(_xc(w) - x) <= 0.06]
+            if not idx:
+                break
+            hit_runs.add(idx[0])
+        else:
+            if len(hit_runs) != 1:
+                continue
+            run = runs[hit_runs.pop()]
+            if max(w.bbox.x1 for w in ordered) >= figures_from:
+                continue
+            return any(not _DATEISH_WORD.match(w.text.strip(" .,") or w.text) for w in run)
+    return False
+
+
 def _period_for(x: float, bands: list[tuple[str, float]]) -> str | None:
     """The detected period label whose column is nearest this value's x-centre, or None."""
     if not bands:
@@ -7110,10 +7181,43 @@ _MATURITY_HEADING = re.compile(r"^(?:maturity|maturities|到期日?|到期日期
 _MATURITY_CELL = re.compile(r"^(?:19|20)\d{2}(?:\s*[~\-–—至]\s*(?:19|20)\d{2})?$")
 
 
+def _same_line(a: Word, b: Word) -> bool:
+    """Whether two words are printed on one line: they share at least half of ``a``'s height."""
+    h = max(a.bbox.y1 - a.bbox.y0, 1e-4)
+    return min(a.bbox.y1, b.bbox.y1) - max(a.bbox.y0, b.bbox.y0) >= 0.5 * h
+
+
+#: The one word a schedule may print before its year: "Fiscal 2027", "FY 2027", "Year 2027".
+_YEAR_LEAD = re.compile(r"^(?:fiscal|fy|year)$", re.IGNORECASE)
+
+
+def _captions_its_row(w: Word, words: list[Word]) -> bool:
+    """Whether a year is printed as its ROW'S CAPTION — the first word of its line, or the year of
+    "Fiscal 2027" set tight after its one lead word (`_YEAR_LEAD`) — rather than in a cell beside a
+    caption."""
+    before = [o for o in words if o is not w and o.bbox.x1 <= w.bbox.x0 + 1e-6 and _same_line(w, o)]
+    if not before:
+        return True
+    return (len(before) == 1 and bool(_YEAR_LEAD.match(before[0].text.strip()))
+            and _tight_after(before[0], w))
+
+
 def _without_maturity_years(words: list[Word]) -> list[Word]:
     """Words with every year printed under a "Maturity" column heading removed — see
     `_MATURITY_HEADING`. A word is that column's when its centre is inside the heading's span
-    (with a little slack for a right-aligned cell) and it sits below the heading."""
+    (with a little slack for a right-aligned cell) and it sits below the heading.
+
+    A MATURITY CELL STANDS BESIDE ITS ROW'S CAPTION, never in place of it — Far East Horizon prints
+    a caption and a rate before each. Two 10-K maturity tables put their year CAPTIONS under a
+    "maturities" that heads no column, and lost them to this: bluegate's "Fiscal 2027" … "Fiscal
+    2031" under the word in the sentence introducing the table ("Annual maturities of long-term
+    debt during the next five years …"), which left five rows captioned "Fiscal"; and cascade's
+    "2026" … "2030" under the table's own title "Maturities", which left the rows with no caption
+    and every figure but the first dropped. Under a Latin heading, a year that captions its row
+    (`_captions_its_row`) is kept. Every other year is removed as before — including a dated
+    caption's ("As at 31st March 2026") under such a sentence, which Asian Paints prints and which
+    this deliberately leaves as it was read.
+    """
     heads = [w for w in words if _MATURITY_HEADING.match(w.text.strip())]
     if not heads:
         return words
@@ -7122,10 +7226,67 @@ def _without_maturity_years(words: list[Word]) -> list[Word]:
         if not _MATURITY_CELL.match(w.text.strip()):
             continue
         xc = (w.bbox.x0 + w.bbox.x1) / 2
-        if any(h.bbox.x0 - 0.03 <= xc <= h.bbox.x1 + 0.03 and w.bbox.y0 > h.bbox.y1 - 1e-6
-               for h in heads):
-            drop.add(id(w))
+        under = [h for h in heads
+                 if h.bbox.x0 - 0.03 <= xc <= h.bbox.x1 + 0.03 and w.bbox.y0 > h.bbox.y1 - 1e-6]
+        if not under:
+            continue
+        if all(_LATIN.search(h.text) for h in under) and _captions_its_row(w, words):
+            continue
+        drop.add(id(w))
     return [w for w in words if id(w) not in drop] if drop else words
+
+
+def _caption_years(rows: list[list[Word]], value_bands: list[float], fmt=None,
+                   note_x: float | None = None) -> dict[int, Word]:
+    """The years printed in a note table's CAPTION column, as ``{id(word): word}`` — see
+    `_CAPTION_YEARS` for the 10-K maturity tables this reads.
+
+    THE SHAPE IS A SCHEDULE OF YEARS, and every condition is a veto:
+
+    * the year is the row's first figure-shaped word, a bare four-digit year, and either opens the
+      row or follows one lead word set tight before it ("Fiscal 2027", `_YEAR_LEAD`). A dated
+      caption — "As at March 31, 2025", "Balance as at 1st April 2025", "Income Tax Act, 1961" —
+      is not a schedule row, and keeps the reading `_label_keeping_its_date` gives it;
+    * it stands under NO value column and wholly left of the first one — the caption column — so a
+      column heading "Fiscal 2026 | Fiscal 2025" printed over the figures is never one;
+    * the row prints a real amount (grouped, or of three digits or more, and no date fragment)
+      under one of the value columns, and is not the page's folio;
+    * there are two such rows or more, and their years run on one by one in printed order
+      (2026, 2027, …) — a caption fragment "2021" stranded on a line of its own is no schedule;
+    * NOTHING handed in carries Han text. A mainland note prints the same schedule (688008's
+      可抵扣亏损 by year of expiry), and is left exactly as it has been read; this is the Latin
+      layout only.
+    """
+    if not value_bands or any(_HAN.search(w.text) for row in rows for w in row):
+        return {}
+    first_band = min(value_bands)
+    found: list[tuple[float, int, Word]] = []
+    for row in rows:
+        if _is_folio_row(row, fmt):
+            continue
+        label_words, _ref, value_words = _scan_row(row, fmt, extract_note_refs=False,
+                                                   note_x=note_x)
+        if len(value_words) < 2 or not _CAPTION_YEAR.match(value_words[0].text.strip()):
+            continue
+        year = value_words[0]
+        if label_words and not (len(label_words) == 1
+                                and _YEAR_LEAD.match(label_words[0].text.strip())
+                                and _tight_after(label_words[0], year)):
+            continue
+        if (_column_index(_xc(year), value_bands) is not None
+                or year.bbox.x1 > first_band - _COL_TOL):
+            continue
+        amounts = [w for w in value_words[1:]
+                   if _column_index(_xc(w), value_bands) is not None
+                   and _is_money_like(w.text, fmt)
+                   and not _is_date_ish(_num(w.text, fmt))]
+        if amounts:
+            found.append((year.bbox.y0, int(year.text.strip()), year))
+    found.sort(key=lambda f: f[0])
+    years = [y for _top, y, _w in found]
+    if len(years) < 2 or any(b != a + 1 for a, b in pairwise(years)):
+        return {}
+    return {id(w): w for _top, _y, w in found}
 
 
 def _fuse_wrapped_numbers(words: list[Word]) -> list[Word]:
@@ -7496,6 +7657,37 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
         bands_out.append(tuple(sorted({b.value for b, _x in bands})))
     reader_scope: dict = ({"rule": "band", "band": sorted({b.value for b, _x in bands})}
                           if bands else {})
+    # A YEAR PRINTED AS A ROW'S CAPTION — a 10-K maturity table's "2026" / "Fiscal 2027" — is read
+    # as caption from here on, by the wrap merge and by the row loop alike (`_CAPTION_YEARS`).
+    # Decided now that the value columns are known, and only in a note. Cleared again before the
+    # rows are returned.
+    caption_years = ({} if on_face else
+                     _caption_years(raw_rows, value_bands, number_format, note_x))
+    _CAPTION_YEARS.set(caption_years)
+    if caption_years:
+        # The years were read as figures above, and the period bands took the first row's year for
+        # a column's date. Re-read without them: the column a maturity table prints its amounts
+        # in is headed "Amount", not "2026".
+        period_bands = _period_bands(
+            [[w for w in r if id(w) not in caption_years] for r in raw_rows], number_format)
+        if log:
+            log(f"extract:page={page_index}:caption_years={len(caption_years)}")
+    # A SENTENCE NAMING TWO YEARS IS NOT A NOTE'S COLUMN HEADER — see `_bands_from_a_sentence`.
+    # The bands are read again from the words that stand over the figures, and taken only when that
+    # finds one heading per value column.
+    figure_area = (_value_area(value_bands, col_xs)
+                   if not on_face and len(period_bands) >= 2 and len(value_bands) >= 2 else None)
+    if (figure_area is not None
+            and _bands_from_a_sentence(raw_rows, period_bands, figure_area[0])):
+        over = [[w for w in r if _over_value_columns(_xc(w), figure_area)
+                 and id(w) not in caption_years] for r in raw_rows]
+        reread = _period_bands([r for r in over if r], number_format)
+        if len(reread) == len(value_bands):
+            if log:
+                log(f"extract:page={page_index}:period_headings_over_the_figures="
+                    f"{'|'.join(t for t, _x in reread)}"
+                    f"(not the sentence's {'|'.join(t for t, _x in period_bands)})")
+            period_bands = reread
     rows = _merge_wrapped_labels(raw_rows, number_format, steps, page_title=page_title,
                                  known=known_captions or frozenset(), on_face=on_face)
     if carry_caption:
@@ -8153,7 +8345,12 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
         # (their only "value" is a date fragment) — never a genuine financial line.
         row_vals = [d for d in (_num(w.text, number_format) for w in value_words) if d is not None]
         if (_is_noise_row(label, row_vals, steps, entity_signals, page_chrome)
-                and not (not on_face and _dated_balance_with_figures(label, row_vals))):
+                and not (not on_face and _dated_balance_with_figures(label, row_vals))
+                # A ROW CAPTIONED BY ITS YEAR ("2026  $ 10,950") reads as nothing but a period
+                # caption — which is what it is, of a ROW — and its figure is real. Only that
+                # reason is waived: a running header or page chrome stays noise.
+                and not (caption_years and any(_is_caption_year(w) for w in label_words)
+                         and _is_period_only_label(apply_pipeline(label, steps) or label))):
             continue
 
         # A heading is often printed on the SAME line as its first figure, so it never appears as
@@ -8420,6 +8617,7 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                                    page_index=page_index)
         if header_out is not None:
             header_out.append(named)
+    _CAPTION_YEARS.set(None)
     return items, ordinal
 
 
