@@ -74,6 +74,95 @@ REVENUE_BLOCK_FLAG = "revenue_block_part"
 _CLOSING_TOTAL = "is_pl__profit_loss_bef_extraord_items"
 
 
+# THE TWO HALVES OF EACH SIDE OF A BALANCE SHEET, and the banner the mapper reads the second under
+# — see `_balance_sheet_past_total`.
+_OTHER_HALF = {
+    "current_assets": ("non_current_assets", "Non-current assets"),
+    "non_current_assets": ("current_assets", "Current assets"),
+    "current_liabilities": ("non_current_liabilities", "Non-current liabilities"),
+    "non_current_liabilities": ("current_liabilities", "Current liabilities"),
+}
+
+
+def _balance_sheet_past_total(doc) -> dict[int, str | None]:
+    """``{id(row): section}`` for the balance-sheet rows the mapper reads OUTSIDE the banner the
+    reader carried over them: the section printed after the one that closed, or None for no
+    section. Rows not in it keep their banner.
+
+    THE BANNER A SECTION'S TOTAL HAS CLOSED. The reader carries a banner down the page until another
+    replaces it, and a US balance sheet prints "Current assets:", its rows, "Total current assets"
+    and then the non-current rows with no banner over them (the liabilities likewise). Read under
+    the carried "Current assets", 'Property and equipment, net' and 'Long-term debt' were refused
+    every non-current line, and the 10-K template scoped each of those lines to the current section
+    too, to let them bind. `face_context.block_context` closes a section at its own total and shows
+    such a row under no section; the mapper reads the same close.
+
+    BUT NOT AS "NO SECTION", WHICH LOSES THE SIDE. A banner past its total is wrong about which half
+    of the side the row is in, and still right about the side. Matched in no section, a 10-K's
+    'Deferred income taxes' printed among the long-term liabilities (2,835 / 2,618 on a test
+    layout) took the deferred tax ASSET line, which shares the caption, and the liability rows
+    swept after it followed it into the non-current assets. A side's two halves are printed one
+    after the other, so a row after one half's own total, under no banner of its own, is in the
+    other half — the non-current assets after "Total current assets", the long-term liabilities
+    after "Total current liabilities"; on an IFRS face, which prints the non-current half first,
+    the current half after it — unless that half was already printed above it in the block. Where
+    there is no other half (equity), or it has been printed, or a grand total ("Total assets",
+    "NET CURRENT ASSETS", 资产总计, `face_context._GRAND_TOTAL`) ends the section, the row is
+    matched in no section, as the request text shows it: those rows are the statement's own totals,
+    whose lines no banner scopes.
+
+    WHAT IT CANNOT REACH. A row the reader gave no recognised banner keeps none (a balance sheet's
+    continuation page — the cash flow carries those, the balance sheet does not), and a banner
+    `block_context` still holds open is the row's section, as before. An HKEX, CAS or Ind AS face
+    opens every section with its own banner, so there what this changes is its grand and net totals
+    — "NET CURRENT ASSETS" and "TOTAL ASSETS LESS CURRENT LIABILITIES" after "Total current
+    liabilities", "Net assets", 资产总计 / 负债合计 under the non-current banner, "TOTAL ASSETS" and
+    "TOTAL EQUITY AND LIABILITIES" on a Schedule III face — the rows after an owners' equity total
+    under a banner naming the owners' share (PetroChina's "NON-CONTROLLING INTERESTS" and "TOTAL
+    EQUITY" under "EQUITY ATTRIBUTABLE TO OWNERS OF THE COMPANY:"), matched in no section, and a
+    row printed after a current section's total where the reader missed the non-current banner.
+    Measured on the statement pages of the five reference filings, the other five HKEX filings, two
+    more CAS filings and both Ind AS filings, every row it reaches in the statement set the
+    template reads binds the line it bound. (PetroChina's CAS sheet, which the HK template does
+    not read, prints its equity rows after "Total liabilities" under the carried non-current
+    banner; read, 'Undistributed profits' would bind retained earnings there, which the stale
+    banner refused.)
+
+    A row in several blocks (a Group and a Company column) is moved only if every block it is in
+    gives it the same section.
+    """
+    from app.services.face_context import (
+        _blocks_context,
+        _blocks_past_total,
+        _face_blocks,
+    )
+
+    blocks, _ = _face_blocks(doc, want={"balance_sheet"})
+    if not blocks:
+        return {}
+    under_of = _blocks_context(doc, blocks)
+    past_of = _blocks_past_total(doc, blocks)
+    answers: dict[int, set] = {}
+    for key, members in blocks.items():
+        read: set[str] = set()
+        for _page, row, _figures, _unit in sorted(members, key=lambda m: m[0]):
+            own = section_of_banner(row.section_hint or "")
+            answer = row.section_hint
+            if own is not None:
+                past = past_of.get((key, id(row)))
+                under = under_of.get((key, id(row)), ("", ""))[0]
+                if past is not None:
+                    half = _OTHER_HALF.get(section_of_banner(past) or "")
+                    answer = half[1] if half is not None and half[0] not in read else None
+                elif not under:
+                    answer = None
+                read.add(own)
+            answers.setdefault(id(row), set()).add(answer)
+    hints = {id(r): r.section_hint for r in (getattr(doc, "line_items", None) or ())}
+    return {rid: next(iter(got)) for rid, got in answers.items()
+            if len(got) == 1 and next(iter(got)) != hints.get(rid)}
+
+
 def _columns_of(li) -> set[tuple[str, str]]:
     """The (basis, period) columns one row carries."""
     return {(ev.basis.value, ev.period_label or "") for ev in li.values.values()}
@@ -887,21 +976,25 @@ class MapOntologyStage:
         # 'Interest received 已收利息' (98,096 / 141,979), printed under OPERATING beside the taxes
         # paid, took the INVESTING line's alias and left CFO for CFI. The request text has shown
         # these rows in the section in force since c582de1 (`face_context.block_context`); the
-        # mapper now reads the same answer where the row's own banner names no section. Cash flow
-        # only: a balance-sheet banner the reader carries past its section's total is a different
-        # question (see `block_context`), and its continuation rows are not this change's.
+        # mapper now reads the same answer where the row's own banner names no section.
+        #
+        # A BALANCE-SHEET ROW IS READ IN THE SECTION IN FORCE TOO, where a banner the reader
+        # carried past its section's total says otherwise — see `_balance_sheet_past_total`.
         from app.services.face_context import _blocks_context, _face_blocks
         _in_force: dict[int, str] = {}
+        _bs_section: dict[int, str | None] = {}
         try:
             _cf_blocks, _ = _face_blocks(doc, want={"cash_flow"})
             for (_block, row_id), (under, _sub) in _blocks_context(doc, _cf_blocks).items():
                 if under and section_of_banner(under) is not None:
                     _in_force.setdefault(row_id, under)
+            _bs_section = _balance_sheet_past_total(doc)
         except Exception as exc:  # noqa: BLE001 — a section the request text cannot place is no
             # reason to stop mapping; every row then keeps the banner it was read under.
-            ctx.log(f"map_line_items:cash_flow_section_in_force_unavailable({type(exc).__name__})")
-            _in_force = {}
+            ctx.log(f"map_line_items:section_in_force_unavailable({type(exc).__name__})")
+            _in_force, _bs_section = {}, {}
         _carried = [0]
+        _past = [0]
 
         def _section_for(li):
             heading = _split_heading.get(id(li))
@@ -912,6 +1005,9 @@ class MapOntologyStage:
                 if section_of_banner(banner) is None and id(li) in _in_force:
                     _carried[0] += 1
                     return _in_force[id(li)]
+                if id(li) in _bs_section:
+                    _past[0] += 1
+                    return _bs_section[id(li)]
                 return li.section_hint
             return heading
 
@@ -1057,6 +1153,10 @@ class MapOntologyStage:
             ctx.log(f"map_line_items:cash_flow_rows_in_section_in_force={_carried[0]} "
                     f"(read under no section of their own; matched in the section they are "
                     f"printed in)")
+        if _past[0]:
+            ctx.log(f"map_line_items:balance_sheet_rows_past_section_total={_past[0]} "
+                    f"(read under a banner whose section closed above them; matched in the "
+                    f"section printed after it, or in none)")
 
         # A note's pages do not carry a statement title, but its cited face row does. Map each
         # extracted detail row in that context so a disclosure can contribute a dedicated concept
