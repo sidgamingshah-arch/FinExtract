@@ -1697,6 +1697,16 @@ def _join_words(words: list[Word]) -> str:
     return " ".join(parts).strip()
 
 
+# A FACE CAPTION MAY RUN TO FIVE CONTINUATION LINES before its figures. A US balance sheet prints the
+# share capital as one caption carrying the par value, the shares authorised per class and the
+# shares issued and outstanding per class at both dates — Alphabet 2025 sets "Class A, Class B, and
+# Class C stock and additional paid-in capital, $0.001" over four more lines, the figures beside the
+# last. With three, the first line was let go as a row of its own and the line was published as
+# "par value per share: 300,000 shares authorized…", which names no concept. A note keeps three:
+# its pages are mostly prose, and a paragraph must not be glued onto the first figure below it.
+_FACE_WRAP_LINES = 5
+
+
 def _wrap_reaches_a_value(rows: list[list[Word]], idx: int, fmt=None,
                           steps: tuple[tuple[str, object], ...] = (), max_lines: int = 3,
                           nil_ends: bool = False) -> bool:
@@ -2180,7 +2190,8 @@ def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
             # …and the caption reaches a figure. Not necessarily on the NEXT row: a caption may
             # wrap over three or more lines, and requiring the value immediately dropped every line
             # but the last two (see `_wrap_reaches_a_value`).
-            and _wrap_reaches_a_value(rows, idx, fmt, steps, nil_ends=not on_face)
+            and _wrap_reaches_a_value(rows, idx, fmt, steps, nil_ends=not on_face,
+                                      max_lines=_FACE_WRAP_LINES if on_face else 3)
             and (_wrap_adjacent(_row_box(row), _row_box(nxt), _scan_row(nxt, fmt)[0])
                  # …or, on a bilingual face, each script's halves are — see
                  # `_wrap_adjacent_by_script`.

@@ -132,13 +132,17 @@ def test_the_focus_list_names_the_parts_and_not_only_the_wholes(shipped):
     payload a printed row was shown and the shortlist a per-caption call was given, and both went
     with the row request. A boundary asserted in a set nothing consults is not a boundary.
     """
-    # THE NAMED KEYS ONLY. A trailing "*" puts a whole set in focus by prefix (ICON's three
-    # patterns), so it names no line of this set and is not part of the count this test pins.
+    # THE NAMED KEYS ONLY. A trailing "*" puts a whole set in focus by prefix — ICON's three
+    # patterns, and the seven groups of the 10-K set's additional items — so it names no line of
+    # this set and is not part of the count this test pins.
     named = list(get_settings().extraction.llm_focus_keys or ())
     focus = {k for k in named if not k.endswith("*")}
-    assert {k for k in named if k.endswith("*")} == {"pl_icon__*", "bs_icon__*", "cov_icon__*"}
+    patterns = {k for k in named if k.endswith("*")}
+    assert patterns == {"pl_icon__*", "bs_icon__*", "cov_icon__*", "notes_cash__*", "notes_debt__*",
+                        "notes_tax__*", "notes_assets__*", "notes_audit__*", "notes_contingencies__*",
+                        "notes_related__*"}
     by_key = {i.key: i for i in shipped.items}
-    assert not any(k.startswith(("pl_icon__", "bs_icon__", "cov_icon__")) for k in by_key)
+    assert not any(k.startswith(tuple(p[:-1] for p in patterns)) for k in by_key)
     withheld = sorted(k for k in focus if k in by_key and not asked_about(by_key[k]))
     nameable = [k for k in focus if k in by_key and asked_about(by_key[k])]
 

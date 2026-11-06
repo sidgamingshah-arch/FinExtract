@@ -217,14 +217,16 @@ LINES = {
         L("bs_nca__long_term_investments", "Long-term investments",
           ["Long-term investments", "Long-term marketable securities", "Marketable securities",
            "Non-current marketable securities", "Investments", "Equity investments",
-           "Equity and other investments", "Other investments"],
+           "Equity and other investments", "Other investments", "Non-marketable securities",
+           "Non-marketable equity securities", "Non-marketable investments"],
           "Marketable securities and other investments held beyond a year: debt securities, equity "
           "securities and non-marketable investments. Investments accounted for by the equity "
           "method are the next line.",
           scope=NCA,
           exclude=[r"equity\s+method", r"affiliat", r"unconsolidated", r"subsidiar", r"short\s+term"],
           regex=[E + r"(?:long\s+term\s+|non\s*current\s+)?(?:marketable\s+securities|investments)"
-                 r"(?:\s+non\s*current)?$"]),
+                 r"(?:\s+non\s*current)?$",
+                 E + r"non\s*marketable\s+(?:equity\s+|debt\s+)?(?:securities|investments)$"]),
         L("bs_nca__equity_method_investments", "Equity method investments",
           ["Equity method investments", "Investments in and advances to affiliates",
            "Investments in unconsolidated affiliates", "Investments in affiliated companies",
@@ -493,8 +495,11 @@ LINES = {
           "Common stock at par or stated value, the caption usually carrying the par value and the "
           "shares authorised and issued. Where the face prints common stock and additional "
           "paid-in capital as one row, that row, and the next line is left empty.",
-          exclude=[r"treasury", r"repurchas"],
-          regex=[EB + r"(?:class\s+[a-c]\s+)?common\s+(?:stock|shares)\b.*$", EB + r"capital\s+stock\b.*$"]),
+          exclude=[r"treasury", r"repurchas", r"preferred"],
+          # "Class A, Class B, and Class C stock and additional paid-in capital, $0.001 par value…"
+          # (Alphabet) names its classes and never says "common".
+          regex=[EB + r"(?:class\s+[a-c]\s+)?common\s+(?:stock|shares)\b.*$", EB + r"capital\s+stock\b.*$",
+                 EB + r"(?:class\s+[a-z]\s+(?:and\s+)?){2,}(?:common\s+)?(?:stock|shares)\b.*$"]),
         L("bs_equity__additional_paid_in_capital", "Additional paid-in capital",
           ["Additional paid-in capital", "Capital in excess of par value", "Paid-in capital",
            "Capital surplus"],
@@ -875,6 +880,13 @@ LINES = {
           "Cash paid for property, plant and equipment (capital expenditures), with the negative "
           "sign the face gives it.",
           sign="either",
+          # A NON-CASH DISCLOSURE PRINTED BELOW THE CLOSING CASH is not the cash line. Alphabet
+          # 2025: "Supplemental disclosures of non-cash investing activities: Purchases of property
+          # and equipment included in accrued liabilities and accounts payable 15,090" sat under a
+          # heading naming investing activities, and the capex line took +15,090 on top of the
+          # -91,447 the face prints.
+          exclude=[r"\bincluded\s+in\b", r"non\s*cash", r"\bunpaid\b", r"\baccrued\b",
+                   r"finance\s+leases?"],
           regex=[PCF + r"(?:purchases?|acquisitions?|additions?|payments?\s+for(?:\s+(?:the\s+)?"
                  r"(?:purchase|acquisition)s?)?|expenditures?\s+for|investments?\s+in)\s+(?:of\s+|to\s+)?"
                  + _PPE + r"\b.*$",
@@ -898,6 +910,8 @@ LINES = {
           regex=[PCF + r"(?:payments?\s+(?:for|to\s+acquire)\s+)?(?:business(?:es)?\s+)?acquisitions?"
                  r"(?:\s+of\s+(?:businesses|companies|subsidiaries))?(?:\s+net\s+of\s+cash\s+acquired)?$",
                  PCF + r"payments?\s+to\s+acquire\s+businesses\b.*$",
+                 # "Acquisitions, net of cash acquired, and purchases of intangible assets" (Alphabet).
+                 PCF + r"(?:business\s+)?acquisitions?\s+net\s+of\s+cash\s+acquired\b.*$",
                  PCF + r"acquisitions?\s+of\s+(?:businesses|companies|subsidiaries)\b.*$"]),
         L("cf_investing__purchase_investments", "Purchases of investments",
           ["Purchases of marketable securities", "Purchases of investments",
@@ -1148,6 +1162,12 @@ _YEAR_WORDS = {1: "first", 2: "second", 3: "third", 4: "fourth", 5: "fifth"}
 # a copied text is one span of the page, so each is a line of its own.
 _ORDINAL = _YEAR_WORDS
 
+# THE NOTE THAT TABULATES CASH PAID names cash flows in its title. "Supplemental" alone is not
+# enough: Alphabet's "Note 7. Supplemental Financial Statement Information" prints the other income
+# table, and its "Interest expense (736)" was read as the interest paid.
+_SUPPLEMENTAL_CASH = [r"supplemental\s+cash\s+flows?", r"cash\s+flows?\s+(?:information|disclosures?)",
+                      r"supplemental\s+disclosures?\s+of\s+cash"]
+
 NOTE_LINES = {
     "notes_cash": [
         N("notes_cash__interest_paid", "Cash paid for interest",
@@ -1159,9 +1179,9 @@ NOTE_LINES = {
                    "Interest paid, net of capitalized interest", "Cash paid during the year for interest"],
           regex=[E + r"(?:cash\s+paid\s+(?:during\s+the\s+(?:year|period)\s+)?for\s+interest|interest\s+paid)\b.*$"],
           exclude=[r"received", r"income\s+tax"],
-          note=NS(title=[r"supplemental", r"cash\s+flow\s+information"],
+          note=NS(title=_SUPPLEMENTAL_CASH,
                   rows=[r"^\s*(?:cash\s+paid\s+(?:during\s+the\s+(?:year|period)\s+)?for\s+)?interest(?:\s+paid)?\b"],
-                  none=[r"received|income|capitali[sz]ed\s+interest\s*$"],
+                  none=[r"received|income|expense|\brate|capitali[sz]ed\s+interest\s*$"],
                   terms=["supplemental cash flow information", "cash paid for interest"])),
         N("notes_cash__income_taxes_paid", "Cash paid for income taxes",
           "Income taxes paid in cash during the year, net of refunds where the filing nets them, "
@@ -1173,7 +1193,7 @@ NOTE_LINES = {
           regex=[E + r"(?:cash\s+paid\s+(?:during\s+the\s+(?:year|period)\s+)?for\s+(?:income\s+)?taxes|"
                  r"(?:income\s+)?taxes\s+paid)\b.*$"],
           exclude=[r"interest", r"refunds?\s+received"],
-          note=NS(title=[r"supplemental", r"cash\s+flow\s+information"],
+          note=NS(title=_SUPPLEMENTAL_CASH,
                   rows=[(r"^\s*(?:cash\s+paid\s+(?:during\s+the\s+(?:year|period)\s+)?for\s+)?(?:income\s+)?taxes"
                         r"(?:\s+paid)?\b")],
                   none=[r"interest|deferred|payable"],

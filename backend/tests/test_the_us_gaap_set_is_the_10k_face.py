@@ -237,9 +237,12 @@ def test_a_note_row_that_is_not_the_line_is_not_read(raw, key, title, caption):
 def test_a_focus_run_asks_every_additional_item_and_nothing_of_another_set(raw):
     """The deployment asks the model only about `llm_focus_keys`, and most additional items are the
     model's alone. Each group is named by a pattern no other shipped set's key begins with."""
-    from app.config import get_settings
+    import tomllib
 
-    named = get_settings().extraction.llm_focus_keys
+    # READ OFF config.toml, the file that ships, and not off `get_settings()`: that is one cached
+    # object, and the stage tests set its focus list to the one key they exercise.
+    named = tomllib.loads((pathlib.Path(__file__).resolve().parents[1] / "config.toml").read_text("utf-8"))[
+        "extraction"]["llm_focus_keys"]
     ours = tuple(k[:-1] for k in named if k.endswith("*") and k.startswith("notes_"))
     for item in _additional_items(raw):
         assert item["key"].startswith(ours), item["key"]
@@ -489,6 +492,14 @@ def test_a_current_line_does_not_bind_under_a_non_current_banner(matcher):
      None, "cf_financing__net_increase_in_cash"),
     ("Cash, cash equivalents and restricted cash at end of year", CF, None,
      "cf_financing__end_of_period_cash_and_cash_equiv"),
+    # Alphabet 2025, as its face prints them.
+    ("Non-marketable securities", BS, "Current assets", "bs_nca__long_term_investments"),
+    ("Class A, Class B, and Class C stock and additional paid-in capital, $0.001 par value per "
+     "share: 300,000 shares authorized (Class A 180,000, Class B 60,000, Class C 60,000); 12,211 "
+     "(Class A 5,835, Class B 861, Class C 5,515) and 12,088 (Class A 5,822, Class B 837, Class C "
+     "5,429) shares issued and outstanding", BS, "Stockholders' equity", "bs_equity__common_stock"),
+    ("Acquisitions, net of cash acquired, and purchases of intangible assets", CF,
+     "Investing activities", "cf_investing__acquisitions"),
 ])
 def test_a_10k_caption_binds_its_line(matcher, caption, statement, section, key):
     hit = matcher.match(caption, statement=statement, section=section)
@@ -506,3 +517,33 @@ def test_a_10k_caption_binds_its_line(matcher, caption, statement, section, key)
 def test_a_row_no_line_names_binds_nothing(matcher, caption, statement, section):
     hit = matcher.match(caption, statement=statement, section=section)
     assert hit.canonical_key is None or hit.confidence < 0.85, (caption, hit.canonical_key)
+
+
+@pytest.mark.parametrize("caption", [
+    # Alphabet 2025, under "Supplemental disclosures of non-cash investing activities:" — a heading
+    # that names investing activities, below the closing cash balance.
+    "Purchases of property and equipment included in accrued liabilities and accounts payable",
+    "Purchases of property and equipment under finance leases",
+])
+def test_a_non_cash_capex_disclosure_is_not_the_capex_line(matcher, caption):
+    hit = matcher.match(caption, statement=CF, section="Supplemental disclosures of non-cash investing activities:")
+    assert hit.canonical_key != "cf_investing__purchase_ppe", (caption, hit.confidence)
+    hit = matcher.match(caption, statement=CF, section="Investing activities")
+    assert hit.canonical_key != "cf_investing__purchase_ppe", (caption, hit.confidence)
+
+
+@pytest.mark.parametrize("key,title,caption", [
+    # Alphabet 2025: the other income table of "Supplemental Financial Statement Information".
+    ("notes_cash__interest_paid", "Note 7. Supplemental Financial Statement Information",
+     "Interest expense(1)"),
+    ("notes_cash__interest_paid", "NOTE 19 — SUPPLEMENTAL CASH FLOW INFORMATION", "Interest expense"),
+    ("notes_cash__income_taxes_paid", "Note 7. Supplemental Financial Statement Information",
+     "Income taxes, net of refunds"),
+])
+def test_interest_expense_and_a_non_cash_flow_note_are_not_cash_paid(raw, key, title, caption):
+    note = {i["key"]: i for i in raw[1]["items"]}[key]["note_source"]
+    titled = any(re.search(p, title, re.IGNORECASE) for p in note["note_title_any"])
+    counted = (any(re.search(p, caption, re.IGNORECASE) for p in note["row_caption_any"])
+               and not any(re.search(p, caption, re.IGNORECASE)
+                           for p in note.get("row_caption_none", ())))
+    assert not (titled and counted), (key, title, caption)

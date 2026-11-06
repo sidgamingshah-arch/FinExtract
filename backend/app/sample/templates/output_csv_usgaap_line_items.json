@@ -1017,7 +1017,10 @@
     "Equity investments",
     "Equity and other investments",
     "Equity & other investments",
-    "Other investments"
+    "Other investments",
+    "Non-marketable securities",
+    "Non-marketable equity securities",
+    "Non-marketable investments"
    ],
    "aliases_i18n": {
     "en": [
@@ -1029,12 +1032,16 @@
      "Equity investments",
      "Equity and other investments",
      "Equity & other investments",
-     "Other investments"
+     "Other investments",
+     "Non-marketable securities",
+     "Non-marketable equity securities",
+     "Non-marketable investments"
     ]
    },
    "regex_hints": [
-    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity|commitments\\s+and\\s+contingencies(?:\\s+(?:see\\s+)?notes?\\s+\\d{1,2})?)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+|plus\\s+)?(?:non\\s+current\\s+marketable\\s+securities|long\\s+term\\s+marketable\\s+securities|equity\\s+and\\s+other\\s+investments|equity\\s+other\\s+investments|long\\s+term\\s+investments|marketable\\s+securities|equity\\s+investments|other\\s+investments|investments)$",
-    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:long\\s+term\\s+|non\\s*current\\s+)?(?:marketable\\s+securities|investments)(?:\\s+non\\s*current)?$"
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity|commitments\\s+and\\s+contingencies(?:\\s+(?:see\\s+)?notes?\\s+\\d{1,2})?)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+|plus\\s+)?(?:non\\s+current\\s+marketable\\s+securities|non\\s+marketable\\s+equity\\s+securities|long\\s+term\\s+marketable\\s+securities|equity\\s+and\\s+other\\s+investments|non\\s+marketable\\s+investments|non\\s+marketable\\s+securities|equity\\s+other\\s+investments|long\\s+term\\s+investments|marketable\\s+securities|equity\\s+investments|other\\s+investments|investments)$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:long\\s+term\\s+|non\\s*current\\s+)?(?:marketable\\s+securities|investments)(?:\\s+non\\s*current)?$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}non\\s*marketable\\s+(?:equity\\s+|debt\\s+)?(?:securities|investments)$"
    ],
    "exclude_hints": [
     "(?i)equity\\s+method",
@@ -2523,11 +2530,13 @@
    "regex_hints": [
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity|commitments\\s+and\\s+contingencies(?:\\s+(?:see\\s+)?notes?\\s+\\d{1,2})?)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+|plus\\s+)?(?:common\\s+stock\\s+and\\s+additional\\s+paid\\s+in\\s+capital|common\\s+stock\\s+additional\\s+paid\\s+in\\s+capital|capital\\s+stock|common\\s+shares|common\\s+stock)$",
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:commitments\\s+and\\s+contingencies(?:\\s+(?:see\\s+)?notes?\\s+\\d{1,2})?)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:class\\s+[a-c]\\s+)?common\\s+(?:stock|shares)\\b.*$",
-    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:commitments\\s+and\\s+contingencies(?:\\s+(?:see\\s+)?notes?\\s+\\d{1,2})?)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?capital\\s+stock\\b.*$"
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:commitments\\s+and\\s+contingencies(?:\\s+(?:see\\s+)?notes?\\s+\\d{1,2})?)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?capital\\s+stock\\b.*$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:commitments\\s+and\\s+contingencies(?:\\s+(?:see\\s+)?notes?\\s+\\d{1,2})?)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:class\\s+[a-z]\\s+(?:and\\s+)?){2,}(?:common\\s+)?(?:stock|shares)\\b.*$"
    ],
    "exclude_hints": [
     "(?i)treasury",
-    "(?i)repurchas"
+    "(?i)repurchas",
+    "(?i)preferred"
    ]
   },
   {
@@ -4720,6 +4729,13 @@
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity|(?:cash\\s+flows?\\s+(?:from|provided\\s+by|used\\s+in)\\s+)?(?:operating|investing|financing)\\s+activities|operations|investing|financing|adjustments?\\s+to\\s+reconcile\\s+(?:\\w+\\s+){1,4}?to\\s+(?:\\w+\\s+){0,6}?operating\\s+activities|changes\\s+in\\s+(?:certain\\s+|operating\\s+)?assets\\s+and\\s+liabilities(?:\\s+net\\s+of\\s+(?:\\w+\\s+){0,6}?(?:acquisitions?|acquired|divestitures?))?|(?:net\\s+)?changes?\\s+in\\s+working\\s+capital)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+|plus\\s+)?(?:payments\\s+for\\s+acquisition\\s+of\\s+property\\s+plant\\s+and\\s+equipment|payments\\s+for\\s+acquisition\\s+of\\s+property\\s+plant\\s+equipment|purchases\\s+of\\s+property\\s+plant\\s+and\\s+equipment|purchases\\s+of\\s+property\\s+plant\\s+equipment|additions\\s+to\\s+property\\s+and\\s+equipment|payments\\s+for\\s+property\\s+and\\s+equipment|purchases\\s+of\\s+property\\s+and\\s+equipment|additions\\s+to\\s+property\\s+equipment|payments\\s+for\\s+property\\s+equipment|purchases\\s+of\\s+property\\s+equipment|capital\\s+expenditures)$",
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:(?:cash\\s+flows?\\s+(?:from|provided\\s+by|used\\s+in)\\s+)?(?:operating|investing|financing)\\s+activities|operations|investing|financing|adjustments?\\s+to\\s+reconcile\\s+(?:\\w+\\s+){1,4}?to\\s+(?:\\w+\\s+){0,6}?operating\\s+activities|changes\\s+in\\s+(?:certain\\s+|operating\\s+)?assets\\s+and\\s+liabilities(?:\\s+net\\s+of\\s+(?:\\w+\\s+){0,6}?(?:acquisitions?|acquired|divestitures?))?|(?:net\\s+)?changes?\\s+in\\s+working\\s+capital)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+|plus\\s+)?(?:purchases?|acquisitions?|additions?|payments?\\s+for(?:\\s+(?:the\\s+)?(?:purchase|acquisition)s?)?|expenditures?\\s+for|investments?\\s+in)\\s+(?:of\\s+|to\\s+)?(?:property|plant|fixed\\s+assets|capital\\s+assets)\\b.*$",
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:(?:cash\\s+flows?\\s+(?:from|provided\\s+by|used\\s+in)\\s+)?(?:operating|investing|financing)\\s+activities|operations|investing|financing|adjustments?\\s+to\\s+reconcile\\s+(?:\\w+\\s+){1,4}?to\\s+(?:\\w+\\s+){0,6}?operating\\s+activities|changes\\s+in\\s+(?:certain\\s+|operating\\s+)?assets\\s+and\\s+liabilities(?:\\s+net\\s+of\\s+(?:\\w+\\s+){0,6}?(?:acquisitions?|acquired|divestitures?))?|(?:net\\s+)?changes?\\s+in\\s+working\\s+capital)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+|plus\\s+)?capital\\s+(?:expenditures|spending)\\b.*$"
+   ],
+   "exclude_hints": [
+    "(?i)\\bincluded\\s+in\\b",
+    "(?i)non\\s*cash",
+    "(?i)\\bunpaid\\b",
+    "(?i)\\baccrued\\b",
+    "(?i)finance\\s+leases?"
    ]
   },
   {
@@ -4807,6 +4823,7 @@
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity|(?:cash\\s+flows?\\s+(?:from|provided\\s+by|used\\s+in)\\s+)?(?:operating|investing|financing)\\s+activities|operations|investing|financing|adjustments?\\s+to\\s+reconcile\\s+(?:\\w+\\s+){1,4}?to\\s+(?:\\w+\\s+){0,6}?operating\\s+activities|changes\\s+in\\s+(?:certain\\s+|operating\\s+)?assets\\s+and\\s+liabilities(?:\\s+net\\s+of\\s+(?:\\w+\\s+){0,6}?(?:acquisitions?|acquired|divestitures?))?|(?:net\\s+)?changes?\\s+in\\s+working\\s+capital)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+|plus\\s+)?(?:payments\\s+to\\s+acquire\\s+businesses\\s+net\\s+of\\s+cash\\s+acquired|acquisition\\s+of\\s+businesses\\s+net\\s+of\\s+cash\\s+acquired|payments\\s+for\\s+acquisitions\\s+net\\s+of\\s+cash\\s+acquired|business\\s+acquisitions\\s+net\\s+of\\s+cash\\s+acquired|acquisitions\\s+net\\s+of\\s+cash\\s+acquired)$",
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:(?:cash\\s+flows?\\s+(?:from|provided\\s+by|used\\s+in)\\s+)?(?:operating|investing|financing)\\s+activities|operations|investing|financing|adjustments?\\s+to\\s+reconcile\\s+(?:\\w+\\s+){1,4}?to\\s+(?:\\w+\\s+){0,6}?operating\\s+activities|changes\\s+in\\s+(?:certain\\s+|operating\\s+)?assets\\s+and\\s+liabilities(?:\\s+net\\s+of\\s+(?:\\w+\\s+){0,6}?(?:acquisitions?|acquired|divestitures?))?|(?:net\\s+)?changes?\\s+in\\s+working\\s+capital)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+|plus\\s+)?(?:payments?\\s+(?:for|to\\s+acquire)\\s+)?(?:business(?:es)?\\s+)?acquisitions?(?:\\s+of\\s+(?:businesses|companies|subsidiaries))?(?:\\s+net\\s+of\\s+cash\\s+acquired)?$",
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:(?:cash\\s+flows?\\s+(?:from|provided\\s+by|used\\s+in)\\s+)?(?:operating|investing|financing)\\s+activities|operations|investing|financing|adjustments?\\s+to\\s+reconcile\\s+(?:\\w+\\s+){1,4}?to\\s+(?:\\w+\\s+){0,6}?operating\\s+activities|changes\\s+in\\s+(?:certain\\s+|operating\\s+)?assets\\s+and\\s+liabilities(?:\\s+net\\s+of\\s+(?:\\w+\\s+){0,6}?(?:acquisitions?|acquired|divestitures?))?|(?:net\\s+)?changes?\\s+in\\s+working\\s+capital)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+|plus\\s+)?payments?\\s+to\\s+acquire\\s+businesses\\b.*$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:(?:cash\\s+flows?\\s+(?:from|provided\\s+by|used\\s+in)\\s+)?(?:operating|investing|financing)\\s+activities|operations|investing|financing|adjustments?\\s+to\\s+reconcile\\s+(?:\\w+\\s+){1,4}?to\\s+(?:\\w+\\s+){0,6}?operating\\s+activities|changes\\s+in\\s+(?:certain\\s+|operating\\s+)?assets\\s+and\\s+liabilities(?:\\s+net\\s+of\\s+(?:\\w+\\s+){0,6}?(?:acquisitions?|acquired|divestitures?))?|(?:net\\s+)?changes?\\s+in\\s+working\\s+capital)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+|plus\\s+)?(?:business\\s+)?acquisitions?\\s+net\\s+of\\s+cash\\s+acquired\\b.*$",
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:(?:cash\\s+flows?\\s+(?:from|provided\\s+by|used\\s+in)\\s+)?(?:operating|investing|financing)\\s+activities|operations|investing|financing|adjustments?\\s+to\\s+reconcile\\s+(?:\\w+\\s+){1,4}?to\\s+(?:\\w+\\s+){0,6}?operating\\s+activities|changes\\s+in\\s+(?:certain\\s+|operating\\s+)?assets\\s+and\\s+liabilities(?:\\s+net\\s+of\\s+(?:\\w+\\s+){0,6}?(?:acquisitions?|acquired|divestitures?))?|(?:net\\s+)?changes?\\s+in\\s+working\\s+capital)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+|plus\\s+)?acquisitions?\\s+of\\s+(?:businesses|companies|subsidiaries)\\b.*$"
    ],
    "exclude_hints": [
@@ -5646,14 +5663,15 @@
    "route": "anywhere",
    "note_source": {
     "note_title_any": [
-     "supplemental",
-     "cash\\s+flow\\s+information"
+     "supplemental\\s+cash\\s+flows?",
+     "cash\\s+flows?\\s+(?:information|disclosures?)",
+     "supplemental\\s+disclosures?\\s+of\\s+cash"
     ],
     "row_caption_any": [
      "^\\s*(?:cash\\s+paid\\s+(?:during\\s+the\\s+(?:year|period)\\s+)?for\\s+)?interest(?:\\s+paid)?\\b"
     ],
     "row_caption_none": [
-     "received|income|capitali[sz]ed\\s+interest\\s*$"
+     "received|income|expense|\\brate|capitali[sz]ed\\s+interest\\s*$"
     ],
     "note_terms": [
      "supplemental cash flow information",
@@ -5709,8 +5727,9 @@
    "route": "anywhere",
    "note_source": {
     "note_title_any": [
-     "supplemental",
-     "cash\\s+flow\\s+information"
+     "supplemental\\s+cash\\s+flows?",
+     "cash\\s+flows?\\s+(?:information|disclosures?)",
+     "supplemental\\s+disclosures?\\s+of\\s+cash"
     ],
     "row_caption_any": [
      "^\\s*(?:cash\\s+paid\\s+(?:during\\s+the\\s+(?:year|period)\\s+)?for\\s+)?(?:income\\s+)?taxes(?:\\s+paid)?\\b"
