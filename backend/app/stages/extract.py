@@ -101,10 +101,13 @@ class ExtractStage:
         if doc.fmt == DocFormat.PDF and ctx.raw_bytes:
             from app.services.pdf_extract import extract_pdf
 
-            from app.services.row_reconstruct import enumerated_rows
+            from app.services.row_reconstruct import enumerated_rows, us_10k_rows
 
-            # An Indian filing's "(1) Current tax" rows (`services.regime`; decided in classify).
-            with enumerated_rows(bool(getattr(ctx, "indian_filing", False))):
+            # An Indian filing's "(1) Current tax" rows, and a US 10-K's note footnotes and
+            # column-heading lines (`services.regime`; both decided in classify). No other filing
+            # reads either way.
+            with enumerated_rows(bool(getattr(ctx, "indian_filing", False))), \
+                    us_10k_rows(bool(getattr(ctx, "us_10k_filing", False))):
                 extract_pdf(ctx.raw_bytes, doc, ctx, scope=scope, normalisation=normalisation)
             _transpose_equity_matrix(doc, ctx)
             return doc

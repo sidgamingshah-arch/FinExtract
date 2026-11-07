@@ -1,5 +1,9 @@
 """WHICH REPORTING REGIME A FILING IS PRINTED IN, where a reading rule is only safe for one of them.
 
+Two regimes are told apart: an Indian annual report (below) and a US Form 10-K
+(`is_us_10k_filing`). Every filing that is neither — the HKEX and mainland corpus the readers are
+calibrated on — is read exactly as before.
+
 An Indian annual report prints two things the readers otherwise refuse, both measured on Schedule III
 statements laid out the way the Companies Act prescribes:
 
@@ -35,3 +39,29 @@ _INDIAN = re.compile(
 def is_indian_filing(texts: Iterable[str]) -> bool:
     """Whether any page of the filing prints vocabulary only an Indian filing prints."""
     return any(_INDIAN.search(t or "") for t in texts)
+
+
+# A US FORM 10-K, by the words its cover and its auditor's report print and no other filing in the
+# corpus does. The form's own name is required: a Hong Kong or mainland annual report can mention the
+# SEC, the PCAOB or US GAAP (a dual-listed issuer files a Form 20-F, which this does not match), but
+# only a 10-K's cover says "FORM 10-K". It must come with one more SEC signal, so a passing mention
+# of a US filer's 10-K in another report's text is not enough.
+_FORM_10K = re.compile(r"\bForm\s+10-K\b", re.IGNORECASE)
+_SEC_SIGNAL = re.compile(
+    r"\bSecurities\s+and\s+Exchange\s+Commission\b"
+    r"|\bRegistered\s+Public\s+Accounting\s+Firm\b"
+    r"|\bSecurities\s+Exchange\s+Act\s+of\s+1934\b",
+    re.IGNORECASE)
+
+
+def is_us_10k_filing(texts: Iterable[str]) -> bool:
+    """Whether the filing is a US Form 10-K: its form named, and the SEC named beside it.
+
+    Switches on the readings measured on 10-K pages only (`row_reconstruct.us_10k_rows`): a
+    note's footnote ("(2) Principal, unamortized discount, …") is not a row, and nor is its
+    column-heading line ("Maturity  Coupon Rate  Effective Rate  2024  2025"). The HKEX, mainland
+    and Indian corpus never sees either.
+    """
+    texts = list(texts)
+    return (any(_FORM_10K.search(t or "") for t in texts)
+            and any(_SEC_SIGNAL.search(t or "") for t in texts))

@@ -1904,12 +1904,17 @@ class ClassifyStage:
         # THE REGIME, decided once from the whole filing and kept on the context for the readers
         # after this one (`stages.extract`). See `services.regime` for what it switches on and why
         # only there.
-        from app.services.regime import is_indian_filing
+        from app.services.regime import is_indian_filing, is_us_10k_filing
 
         indian = is_indian_filing(texts)
         ctx.indian_filing = indian
         if indian:
             ctx.log("classify:regime=indian (dated titles and enumerated rows are read)")
+        us_10k = not indian and is_us_10k_filing(texts)
+        ctx.us_10k_filing = us_10k
+        if us_10k:
+            ctx.log("classify:regime=us_10k (note footnotes and column-heading lines are not "
+                    "read as rows)")
         # A 2-UP SPREAD IS READ AS THE TWO PRINTED PAGES IT HOLDS — see `_spread_units`. From here
         # to the merge below, `pages` / `cache` / `feats` are per PRINTED page: one entry for an
         # ordinary page, two (left, right) for a spread, each half a copy of the page it came from.

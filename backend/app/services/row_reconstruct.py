@@ -820,6 +820,38 @@ def enumerated_rows(on: bool):
         _ENUMERATED_ROWS.reset(token)
 
 
+# A US 10-K's readings (`services.regime.is_us_10k_filing`), switched on by `stages.extract` for
+# that filing only — see `us_10k_rows`.
+_US_10K_ROWS: ContextVar[bool] = ContextVar("us_10k_rows", default=False)
+
+
+@contextmanager
+def us_10k_rows(on: bool):
+    """Read a 10-K note's footnotes and column-heading line as no rows, for the rows inside.
+
+    Alphabet's 2025 debt note sent the model three rows that are not rows:
+
+    * "Maturity Coupon Rate Rate" of 2,024 and 2,025 — the COLUMN-HEADING LINE, which prints the
+      terms columns' names left of the years, so the words made it a captioned row and the years
+      its figures. A note row whose only figures are bare, consecutive years is that line.
+    * "Financing Rate (SOFR) plus 0.52%, reset quarterly." of -2, and "exchange rates." of 7 —
+      FOOTNOTES. "(2) Principal, unamortized discount, …" opens on its marker, read as the figure
+      -2 and given the line above as its caption; "(3) … See Note 7 for further details" was -3
+      and then 7. A line that opens on "(n)" and runs on as a sentence with no amount, with the
+      lines set under its text after it, is a footnote, and its words are taken out before the
+      rows are built (`_without_footnotes`). Taken out, not read as text: read as text (the Indian
+      `enumerated_rows` reading) the footnote at the foot of a page was carried onto the next one
+      as its table's heading, and Alphabet's accrued-expenses table lost its column headings.
+
+    Measured on 10-K pages only, so on for a 10-K only.
+    """
+    token = _US_10K_ROWS.set(bool(on))
+    try:
+        yield
+    finally:
+        _US_10K_ROWS.reset(token)
+
+
 # A YEAR THAT IS A ROW'S CAPTION, not a figure. A 10-K debt note prints its future principal
 # payments one row per fiscal year — "2026  $ 10,950" / "2027  12,342" / … / "Thereafter  51,160" —
 # and a retailer's prints "Fiscal 2027  $ 2,598". Read token by token the year is a number, so it
@@ -834,6 +866,53 @@ def enumerated_rows(on: bool):
 # BY IDENTITY (id -> the word itself), so a stale entry can only ever match the very word it was
 # decided for, never a later word that happens to reuse its id.
 _CAPTION_YEARS: ContextVar[dict[int, Word] | None] = ContextVar("caption_years", default=None)
+
+
+# A FOOTNOTE'S MARKER: "(1)" … "(99)" opening its line.
+_FOOTNOTE_MARKER = re.compile(r"^\(\d{1,2}\)$")
+# How many words of text a footnote runs to after its marker: a sentence, never a caption.
+_FOOTNOTE_MIN_WORDS = 6
+
+
+def _without_footnotes(words: list[Word], log=None, page_index: int = 0) -> list[Word]:
+    """The words, less every 10-K note footnote — see `us_10k_rows`.
+
+    A footnote is a line that opens on its marker ("(2)") and runs on as a sentence of
+    `_FOOTNOTE_MIN_WORDS` words or more with no printed amount (no thousands separator, no decimal
+    point) — "(3) … See Note 7 for further details." keeps its 7, which is a note's number — and
+    every line after it set at the footnote's text edge, which is how its sentence wraps. A row
+    captioned "(1) Amounts due from affiliates  1,234" prints an amount and is not one.
+    """
+    rows = sorted(_group_rows(words, _line_tol(words)), key=lambda r: min(w.bbox.y0 for w in r))
+    drop: set[int] = set()
+    text_x0: float | None = None
+    for row in rows:
+        row = sorted(row, key=lambda w: w.bbox.x0)
+        amounts = any(_AMOUNT_SHAPED.match(w.text.strip()) for w in row)
+        if (len(row) > _FOOTNOTE_MIN_WORDS and _FOOTNOTE_MARKER.match(row[0].text.strip())
+                and not amounts
+                and sum(1 for w in row[1:] if re.search(r"[A-Za-z]{2,}", w.text))
+                >= _FOOTNOTE_MIN_WORDS):
+            drop.update(id(w) for w in row)
+            text_x0 = row[1].bbox.x0
+            continue
+        if (text_x0 is not None and not amounts
+                and abs(row[0].bbox.x0 - text_x0) <= 0.006):
+            drop.update(id(w) for w in row)          # the footnote's sentence, wrapped
+            continue
+        text_x0 = None
+    if drop and log:
+        log(f"extract:page={page_index}:footnote_words_dropped={len(drop)}")
+    return [w for w in words if id(w) not in drop] if drop else words
+
+
+def _years_only(value_words: list[Word]) -> bool:
+    """Whether a row's figures are two or more bare years running one by one ("2024  2025")."""
+    years = [w.text.strip() for w in value_words]
+    if len(years) < 2 or not all(re.match(r"^(?:19|20)\d{2}$", y) for y in years):
+        return False
+    nums = sorted(int(y) for y in years)
+    return all(b == a + 1 for a, b in zip(nums, nums[1:]))
 _CAPTION_YEAR = re.compile(r"^(?:19|20)\d{2}$")
 
 
@@ -7525,6 +7604,8 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
     words = _fuse_wrapped_numbers(_fuse_bucket_numbers(words, number_format))
     if not on_face:
         words = _without_maturity_years(words)
+    if not on_face and _US_10K_ROWS.get():
+        words = _without_footnotes(words, log=log, page_index=page_index)
     if scope is None or normalisation is None:
         in_force_scope, in_force_norm = in_force_rules()
         scope = scope if scope is not None else in_force_scope
@@ -8027,6 +8108,12 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
         if value_words and not on_face and _nil_row(label_words):
             while label_words and _NIL_CELL.match(_cell_text(label_words[-1].text)):
                 label_words = label_words[:-1]
+        # A 10-K NOTE'S COLUMN-HEADING LINE IS NOT A ROW — see `us_10k_rows`.
+        if (not on_face and label_words and _US_10K_ROWS.get()
+                and _years_only(value_words)):
+            if log:
+                log(f"extract:page={page_index}:column_heading_line({_join_words(label_words)[:40]!r})")
+            continue
 
         if value_words:
             # Only for a VALUED row: a label-only row is already handled by the banner branch
