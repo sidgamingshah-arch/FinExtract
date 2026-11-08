@@ -2388,6 +2388,8 @@ test("the coverage band counts RELATIONS, and every number in it is the API's fo
   expect(cov.available, "a run with a template attached must carry a coverage report").toBe(true);
   const agg = cov.aggregate!;
 
+  // The coverage diagnostics are a tab of their own — they describe the filing, not work to do.
+  await page.getByTestId("rv-tab-coverage").click();
   const band = page.getByTestId("rv-coverage");
   await expect(band).toBeVisible({ timeout: 15_000 });
   // Wait for the band to have RESOLVED this run before reading a number off it — its footer
@@ -2469,6 +2471,7 @@ test("the coverage band on the sample says it has no report rather than renderin
   await page.goto("/review", DCL);
   await expect(page.getByRole("heading", { name: "Review queue" })).toBeVisible({ timeout: 15_000 });
 
+  await page.getByTestId("rv-tab-coverage").click();
   const band = page.getByTestId("rv-coverage");
   await expect(band).toBeVisible({ timeout: 15_000 });
   const stated = page.getByTestId("rv-cov-unavailable");
@@ -2479,7 +2482,9 @@ test("the coverage band on the sample says it has no report rather than renderin
   await expect(page.getByTestId("rv-cov-fractions")).toHaveCount(0);
 
   // …and both of the demo path's dead buttons are gone here too: the sample's checks carry no
-  // subject key and no fix, so neither control is offered rather than offered and inert.
+  // subject key and no fix, so neither control is offered rather than offered and inert. The
+  // findings are on the queue's own tabs, not on the coverage tab.
+  await page.getByTestId("rv-tab").first().click();
   const cards = page.getByTestId("rv-check");
   await expect(cards.first()).toHaveAttribute("data-status", "open", { timeout: 15_000 });
   expect(await cards.count()).toBeGreaterThan(1);

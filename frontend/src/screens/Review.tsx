@@ -65,7 +65,7 @@
  * review:resolve — the endpoint's own two conditions — and says out loud that these acceptances
  * are still in force, because the caption "corrected, or no longer raised" reads as finished
  * with. */
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { Button } from "../components/ui";
@@ -98,6 +98,66 @@ type LineLink = { basis: Basis; statement: StatementKey; target: string };
  *  Withholding that control on an unrecognised state would strand a real acceptance under a name
  *  this build simply has not learned yet, which is the shape of the defect it just fixed. */
 const KNOWN_STATUS = new Set(["open", "accepted", "stale"]);
+
+/** The narrowest window the list-and-detail layout is used at; below it the queue is an accordion.
+ *  Measured on the window, not the content column, so the nav rail's state never flips the layout
+ *  under a reviewer's hand. */
+const WIDE_MIN = 1000;
+
+/** Whether the window is at least `min` wide, kept current as it is resized. */
+function useWide(min: number): boolean {
+  const read = () => typeof window === "undefined" || window.innerWidth >= min;
+  const [wide, setWide] = useState(read);
+  useEffect(() => {
+    const on = () => setWide(read());
+    window.addEventListener("resize", on);
+    return () => window.removeEventListener("resize", on);
+  }, [min]);
+  return wide;
+}
+
+const ELLIPSIS = { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } as const;
+
+/** A finding's location for its list row: the page, without the file name every row shares.
+ *  "hkex_kaming_2025_26.pdf · p.61" reads "p.61"; anything not led by a file name is unchanged.
+ *  The detail pane prints the location in full. */
+function shortWhere(where: string): string {
+  return where.replace(/^[^·]*\.(?:pdf|xlsx?|xlsm|csv)\s*·\s*/i, "");
+}
+
+/** A reason typed for a verdict or a move: one line until it is written into, then as tall as what
+ *  is written. The text is the caller's — a refetch must not discard it (see `reasons`). */
+function ReasonField({ testid, value, placeholder, onChange }: {
+  testid: string; value: string; placeholder: string; onChange: (text: string) => void;
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    // Empty, it is one line: a placeholder that wraps would otherwise size the box to itself.
+    el.style.height = "auto";
+    if (value) el.style.height = `${Math.min(el.scrollHeight + 2, 140)}px`;
+  }, [value]);
+  return (
+    <textarea
+      ref={ref}
+      data-testid={testid}
+      value={value}
+      maxLength={2000}
+      rows={1}
+      title={placeholder}
+      placeholder={placeholder}
+      onChange={(e) => onChange(e.target.value)}
+      style={{
+        flex: "1 1 240px", minWidth: 200, boxSizing: "border-box", fontSize: 11.5,
+        fontFamily: font.sans, color: color.ink, resize: "none", overflow: "hidden",
+        border: `1px solid ${color.controlBorder}`, borderRadius: 8, padding: "8px 10px",
+        outline: "none", lineHeight: 1.4, whiteSpace: value ? "pre-wrap" : "nowrap",
+        textOverflow: "ellipsis",
+      }}
+    />
+  );
+}
 const ACCEPTABLE_STATUS = new Set(["open", "stale"]);
 
 /** tone → { accent, iconBg }. `tone` is a SEVERITY, not a colour name — see `ReviewCheck.tone`.
@@ -252,8 +312,15 @@ function RemapPanel({
       )}
       {/* Where the row sits now, so the pick is made against a known starting point rather than
           against a caption alone. */}
-      <div style={{ fontSize: 11.5, color: color.sec2, marginBottom: 8, fontFamily: font.mono }}>
-        {t("r.remapCurrent")}: {offer.current_key || t("r.remapNowUnmapped")}
+      {/* BY ITS NAME where this template names it — "Revenue", not "sub__face_principal_revenue" —
+          and by its key only where no line of the template carries it. */}
+      <div style={{ fontSize: 11.5, color: color.sec2, marginBottom: 8 }}>
+        {t("r.remapCurrent")}:{" "}
+        {/* An engine placeholder is where an unplaced row is parked, not a line: unmapped. */}
+        {!offer.current_key || offer.current_key.startsWith("engine_unclassified")
+          ? t("r.remapNowUnmapped")
+          : (targets.find((x) => x.canonical_key === offer.current_key)?.label
+             ?? <span style={{ fontFamily: font.mono }}>{offer.current_key}</span>)}
       </div>
       {offer.remapped_note && (
         <div
@@ -268,7 +335,7 @@ function RemapPanel({
           {t("r.remapNoTargets")}
         </div>
       ) : (
-        <div style={{ display: "flex", gap: 9, alignItems: "center", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 9, alignItems: "flex-start", flexWrap: "wrap" }}>
           <select
             data-testid="rv-remap-select"
             value={picked ?? "__none__"}
@@ -290,6 +357,15 @@ function RemapPanel({
               </optgroup>
             ))}
           </select>
+          {/* Why, on the same line as the pick it explains and the button it goes with. */}
+          {canEdit && (
+            <ReasonField
+              testid="rv-remap-reason"
+              value={reason}
+              placeholder={t("r.remapReasonPlaceholder")}
+              onChange={onReason}
+            />
+          )}
           <Button
             variant="primary"
             testid="rv-remap-apply"
@@ -300,22 +376,6 @@ function RemapPanel({
             {t("r.remapApply")}
           </Button>
         </div>
-      )}
-      {targets.length > 0 && canEdit && (
-        <textarea
-          data-testid="rv-remap-reason"
-          value={reason}
-          maxLength={2000}
-          rows={2}
-          placeholder={t("r.remapReasonPlaceholder")}
-          onChange={(e) => onReason(e.target.value)}
-          style={{
-            width: "100%", boxSizing: "border-box", marginTop: 8, fontSize: 11.5,
-            fontFamily: font.sans, color: color.ink, resize: "vertical",
-            border: `1px solid ${color.controlBorder}`, borderRadius: 8, padding: "7px 9px",
-            outline: "none", lineHeight: 1.5,
-          }}
-        />
       )}
     </div>
   );
@@ -389,6 +449,76 @@ export default function ReviewScreen() {
   const [remapReasons, setRemapReasons] = useState<Record<string, string>>({});
   // The card a deep link opened, to scroll to once it has rendered open.
   const [scrollToRef, setScrollToRef] = useState("");
+  // THE LIST AND ITS DETAIL. On a screen wide enough the queue is a compact list on the left and the
+  // selected finding on the right, so a reviewer works the queue without scrolling past every card
+  // to reach the next one; narrower, it is the accordion it always was. The selected finding is the
+  // store's `openCheck` (the same expand key the deep links use) or, when that names nothing on
+  // this tab, the first finding — the detail pane is never empty while there is work.
+  const wide = useWide(WIDE_MIN);
+  // The relation coverage diagnostics are a tab of their own: they describe the filing, not work to
+  // do, and above the queue they pushed the first finding a screen and a half down the page.
+  const [showCoverage, setShowCoverage] = useState(false);
+  // The row a keyboard move or an advance selected, to bring into view once it has rendered.
+  const [scrollToId, setScrollToId] = useState("");
+  // The checks the selected tab shows — computed here, before the early returns, because the
+  // keyboard handler below needs it. Same predicate as the list (see `shown`).
+  const shownEarly: ReviewCheck[] = useMemo(() => {
+    if (!data) return [];
+    const act = data.tabs[tab] ?? data.tabs[0];
+    const types = act?.types ?? null;
+    return types ? data.checks.filter((c) => types.includes(c.type)) : data.checks;
+  }, [data, tab]);
+  const selectedId = wide
+    ? (shownEarly.some((c) => c.id === openCheck) ? openCheck : (shownEarly[0]?.id ?? ""))
+    : openCheck;
+  const selectedRef = useRef(selectedId);
+  selectedRef.current = selectedId;
+  /** Select the finding `step` places from the selected one, and bring it into view. */
+  const step = (by: number) => {
+    const list = shownEarly;
+    if (!list.length) return;
+    const cur = Math.max(0, list.findIndex((c) => c.id === selectedRef.current));
+    const next = list[Math.min(list.length - 1, Math.max(0, cur + by))];
+    if (!next || next.id === selectedRef.current) return;
+    expandCheck(next.id);
+    setScrollToId(next.id);
+  };
+  /** The next finding after `from` that still needs a verdict, wrapping round the list. The way on
+   *  from a verdict just recorded: the server files an accepted finding LAST, so "the one after it"
+   *  by position is nothing at all. */
+  const nextOpen = (from: string): ReviewCheck | undefined => {
+    const list = shownEarly;
+    const at = list.findIndex((c) => c.id === from);
+    for (let k = 1; k <= list.length; k++) {
+      const c = list[(at + k + list.length) % list.length];
+      if (c && c.id !== from && c.status !== "accepted") return c;
+    }
+    return undefined;
+  };
+  // ↑ / ↓ (and k / j) move through the list — never while the reviewer is typing a reason or
+  // choosing a line, where the keys belong to the field.
+  useEffect(() => {
+    if (!wide || showCoverage) return;
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT"
+                 || el.isContentEditable)) return;
+      if (e.altKey || e.ctrlKey || e.metaKey) return;
+      const by = e.key === "ArrowDown" || e.key === "j" ? 1
+        : e.key === "ArrowUp" || e.key === "k" ? -1 : 0;
+      if (!by) return;
+      e.preventDefault();
+      step(by);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [wide, showCoverage, shownEarly]);
+  useEffect(() => {
+    if (!scrollToId) return;
+    document.querySelector(`[data-row-id="${CSS.escape(scrollToId)}"]`)
+      ?.scrollIntoView({ block: "nearest" });
+    setScrollToId("");
+  }, [scrollToId, openCheck]);
 
   // "MAP IT": open the explaining row's own unmapped card — on a tab that shows it, expanded, in
   // view. Matched on the row handle the re-map posts, never on the card id (a render key).
@@ -403,6 +533,7 @@ export default function ReviewScreen() {
         const i = data.tabs.findIndex((tb) => !!tb.types?.includes(card.type));
         setTab(i >= 0 ? i : 0);
       }
+      setShowCoverage(false);
       expandCheck(card.id);
       setScrollToRef(focusRowRef);
     }
@@ -411,7 +542,9 @@ export default function ReviewScreen() {
   // After the render that opened it, so the card is on the page to scroll to.
   useEffect(() => {
     if (!scrollToRef) return;
-    document.querySelector(`[data-row-ref="${scrollToRef}"]`)?.scrollIntoView({ block: "center" });
+    (document.querySelector(`[data-row-ref="${scrollToRef}"] [data-row-id]`)
+     ?? document.querySelector(`[data-row-ref="${scrollToRef}"]`))
+      ?.scrollIntoView({ block: "center" });
     setScrollToRef("");
   }, [scrollToRef, tab, openCheck]);
 
@@ -466,6 +599,15 @@ export default function ReviewScreen() {
         // whatever card the refetch puts in its place — the acceptance reason
         // included, which was typed against a finding that no longer exists.
         onSuccess: () => {
+          // The card's own row moved, so the card leaves the list: the reviewer is taken to the
+          // finding after it rather than to the top. A row moved out of an Others card's list
+          // leaves that card in place, and the selection with it.
+          const own = shownEarly.find((c) => c.id === selectedRef.current);
+          if (wide && own?.remap?.row_ref === rr) {
+            const at = shownEarly.indexOf(own);
+            const nxt = shownEarly[at + 1] ?? shownEarly[at - 1];
+            if (nxt) { expandCheck(nxt.id); setScrollToId(nxt.id); }
+          }
           setPicks((s) => { const n = { ...s }; delete n[rr]; return n; });
           setRemapReasons((s) => { const n = { ...s }; delete n[rr]; return n; });
           setReasons((s) => ({ ...s, [sk]: "" }));
@@ -492,19 +634,22 @@ export default function ReviewScreen() {
   };
 
   return (
-    <div style={{ maxWidth: 1080, margin: "0 auto", padding: "26px 30px 60px" }}>
+    <div style={{ maxWidth: wide ? 1640 : 1080, margin: "0 auto", padding: "18px 24px 40px" }}>
       {/* Header row */}
       <div
         style={{
           display: "flex",
-          alignItems: "flex-start",
+          alignItems: "center",
           justifyContent: "space-between",
-          marginBottom: 16,
+          gap: 24,
+          marginBottom: 12,
         }}
       >
-        <div>
-          <h1 style={{ fontSize: 20, fontWeight: 600, marginBottom: 5 }}>{t("r.title")}</h1>
-          <p style={{ margin: 0, color: color.sec2 }}>{t("r.subhead")}</p>
+        <div style={{ minWidth: 0 }}>
+          <h1 style={{ fontSize: 18, fontWeight: 600, margin: "0 0 3px" }}>{t("r.title")}</h1>
+          <p style={{ margin: 0, color: color.sec2, fontSize: 12, lineHeight: 1.45 }}>
+            {t("r.subhead")}
+          </p>
         </div>
         {/* Three numbers, each the SERVER'S and each labelled with what it counts — the tiles do
             no arithmetic, and no tile's label describes a set wider than the number covers.
@@ -561,38 +706,18 @@ export default function ReviewScreen() {
         </div>
       )}
 
-      {/* NOT A QUEUE AND NOT A TILE. A weak mapping is no longer a finding — this screen reports a
-          face figure that reaches no line, a validation rule that failed, and a subtotal that does
-          not match its components — but the count has to appear somewhere, or the queue getting
-          shorter reads as the extraction getting better. Stated in a sentence, in the server's own
-          number, and absent rather than showing a zero. */}
-      {data.weak_mappings > 0 && (
-        <div
-          data-testid="rv-weak-strip"
-          style={{
-            marginBottom: 12, padding: "8px 12px", borderRadius: 9,
-            background: color.surface, border: `1px solid ${color.cardBorder}`,
-            color: color.sec, fontSize: 11.5, lineHeight: 1.5,
-          }}
-        >
-          <b style={{ color: color.ink }}>{data.weak_mappings}</b> {t("r.weakMappings")}
-        </div>
-      )}
-
-      {/* What the template's relations could check at all — the counterpart to the failures
-          below, so "3 relations passed" cannot read as "the statement is verified". */}
-      <CoverageBand block={data.coverage} />
 
       {/* Filter tabs */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+      <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center",
+                    flexWrap: "wrap" }}>
         {tabs.map((tb, i) => {
-          const on = i === tab;
+          const on = !showCoverage && i === tab;
           return (
             <span
               key={tb.label}
               data-testid="rv-tab"
               data-on={on}
-              onClick={() => setTab(i)}
+              onClick={() => { setTab(i); setShowCoverage(false); }}
               style={{
                 fontSize: 11.5,
                 fontWeight: 600,
@@ -608,14 +733,90 @@ export default function ReviewScreen() {
             </span>
           );
         })}
+        {/* NOT A FILTER OF THE QUEUE, so not an `rv-tab`: its chip carries no count of findings,
+            and the queue's chips are each the length of the list they leave on screen. */}
+        <span
+          data-testid="rv-tab-coverage"
+          data-on={showCoverage}
+          onClick={() => setShowCoverage(true)}
+          style={{
+            fontSize: 11.5, fontWeight: 600, padding: "6px 12px", borderRadius: 8,
+            background: showCoverage ? color.stepperActive : "#fff",
+            color: showCoverage ? "#fff" : color.sec,
+            border: `1px solid ${showCoverage ? color.stepperActive : color.controlBorder}`,
+            cursor: "pointer",
+          }}
+        >
+          {t("r.cov.title")}
+        </span>
+        {wide && !showCoverage && shown.length > 1 && (
+          <span style={{ marginInlineStart: "auto", fontSize: 11, color: color.faint }}>
+            {t("r.keysHint")}
+          </span>
+        )}
       </div>
+
+      {/* NOT A QUEUE AND NOT A TILE. A weak mapping is no longer a finding — this screen reports a
+          face figure that reaches no line, a validation rule that failed, and a subtotal that does
+          not match its components — but the count has to appear somewhere, or the queue getting
+          shorter reads as the extraction getting better. Stated in a sentence, in the server's own
+          number, and absent rather than showing a zero. */}
+      {showCoverage && data.weak_mappings > 0 && (
+        <div
+          data-testid="rv-weak-strip"
+          style={{
+            marginBottom: 12, padding: "8px 12px", borderRadius: 9,
+            background: color.surface, border: `1px solid ${color.cardBorder}`,
+            color: color.sec, fontSize: 11.5, lineHeight: 1.5,
+          }}
+        >
+          <b style={{ color: color.ink }}>{data.weak_mappings}</b> {t("r.weakMappings")}
+        </div>
+      )}
+
+      {/* What the template's relations could check at all — the counterpart to the failures
+          below, so "3 relations passed" cannot read as "the statement is verified". */}
+      {showCoverage && <CoverageBand block={data.coverage} />}
+
+      {!showCoverage && shown.length === 0 && (
+        <div data-testid="rv-empty-tab"
+             style={{ padding: "28px 0", textAlign: "center", color: color.muted, fontSize: 12 }}>
+          {t("r.emptyTab")}
+        </div>
+      )}
+
+      {/* THE LIST AND ITS DETAIL — see `wide`. One grid: the list's rows stack in the first column
+          and the selected finding's detail spans every row of the second, sticky, so it stays in
+          view as the list scrolls. Each finding is still ONE element (`rv-check`) holding both its
+          row and its detail: the wrapper is `display: contents`, so its two children take their
+          places in the grid while the finding's controls stay inside the finding they act on. */}
+      {!showCoverage && (
+      <div
+        data-testid="rv-list"
+        role={wide ? "listbox" : undefined}
+        style={wide ? {
+          display: "grid",
+          gridTemplateColumns: "minmax(320px, 40%) minmax(0, 1fr)",
+          gridTemplateRows: `repeat(${shown.length}, auto) 1fr`,
+          columnGap: 16,
+          alignItems: "start",
+        } : undefined}
+      >
+      {wide && shown.length > 0 && (
+        <div aria-hidden style={{
+          gridColumn: 1, gridRow: `1 / span ${shown.length + 1}`, alignSelf: "stretch",
+          background: "#fff", border: `1px solid ${color.cardBorder}`, borderRadius: 11,
+        }} />
+      )}
 
       {/* Check cards — the selected tab's checks, so the chip's count IS this list's length, in
           the SERVER'S order (conflict first, then stale, then open, then accepted). The client
           does no sorting: two orderings of one list is how the top card stops being the most
           urgent one. */}
-      {shown.map((c) => {
-        const open = openCheck === c.id;
+      {shown.map((c, i) => {
+        // In the list layout the selected finding is open (see `selectedId`); in the accordion,
+        // the expanded one.
+        const open = wide ? selectedId === c.id : openCheck === c.id;
         const { ac, ib } = toneColors(c.tone);
         // The queue cannot tell this finding from another that printed different figures, so no
         // verdict may be attributed to it. Read from the server's flag OR its status: either one
@@ -691,50 +892,77 @@ export default function ReviewScreen() {
             data-subject-key={c.subject_key ?? ""}
             // The row handle a deep link looks for — "Map it" lands on the row's own card by it.
             data-row-ref={c.remap?.row_ref ?? ""}
-            style={{
+            // In the list layout the wrapper has no box of its own — see the grid above — and a
+            // click anywhere in the finding (its row, or its open detail) selects it. Selecting the
+            // selected finding changes nothing on screen, so a click on a control inside its detail
+            // is never taken for a request to move — but it PINS the selection: a finding shown
+            // only because it was first in the list would otherwise lose it the moment a verdict
+            // re-ordered the queue (the server sorts an accepted finding last), and the verdict the
+            // reviewer had just recorded would vanish from the screen.
+            onClick={wide ? () => { if (openCheck !== c.id) expandCheck(c.id); } : undefined}
+            style={wide ? { display: "contents" } : {
               background: "#fff",
               border: `1px solid ${open ? (accepted ? color.greenFg : ac) : color.cardBorder}`,
               borderLeft: `3px solid ${accepted ? color.greenFg : ac}`,
               borderRadius: 11,
-              marginBottom: 12,
+              marginBottom: 8,
               overflow: "hidden",
             }}
           >
-            {/* Header */}
+            {/* Header — in the list layout, the finding's row */}
             <div
-              onClick={() => toggleCheck(c.id)}
-              style={{
+              data-row-id={c.id}
+              role={wide ? "option" : undefined}
+              aria-selected={wide ? open : undefined}
+              onClick={wide ? undefined : () => toggleCheck(c.id)}
+              style={wide ? {
+                gridColumn: 1, gridRow: i + 1, display: "flex", alignItems: "center", gap: 10,
+                padding: "8px 12px 8px 9px", cursor: "pointer", minWidth: 0,
+                // Logical sides, so a right-to-left interface puts the accent on the row's start.
+                borderInlineStart: `3px solid ${open ? (accepted ? color.greenFg : ac) : "transparent"}`,
+                borderTop: i === 0 ? "1px solid transparent" : `1px solid ${color.hairline2}`,
+                background: open ? "#f3f5fb" : undefined,
+                borderStartStartRadius: i === 0 ? 11 : undefined,
+                borderEndStartRadius: i === shown.length - 1 ? 11 : undefined,
+              } : {
                 display: "flex",
                 alignItems: "center",
-                gap: 13,
-                padding: "14px 16px",
+                gap: 12,
+                padding: "10px 14px",
                 cursor: "pointer",
               }}
             >
               <span
                 style={{
-                  width: 26,
-                  height: 26,
+                  width: wide ? 22 : 26,
+                  height: wide ? 22 : 26,
                   borderRadius: 7,
                   background: accepted ? color.greenBg : ib,
                   color: accepted ? color.greenFg : ac,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  fontSize: 13,
+                  fontSize: wide ? 12 : 13,
                   fontWeight: 700,
                   flex: "0 0 auto",
                 }}
               >
                 {c.icon}
               </span>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 600 }}>{c.title}</div>
-                <div style={{ fontSize: 11.5, color: color.muted }}>{c.where}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div title={c.title} style={wide ? { fontSize: 12.5, fontWeight: 600, ...ELLIPSIS }
+                                                  : { fontSize: 13, fontWeight: 600 }}>
+                  {c.title}
+                </div>
+                <div title={c.where} style={{ fontSize: wide ? 11 : 11.5, color: color.muted,
+                                              ...(wide ? ELLIPSIS : {}) }}>
+                  {wide ? shortWhere(c.where) : c.where}
+                </div>
                 {/* Who vouched for this, and when — visible without expanding the card, because
                     telling "not looked at" from "reviewed and accepted" is the whole point. */}
                 {j && (
-                  <div data-testid="rv-judged-by" style={{ fontSize: 11, color: color.greenFg }}>
+                  <div data-testid="rv-judged-by"
+                       style={{ fontSize: 11, color: color.greenFg, ...(wide ? ELLIPSIS : {}) }}>
                     {t("r.acceptedBy")} {j.actor} · {j.at}
                   </div>
                 )}
@@ -763,8 +991,11 @@ export default function ReviewScreen() {
                   {t("r.statusConflict")}
                 </span>
               )}
+              {/* In the list the severity is the icon's colour and the tab it is filed under; the
+                  pill is in the detail. Read out for a screen reader all the same. */}
               <span
-                style={{
+                aria-label={wide ? c.severity : undefined}
+                style={wide ? { display: "none" } : {
                   fontSize: 10.5,
                   fontWeight: 600,
                   padding: "3px 9px",
@@ -775,21 +1006,53 @@ export default function ReviewScreen() {
               >
                 {c.severity}
               </span>
-              <span style={{ fontFamily: font.mono, fontSize: 12, color: ac, fontWeight: 600 }}>
+              <span style={{ fontFamily: font.mono, fontSize: wide ? 11.5 : 12, fontWeight: 600,
+                             color: c.delta === "—" ? color.faint : ac, flex: "0 0 auto" }}>
                 {c.delta}
               </span>
-              <span style={{ fontSize: 11, color: color.faint }}>{open ? "▲" : "▼"}</span>
+              {!wide && (
+                <span style={{ fontSize: 11, color: color.faint }}>{open ? "▲" : "▼"}</span>
+              )}
             </div>
 
             {/* Body */}
             {open && (
               <div
-                style={{
+                data-testid="rv-detail"
+                style={wide ? {
+                  gridColumn: 2, gridRow: `1 / span ${shown.length + 1}`, alignSelf: "start",
+                  position: "sticky", top: 12, maxHeight: "calc(100vh - 140px)", overflowY: "auto",
+                  background: "#fff", border: `1px solid ${color.cardBorder}`,
+                  borderTop: `3px solid ${accepted ? color.greenFg : ac}`, borderRadius: 11,
+                  padding: "14px 18px 16px", cursor: "default",
+                } : {
                   borderTop: `1px solid ${color.hairline2}`,
                   padding: "15px 16px 16px",
                   background: "#fbfcfd",
                 }}
               >
+                {/* The finding's own head, in full: the row it was chosen from is in the other
+                    column, and its title there may be cut short. */}
+                {wide && (
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 12,
+                                marginBottom: 14 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.35 }}>{c.title}</div>
+                      <div style={{ fontSize: 11.5, color: color.muted, marginTop: 2 }}>{c.where}</div>
+                    </div>
+                    <span style={{ fontSize: 10.5, fontWeight: 600, padding: "3px 9px",
+                                   borderRadius: 20, background: accepted ? color.greenBg : ib,
+                                   color: accepted ? color.greenFg : ac, flex: "0 0 auto" }}>
+                      {c.severity}
+                    </span>
+                    {c.delta !== "—" && (
+                      <span style={{ fontFamily: font.mono, fontSize: 13, color: ac, fontWeight: 600,
+                                     flex: "0 0 auto" }}>
+                        {c.delta}
+                      </span>
+                    )}
+                  </div>
+                )}
                 {/* Identity failed: this finding and at least one other share a subject_key while
                     printing DIFFERENT figures, so the queue cannot say which of them any verdict
                     belongs to. First in the body, and the card offers no acceptance at all — a
@@ -1110,28 +1373,6 @@ export default function ReviewScreen() {
                   </div>
                 )}
 
-                {/* The reason is required, so it is typed BEFORE the button can be pressed —
-                    letting an empty acceptance reach the server only to be refused would teach
-                    the reviewer that the button is unreliable. */}
-                {judgeable && canResolve && ACCEPTABLE_STATUS.has(c.status) && (
-                  <div style={{ marginBottom: 11 }}>
-                    <textarea
-                      data-testid="rv-reason"
-                      value={reason}
-                      maxLength={2000}
-                      rows={2}
-                      placeholder={t("r.reasonPlaceholder")}
-                      onChange={(e) => setReasons((s) => ({ ...s, [sk]: e.target.value }))}
-                      style={{
-                        width: "100%", boxSizing: "border-box", fontSize: 11.5,
-                        fontFamily: font.sans, color: color.ink, resize: "vertical",
-                        border: `1px solid ${color.controlBorder}`, borderRadius: 8,
-                        padding: "7px 9px", outline: "none", lineHeight: 1.5,
-                      }}
-                    />
-                  </div>
-                )}
-
                 {err && (
                   <div
                     data-testid="rv-error"
@@ -1163,7 +1404,7 @@ export default function ReviewScreen() {
                 )}
 
                 {/* Actions */}
-                <div style={{ display: "flex", gap: 9, alignItems: "center", flexWrap: "wrap" }}>
+                <div style={{ display: "flex", gap: 9, alignItems: "flex-start", flexWrap: "wrap" }}>
                   {/* The ONE mechanical fix: flip a mis-signed figure. Gated on extraction:edit
                       alone, because that is the only gate on the PATCH it calls. */}
                   {fa && canEdit && (
@@ -1204,6 +1445,19 @@ export default function ReviewScreen() {
                   >
                     {t("r.openInWorkspace")}
                   </Button>
+                  {/* The reason is required, so it is typed BEFORE the button can be pressed —
+                      letting an empty acceptance reach the server only to be refused would teach
+                      the reviewer that the button is unreliable. One line beside the button it
+                      unlocks, growing as it is written into, rather than a box of its own above
+                      the actions. */}
+                  {judgeable && canResolve && ACCEPTABLE_STATUS.has(c.status) && (
+                    <ReasonField
+                      testid="rv-reason"
+                      value={reason}
+                      placeholder={t("r.reasonPlaceholder")}
+                      onChange={(text) => setReasons((s) => ({ ...s, [sk]: text }))}
+                    />
+                  )}
                   {judgeable && canResolve && ACCEPTABLE_STATUS.has(c.status) && (
                     <Button
                       variant="secondary"
@@ -1263,12 +1517,32 @@ export default function ReviewScreen() {
                       {t("r.withdrawAcceptance")}
                     </Button>
                   )}
+                  {/* The way on, in the list layout: an accepted finding stays selected so the
+                      verdict just recorded is on screen, and this moves to the next finding that
+                      still needs one (↓ moves to the next row). */}
+                  {wide && (
+                    <Button
+                      variant="secondary"
+                      testid="rv-next"
+                      disabled={!nextOpen(c.id)}
+                      onClick={() => {
+                        const n = nextOpen(c.id);
+                        if (n) { expandCheck(n.id); setScrollToId(n.id); }
+                      }}
+                      style={{ marginInlineStart: "auto", fontSize: 12, padding: "8px 13px", borderRadius: 8,
+                               color: color.sec2, border: `1px solid ${color.cardBorder}` }}
+                    >
+                      {t("r.nextFinding")}
+                    </Button>
+                  )}
                 </div>
               </div>
             )}
           </div>
         );
       })}
+      </div>
+      )}
 
       {/* Judgements whose finding is gone — corrected, or no longer raised. Never deleted, and
           counted nowhere above: the count here is this array's own length.
@@ -1412,15 +1686,18 @@ function Counter({ value, label, fg, testid }:
     <div
       data-testid={testid}
       style={{
-        textAlign: "center",
+        display: "flex",
+        alignItems: "baseline",
+        gap: 5,
+        whiteSpace: "nowrap",
         background: "#fff",
         border: `1px solid ${color.cardBorder}`,
-        borderRadius: 10,
-        padding: "9px 14px",
+        borderRadius: 8,
+        padding: "5px 11px",
       }}
     >
-      <div style={{ fontSize: 18, fontWeight: 700, color: fg, fontFamily: font.mono }}>{value}</div>
-      <div style={{ fontSize: 10, color: color.muted }}>{label}</div>
+      <span style={{ fontSize: 14, fontWeight: 700, color: fg, fontFamily: font.mono }}>{value}</span>
+      <span style={{ fontSize: 11, color: color.muted }}>{label}</span>
     </div>
   );
 }

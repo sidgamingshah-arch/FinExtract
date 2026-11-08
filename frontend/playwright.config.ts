@@ -44,7 +44,12 @@ const SCRATCH = join(HERE, "e2e", ".scratch");
 // otherwise falls through to Playwright's own resolution, which finds whatever
 // `playwright install` put in the per-user cache.
 const PINNED_CHROMIUM = "/opt/pw-browsers/chromium-1194/chrome-linux/chrome";
-const CHROMIUM = existsSync(PINNED_CHROMIUM) ? PINNED_CHROMIUM : undefined;
+// …or, on an image that has moved on from that build, the stable link the image keeps to its
+// current one (`/opt/pw-browsers/chromium`): the suite pins a Playwright whose own browser build is
+// not installed there, so without the link every test failed at launch.
+const IMAGE_CHROMIUM = "/opt/pw-browsers/chromium";
+const CHROMIUM = existsSync(PINNED_CHROMIUM) ? PINNED_CHROMIUM
+  : existsSync(IMAGE_CHROMIUM) ? IMAGE_CHROMIUM : undefined;
 
 // The backend has to run on the VENV's interpreter, not on whatever `python` the PATH offers. On
 // the image they are the same thing; on a Windows checkout the PATH python is a bare system

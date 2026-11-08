@@ -240,8 +240,8 @@ Two card kinds were retired to that rule. A **weakly-mapped** row raises nothing
 mapping's strength is a property of the mapping, shown on the row's own confidence badge in
 the Workspace, and the right answer to a weak match is to match it better rather than to
 bill an analyst for it. It is still *counted*: `weak_mappings` is served beside the findings
-and stated in a sentence under the header, so narrowing the queue cannot read as the data
-having improved, and both the "lines with no finding" tile and the commentary's
+and stated in a sentence on the Relation coverage tab, so narrowing the queue cannot read as the
+data having improved, and both the "lines with no finding" tile and the commentary's
 data-quality caveat still exclude those lines. A **calculated line with no extracted
 components** likewise raises nothing — nothing disagrees with anything — and is reported in
 the coverage band and in the line's own inspector note, which is where an un-checkable
@@ -251,8 +251,25 @@ Findings grouped by type, with tabs the **server** defines (each tab carries the
 types it selects, so the client never filters by list position): All · Checks · Unmapped.
 A tab is never served for a kind that cannot be emitted: the tabs partition the list, so a
 chip selecting nothing renders as a permanent "0" that filters the list to empty — a control
-that looks like a filter and is a dead end. Each card expands into the reconciliation breakdown, the
-suggested fix, and up to three controls:
+that looks like a filter and is a dead end.
+
+**The screen is the queue first.** On a window at least 1000px wide it is a list and its detail:
+one compact row per finding on the left (its icon, title, page, figure and — once judged — who
+accepted it), and the selected finding in full on the right, sticky, so a reviewer works through
+the queue without scrolling past every card to reach the next. ↑/↓ (or k/j) move through the
+list; an accepted finding stays selected so the verdict just recorded is on screen, and "Next
+finding" moves to the next one that still needs a verdict; a re-mapped finding leaves the list
+and the one after it is selected. Each finding is still one `rv-check` element holding both its
+row and its detail (the wrapper is `display: contents` inside a grid), so a finding's controls
+stay inside the finding they act on. Narrower, the queue is the accordion it was. The **Relation
+coverage** diagnostics — the coverage band and the weak-mapping sentence — are a tab of their
+own beside the queue's chips: they describe the filing rather than work to do, and above the
+queue they pushed the first finding a screen and a half down the page. That tab is not an
+`rv-tab`: it counts no findings, and each queue chip's number is the length of the list it leaves
+on screen.
+
+Each finding's detail carries the reconciliation breakdown, the suggested fix, and up to three
+controls, each with its reason on one line beside the button it unlocks:
 
 * **Accept / withdraw a judgement** (`review:resolve`) — a named person, a timestamp and a
   required reason, pinned to the *figures* judged, so a re-run that moves them reopens the

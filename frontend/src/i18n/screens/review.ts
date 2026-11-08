@@ -101,6 +101,9 @@ export const review: Record<Locale, Record<string, string>> = {
     "r.evidenceChanged":
       "The figures changed while this card was open, so the acceptance was refused. Reload the queue and judge the figures as they now stand.",
     "r.cov.title": "Relation coverage",
+    "r.keysHint": "↑ ↓ to move between findings",
+    "r.emptyTab": "Nothing to review under this tab.",
+    "r.nextFinding": "Next finding ›",
     "r.cov.missing": "This review payload carried no coverage report, so what the template's relations could check on this filing is unknown.",
     "r.cov.subhead":
       "What the template's relations could say about this filing. Every count here is RELATIONS — not findings, and not lines.",
@@ -182,6 +185,9 @@ export const review: Record<Locale, Record<string, string>> = {
     "r.evidenceChanged":
       "本卡片打开期间数字已发生变化，因此认可被拒绝。请重新加载队列，并针对当前数字作出判断。",
     "r.cov.title": "关系式覆盖情况",
+    "r.keysHint": "按 ↑ ↓ 在发现之间切换",
+    "r.emptyTab": "此标签下没有需要复核的内容。",
+    "r.nextFinding": "下一项发现 ›",
     "r.cov.missing": "本次审核数据未附带覆盖情况报告，因此无法得知模板中的关系式对本报告检查了什么。",
     "r.cov.subhead":
       "模板中的关系式对本报告能作出何种结论。此处统计的均为关系式——既非发现，也非行项目。",
@@ -263,6 +269,9 @@ export const review: Record<Locale, Record<string, string>> = {
     "r.evidenceChanged":
       "تغيّرت الأرقام أثناء فتح هذه البطاقة، لذا رُفض القبول. أعد تحميل القائمة واحكم على الأرقام كما هي الآن.",
     "r.cov.title": "تغطية العلاقات",
+    "r.keysHint": "↑ ↓ للتنقل بين الملاحظات",
+    "r.emptyTab": "لا يوجد ما يُراجَع ضمن هذا التبويب.",
+    "r.nextFinding": "الملاحظة التالية ‹",
     "r.cov.missing": "لم تتضمّن بيانات المراجعة هذه تقرير تغطية، لذا لا يُعرف ما فحصته علاقات القالب في هذا الملف.",
     "r.cov.subhead":
       "ما تستطيع علاقات القالب أن تقوله عن هذا الملف. كل عدد هنا يمثل علاقات — لا ملاحظات ولا أسطرًا.",
@@ -346,6 +355,9 @@ export const review: Record<Locale, Record<string, string>> = {
     "r.evidenceChanged":
       "Les chiffres ont changé pendant que cette fiche était ouverte : l'acceptation a été refusée. Rechargez la file et jugez les chiffres tels qu'ils sont désormais.",
     "r.cov.title": "Couverture des relations",
+    "r.keysHint": "↑ ↓ pour passer d’un constat à l’autre",
+    "r.emptyTab": "Rien à revoir sous cet onglet.",
+    "r.nextFinding": "Constat suivant ›",
     "r.cov.missing": "Ces données de révision ne comportaient aucun rapport de couverture : ce que les relations du modèle ont contrôlé sur ce dépôt est donc inconnu.",
     "r.cov.subhead":
       "Ce que les relations du modèle pouvaient dire de ce dépôt. Chaque nombre ici compte des RELATIONS — ni constats, ni lignes.",
