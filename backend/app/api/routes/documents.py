@@ -3087,11 +3087,30 @@ def _evidence_value(v, locale: str) -> str:
     return str(v)
 
 
+def _unmapped_value_shown(val) -> str:
+    """An unmapped card's figure as the card prints it: thousands separated, every printed decimal
+    kept (``_shown``), and a value that is not a figure at all printed as it was read.
+
+    ONE spelling for the card and for the figures served under an acceptance of it, so the two
+    cannot disagree about how the same figure looks. The card's evidence keeps the unformatted
+    string — see the unmapped builder for why it must.
+    """
+    if val is None:
+        return "—"
+    amount = _amount(val)
+    return str(val) if amount is None or not amount.is_finite() else _shown(amount)
+
+
 def _evidence_rows(subject: dict, evidence: dict, locale: str) -> list[list[str]]:
     """The judged figures as ``[label, value]`` pairs — the same two-column shape as a check's
     ``calc``, so the client reuses one renderer for both."""
     out: list[list[str]] = []
     for key, val in (evidence or {}).items():
+        if subject.get("k") == "unmapped" and key == "value":
+            # Stored unformatted (it is what the acceptance was digested over), printed the way the
+            # card prints it, so "as accepted" and "now" read alike when they are alike.
+            out.append([_evidence_label(subject, key, locale), _unmapped_value_shown(val)])
+            continue
         if isinstance(val, dict):
             # A nested map is the component list; each component is its own row.
             out += [[_evidence_label(subject, k, locale), _evidence_value(v, locale)]
@@ -3446,7 +3465,10 @@ def _build_review(rows: list[dict], filename: str, locale: str = "en",
                     [L("Mapped to"),
                      key if off_template and not engine_unclassified
                      else L("— (no confident match)"), True],
-                    [L("Value"), str(val) if val is not None else "—", False],
+                    # Formatted like every other card's figure (thousands separated), but with
+                    # every printed decimal kept: this is one figure as read, not an arithmetic
+                    # result, so rounding it would hide a digit the evidence below still holds.
+                    [L("Value"), _unmapped_value_shown(val), False],
                 ],
                 "fix": L(_UNMAPPED_FIX),
                 # The row INDEX in this id is a render key only — the React list key and the
@@ -3467,7 +3489,11 @@ def _build_review(rows: list[dict], filename: str, locale: str = "en",
                 "subject": {"k": "unmapped", "label": judgement.norm(r.get("source_label")),
                             "anchor": _prov_anchor(first.get("provenance")),
                             **({"key": key} if off_template and not engine_unclassified else {})},
-                # The card prints str(val), so string equality invents no rounding the screen
+                # The figure AS READ, unformatted, and it must stay that way: this string is what
+                # every recorded acceptance of an unmapped card was digested over, so formatting it
+                # here would reopen each of them as stale over a figure that did not move. The card
+                # prints `_unmapped_value_shown(val)` — the same figure, thousands separated, no
+                # digit dropped — so string equality on this still invents no rounding the screen
                 # never applied.
                 "evidence": {"value": str(val) if val is not None else None},
                 # …and the fix the sentence above promises. `_UNMAPPED_FIX` has always said "Pick the

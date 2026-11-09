@@ -169,7 +169,7 @@ def test_the_off_template_row_is_exactly_one_review_finding_with_a_working_remap
     assert [c["type"] for c in review["checks"]] == ["unmapped"]
     card = review["checks"][0]
     # The figure the grid no longer shows is printed on the card, so it is visible somewhere.
-    assert ["Value", "4200", False] in card["calc"]
+    assert ["Value", "4,200", False] in card["calc"]
     assert card["calc"][1] == ["Mapped to", OFF_KEY, True]
     # The offer names the row by the handle the re-map endpoint resolves rows with, and the concept
     # it is filed under now.
