@@ -84,6 +84,15 @@ _OCI_SECTION = "other_comprehensive_income"
 _PER_SHARE_HEADING = re.compile(
     r"\bper\s+(?:common\s+|ordinary\s+)?shares?\b|\bshares\s+used\b"
     r"|\bweighted[\s-]*average\b.*\bshares?\b|\bnumber\s+of\s+(?:common\s+)?shares\b", re.IGNORECASE)
+# …AND A REVENUE OR COST-OF-REVENUE HEADING, the WHOLE heading and nothing else. A 10-K states its
+# net sales of products and its revenues from services apart (Regulation S-X Rule 5-03) as a bare
+# pair — Apple's "Products" / "Services" under "Net sales:", Microsoft's "Product" / "Service and
+# other" under "Revenue:" — and the same pair again under "Cost of sales:" / "Cost of revenue:".
+# Read with the heading ("Net sales: Products", "Cost of sales: Products") the four product and
+# service lines place them. Not "Costs and expenses:", which heads every cost of a statement.
+_SPLIT_HEADING = re.compile(
+    r"^\W*(?:net\s+sales|sales|(?:total\s+)?(?:net\s+)?(?:operating\s+)?revenues?"
+    r"|(?:total\s+)?costs?\s+of\s+(?:net\s+)?(?:sales|revenues?|goods\s+sold))\W*$", re.IGNORECASE)
 BLOCK_HEADING_FLAG = "bound_with_block_heading"
 
 
@@ -122,14 +131,24 @@ def _block_caption(li, section: str | None) -> tuple[str, str] | None:
     detected, a face row with a sub-heading whose own caption bound no line, printed under the
     other-comprehensive-income banner — or under a per-share heading (`_PER_SHARE_HEADING`), where
     the bare "Basic" / "Diluted" pairs of earnings per share and of the shares it is computed on are
-    told apart only by their headings. A caption that names its line still binds by itself; no
+    told apart only by their headings, or under a revenue or cost-of-revenue heading
+    (`_SPLIT_HEADING`), the sub-heading or the banner, where the bare "Products" / "Services" pairs
+    of the revenue and the cost of revenue are. A caption that names its line still binds by itself; no
     HKFRS, CAS or Ind AS row is read this way, and nor is any other section of a 10-K.
     """
-    heading = (getattr(li, "group_hint", "") or "").strip()
-    if not heading or li.printed_in is PrintedIn.NOTES:
+    if li.printed_in is PrintedIn.NOTES:
         return None
-    if (section_of_banner(section or "") != _OCI_SECTION
-            and not _PER_SHARE_HEADING.search(heading)):
+    heading = (getattr(li, "group_hint", "") or "").strip()
+    if not heading:
+        # A REVENUE OR COST HEADING ARRIVES AS THE BANNER on some faces: Microsoft's "Revenue:" and
+        # "Cost of revenue:" head the statement's first two blocks and the reader keeps each as the
+        # row's section, where Apple's "Net sales:" and "Cost of sales:" arrive as its sub-heading.
+        banner = (getattr(li, "section_hint", "") or "").strip()
+        if not _SPLIT_HEADING.match(banner):
+            return None
+        heading = banner
+    elif (section_of_banner(section or "") != _OCI_SECTION
+            and not _PER_SHARE_HEADING.search(heading) and not _SPLIT_HEADING.match(heading)):
         return None
     return heading.rstrip(":").strip(), f"{heading} {li.source_label or ''}"
 

@@ -58,6 +58,12 @@ WHAT IT DECIDES, and why:
     "Change in fair value of derivative instruments") binds by itself. A reclassification keeps
     the sign it is printed with although its caption opens on "Less:": on a 10-K a "Less:" row
     printing both signs is signed as printed (`normalize._prints_both_signs`).
+* PRODUCTS AND SERVICES, STATED APART AS REGULATION S-X RULE 5-03 ASKS. Net sales of products
+  and revenues from services are two lines, and their costs two more; each is checked against the
+  total the face prints by an identity, never by a rollup, so no total revenue or cost of revenue
+  is ever published as the sum of its halves (a filer printing a third revenue category would be
+  given a partial one). Apple and Microsoft print each pair bare under its heading; read with it
+  on a 10-K (`map_ontology._block_caption`), the four lines place them.
 * EARNINGS PER SHARE AND THE SHARE COUNTS ARE, AND THEY ARE NOT MONEY. Four lines of the statement
   of operations — basic and diluted EPS, and the weighted-average shares used to compute each —
   declare ``measure: per_share`` / ``shares`` (`LineItemDef.measure`). A 10-K's header gives them a
@@ -322,6 +328,19 @@ _NOT_A_NET_CHANGE = [rf"^\W*(?:less\W+)?{_RECLASS}",
                      # reclassification adjustments" is a one-row net change and stays one.
                      r"\badjustments?\s+for\s+(?:net\s+)?" + _GL + r"\s+realized\b",
                      r"\bless\s+(?:reclassification|amounts?\s+reclassified)\b"]
+
+# THE PRODUCT / SERVICE SPLIT (Regulation S-X Rule 5-03, items 1 and 2): net sales of tangible
+# products and revenues from services stated separately, and the cost of each. A 10-K prints it as a
+# bare pair under the revenue heading and the same pair under the cost heading — Apple's "Products" /
+# "Services" under "Net sales:" and "Cost of sales:", Microsoft's "Product" / "Service and other"
+# under "Revenue:" and "Cost of revenue:" — so a bare caption is no line's alias: on a 10-K the
+# mapper reads it again with the heading over it (`map_ontology._block_caption`), the sub-heading or
+# the banner it arrives as, and these patterns place it. A caption naming its own half ("Net
+# product sales", "Cost of services") binds by itself.
+_REV_HEAD = r"(?:net\s+sales|sales|(?:total\s+)?(?:net\s+)?(?:operating\s+)?revenues?)"
+_COST_HEAD = r"(?:total\s+)?costs?\s+of\s+(?:net\s+)?(?:sales|revenues?|goods\s+sold)"
+_PRODUCTS = r"(?:tangible\s+)?products?"
+_SERVICES = r"services?(?:\s+and\s+other)?"
 
 # A BLOCK'S NET CHANGE HOLDS ITS PARTS (`services.rollups`, `parts_of_printed`): the change and the
 # reclassification are inside the printed figure, so a block printing its net change with one of its
@@ -756,17 +775,42 @@ LINES = {
     ],
     # ── STATEMENT OF OPERATIONS ───────────────────────────────────────────────────────────────
     "is_pl": [
-        L("is_pl__net_sales", "Net sales", ["Net sales", "Sales", "Net product sales", "Product sales"],
-          "Revenue from the sale of goods and services, where the face prints it as a row of its "
-          "own above other revenue. A face printing one revenue figure prints it as total revenues.",
+        L("is_pl__net_sales", "Net sales", ["Net sales", "Sales"],
+          "Revenue from the sale of goods and services as one row, where the face prints it above "
+          "other revenue. A face printing one revenue figure prints it as total revenues; one "
+          "printing products and services separately prints them on the two lines that follow.",
           bucket="income",
-          regex=[E + r"(?:net\s+)?(?:product\s+)?sales(?:\s+to\s+customers)?$"]),
+          regex=[E + r"(?:net\s+)?sales(?:\s+to\s+customers)?$"]),
         L("is_pl__other_revenues", "Other revenues",
           ["Other revenues", "Other revenue", "Other operating revenues", "Membership and other income"],
           "Revenue the face prints beside net sales: membership fees, franchise and licence "
           "income, other operating revenue.",
           bucket="income",
           regex=[E + r"other\s+(?:operating\s+)?revenues?$"]),
+        L("is_pl__products_revenue", "Net sales of products",
+          ["Net product sales", "Product sales", "Product revenue", "Product revenues",
+           "Products revenue", "Revenue from products", "Revenues from products", "Sales of products",
+           "Net sales of products", "Net sales of tangible products"],
+          "Net sales of tangible products (Regulation S-X Rule 5-03.1(a)), where the face states "
+          "them apart from revenues from services: Apple's 'Products' and Microsoft's 'Product' "
+          "under the revenue heading, Amazon's 'Net product sales'. The same bare caption under the "
+          "cost heading is the cost of products. Part of total revenues, which the face prints.",
+          bucket="income", exclude=[r"\bcosts?\b"] + _GLUED_HEADING,
+          regex=[E + r"(?:net\s+)?" + _PRODUCTS + r"\s+(?:sales|revenues?)(?:\s+net)?$",
+                 E + r"(?:net\s+)?(?:sales|revenues?)\s+(?:of|from)\s+" + _PRODUCTS + r"$",
+                 E + _REV_HEAD + r"\s+" + _PRODUCTS + r"$"]),
+        L("is_pl__services_revenue", "Revenues from services",
+          ["Net service sales", "Service revenue", "Service revenues", "Services revenue",
+           "Services revenues", "Revenue from services", "Revenues from services",
+           "Service and other revenue", "Service and other revenues", "Services and other revenue"],
+          "Revenues from services (Regulation S-X Rule 5-03.1(d)), where the face states them apart "
+          "from net sales of products: Apple's 'Services' and Microsoft's 'Service and other' "
+          "under the revenue heading, Amazon's 'Net service sales'. The same bare caption under the "
+          "cost heading is the cost of services. Part of total revenues, which the face prints.",
+          bucket="income", exclude=[r"\bcosts?\b"] + _GLUED_HEADING,
+          regex=[E + r"(?:net\s+)?" + _SERVICES + r"\s+(?:sales|revenues?)(?:\s+net)?$",
+                 E + r"(?:net\s+)?(?:sales|revenues?)\s+(?:of|from)\s+services?$",
+                 E + _REV_HEAD + r"\s+" + _SERVICES + r"$"]),
         L("is_pl__sales_revenues", "Total revenues",
           ["Total revenues", "Total revenue", "Total net sales", "Total net revenue", "Total net revenues",
            "Revenues", "Revenue", "Net revenues", "Net revenue", "Total sales and revenues",
@@ -779,13 +823,36 @@ LINES = {
                  E + r"(?:total\s+)?(?:net\s+)?sales\s+and\s+(?:operating\s+)?revenues?$",
                  E + r"total\s+(?:net\s+)?(?:product\s+)?sales$"],
           roll=("sum", ["is_pl__net_sales", "is_pl__other_revenues"])),
+        L("is_pl__cost_of_products", "Cost of products",
+          ["Cost of product revenue", "Cost of product revenues", "Cost of products revenue",
+           "Cost of product sales"],
+          "The cost of the tangible products sold (Regulation S-X Rule 5-03.2(a)), where the face "
+          "states it apart from the cost of services: Apple's 'Products' under 'Cost of sales', "
+          "Microsoft's 'Product' under 'Cost of revenue'. Not a single 'Cost of products sold' "
+          "row, which is the whole cost of revenue of a filer that prints no split.",
+          bucket="expenses", exclude=_GLUED_HEADING,
+          regex=[E + r"costs?\s+of\s+(?:net\s+)?products?\s+(?:sales|revenues?)$",
+                 E + _COST_HEAD + r"\s+" + _PRODUCTS + r"$"]),
+        L("is_pl__cost_of_services", "Cost of services",
+          ["Cost of services", "Costs of services", "Cost of service revenue", "Cost of service revenues",
+           "Cost of services revenue", "Cost of service sales"],
+          "The cost of the services rendered (Regulation S-X Rule 5-03.2(d)), where the face states "
+          "it apart from the cost of products: Apple's 'Services' under 'Cost of sales', "
+          "Microsoft's 'Service and other' under 'Cost of revenue'; or a 'Cost of services' row.",
+          bucket="expenses", exclude=_GLUED_HEADING,
+          regex=[E + r"costs?\s+of\s+" + _SERVICES + r"(?:\s+(?:sales|revenues?))?$",
+                 E + _COST_HEAD + r"\s+" + _SERVICES + r"$"]),
         L("is_pl__cost_of_revenue", "Cost of revenue",
           ["Cost of sales", "Cost of revenue", "Cost of revenues", "Total cost of sales",
            "Total cost of revenue", "Total cost of revenues", "Cost of goods sold", "Cost of products sold",
            "Costs of revenue", "Cost of goods and services sold"],
           "The cost of the goods and services sold, as printed, positive; where the face prints a "
-          "product and a service cost and their total, the total.",
-          bucket="expenses", exclude=[r"^\W*gross"],
+          "product and a service cost and their total, the total — the two halves are the cost of "
+          "products and the cost of services.",
+          bucket="expenses",
+          exclude=[r"^\W*gross",
+                   # A half read with its heading ("Cost of sales: Products") is that half's.
+                   r"^\W*" + _COST_HEAD + r"\s+(?:" + _PRODUCTS + r"|" + _SERVICES + r")$"],
           regex=[E + r"(?:total\s+)?costs?\s+of\s+(?:net\s+)?(?:sales|revenues?|goods\s+(?:and\s+services\s+)?"
                  r"sold|products\s+sold|merchandise\s+sold|products\s+and\s+services(?:\s+sold)?|sales\s+and"
                  r"\s+services)\b.*$"]),
@@ -2124,7 +2191,22 @@ def build() -> tuple[dict, dict]:
             # (`structural_checks._signs_established`), and nothing about its sign is in doubt.
             st["identities"] = [{"id": "comprehensive_income_opens_on_net_income",
                                  "lhs": "is_oci__net_income",
-                                 "rhs": {"op": "sum", "children": ["is_pl__profit_for_the_year"]}}]
+                                 "rhs": {"op": "sum", "children": ["is_pl__profit_for_the_year"]}},
+                                # THE PRODUCT / SERVICE SPLIT ADDS UP TO THE TOTALS THE FACE PRINTS.
+                                # Identities and not rollups, deliberately: a rollup on total revenues
+                                # would PUBLISH the sum of its parts, and a filer printing a services
+                                # row beside categories the template does not carry (Tesla's
+                                # automotive revenue beside "Services and other") would have its
+                                # total revenue replaced by the services row alone. An identity only
+                                # checks, and is skipped where a half is not printed.
+                                {"id": "revenues_are_products_plus_services",
+                                 "lhs": "is_pl__sales_revenues",
+                                 "rhs": {"op": "sum", "children": ["is_pl__products_revenue",
+                                                                   "is_pl__services_revenue"]}},
+                                {"id": "cost_of_revenue_is_products_plus_services",
+                                 "lhs": "is_pl__cost_of_revenue",
+                                 "rhs": {"op": "sum", "children": ["is_pl__cost_of_products",
+                                                                   "is_pl__cost_of_services"]}}]
         statements.append(st)
     statements.append({
         "type": "notes", "label": NOTES_LABEL, "label_i18n": {"en": NOTES_LABEL},

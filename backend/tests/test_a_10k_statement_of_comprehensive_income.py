@@ -142,9 +142,11 @@ def test_the_arithmetic_is_written_as_the_templates_rollups_and_an_identity(raw)
                                         "parts_of_printed": True}
     assert nodes[TOTAL]["rollup"] == {"op": "sum", "children": [FX, AFS_NET, CFH_NET, PENSION, OTHER]}
     assert nodes[CI]["rollup"] == {"op": "sum", "children": [NI, TOTAL]}
-    assert _pl(raw)["identities"] == [{
-        "id": "comprehensive_income_opens_on_net_income", "lhs": NI,
-        "rhs": {"op": "sum", "children": ["is_pl__profit_for_the_year"]}}]
+    # The statement of operations carries other identities too — the product / service split
+    # (`test_a_10k_states_products_and_services_apart.py`) — so this one is looked for, not pinned
+    # as the only one.
+    assert {"id": "comprehensive_income_opens_on_net_income", "lhs": NI,
+            "rhs": {"op": "sum", "children": ["is_pl__profit_for_the_year"]}} in _pl(raw)["identities"]
     items = {i["key"]: i for i in raw[1]["items"]}
     for key in (AFS_NET, CFH_NET, TOTAL, CI):
         assert items[key]["extraction_mode"] == "extract_or_derive", key
