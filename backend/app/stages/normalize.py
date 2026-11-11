@@ -72,6 +72,27 @@ from app.services.buckets import statement_resolver
 _LESS = re.compile(r"^\s*(?:less|deduct)\b(?!\s+than\b)|\bless\s*:", re.IGNORECASE)
 _ADD = re.compile(r"^\s*add\b|add:", re.IGNORECASE)
 
+
+def _prints_both_signs(li) -> bool:
+    """Whether a row prints a figure in parentheses in one column and a bare one in another.
+
+    ON A FORM 10-K THAT ROW IS SIGNED AS PRINTED, whatever its caption opens on. A US statement
+    prints every figure with the sign it adds with, and a "Less:" in front of it is narrative: a
+    10-K's statement of comprehensive income prints "Less: reclassification adjustment for net
+    (gains) losses included in net income" with the reclassification's own sign, and the block's net
+    change is the change plus it as printed. Alphabet 2025, available-for-sale securities: change
+    1,344 / (116) / 1,146, reclassification 1,168 / 782 / (169), net change 2,512 / 666 / 977 —
+    and the cash flow hedges (214) / (166) / 164 against a net change of (46) / 609 / (615). The
+    "Less:" rule's -|figure| turned 1,168, 782 and 164 negative, so two of the six net changes no
+    longer added up. A row whose every figure is positive is still a deduction the caption names,
+    and one whose every figure is negative is unchanged by -|figure|; only a row printing both signs
+    proves the signs are its own. Asked only on a filing `regime.is_us_10k_filing` detected
+    (`ctx.us_10k_filing`): an HKFRS or CAS "Less:" row prints a magnitude, and no such filing moves.
+    """
+    raws = [ev.value_raw for ev in li.values.values() if ev.value_raw is not None]
+    return any(r < 0 for r in raws) and any(r > 0 for r in raws)
+
+
 # "Amounts in ₹ crore", "(RMB'000)", "in thousands of USD", "figures in HK$ million" …
 _UNIT_SCALE = {"thousand": Decimal(1_000), "lakh": Decimal(100_000), "lac": Decimal(100_000),
                "ten thousand": Decimal(10_000),
@@ -453,10 +474,16 @@ class NormalizeStage:
             if any(rx.search(li.source_label or "") for rx in sign_by_key.get(li.canonical_key or "", []))}
 
         changed = 0
+        us_10k = bool(getattr(ctx, "us_10k_filing", False))
+        signed_as_printed = 0
         for li in doc.line_items:
             label = li.source_label or ""
             less = bool(_LESS.search(label))
             add = bool(_ADD.search(label))
+            if (less or add) and us_10k and _prints_both_signs(li):
+                # A 10-K ROW PRINTING BOTH SIGNS IS SIGNED AS PRINTED — see `_prints_both_signs`.
+                less = add = False
+                signed_as_printed += 1
             flips = sign_by_key.get(li.canonical_key or "", [])
             flip = any(rx.search(label) for rx in flips)
             contra = li.canonical_key in natural_negative
@@ -522,6 +549,9 @@ class NormalizeStage:
                     changed += 1
 
         ctx.log(f"normalize:sign_adjusted={changed}")
+        if signed_as_printed:
+            ctx.log(f"normalize:us_10k_prefix_rows_signed_as_printed={signed_as_printed} (a "
+                    f"'Less:'/'Add:' row printing both signs keeps them)")
         self._negate_unsigned_cas_outflows(doc, ctx)
         # AFTER the per-row adjustments above, so a "less:" prefix or a sign_rule flip has already
         # had its say and the cohort is judged on finished figures. BEFORE `_check_expectations`, so

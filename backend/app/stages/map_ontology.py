@@ -73,6 +73,54 @@ REVENUE_BLOCK_FLAG = "revenue_block_part"
 # THE INCOME STATEMENT'S CLOSING TOTAL — see `MapOntologyStage._closing_total_once`.
 _CLOSING_TOTAL = "is_pl__profit_loss_bef_extraord_items"
 
+# A 10-K COMPREHENSIVE-INCOME ROW READ WITH ITS BLOCK'S HEADING — see `_block_caption`.
+_OCI_SECTION = "other_comprehensive_income"
+BLOCK_HEADING_FLAG = "bound_with_block_heading"
+
+
+def _block_caption(li, section: str | None) -> tuple[str, str] | None:
+    """``(heading, joined)``: what a 10-K comprehensive-income row is read by a second time — its
+    block's heading, then its own caption — or None for a row this reading is not for.
+
+    A US STATEMENT OF COMPREHENSIVE INCOME PRINTS EACH COMPONENT AS A BLOCK, AND THE BLOCKS REPEAT
+    THEIR CAPTIONS. Alphabet 2025 prints "Change in net unrealized gains (losses)", "Less:
+    reclassification adjustment for net (gains) losses included in net income" and "Net change, net
+    of income tax benefit (expense) of ..." under "Available-for-sale investments:" and again under
+    "Cash flow hedges:". The caption alone names neither block, so it is no line's alias — it would
+    put both blocks' rows on one line, and two rows on one line are added. Only the heading tells
+    them apart, as it does for a reader, and the reader keeps it as the row's sub-heading
+    (`LineItem.group_hint`). Read the two together ("Available-for-sale investments: Change in net
+    unrealized gains (losses)") and the line's own patterns place the row.
+
+    WHY THE MAPPER AND NOT THE MODEL ALONE. The request shows the same heading as the row's
+    `subheading`, but a model's citation of an unplaced printed row files its figure on a new row of
+    the line's own, current and prior year only, while the printed row stays unplaced
+    (`stages.line_item_llm._write`): measured on Alphabet with the stand-in placing all six rows, the
+    six still raised Unmapped cards and the 2023 column of the section's reconciliation failed. A
+    focus run as shipped asks the model about no statement line at all.
+
+    A HEADING THAT NAMES A LINE ITSELF BINDS NO ROW BENEATH IT: the caller keeps the reading only
+    when it names a line the heading alone does not. Under "Pension and postretirement plans:" a
+    filer prints the actuarial loss, its amortisation and their net change, and every one of them
+    read with the heading is "pension …" — three rows on the pension line, added. Under Apple's
+    "Change in unrealized gains/losses on marketable debt securities:" the heading is the block's
+    net change, and the bare "Adjustment for net (gains)/losses realized and included in net
+    income" beneath it would join it there. Such a row stays unplaced, as it was. Only a heading
+    that names no line of its own ("Available-for-sale investments:", "Cash flow hedges:") lends
+    its rows a name, and then only the row's own words say which of the block's lines it is.
+
+    ASKED ONLY WHERE NOTHING ELSE ANSWERED, AND ONLY HERE: a filing `regime.is_us_10k_filing`
+    detected, a face row with a sub-heading whose own caption bound no line, printed under the
+    other-comprehensive-income banner. A caption that names its line still binds by itself; no
+    HKFRS, CAS or Ind AS row is read this way, and nor is any other section of a 10-K.
+    """
+    heading = (getattr(li, "group_hint", "") or "").strip()
+    if not heading or li.printed_in is PrintedIn.NOTES:
+        return None
+    if section_of_banner(section or "") != _OCI_SECTION:
+        return None
+    return heading.rstrip(":").strip(), f"{heading} {li.source_label or ''}"
+
 
 # THE TWO HALVES OF EACH SIDE OF A BALANCE SHEET, and the banner the mapper reads the second under
 # — see `_balance_sheet_past_total`.
@@ -1017,6 +1065,8 @@ class MapOntologyStage:
         from app.services.statement_sets import SET_NOT_READ_FLAG, unread_set_pages
         _unread = unread_set_pages(doc)
         set_refused = 0
+        us_10k = bool(getattr(ctx, "us_10k_filing", False))
+        block_bound = 0
 
         for done, li in enumerate(doc.line_items, start=1):
             unread = _unread.get(_page_of(li)) if _unread and li.printed_in is not PrintedIn.NOTES \
@@ -1029,6 +1079,21 @@ class MapOntologyStage:
                 continue
             res = matcher.match(li.source_label, statement=_statement_of(li),
                                 section=_section_for(li))
+            # A 10-K COMPREHENSIVE-INCOME BLOCK'S BARE ROW, read with its heading — see
+            # `_block_caption`. Every gate below applies to the answer as to any other.
+            via_heading = False
+            if us_10k and (res is None or not res.canonical_key):
+                block = _block_caption(li, _section_for(li))
+                if block:
+                    heading, joined = block
+                    alt = matcher.match(joined, statement=_statement_of(li),
+                                        section=_section_for(li))
+                    own = (matcher.match(heading, statement=_statement_of(li),
+                                         section=_section_for(li))
+                           if alt is not None and alt.canonical_key else None)
+                    if (alt is not None and alt.canonical_key
+                            and (own is None or own.canonical_key != alt.canonical_key)):
+                        res, via_heading = alt, True
             # A line that declares `row_terms` has said what its ROW is called, and a caption
             # sharing no subject word with those terms is not that row — it is almost always the
             # note or expense TOTAL the line is a component of.
@@ -1126,12 +1191,20 @@ class MapOntologyStage:
                 res = None
             if res is not None and _apply(li, res):
                 mapped += 1
+                if via_heading:
+                    block_bound += 1
+                    li.confidence.flags.append(BLOCK_HEADING_FLAG)
+                    ctx.log(f"map_line_items:bound_with_block_heading {res.canonical_key} <- "
+                            f"{(li.group_hint or '')[:40]!r} {(li.source_label or '')[:50]!r}")
             # Every 10 rows, not every row: a filing carries hundreds and each report is a small
             # database write.
             if done % 10 == 0 or done == total_rows:
                 ctx.emit_step(done, total_rows, "row")
         mapped += self._revenue_block_parts(doc, ontology, _statement_of, ctx)
         mapped += self._closing_total_once(doc, ontology, matcher, _statement_of, ctx)
+        if block_bound:
+            ctx.log(f"map_line_items:bound_with_block_heading={block_bound} (10-K comprehensive-"
+                    f"income rows read with the heading over their block)")
         if set_refused:
             ctx.log(f"map_line_items:statement_set_not_read={set_refused} (rows printed on the "
                     f"{'/'.join(sorted(set(_unread.values())))} statements, pages "

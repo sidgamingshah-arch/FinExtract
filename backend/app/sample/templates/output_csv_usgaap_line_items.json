@@ -11,8 +11,9 @@
   "name": "US GAAP (Form 10-K) line items",
   "version": "1",
   "changes": [
-   "Built by scripts/build_usgaap_pair.py: the rows the face of a Form 10-K's consolidated balance sheets, statements of operations and indirect-method statements of cash flows print.",
-   "104 statement lines, every one read from the face (strict_face_route); no internal parts. One leftover line per asset, liability, stockholders' equity and cash-flow section; none in the statement of operations or in temporary equity.",
+   "Built by scripts/build_usgaap_pair.py: the rows the face of a Form 10-K's consolidated balance sheets, statements of operations, statements of comprehensive income and indirect-method statements of cash flows print.",
+   "The statement of comprehensive income: four sections of the statement of operations (other comprehensive income; comprehensive income attributable to; the available-for-sale securities' and the cash flow hedges' change and reclassification), scoped by the section a row is printed under. The net income it opens on is a line of its own, compared with the statement of operations' by a template identity; each block's net change, total other comprehensive income and comprehensive income are rollups.",
+   "118 statement lines, every one read from the face (strict_face_route); no internal parts. One leftover line per asset, liability, stockholders' equity and cash-flow section; none in the statement of operations, its comprehensive income or temporary equity.",
    "Earnings per share (basic, diluted) and the weighted-average shares used to compute them (basic, diluted): four statement-of-operations lines declaring `measure: per_share` / `shares`, published as printed in dollars per share and in shares, never in the statements' scale; in no rollup and no KPI.",
    "37 additional items, read from the notes and the auditor's report: the supplemental cash flow disclosures, debt maturities, principal and fair value, the current and deferred tax and the effective tax rate, the inventory split, property at cost and accumulated depreciation, the audit opinion, contingent liabilities and related-party transactions, with a short narrative of each of the last two written by the model and labelled as such."
   ],
@@ -72,6 +73,42 @@
    "statement": "profit_and_loss",
    "section_scope": [
     "is_pl"
+   ],
+   "temporality": "duration",
+   "sign_convention": "either"
+  },
+  "is_oci": {
+   "statement": "profit_and_loss",
+   "section_scope": [
+    "is_oci",
+    "total_comprehensive_income_attributable_to"
+   ],
+   "temporality": "duration",
+   "sign_convention": "either"
+  },
+  "is_oci_attribution": {
+   "statement": "profit_and_loss",
+   "section_scope": [
+    "is_oci",
+    "total_comprehensive_income_attributable_to"
+   ],
+   "temporality": "duration",
+   "sign_convention": "either"
+  },
+  "is_oci_afs": {
+   "statement": "profit_and_loss",
+   "section_scope": [
+    "is_oci",
+    "total_comprehensive_income_attributable_to"
+   ],
+   "temporality": "duration",
+   "sign_convention": "either"
+  },
+  "is_oci_cfh": {
+   "statement": "profit_and_loss",
+   "section_scope": [
+    "is_oci",
+    "total_comprehensive_income_attributable_to"
    ],
    "temporality": "duration",
    "sign_convention": "either"
@@ -487,7 +524,7 @@
   "unbound_row_policy": "Route an unclaimed face value only to the residual for its resolved printed section. Never borrow a neighbouring concept or cross a section. After all mapping and gap-closing opportunities, the engine-level face_mapping_contract gives any remaining face value a unique engine_unclassified_face key outside the ontology/template namespaces. This keeps the row stored and reviewable without feeding it into an unrelated calculation. Verified non-additive aggregates replaced by mapped components remain evidence-only.",
   "match_priority": "Integer 0-99, higher evaluated first. Long specific captions rank above short generic ones so 'Total assets less current liabilities' cannot be pre-empted by 'Total current liabilities' on token overlap. Residuals are 0 and unreachable by matching."
  },
- "prompt": "These are the consolidated financial statements of a US registrant filed on Form 10-K under US GAAP: the Consolidated Balance Sheets, the Consolidated Statements of Operations (or Income) and the Consolidated Statements of Cash Flows. Amounts are in US dollars, usually in millions or thousands except per-share amounts; the statements of operations and of cash flows print three years and the balance sheet two. Earnings per share is an amount in dollars per share and the weighted-average shares are a count of shares, each as printed and neither in the statements' millions or thousands; a bare 'Basic' or 'Diluted' row is earnings per share under an 'Earnings per share' heading and a share count under a 'Shares used in computing earnings per share' or 'Weighted-average shares outstanding' heading, and its `subheading` names the heading. Every line of the three statements is a row the face of those statements prints: cite the printed statement row, never a note, and leave a line empty when the face does not print it. The additional items are read from the notes, the supplemental cash flow disclosures and the report of the independent registered public accounting firm, as each line says; a text item is copied or written exactly as its line asks, and left empty when the filing does not disclose it. A 10-K balance sheet usually prints no 'Non-current assets' or 'Non-current liabilities' heading: the rows after 'Total current assets' and before 'Total assets' are non-current assets, and the rows after 'Total current liabilities' and before the equity are non-current liabilities. Expenses are read as printed, positive.",
+ "prompt": "These are the consolidated financial statements of a US registrant filed on Form 10-K under US GAAP: the Consolidated Balance Sheets, the Consolidated Statements of Operations (or Income), the Consolidated Statements of Comprehensive Income (on a page of their own or continuing the statement of operations) and the Consolidated Statements of Cash Flows. Amounts are in US dollars, usually in millions or thousands except per-share amounts; the statements of operations and of cash flows print three years and the balance sheet two. Earnings per share is an amount in dollars per share and the weighted-average shares are a count of shares, each as printed and neither in the statements' millions or thousands; a bare 'Basic' or 'Diluted' row is earnings per share under an 'Earnings per share' heading and a share count under a 'Shares used in computing earnings per share' or 'Weighted-average shares outstanding' heading, and its `subheading` names the heading. The statement of comprehensive income opens on the net income: that row is the comprehensive income line's own net income, not the statement of operations' line. It prints each block of other comprehensive income — the available-for-sale securities, the cash flow hedges — as a change, a reclassification and a net change, often with the same bare captions in both blocks; the row's `subheading` names the block. Every line of the statements is a row the face of those statements prints: cite the printed statement row, never a note, and leave a line empty when the face does not print it. The additional items are read from the notes, the supplemental cash flow disclosures and the report of the independent registered public accounting firm, as each line says; a text item is copied or written exactly as its line asks, and left empty when the filing does not disclose it. A 10-K balance sheet usually prints no 'Non-current assets' or 'Non-current liabilities' heading: the rows after 'Total current assets' and before 'Total assets' are non-current assets, and the rows after 'Total current liabilities' and before the equity are non-current liabilities. Expenses are read as printed, positive.",
  "global_rules": {
   "source_fact_id": "document_id|entity_scope|period|currency|unit|page|table_or_note|source_row_id",
   "sign_convention": {
@@ -4586,6 +4623,860 @@
    ]
   },
   {
+   "key": "is_oci__net_income",
+   "label": "Net income (loss), as comprehensive income opens on it",
+   "type": "extracted",
+   "namespace": "template",
+   "in_output": true,
+   "inherits": "is_oci",
+   "statements": [
+    "profit_and_loss"
+   ],
+   "section_scope": [
+    "is_oci",
+    "total_comprehensive_income_attributable_to"
+   ],
+   "order": 77,
+   "definition": "The net income or loss the statement of comprehensive income opens on, as that statement prints it: the statement of operations' net income, printed again as the first row of comprehensive income. It is this line's, never the statement of operations' net income line, so the figure is not filed twice; a template identity compares the two. Empty where the filer prints one continuous statement of operations and comprehensive income, whose net income is printed once.",
+   "temporality": "duration",
+   "unit_of_account": "subtotal",
+   "sign_convention": "either",
+   "analyst_bucket": "income",
+   "match_priority": 80,
+   "route": "face",
+   "aliases": [
+    "Net income",
+    "Net income (loss)",
+    "Net loss",
+    "Net earnings",
+    "Consolidated net income",
+    "Net earnings (loss)",
+    "Net (loss) income",
+    "Net income including noncontrolling interests"
+   ],
+   "aliases_i18n": {
+    "en": [
+     "Net income",
+     "Net income (loss)",
+     "Net loss",
+     "Net earnings",
+     "Consolidated net income",
+     "Net earnings (loss)",
+     "Net (loss) income",
+     "Net income including noncontrolling interests"
+    ]
+   },
+   "regex_hints": [
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+|plus\\s+)?(?:net\\s+income\\s+including\\s+noncontrolling\\s+interests|consolidated\\s+net\\s+income|net\\s+earnings\\s+loss|net\\s+income\\s+loss|net\\s+loss\\s+income|net\\s+earnings|net\\s+income|net\\s+loss)$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:consolidated\\s+)?net\\s+(?:income|earnings|loss|profit)(?:\\s+(?:loss|income|earnings))?(?:\\s+including\\s+non\\s*controlling\\s+interests?)?$"
+   ],
+   "exclude_hints": [
+    "(?i)attributable",
+    "(?i)available\\s+to",
+    "(?i)\\bfrom\\b",
+    "(?i)comprehensive",
+    "(?i)per\\s+(?:common\\s+)?share",
+    "(?i)\\bbasic\\b",
+    "(?i)\\bdiluted\\b"
+   ]
+  },
+  {
+   "key": "is_oci__foreign_currency_translation",
+   "label": "Foreign currency translation adjustments",
+   "type": "extracted",
+   "namespace": "template",
+   "in_output": true,
+   "inherits": "is_oci",
+   "statements": [
+    "profit_and_loss"
+   ],
+   "section_scope": [
+    "is_oci",
+    "total_comprehensive_income_attributable_to"
+   ],
+   "order": 78,
+   "definition": "The year's foreign currency translation adjustment recognised in other comprehensive income (ASC 830): the translation of foreign operations' net assets, with any net investment hedge and the reclassification on disposal of a foreign operation where the filer prints them inside it, net of tax as printed.",
+   "temporality": "duration",
+   "unit_of_account": "flow",
+   "sign_convention": "either",
+   "analyst_bucket": "others",
+   "match_priority": 80,
+   "route": "face",
+   "aliases": [
+    "Foreign currency translation adjustments",
+    "Foreign currency translation adjustment",
+    "Change in foreign currency translation adjustment",
+    "Foreign currency translation adjustments, net of tax",
+    "Foreign currency translation",
+    "Currency translation adjustments",
+    "Translation adjustments",
+    "Cumulative translation adjustment",
+    "Foreign currency translation gains (losses)",
+    "Translation adjustments and other, net of tax",
+    "Translation adjustments & other, net of tax"
+   ],
+   "aliases_i18n": {
+    "en": [
+     "Foreign currency translation adjustments",
+     "Foreign currency translation adjustment",
+     "Change in foreign currency translation adjustment",
+     "Foreign currency translation adjustments, net of tax",
+     "Foreign currency translation",
+     "Currency translation adjustments",
+     "Translation adjustments",
+     "Cumulative translation adjustment",
+     "Foreign currency translation gains (losses)",
+     "Translation adjustments and other, net of tax",
+     "Translation adjustments & other, net of tax"
+    ]
+   },
+   "regex_hints": [
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+|plus\\s+)?(?:foreign\\s+currency\\s+translation\\s+adjustments\\s+net\\s+of\\s+tax|change\\s+in\\s+foreign\\s+currency\\s+translation\\s+adjustment|translation\\s+adjustments\\s+and\\s+other\\s+net\\s+of\\s+tax|foreign\\s+currency\\s+translation\\s+gains\\s+losses|foreign\\s+currency\\s+translation\\s+adjustments|translation\\s+adjustments\\s+other\\s+net\\s+of\\s+tax|foreign\\s+currency\\s+translation\\s+adjustment|cumulative\\s+translation\\s+adjustment|currency\\s+translation\\s+adjustments|foreign\\s+currency\\s+translation|translation\\s+adjustments)$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:net\\s+)?(?:change\\s+in\\s+)?(?:(?:foreign\\s+)?currency\\s+|cumulative\\s+)?translation\\s+(?:adjustments?|gains?|loss(?:es)?|differences?)\\b.*$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:net\\s+)?(?:change\\s+in\\s+)?foreign\\s+currency\\s+translation\\b.*$"
+   ],
+   "exclude_hints": [
+    "(?i)accumulated",
+    "(?i)attributable",
+    "(?i):\\s*$"
+   ]
+  },
+  {
+   "key": "is_oci__available_for_sale_securities",
+   "label": "Available-for-sale debt securities, net change",
+   "type": "calculated",
+   "namespace": "template",
+   "in_output": true,
+   "inherits": "is_oci",
+   "statements": [
+    "profit_and_loss"
+   ],
+   "section_scope": [
+    "is_oci",
+    "total_comprehensive_income_attributable_to"
+   ],
+   "order": 79,
+   "definition": "The year's net change in unrealized gains and losses on available-for-sale debt securities (ASC 320) recognised in other comprehensive income, net of tax: the change in unrealized gains (losses) and the reclassification of (gains) losses to net income together. Where the filer prints the two and their total under a heading naming the securities ('Available-for-sale investments:'), this is the total — often a bare 'Net change, net of income tax ...' row whose `subheading` names the securities; the same caption under a cash-flow-hedges heading is the hedges' line. Where it prints one row, that row.",
+   "temporality": "duration",
+   "unit_of_account": "subtotal",
+   "sign_convention": "either",
+   "analyst_bucket": "others",
+   "match_priority": 95,
+   "route": "face",
+   "extraction_mode": "extract_or_derive",
+   "terms": [
+    {
+     "ref": "is_oci__afs_unrealized_gains_losses",
+     "sign": 1
+    },
+    {
+     "ref": "is_oci__afs_reclassification",
+     "sign": 1
+    }
+   ],
+   "aliases": [
+    "Net unrealized gains (losses) on available-for-sale securities",
+    "Unrealized gains (losses) on available-for-sale securities",
+    "Change in unrealized gains (losses) on available-for-sale securities",
+    "Net change in unrealized gains (losses) on available-for-sale securities",
+    "Net unrealized gains (losses) on available-for-sale debt securities",
+    "Unrealized gains (losses) on marketable securities",
+    "Unrealized gains (losses) on investments",
+    "Net change related to investments",
+    "Total change in unrealized gains/losses on marketable debt securities"
+   ],
+   "aliases_i18n": {
+    "en": [
+     "Net unrealized gains (losses) on available-for-sale securities",
+     "Unrealized gains (losses) on available-for-sale securities",
+     "Change in unrealized gains (losses) on available-for-sale securities",
+     "Net change in unrealized gains (losses) on available-for-sale securities",
+     "Net unrealized gains (losses) on available-for-sale debt securities",
+     "Unrealized gains (losses) on marketable securities",
+     "Unrealized gains (losses) on investments",
+     "Net change related to investments",
+     "Total change in unrealized gains/losses on marketable debt securities"
+    ]
+   },
+   "regex_hints": [
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+|plus\\s+)?(?:net\\s+change\\s+in\\s+unrealized\\s+gains\\s+losses\\s+on\\s+available\\s+for\\s+sale\\s+securities|total\\s+change\\s+in\\s+unrealized\\s+gains\\s+losses\\s+on\\s+marketable\\s+debt\\s+securities|change\\s+in\\s+unrealized\\s+gains\\s+losses\\s+on\\s+available\\s+for\\s+sale\\s+securities|net\\s+unrealized\\s+gains\\s+losses\\s+on\\s+available\\s+for\\s+sale\\s+debt\\s+securities|net\\s+unrealized\\s+gains\\s+losses\\s+on\\s+available\\s+for\\s+sale\\s+securities|unrealized\\s+gains\\s+losses\\s+on\\s+available\\s+for\\s+sale\\s+securities|unrealized\\s+gains\\s+losses\\s+on\\s+marketable\\s+securities|unrealized\\s+gains\\s+losses\\s+on\\s+investments|net\\s+change\\s+related\\s+to\\s+investments)$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:total\\s+|net\\s+)?(?:change\\s+in\\s+)?(?:net\\s+)?unrealized\\s+(?:holding\\s+)?(?:gains?|loss(?:es)?)(?:\\s+(?:and\\s+|or\\s+)?(?:gains?|loss(?:es)?))?\\s+on\\s+(?:available\\s+for\\s+sale\\s+(?:debt\\s+)?(?:securities|investments)|marketable\\s+(?:debt\\s+)?securities|short\\s+term\\s+investments|(?:debt\\s+)?investments)\\b.*$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:net\\s+)?change\\s+(?:related\\s+to|in)\\s+(?:available\\s+for\\s+sale\\s+(?:debt\\s+)?(?:securities|investments)|marketable\\s+(?:debt\\s+)?securities|short\\s+term\\s+investments|(?:debt\\s+)?investments)\\b.*$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}available\\s+for\\s+sale\\s+(?:debt\\s+)?(?:securities|investments)\\s+net\\s+of\\s+(?:income\\s+)?tax(?:es)?\\b.*$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:\\w+\\s+){0,10}?(?:available\\s+for\\s+sale\\s+(?:debt\\s+)?(?:securities|investments)|marketable\\s+(?:debt\\s+)?securities|short\\s+term\\s+investments|(?:debt\\s+)?investments)\\s+(?:net\\s+change|total(?:\\s+change)?)\\b.*$"
+   ],
+   "exclude_hints": [
+    "(?i)hedg",
+    "(?i)derivativ",
+    "(?i)translation",
+    "(?i)pension",
+    "(?i)post\\s*retirement",
+    "(?i)retirement",
+    "(?i)benefit\\s+plans?",
+    "(?i)accumulated",
+    "(?i)attributable",
+    "(?i)equity\\s+method",
+    "(?i)investees",
+    "(?i)affiliates",
+    "(?i)^\\W*(?:less\\W+)?(?:reclassification|reclassified|realized\\s+and\\s+included|amounts?\\s+reclassified)",
+    "(?i)(?:arising|recognized|occurring)\\s+during\\s+(?:the\\s+)?(?:period|year)\\b",
+    "(?i)fair\\s+value\\s+of",
+    "(?i):\\s*$"
+   ]
+  },
+  {
+   "key": "is_oci__cash_flow_hedges",
+   "label": "Cash flow hedges, net change",
+   "type": "calculated",
+   "namespace": "template",
+   "in_output": true,
+   "inherits": "is_oci",
+   "statements": [
+    "profit_and_loss"
+   ],
+   "section_scope": [
+    "is_oci",
+    "total_comprehensive_income_attributable_to"
+   ],
+   "order": 80,
+   "definition": "The year's net change on derivatives designated as cash flow hedges (ASC 815) recognised in other comprehensive income, net of tax: the change in their unrealized gains (losses) and the reclassification of (gains) losses to net income together. Where the filer prints the two and their total under a 'Cash flow hedges:' heading, this is the total — often a bare 'Net change, net of income tax ...' row whose `subheading` names the hedges; the same caption under an available-for-sale heading is the securities' line. Not a net investment hedge, which is part of the foreign currency translation.",
+   "temporality": "duration",
+   "unit_of_account": "subtotal",
+   "sign_convention": "either",
+   "analyst_bucket": "others",
+   "match_priority": 95,
+   "route": "face",
+   "extraction_mode": "extract_or_derive",
+   "terms": [
+    {
+     "ref": "is_oci__cfh_unrealized_gains_losses",
+     "sign": 1
+    },
+    {
+     "ref": "is_oci__cfh_reclassification",
+     "sign": 1
+    }
+   ],
+   "aliases": [
+    "Net unrealized gains (losses) on cash flow hedges",
+    "Unrealized gains (losses) on cash flow hedges",
+    "Change in unrealized gains (losses) on cash flow hedges",
+    "Net change in unrealized gains (losses) on cash flow hedges",
+    "Cash flow hedges, net of tax",
+    "Net change in cash flow hedges",
+    "Net change related to derivatives",
+    "Unrealized gains (losses) on derivative instruments",
+    "Total change in unrealized gains/losses on derivative instruments"
+   ],
+   "aliases_i18n": {
+    "en": [
+     "Net unrealized gains (losses) on cash flow hedges",
+     "Unrealized gains (losses) on cash flow hedges",
+     "Change in unrealized gains (losses) on cash flow hedges",
+     "Net change in unrealized gains (losses) on cash flow hedges",
+     "Cash flow hedges, net of tax",
+     "Net change in cash flow hedges",
+     "Net change related to derivatives",
+     "Unrealized gains (losses) on derivative instruments",
+     "Total change in unrealized gains/losses on derivative instruments"
+    ]
+   },
+   "regex_hints": [
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+|plus\\s+)?(?:total\\s+change\\s+in\\s+unrealized\\s+gains\\s+losses\\s+on\\s+derivative\\s+instruments|net\\s+change\\s+in\\s+unrealized\\s+gains\\s+losses\\s+on\\s+cash\\s+flow\\s+hedges|change\\s+in\\s+unrealized\\s+gains\\s+losses\\s+on\\s+cash\\s+flow\\s+hedges|unrealized\\s+gains\\s+losses\\s+on\\s+derivative\\s+instruments|net\\s+unrealized\\s+gains\\s+losses\\s+on\\s+cash\\s+flow\\s+hedges|unrealized\\s+gains\\s+losses\\s+on\\s+cash\\s+flow\\s+hedges|net\\s+change\\s+related\\s+to\\s+derivatives|net\\s+change\\s+in\\s+cash\\s+flow\\s+hedges|cash\\s+flow\\s+hedges\\s+net\\s+of\\s+tax)$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:total\\s+|net\\s+)?(?:change\\s+in\\s+)?(?:net\\s+)?unrealized\\s+(?:holding\\s+)?(?:gains?|loss(?:es)?)(?:\\s+(?:and\\s+|or\\s+)?(?:gains?|loss(?:es)?))?\\s+on\\s+(?:cash\\s+flow\\s+hedg(?:es|ing\\s+(?:instruments|activities|transactions))|derivative\\s+(?:instruments|financial\\s+instruments|contracts)|derivatives|hedging\\s+(?:instruments|activities))\\b.*$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:net\\s+)?change\\s+(?:related\\s+to|in)\\s+(?:cash\\s+flow\\s+hedg(?:es|ing\\s+(?:instruments|activities|transactions))|derivative\\s+(?:instruments|financial\\s+instruments|contracts)|derivatives|hedging\\s+(?:instruments|activities))\\b.*$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:cash\\s+flow\\s+hedg(?:es|ing\\s+(?:instruments|activities|transactions))|derivative\\s+(?:instruments|financial\\s+instruments|contracts)|derivatives|hedging\\s+(?:instruments|activities))\\s+net\\s+of\\s+(?:income\\s+)?tax(?:es)?\\b.*$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:\\w+\\s+){0,10}?(?:cash\\s+flow\\s+hedg(?:es|ing\\s+(?:instruments|activities|transactions))|derivative\\s+(?:instruments|financial\\s+instruments|contracts)|derivatives|hedging\\s+(?:instruments|activities))\\s+(?:net\\s+change|total(?:\\s+change)?)\\b.*$"
+   ],
+   "exclude_hints": [
+    "(?i)available\\s+for\\s+sale",
+    "(?i)marketable",
+    "(?i)\\binvestments?\\b",
+    "(?i)net\\s+investment\\s+hedg",
+    "(?i)translation",
+    "(?i)pension",
+    "(?i)post\\s*retirement",
+    "(?i)retirement",
+    "(?i)benefit\\s+plans?",
+    "(?i)accumulated",
+    "(?i)attributable",
+    "(?i)equity\\s+method",
+    "(?i)investees",
+    "(?i)affiliates",
+    "(?i)^\\W*(?:less\\W+)?(?:reclassification|reclassified|realized\\s+and\\s+included|amounts?\\s+reclassified)",
+    "(?i)(?:arising|recognized|occurring)\\s+during\\s+(?:the\\s+)?(?:period|year)\\b",
+    "(?i)fair\\s+value\\s+of",
+    "(?i):\\s*$"
+   ]
+  },
+  {
+   "key": "is_oci__pension_and_postretirement",
+   "label": "Pension and other postretirement benefit plans",
+   "type": "extracted",
+   "namespace": "template",
+   "in_output": true,
+   "inherits": "is_oci",
+   "statements": [
+    "profit_and_loss"
+   ],
+   "section_scope": [
+    "is_oci",
+    "total_comprehensive_income_attributable_to"
+   ],
+   "order": 81,
+   "definition": "The year's other comprehensive income on defined-benefit pension and other postretirement benefit plans (ASC 715), net of tax: actuarial gains and losses, prior service cost or credit, and their amortisation and settlement, as one figure. Where the filer prints the plans' rows and their net change under a heading, the net change; where it prints one row, that row.",
+   "temporality": "duration",
+   "unit_of_account": "flow",
+   "sign_convention": "either",
+   "analyst_bucket": "others",
+   "match_priority": 80,
+   "route": "face",
+   "aliases": [
+    "Pension and other postretirement benefit plans",
+    "Pension & other postretirement benefit plans",
+    "Pension and other postretirement benefits",
+    "Pension & other postretirement benefits",
+    "Pension and postretirement benefits",
+    "Pension & postretirement benefits",
+    "Defined benefit pension plans",
+    "Defined benefit plans",
+    "Pension and other postretirement benefit plans, net of tax",
+    "Pension & other postretirement benefit plans, net of tax",
+    "Change in pension and postretirement benefit plans",
+    "Change in pension & postretirement benefit plans",
+    "Postretirement benefit plans",
+    "Pension liability adjustment",
+    "Employee benefit plans",
+    "Retirement benefit plans"
+   ],
+   "aliases_i18n": {
+    "en": [
+     "Pension and other postretirement benefit plans",
+     "Pension & other postretirement benefit plans",
+     "Pension and other postretirement benefits",
+     "Pension & other postretirement benefits",
+     "Pension and postretirement benefits",
+     "Pension & postretirement benefits",
+     "Defined benefit pension plans",
+     "Defined benefit plans",
+     "Pension and other postretirement benefit plans, net of tax",
+     "Pension & other postretirement benefit plans, net of tax",
+     "Change in pension and postretirement benefit plans",
+     "Change in pension & postretirement benefit plans",
+     "Postretirement benefit plans",
+     "Pension liability adjustment",
+     "Employee benefit plans",
+     "Retirement benefit plans"
+    ]
+   },
+   "regex_hints": [
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+|plus\\s+)?(?:pension\\s+and\\s+other\\s+postretirement\\s+benefit\\s+plans\\s+net\\s+of\\s+tax|pension\\s+other\\s+postretirement\\s+benefit\\s+plans\\s+net\\s+of\\s+tax|change\\s+in\\s+pension\\s+and\\s+postretirement\\s+benefit\\s+plans|change\\s+in\\s+pension\\s+postretirement\\s+benefit\\s+plans|pension\\s+and\\s+other\\s+postretirement\\s+benefit\\s+plans|pension\\s+other\\s+postretirement\\s+benefit\\s+plans|pension\\s+and\\s+other\\s+postretirement\\s+benefits|pension\\s+other\\s+postretirement\\s+benefits|pension\\s+and\\s+postretirement\\s+benefits|pension\\s+postretirement\\s+benefits|defined\\s+benefit\\s+pension\\s+plans|pension\\s+liability\\s+adjustment|postretirement\\s+benefit\\s+plans|retirement\\s+benefit\\s+plans|employee\\s+benefit\\s+plans|defined\\s+benefit\\s+plans)$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:net\\s+)?(?:change\\s+in\\s+)?(?:defined\\s+benefit\\s+)?(?:pension|post\\s*retirement|retirement|employee\\s+benefit)\\b.*$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:net\\s+)?(?:change\\s+in\\s+)?defined\\s+benefit\\s+(?:pension\\s+)?(?:plans?|obligations?)\\b.*$"
+   ],
+   "exclude_hints": [
+    "(?i)accumulated",
+    "(?i)attributable",
+    "(?i):\\s*$"
+   ]
+  },
+  {
+   "key": "is_oci__other",
+   "label": "Other comprehensive income (loss), other",
+   "type": "extracted",
+   "namespace": "template",
+   "in_output": true,
+   "inherits": "is_oci",
+   "statements": [
+    "profit_and_loss"
+   ],
+   "section_scope": [
+    "is_oci",
+    "total_comprehensive_income_attributable_to"
+   ],
+   "order": 82,
+   "definition": "Any other component of other comprehensive income the filer prints as a row of its own: the share of an equity-method investee's other comprehensive income, a row captioned 'Other', net of tax as printed. Not foreign currency translation, the securities, the hedges or the pension plans, which are lines of their own.",
+   "temporality": "duration",
+   "unit_of_account": "flow",
+   "sign_convention": "either",
+   "analyst_bucket": "others",
+   "match_priority": 80,
+   "route": "face",
+   "aliases": [
+    "Other comprehensive income (loss), other",
+    "Other, net of tax",
+    "Other, net of taxes",
+    "Share of other comprehensive income (loss) of equity method investees",
+    "Other comprehensive income (loss) of equity method investees"
+   ],
+   "aliases_i18n": {
+    "en": [
+     "Other comprehensive income (loss), other",
+     "Other, net of tax",
+     "Other, net of taxes",
+     "Share of other comprehensive income (loss) of equity method investees",
+     "Other comprehensive income (loss) of equity method investees"
+    ]
+   },
+   "regex_hints": [
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+|plus\\s+)?(?:share\\s+of\\s+other\\s+comprehensive\\s+income\\s+loss\\s+of\\s+equity\\s+method\\s+investees|other\\s+comprehensive\\s+income\\s+loss\\s+of\\s+equity\\s+method\\s+investees|other\\s+comprehensive\\s+income\\s+loss\\s+other|other\\s+net\\s+of\\s+taxes|other\\s+net\\s+of\\s+tax)$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:share\\s+of\\s+)?other\\s+comprehensive\\s+(?:income|loss)(?:\\s+(?:loss|income))?\\s+(?:of|from|in|on)\\s+(?:equity\\s+method\\s+|unconsolidated\\s+)?(?:investees|affiliates|investments|joint\\s+ventures|associates)\\b.*$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}other\\s+net\\s+of\\s+(?:income\\s+)?tax(?:es)?$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}other\\s+comprehensive\\s+(?:income|loss)(?:\\s+(?:loss|income))?\\s+other$"
+   ],
+   "exclude_hints": [
+    "(?i)attributable",
+    "(?i)accumulated",
+    "(?i):\\s*$"
+   ]
+  },
+  {
+   "key": "is_oci__total_other_comprehensive_income",
+   "label": "Total other comprehensive income (loss)",
+   "type": "calculated",
+   "namespace": "template",
+   "in_output": true,
+   "inherits": "is_oci",
+   "statements": [
+    "profit_and_loss"
+   ],
+   "section_scope": [
+    "is_oci",
+    "total_comprehensive_income_attributable_to"
+   ],
+   "order": 83,
+   "definition": "Total other comprehensive income or loss for the year, net of tax, as printed, and the sum of foreign currency translation, the available-for-sale securities' and the cash flow hedges' net changes, the pension plans and any other component. Not the accumulated balance on the balance sheet, nor a total printed before the tax on it.",
+   "temporality": "duration",
+   "unit_of_account": "subtotal",
+   "sign_convention": "either",
+   "analyst_bucket": "others",
+   "match_priority": 95,
+   "route": "face",
+   "extraction_mode": "extract_or_derive",
+   "terms": [
+    {
+     "ref": "is_oci__foreign_currency_translation",
+     "sign": 1
+    },
+    {
+     "ref": "is_oci__available_for_sale_securities",
+     "sign": 1
+    },
+    {
+     "ref": "is_oci__cash_flow_hedges",
+     "sign": 1
+    },
+    {
+     "ref": "is_oci__pension_and_postretirement",
+     "sign": 1
+    },
+    {
+     "ref": "is_oci__other",
+     "sign": 1
+    }
+   ],
+   "aliases": [
+    "Other comprehensive income (loss)",
+    "Total other comprehensive income (loss)",
+    "Other comprehensive income (loss), net of tax",
+    "Other comprehensive income",
+    "Other comprehensive loss",
+    "Total other comprehensive income",
+    "Total other comprehensive loss",
+    "Other comprehensive income (loss), net of income taxes",
+    "Other comprehensive (loss) income",
+    "Total other comprehensive income (loss), net of tax"
+   ],
+   "aliases_i18n": {
+    "en": [
+     "Other comprehensive income (loss)",
+     "Total other comprehensive income (loss)",
+     "Other comprehensive income (loss), net of tax",
+     "Other comprehensive income",
+     "Other comprehensive loss",
+     "Total other comprehensive income",
+     "Total other comprehensive loss",
+     "Other comprehensive income (loss), net of income taxes",
+     "Other comprehensive (loss) income",
+     "Total other comprehensive income (loss), net of tax"
+    ]
+   },
+   "regex_hints": [
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+|plus\\s+)?(?:other\\s+comprehensive\\s+income\\s+loss\\s+net\\s+of\\s+income\\s+taxes|total\\s+other\\s+comprehensive\\s+income\\s+loss\\s+net\\s+of\\s+tax|other\\s+comprehensive\\s+income\\s+loss\\s+net\\s+of\\s+tax|total\\s+other\\s+comprehensive\\s+income\\s+loss|total\\s+other\\s+comprehensive\\s+income|other\\s+comprehensive\\s+income\\s+loss|other\\s+comprehensive\\s+loss\\s+income|total\\s+other\\s+comprehensive\\s+loss|other\\s+comprehensive\\s+income|other\\s+comprehensive\\s+loss)$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:total\\s+)?other\\s+comprehensive\\s+(?:income|loss|earnings)(?:\\s+(?:loss|income|earnings))?(?:\\s+net(?:\\s+of\\s+(?:income\\s+)?tax(?:es)?\\b.*)?)?$"
+   ],
+   "exclude_hints": [
+    "(?i)attributable",
+    "(?i)accumulated",
+    "(?i)\\bother$",
+    "(?i)before\\s+(?:income\\s+)?tax",
+    "(?i)(?:of|from)\\s+(?:equity\\s+method|unconsolidated|investees|affiliates)",
+    "(?i):\\s*$"
+   ]
+  },
+  {
+   "key": "is_oci__comprehensive_income",
+   "label": "Comprehensive income (loss)",
+   "type": "calculated",
+   "namespace": "template",
+   "in_output": true,
+   "inherits": "is_oci",
+   "statements": [
+    "profit_and_loss"
+   ],
+   "section_scope": [
+    "is_oci",
+    "total_comprehensive_income_attributable_to"
+   ],
+   "order": 84,
+   "definition": "Comprehensive income or loss for the year as printed, including any part attributable to noncontrolling interests: net income and total other comprehensive income.",
+   "temporality": "duration",
+   "unit_of_account": "subtotal",
+   "sign_convention": "either",
+   "analyst_bucket": "income",
+   "match_priority": 99,
+   "route": "face",
+   "extraction_mode": "extract_or_derive",
+   "terms": [
+    {
+     "ref": "is_oci__net_income",
+     "sign": 1
+    },
+    {
+     "ref": "is_oci__total_other_comprehensive_income",
+     "sign": 1
+    }
+   ],
+   "aliases": [
+    "Comprehensive income",
+    "Comprehensive income (loss)",
+    "Comprehensive loss",
+    "Total comprehensive income",
+    "Total comprehensive income (loss)",
+    "Total comprehensive loss",
+    "Consolidated comprehensive income",
+    "Comprehensive income including noncontrolling interests"
+   ],
+   "aliases_i18n": {
+    "en": [
+     "Comprehensive income",
+     "Comprehensive income (loss)",
+     "Comprehensive loss",
+     "Total comprehensive income",
+     "Total comprehensive income (loss)",
+     "Total comprehensive loss",
+     "Consolidated comprehensive income",
+     "Comprehensive income including noncontrolling interests"
+    ]
+   },
+   "regex_hints": [
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+|plus\\s+)?(?:comprehensive\\s+income\\s+including\\s+noncontrolling\\s+interests|consolidated\\s+comprehensive\\s+income|total\\s+comprehensive\\s+income\\s+loss|total\\s+comprehensive\\s+income|comprehensive\\s+income\\s+loss|total\\s+comprehensive\\s+loss|comprehensive\\s+income|comprehensive\\s+loss)$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:total\\s+|consolidated\\s+)?comprehensive\\s+(?:income|loss|earnings)(?:\\s+(?:loss|income|earnings))?(?:\\s+(?:net\\s+of\\s+(?:income\\s+)?tax(?:es)?|including\\s+non\\s*controlling\\s+interests?))?$"
+   ],
+   "exclude_hints": [
+    "(?i)attributable",
+    "(?i)available\\s+to",
+    "(?i)\\bother\\s+comprehensive",
+    "(?i)accumulated",
+    "(?i):\\s*$",
+    "(?i)per\\s+(?:common\\s+)?share",
+    "(?i)\\bbasic\\b",
+    "(?i)\\bdiluted\\b"
+   ]
+  },
+  {
+   "key": "is_oci__comprehensive_income_attributable_to_nci",
+   "label": "Comprehensive income attributable to noncontrolling interests",
+   "type": "extracted",
+   "namespace": "template",
+   "in_output": true,
+   "inherits": "is_oci_attribution",
+   "statements": [
+    "profit_and_loss"
+   ],
+   "section_scope": [
+    "is_oci",
+    "total_comprehensive_income_attributable_to"
+   ],
+   "order": 85,
+   "definition": "The part of comprehensive income attributable to noncontrolling interests, with the sign the face gives it (often printed as a deduction).",
+   "temporality": "duration",
+   "unit_of_account": "flow",
+   "sign_convention": "either",
+   "analyst_bucket": "income",
+   "match_priority": 80,
+   "route": "face",
+   "aliases": [
+    "Comprehensive income attributable to noncontrolling interests",
+    "Less: Comprehensive income attributable to noncontrolling interests",
+    "Comprehensive (income) loss attributable to noncontrolling interests",
+    "Comprehensive income attributable to noncontrolling interest",
+    "Comprehensive loss attributable to noncontrolling interests"
+   ],
+   "aliases_i18n": {
+    "en": [
+     "Comprehensive income attributable to noncontrolling interests",
+     "Less: Comprehensive income attributable to noncontrolling interests",
+     "Comprehensive (income) loss attributable to noncontrolling interests",
+     "Comprehensive income attributable to noncontrolling interest",
+     "Comprehensive loss attributable to noncontrolling interests"
+    ]
+   },
+   "regex_hints": [
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+|plus\\s+)?(?:comprehensive\\s+income\\s+loss\\s+attributable\\s+to\\s+noncontrolling\\s+interests|less\\s+comprehensive\\s+income\\s+attributable\\s+to\\s+noncontrolling\\s+interests|comprehensive\\s+income\\s+attributable\\s+to\\s+noncontrolling\\s+interests|comprehensive\\s+income\\s+attributable\\s+to\\s+noncontrolling\\s+interest|comprehensive\\s+loss\\s+attributable\\s+to\\s+noncontrolling\\s+interests)$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:less\\s+|add\\s+|plus\\s+)?(?:total\\s+)?comprehensive\\s+(?:income|loss|earnings)(?:\\s+(?:loss|income|earnings))?\\s+attributable\\s+to\\s+(?:the\\s+)?(?:redeemable\\s+)?(?:non\\s*controlling|minority)\\s+interests?\\b.*$"
+   ],
+   "exclude_hints": [
+    "(?i)per\\s+(?:common\\s+)?share",
+    "(?i)\\bbasic\\b",
+    "(?i)\\bdiluted\\b"
+   ]
+  },
+  {
+   "key": "is_oci__comprehensive_income_attributable_to_parent",
+   "label": "Comprehensive income attributable to the company",
+   "type": "extracted",
+   "namespace": "template",
+   "in_output": true,
+   "inherits": "is_oci_attribution",
+   "statements": [
+    "profit_and_loss"
+   ],
+   "section_scope": [
+    "is_oci",
+    "total_comprehensive_income_attributable_to"
+   ],
+   "order": 86,
+   "definition": "The part of comprehensive income attributable to the filer's own stockholders, where the face prints it; empty where the filer has no noncontrolling interests and prints comprehensive income alone.",
+   "temporality": "duration",
+   "unit_of_account": "flow",
+   "sign_convention": "either",
+   "analyst_bucket": "income",
+   "match_priority": 80,
+   "route": "face",
+   "aliases": [
+    "Comprehensive income attributable to common stockholders",
+    "Comprehensive income attributable to the Company",
+    "Comprehensive income attributable to shareholders",
+    "Total comprehensive income attributable to the Company"
+   ],
+   "aliases_i18n": {
+    "en": [
+     "Comprehensive income attributable to common stockholders",
+     "Comprehensive income attributable to the Company",
+     "Comprehensive income attributable to shareholders",
+     "Total comprehensive income attributable to the Company"
+    ]
+   },
+   "regex_hints": [
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+|plus\\s+)?(?:comprehensive\\s+income\\s+attributable\\s+to\\s+common\\s+stockholders|total\\s+comprehensive\\s+income\\s+attributable\\s+to\\s+the\\s+company|comprehensive\\s+income\\s+attributable\\s+to\\s+shareholders|comprehensive\\s+income\\s+attributable\\s+to\\s+the\\s+company)$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:total\\s+)?comprehensive\\s+(?:income|loss|earnings)(?:\\s+(?:loss|income|earnings))?\\s+(?:attributable|available)\\s+to\\s+.*$"
+   ],
+   "exclude_hints": [
+    "(?i)per\\s+(?:common\\s+)?share",
+    "(?i)\\bbasic\\b",
+    "(?i)\\bdiluted\\b",
+    "(?i)non\\s*controlling",
+    "(?i)minority"
+   ]
+  },
+  {
+   "key": "is_oci__afs_unrealized_gains_losses",
+   "label": "Available-for-sale debt securities: change in unrealized gains (losses)",
+   "type": "extracted",
+   "namespace": "template",
+   "in_output": true,
+   "inherits": "is_oci_afs",
+   "statements": [
+    "profit_and_loss"
+   ],
+   "section_scope": [
+    "is_oci",
+    "total_comprehensive_income_attributable_to"
+   ],
+   "order": 87,
+   "definition": "The change in unrealized gains and losses on available-for-sale debt securities arising in the year, before the reclassification to net income, as printed in the securities' block of other comprehensive income. A 10-K usually prints it as a bare 'Change in net unrealized gains (losses)' or 'Change in fair value' row under a heading naming the securities ('Available-for-sale investments:'), which is the row's `subheading`; the same caption under 'Cash flow hedges:' is the hedges' line, not this one. Not the block's net change.",
+   "temporality": "duration",
+   "unit_of_account": "flow",
+   "sign_convention": "either",
+   "analyst_bucket": "others",
+   "match_priority": 80,
+   "route": "face",
+   "aliases": [],
+   "aliases_i18n": {
+    "en": []
+   },
+   "regex_hints": [
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:change\\s+in\\s+)?fair\\s+value\\s+of\\s+(?:available\\s+for\\s+sale\\s+(?:debt\\s+)?(?:securities|investments)|marketable\\s+(?:debt\\s+)?securities|short\\s+term\\s+investments|(?:debt\\s+)?investments)\\b.*$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:total\\s+|net\\s+)?(?:change\\s+in\\s+)?(?:net\\s+)?unrealized\\s+(?:holding\\s+)?(?:gains?|loss(?:es)?)(?:\\s+(?:and\\s+|or\\s+)?(?:gains?|loss(?:es)?))?\\s+on\\s+(?:available\\s+for\\s+sale\\s+(?:debt\\s+)?(?:securities|investments)|marketable\\s+(?:debt\\s+)?securities|short\\s+term\\s+investments|(?:debt\\s+)?investments)\\s+(?:arising|recognized|occurring)\\s+during\\s+(?:the\\s+)?(?:period|year)\\b.*$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:total\\s+|net\\s+)?(?:change\\s+in\\s+)?(?:net\\s+)?unrealized\\s+(?:holding\\s+)?(?:gains?|loss(?:es)?)(?:\\s+(?:and\\s+|or\\s+)?(?:gains?|loss(?:es)?))?\\s+(?:arising|recognized|occurring)\\s+during\\s+(?:the\\s+)?(?:period|year)\\b.*\\bon\\s+(?:available\\s+for\\s+sale\\s+(?:debt\\s+)?(?:securities|investments)|marketable\\s+(?:debt\\s+)?securities|short\\s+term\\s+investments|(?:debt\\s+)?investments)\\b.*$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:\\w+\\s+){0,10}?(?:available\\s+for\\s+sale\\s+(?:debt\\s+)?(?:securities|investments)|marketable\\s+(?:debt\\s+)?securities|short\\s+term\\s+investments|(?:debt\\s+)?investments)\\s+(?:change\\s+in\\s+)?(?:net\\s+)?(?:unrealized\\s+(?:holding\\s+)?(?:gains?|loss(?:es)?)(?:\\s+(?:and\\s+|or\\s+)?(?:gains?|loss(?:es)?))?|fair\\s+value(?:\\s+adjustments?)?)\\b.*$"
+   ],
+   "exclude_hints": [
+    "(?i)hedg",
+    "(?i)derivativ",
+    "(?i)translation",
+    "(?i)pension",
+    "(?i)post\\s*retirement",
+    "(?i)retirement",
+    "(?i)benefit\\s+plans?",
+    "(?i)accumulated",
+    "(?i)attributable",
+    "(?i)equity\\s+method",
+    "(?i)investees",
+    "(?i)affiliates",
+    "(?i)^\\W*(?:less\\W+)?(?:reclassification|reclassified|realized\\s+and\\s+included|amounts?\\s+reclassified)",
+    "(?i):\\s*$"
+   ]
+  },
+  {
+   "key": "is_oci__afs_reclassification",
+   "label": "Available-for-sale debt securities: reclassification of (gains) losses to net income",
+   "type": "extracted",
+   "namespace": "template",
+   "in_output": true,
+   "inherits": "is_oci_afs",
+   "statements": [
+    "profit_and_loss"
+   ],
+   "section_scope": [
+    "is_oci",
+    "total_comprehensive_income_attributable_to"
+   ],
+   "order": 88,
+   "definition": "The reclassification adjustment for (gains) losses on available-for-sale debt securities realised in the year and included in net income, with the sign the face gives it in the securities' block: printed '(gains) losses', a gain reclassified is negative and a loss positive. A 10-K usually prints it as a bare 'Less: reclassification adjustment for net (gains) losses included in net income' under the securities' heading, the row's `subheading`; the same caption under 'Cash flow hedges:' is the hedges' line.",
+   "temporality": "duration",
+   "unit_of_account": "flow",
+   "sign_convention": "either",
+   "analyst_bucket": "others",
+   "match_priority": 80,
+   "route": "face",
+   "aliases": [],
+   "aliases_i18n": {
+    "en": []
+   },
+   "regex_hints": [
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:less\\s+|add\\s+|plus\\s+)?(?:reclassification|reclassified|realized\\s+and\\s+included|amounts?\\s+reclassified)\\b.*\\b(?:available\\s+for\\s+sale\\s+(?:debt\\s+)?(?:securities|investments)|marketable\\s+(?:debt\\s+)?securities|short\\s+term\\s+investments|(?:debt\\s+)?investments)\\b.*$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:less\\s+|add\\s+|plus\\s+)?(?:net\\s+)?(?:gains?|loss(?:es)?)(?:\\s+(?:and\\s+|or\\s+)?(?:gains?|loss(?:es)?))?\\s+on\\s+(?:available\\s+for\\s+sale\\s+(?:debt\\s+)?(?:securities|investments)|marketable\\s+(?:debt\\s+)?securities|short\\s+term\\s+investments|(?:debt\\s+)?investments)\\s+(?:reclassification|reclassified|realized\\s+and\\s+included|amounts?\\s+reclassified)\\b.*$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:\\w+\\s+){0,10}?(?:available\\s+for\\s+sale\\s+(?:debt\\s+)?(?:securities|investments)|marketable\\s+(?:debt\\s+)?securities|short\\s+term\\s+investments|(?:debt\\s+)?investments)\\s+(?:less\\s+|add\\s+|plus\\s+)?(?:reclassification|reclassified|amounts?\\s+reclassified|adjustments?\\s+for\\s+(?:net\\s+)?(?:gains?|loss(?:es)?)(?:\\s+(?:and\\s+|or\\s+)?(?:gains?|loss(?:es)?))?\\s+realized)\\b.*$"
+   ],
+   "exclude_hints": [
+    "(?i)hedg",
+    "(?i)derivativ",
+    "(?i)translation",
+    "(?i)pension",
+    "(?i)post\\s*retirement",
+    "(?i)retirement",
+    "(?i)benefit\\s+plans?",
+    "(?i)accumulated",
+    "(?i)attributable",
+    "(?i)equity\\s+method",
+    "(?i)investees",
+    "(?i)affiliates",
+    "(?i):\\s*$"
+   ]
+  },
+  {
+   "key": "is_oci__cfh_unrealized_gains_losses",
+   "label": "Cash flow hedges: change in unrealized gains (losses)",
+   "type": "extracted",
+   "namespace": "template",
+   "in_output": true,
+   "inherits": "is_oci_cfh",
+   "statements": [
+    "profit_and_loss"
+   ],
+   "section_scope": [
+    "is_oci",
+    "total_comprehensive_income_attributable_to"
+   ],
+   "order": 89,
+   "definition": "The change in unrealized gains and losses on derivatives designated as cash flow hedges arising in the year (the effective portion), before the reclassification to net income, as printed in the hedges' block of other comprehensive income. A 10-K usually prints it as a bare 'Change in net unrealized gains (losses)' or 'Change in fair value' row under a 'Cash flow hedges:' heading, which is the row's `subheading`; the same caption under an available-for-sale heading is the securities' line, not this one. Not the block's net change.",
+   "temporality": "duration",
+   "unit_of_account": "flow",
+   "sign_convention": "either",
+   "analyst_bucket": "others",
+   "match_priority": 80,
+   "route": "face",
+   "aliases": [],
+   "aliases_i18n": {
+    "en": []
+   },
+   "regex_hints": [
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:change\\s+in\\s+)?fair\\s+value\\s+of\\s+(?:cash\\s+flow\\s+hedg(?:es|ing\\s+(?:instruments|activities|transactions))|derivative\\s+(?:instruments|financial\\s+instruments|contracts)|derivatives|hedging\\s+(?:instruments|activities))\\b.*$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:total\\s+|net\\s+)?(?:change\\s+in\\s+)?(?:net\\s+)?unrealized\\s+(?:holding\\s+)?(?:gains?|loss(?:es)?)(?:\\s+(?:and\\s+|or\\s+)?(?:gains?|loss(?:es)?))?\\s+on\\s+(?:cash\\s+flow\\s+hedg(?:es|ing\\s+(?:instruments|activities|transactions))|derivative\\s+(?:instruments|financial\\s+instruments|contracts)|derivatives|hedging\\s+(?:instruments|activities))\\s+(?:arising|recognized|occurring)\\s+during\\s+(?:the\\s+)?(?:period|year)\\b.*$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:total\\s+|net\\s+)?(?:change\\s+in\\s+)?(?:net\\s+)?unrealized\\s+(?:holding\\s+)?(?:gains?|loss(?:es)?)(?:\\s+(?:and\\s+|or\\s+)?(?:gains?|loss(?:es)?))?\\s+(?:arising|recognized|occurring)\\s+during\\s+(?:the\\s+)?(?:period|year)\\b.*\\bon\\s+(?:cash\\s+flow\\s+hedg(?:es|ing\\s+(?:instruments|activities|transactions))|derivative\\s+(?:instruments|financial\\s+instruments|contracts)|derivatives|hedging\\s+(?:instruments|activities))\\b.*$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:\\w+\\s+){0,10}?(?:cash\\s+flow\\s+hedg(?:es|ing\\s+(?:instruments|activities|transactions))|derivative\\s+(?:instruments|financial\\s+instruments|contracts)|derivatives|hedging\\s+(?:instruments|activities))\\s+(?:change\\s+in\\s+)?(?:net\\s+)?(?:unrealized\\s+(?:holding\\s+)?(?:gains?|loss(?:es)?)(?:\\s+(?:and\\s+|or\\s+)?(?:gains?|loss(?:es)?))?|fair\\s+value(?:\\s+adjustments?)?)\\b.*$"
+   ],
+   "exclude_hints": [
+    "(?i)available\\s+for\\s+sale",
+    "(?i)marketable",
+    "(?i)\\binvestments?\\b",
+    "(?i)net\\s+investment\\s+hedg",
+    "(?i)translation",
+    "(?i)pension",
+    "(?i)post\\s*retirement",
+    "(?i)retirement",
+    "(?i)benefit\\s+plans?",
+    "(?i)accumulated",
+    "(?i)attributable",
+    "(?i)equity\\s+method",
+    "(?i)investees",
+    "(?i)affiliates",
+    "(?i)^\\W*(?:less\\W+)?(?:reclassification|reclassified|realized\\s+and\\s+included|amounts?\\s+reclassified)",
+    "(?i):\\s*$"
+   ]
+  },
+  {
+   "key": "is_oci__cfh_reclassification",
+   "label": "Cash flow hedges: reclassification of (gains) losses to net income",
+   "type": "extracted",
+   "namespace": "template",
+   "in_output": true,
+   "inherits": "is_oci_cfh",
+   "statements": [
+    "profit_and_loss"
+   ],
+   "section_scope": [
+    "is_oci",
+    "total_comprehensive_income_attributable_to"
+   ],
+   "order": 90,
+   "definition": "The reclassification adjustment for (gains) losses on cash flow hedges included in net income in the year, with the sign the face gives it in the hedges' block: printed '(gains) losses', a gain reclassified is negative and a loss positive. A 10-K usually prints it as a bare 'Less: reclassification adjustment for net (gains) losses included in net income' under 'Cash flow hedges:', the row's `subheading`; the same caption under an available-for-sale heading is the securities' line.",
+   "temporality": "duration",
+   "unit_of_account": "flow",
+   "sign_convention": "either",
+   "analyst_bucket": "others",
+   "match_priority": 80,
+   "route": "face",
+   "aliases": [],
+   "aliases_i18n": {
+    "en": []
+   },
+   "regex_hints": [
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:less\\s+|add\\s+|plus\\s+)?(?:reclassification|reclassified|realized\\s+and\\s+included|amounts?\\s+reclassified)\\b.*\\b(?:cash\\s+flow\\s+hedg(?:es|ing\\s+(?:instruments|activities|transactions))|derivative\\s+(?:instruments|financial\\s+instruments|contracts)|derivatives|hedging\\s+(?:instruments|activities))\\b.*$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:less\\s+|add\\s+|plus\\s+)?(?:net\\s+)?(?:gains?|loss(?:es)?)(?:\\s+(?:and\\s+|or\\s+)?(?:gains?|loss(?:es)?))?\\s+on\\s+(?:cash\\s+flow\\s+hedg(?:es|ing\\s+(?:instruments|activities|transactions))|derivative\\s+(?:instruments|financial\\s+instruments|contracts)|derivatives|hedging\\s+(?:instruments|activities))\\s+(?:reclassification|reclassified|realized\\s+and\\s+included|amounts?\\s+reclassified)\\b.*$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:\\w+\\s+){0,10}?(?:cash\\s+flow\\s+hedg(?:es|ing\\s+(?:instruments|activities|transactions))|derivative\\s+(?:instruments|financial\\s+instruments|contracts)|derivatives|hedging\\s+(?:instruments|activities))\\s+(?:less\\s+|add\\s+|plus\\s+)?(?:reclassification|reclassified|amounts?\\s+reclassified|adjustments?\\s+for\\s+(?:net\\s+)?(?:gains?|loss(?:es)?)(?:\\s+(?:and\\s+|or\\s+)?(?:gains?|loss(?:es)?))?\\s+realized)\\b.*$"
+   ],
+   "exclude_hints": [
+    "(?i)available\\s+for\\s+sale",
+    "(?i)marketable",
+    "(?i)\\binvestments?\\b",
+    "(?i)net\\s+investment\\s+hedg",
+    "(?i)translation",
+    "(?i)pension",
+    "(?i)post\\s*retirement",
+    "(?i)retirement",
+    "(?i)benefit\\s+plans?",
+    "(?i)accumulated",
+    "(?i)attributable",
+    "(?i)equity\\s+method",
+    "(?i)investees",
+    "(?i)affiliates",
+    "(?i):\\s*$"
+   ]
+  },
+  {
    "key": "cf_oper_indirect__net_income",
    "label": "Net income",
    "type": "extracted",
@@ -4598,7 +5489,7 @@
    "section_scope": [
     "cf_oper_indirect"
    ],
-   "order": 77,
+   "order": 91,
    "definition": "Net income or loss, the first row of the operating activities under the indirect method.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -4652,7 +5543,7 @@
    "section_scope": [
     "cf_oper_indirect"
    ],
-   "order": 78,
+   "order": 92,
    "definition": "Depreciation and amortisation added back to net income; where the face prints amortisation of intangibles separately, the rows are added.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -4704,7 +5595,7 @@
    "section_scope": [
     "cf_oper_indirect"
    ],
-   "order": 79,
+   "order": 93,
    "definition": "Stock-based compensation expense, a non-cash charge, added back to net income among the adjustments to operating cash flow.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -4747,7 +5638,7 @@
    "section_scope": [
     "cf_oper_indirect"
    ],
-   "order": 80,
+   "order": 94,
    "definition": "The deferred part of the income tax expense, added back to net income.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -4789,7 +5680,7 @@
    "section_scope": [
     "cf_oper_indirect"
    ],
-   "order": 81,
+   "order": 95,
    "definition": "The change in accounts receivable among the changes in operating assets and liabilities, with the sign the face gives it.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -4838,7 +5729,7 @@
    "section_scope": [
     "cf_oper_indirect"
    ],
-   "order": 82,
+   "order": 96,
    "definition": "The change in inventories among the changes in operating assets and liabilities.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -4876,7 +5767,7 @@
    "section_scope": [
     "cf_oper_indirect"
    ],
-   "order": 83,
+   "order": 97,
    "definition": "The change in accounts payable among the changes in operating assets and liabilities.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -4920,7 +5811,7 @@
    "section_scope": [
     "cf_oper_indirect"
    ],
-   "order": 84,
+   "order": 98,
    "definition": "Every operating-activities row the face prints that no line above claims, itemised: other adjustments to net income, gains and losses on sales, and the changes in other operating assets and liabilities.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -4959,7 +5850,7 @@
    "section_scope": [
     "cf_oper_indirect"
    ],
-   "order": 85,
+   "order": 99,
    "definition": "The operating activities total as printed, and the sum of the operating lines.",
    "temporality": "duration",
    "unit_of_account": "subtotal",
@@ -5039,7 +5930,7 @@
    "section_scope": [
     "cf_investing"
    ],
-   "order": 86,
+   "order": 100,
    "definition": "Cash paid for property, plant and equipment (capital expenditures), with the negative sign the face gives it.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -5101,7 +5992,7 @@
    "section_scope": [
     "cf_investing"
    ],
-   "order": 87,
+   "order": 101,
    "definition": "Cash received on the sale or disposal of property, plant and equipment.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -5145,7 +6036,7 @@
    "section_scope": [
     "cf_investing"
    ],
-   "order": 88,
+   "order": 102,
    "definition": "Cash paid to acquire businesses, net of the cash they held; where the face prints acquisitions together with purchases of intangible assets as one row, that row.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -5193,7 +6084,7 @@
    "section_scope": [
     "cf_investing"
    ],
-   "order": 89,
+   "order": 103,
    "definition": "Cash paid for marketable securities and other investments; where the face prints purchases of several kinds of securities on separate rows, the rows are added.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -5233,7 +6124,7 @@
    "section_scope": [
     "cf_investing"
    ],
-   "order": 90,
+   "order": 104,
    "definition": "Cash received on the sale, maturity or redemption of marketable securities and other investments; where the face prints sales and maturities on separate rows, the rows are added.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -5277,7 +6168,7 @@
    "section_scope": [
     "cf_investing"
    ],
-   "order": 91,
+   "order": 105,
    "definition": "Every investing-activities row the face prints that no line above claims, itemised: purchases of intangible assets, proceeds from divestitures, loans made and collected.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -5316,7 +6207,7 @@
    "section_scope": [
     "cf_investing"
    ],
-   "order": 92,
+   "order": 106,
    "definition": "The investing activities total as printed, and the sum of the investing lines.",
    "temporality": "duration",
    "unit_of_account": "subtotal",
@@ -5384,7 +6275,7 @@
    "section_scope": [
     "cf_financing"
    ],
-   "order": 93,
+   "order": 107,
    "definition": "Cash received from issuing long-term debt (notes, bonds, term loans), net of issuance costs where the face says so. Commercial paper is the next line but one.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -5431,7 +6322,7 @@
    "section_scope": [
     "cf_financing"
    ],
-   "order": 94,
+   "order": 108,
    "definition": "Cash paid to repay or retire long-term debt (notes, bonds, term loans), with the negative sign the face gives it.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -5480,7 +6371,7 @@
    "section_scope": [
     "cf_financing"
    ],
-   "order": 95,
+   "order": 109,
    "definition": "The net cash from or to commercial paper and other short-term borrowings, as one printed row.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -5520,7 +6411,7 @@
    "section_scope": [
     "cf_financing"
    ],
-   "order": 96,
+   "order": 110,
    "definition": "Cash paid to repurchase the filer's own common stock, whether retired or held in treasury, with the negative sign the face gives it.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -5564,7 +6455,7 @@
    "section_scope": [
     "cf_financing"
    ],
-   "order": 97,
+   "order": 111,
    "definition": "Cash dividends paid to the filer's stockholders. Dividends paid to noncontrolling interests are the leftover line's.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -5613,7 +6504,7 @@
    "section_scope": [
     "cf_financing"
    ],
-   "order": 98,
+   "order": 112,
    "definition": "Cash received from issuing stock, including under employee stock plans and option exercises.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -5656,7 +6547,7 @@
    "section_scope": [
     "cf_financing"
    ],
-   "order": 99,
+   "order": 113,
    "definition": "Every financing-activities row the face prints that no line above claims, itemised: taxes paid for the net share settlement of equity awards, finance lease payments, dividends paid to noncontrolling interests.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -5698,7 +6589,7 @@
    "section_scope": [
     "cf_financing"
    ],
-   "order": 100,
+   "order": 114,
    "definition": "The financing activities total as printed, and the sum of the financing lines.",
    "temporality": "duration",
    "unit_of_account": "subtotal",
@@ -5770,7 +6661,7 @@
    "section_scope": [
     "cf_financing"
    ],
-   "order": 101,
+   "order": 115,
    "definition": "The effect of exchange-rate changes on cash, cash equivalents and restricted cash.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -5814,7 +6705,7 @@
    "section_scope": [
     "cf_financing"
    ],
-   "order": 102,
+   "order": 116,
    "definition": "The net change in cash, cash equivalents and restricted cash for the year: the three activity totals and the effect of exchange rates.",
    "temporality": "duration",
    "unit_of_account": "subtotal",
@@ -5885,7 +6776,7 @@
    "section_scope": [
     "cf_financing"
    ],
-   "order": 103,
+   "order": 117,
    "definition": "Cash, cash equivalents and restricted cash at the start of the year.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -5938,7 +6829,7 @@
    "section_scope": [
     "cf_top_level"
    ],
-   "order": 104,
+   "order": 118,
    "definition": "Cash, cash equivalents and restricted cash at the end of the year: the opening balance and the net change.",
    "temporality": "duration",
    "unit_of_account": "subtotal",
@@ -6003,7 +6894,7 @@
    "section_scope": [
     "cf_top_level"
    ],
-   "order": 105,
+   "order": 119,
    "definition": "Interest paid in cash during the year, net of amounts capitalised where the filing nets them, as the supplemental cash flow disclosure prints it: below the statement of cash flows or in a note. Not interest received.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -6067,7 +6958,7 @@
    "section_scope": [
     "cf_top_level"
    ],
-   "order": 106,
+   "order": 120,
    "definition": "Income taxes paid in cash during the year, net of refunds where the filing nets them, as the supplemental cash flow disclosure prints it: below the statement of cash flows or in a note.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -6128,7 +7019,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 107,
+   "order": 121,
    "definition": "The principal of debt due in the first fiscal year after the balance-sheet date, from the debt note's table of future principal payments or maturities: the row for that year ('2026' for a 2025 year-end). Principal, before unamortised discount and issuance costs; the current year-end only. Lease payments and interest are not this line. Cite the printed table line from the page.",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -6160,7 +7051,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 108,
+   "order": 122,
    "definition": "The principal of debt due in the second fiscal year after the balance-sheet date, from the debt note's table of future principal payments or maturities: the row for that year ('2027' for a 2025 year-end). Principal, before unamortised discount and issuance costs; the current year-end only. Lease payments and interest are not this line. Cite the printed table line from the page.",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -6192,7 +7083,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 109,
+   "order": 123,
    "definition": "The principal of debt due in the third fiscal year after the balance-sheet date, from the debt note's table of future principal payments or maturities: the row for that year ('2028' for a 2025 year-end). Principal, before unamortised discount and issuance costs; the current year-end only. Lease payments and interest are not this line. Cite the printed table line from the page.",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -6224,7 +7115,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 110,
+   "order": 124,
    "definition": "The principal of debt due in the fourth fiscal year after the balance-sheet date, from the debt note's table of future principal payments or maturities: the row for that year ('2029' for a 2025 year-end). Principal, before unamortised discount and issuance costs; the current year-end only. Lease payments and interest are not this line. Cite the printed table line from the page.",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -6256,7 +7147,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 111,
+   "order": 125,
    "definition": "The principal of debt due in the fifth fiscal year after the balance-sheet date, from the debt note's table of future principal payments or maturities: the row for that year ('2030' for a 2025 year-end). Principal, before unamortised discount and issuance costs; the current year-end only. Lease payments and interest are not this line. Cite the printed table line from the page.",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -6288,7 +7179,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 112,
+   "order": 126,
    "definition": "The principal of debt due after the fifth fiscal year following the balance-sheet date: the 'Thereafter' row of the debt note's table of future principal payments. Lease payments and interest are not this line. Cite the printed table line from the page.",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -6320,7 +7211,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 113,
+   "order": 127,
    "definition": "The total principal (face) amount of debt outstanding at the balance-sheet date, as the debt note prints it: the total of the table of future principal payments or the 'total principal' row, before unamortised discount, premium and issuance costs and before the current portion is deducted.",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -6366,7 +7257,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 114,
+   "order": 128,
    "definition": "The estimated fair value of the filer's debt at the balance-sheet date, as the debt or fair-value note states it, often in a sentence ('the fair value of our long-term debt was $88.4 billion'). Expressed in the statements' unit.",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -6399,7 +7290,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 115,
+   "order": 129,
    "definition": "The current part of the income tax expense for the year, federal, state and foreign together: the 'Total current' row of the income tax note's table of the components of the provision.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -6438,7 +7329,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 116,
+   "order": 130,
    "definition": "The deferred part of the income tax expense or benefit for the year: the 'Total deferred' row of the income tax note's table of the components of the provision. Not the deferred tax assets or liabilities at the year-end.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -6478,7 +7369,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 117,
+   "order": 131,
    "definition": "The effective income tax rate for the year as the filing prints it, with its percent sign ('16.0%'): from the income tax note's rate reconciliation or the sentence stating it. The current year only.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -6507,7 +7398,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 118,
+   "order": 132,
    "definition": "Raw materials and supplies held in inventory at the year-end, from the inventories note or the balance-sheet details note.",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -6543,7 +7434,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 119,
+   "order": 133,
    "definition": "Work in process held in inventory at the year-end, from the inventories note or the balance-sheet details note.",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -6579,7 +7470,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 120,
+   "order": 134,
    "definition": "Finished goods (or finished products) held in inventory at the year-end, from the inventories note or the balance-sheet details note.",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -6615,7 +7506,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 121,
+   "order": 135,
    "definition": "Property, plant and equipment at cost, before accumulated depreciation: the gross total of the property note's table ('Gross property, plant and equipment', 'Total, at cost').",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -6656,7 +7547,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 122,
+   "order": 136,
    "definition": "Accumulated depreciation and amortisation of property, plant and equipment at the year-end, with the sign the property note gives it (usually printed as a deduction).",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -6693,7 +7584,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 123,
+   "order": 137,
    "definition": "The registered public accounting firm that signs the report on the consolidated financial statements, as printed in its signature without the '/s/' (for example 'Hartwell & Rowe LLP'). Not the engagement partner.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -6730,7 +7621,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 124,
+   "order": 138,
    "definition": "The kind of opinion the auditor expresses on the consolidated financial statements, as the report names it: the heading of its opinion section, copied as printed. A US report heads an unqualified opinion 'Opinion on the Financial Statements', and a modified one 'Qualified Opinion', 'Adverse Opinion' or 'Disclaimer of Opinion'. Not the heading of the opinion on internal control.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -6769,7 +7660,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 125,
+   "order": 139,
    "definition": "The auditor's opinion on the consolidated financial statements, in the auditor's own words: the sentence of the report's opinion section that begins 'In our opinion', copied as printed. Not the opinion on internal control.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -6806,7 +7697,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 126,
+   "order": 140,
    "definition": "The auditor's opinion on the filer's internal control over financial reporting, in the auditor's own words: the sentence of that report's opinion section that begins 'In our opinion', copied as printed, whether it finds control effective or not. Empty where the 10-K carries no auditor's report on internal control.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -6843,7 +7734,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 127,
+   "order": 141,
    "definition": "The first sentence of the auditor's going-concern paragraph, copied as printed: the sentence stating that conditions raise substantial doubt about the filer's ability to continue as a going concern. Empty when the report includes no such paragraph.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -6881,7 +7772,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 128,
+   "order": 142,
    "definition": "The title of the first critical audit matter the auditor's report communicates, copied as printed (for example 'Uncertain Tax Positions'); or the report's sentence stating that there are no critical audit matters.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -6918,7 +7809,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 129,
+   "order": 143,
    "definition": "The title of the second critical audit matter the auditor's report communicates, copied as printed (for example 'Uncertain Tax Positions'). Empty when the report communicates fewer than 2.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -6955,7 +7846,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 130,
+   "order": 144,
    "definition": "The title of the third critical audit matter the auditor's report communicates, copied as printed (for example 'Uncertain Tax Positions'). Empty when the report communicates fewer than 3.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -6992,7 +7883,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 131,
+   "order": 145,
    "definition": "The sentence of the commitments and contingencies note (or the legal proceedings note) that states the filer's conclusion on its legal proceedings, claims and other contingencies, copied as printed: whether a loss is probable, an amount is accrued, or the outcome is not expected to have a material adverse effect (ASC 450). Empty when the notes disclose no contingencies.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -7024,7 +7915,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 132,
+   "order": 146,
    "definition": "A short narrative of the contingent liabilities the filing discloses (ASC 450 loss contingencies, ASC 460 guarantees), WRITTEN BY THE MODEL from the pages of the notes and labelled as such: every amount, date and name in it as the filing prints it.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -7057,7 +7948,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 133,
+   "order": 147,
    "definition": "The guarantees, standby letters of credit and surety bonds the filer has issued and that are outstanding at the balance-sheet date, summed: the maximum potential amount of future payments the notes state (ASC 460). Not the undrawn capacity of a credit facility.",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -7088,7 +7979,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 134,
+   "order": 148,
    "definition": "The amount recognised as a liability at the balance-sheet date for loss contingencies (litigation, claims, environmental and similar matters), as the notes state it. Empty where the filing states no amount.",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -7119,7 +8010,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 135,
+   "order": 149,
    "definition": "The total of the filer's unconditional purchase obligations and purchase commitments at the balance-sheet date, as the commitments note prints or states it.",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -7159,7 +8050,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 136,
+   "order": 150,
    "definition": "The sentence of the related-party note that describes the principal related-party relationship and the transactions with it, or that states the filer had no material related-party transactions, copied as printed (ASC 850). Empty when the filing says nothing about related parties.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -7187,7 +8078,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 137,
+   "order": 151,
    "definition": "A short narrative of the related-party transactions the filing discloses (ASC 850), WRITTEN BY THE MODEL from the pages of the notes and labelled as such: every amount, date and name in it as the filing prints it.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -7216,7 +8107,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 138,
+   "order": 152,
    "definition": "Revenue from sales of goods and services to related parties during the year, as the related-party note prints or states it.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -7253,7 +8144,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 139,
+   "order": 153,
    "definition": "Purchases of goods and services from related parties during the year, including rent and fees paid to them, as the related-party note prints or states it; where the note prints several kinds on separate rows, the rows are added.",
    "temporality": "duration",
    "unit_of_account": "flow",
@@ -7291,7 +8182,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 140,
+   "order": 154,
    "definition": "Receivables from related parties at the balance-sheet date, as the related-party note prints or states them.",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -7325,7 +8216,7 @@
     "notes"
    ],
    "section_scope": [],
-   "order": 141,
+   "order": 155,
    "definition": "Payables to related parties at the balance-sheet date, as the related-party note prints or states them.",
    "temporality": "instant",
    "unit_of_account": "balance",
@@ -7376,6 +8267,10 @@
    "bs_cl__total_equity_and_liabilities",
    "is_pl__sales_revenues",
    "is_pl__gross_profit",
+   "is_oci__available_for_sale_securities",
+   "is_oci__cash_flow_hedges",
+   "is_oci__total_other_comprehensive_income",
+   "is_oci__comprehensive_income",
    "cf_oper_indirect__cash_flows_oper_activ_indirect",
    "cf_investing__cash_flows_from_invest_activities",
    "cf_financing__cash_flows_from_finance_activities",

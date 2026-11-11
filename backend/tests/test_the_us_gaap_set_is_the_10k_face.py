@@ -333,8 +333,12 @@ def test_eps_and_the_share_counts_are_statement_of_operations_lines_that_are_not
         assert item["temporality"] == "duration", key
     assert {k for k, i in items.items() if "measure" in i} == set(EPS)
     (pl,) = [st for st in raw[0]["statements"] if st["type"] == PL]
-    keys = [node["canonical_key"] for sec in pl["sections"] for node in sec["children"]]
+    keys = [node["canonical_key"] for sec in pl["sections"] if sec["node_id"] == "is_pl"
+            for node in sec["children"]]
     assert keys[-4:] == list(EPS), "the four lines close the statement of operations"
+    # …which comprehensive income follows, in sections of its own.
+    assert [sec["node_id"] for sec in pl["sections"]] == [
+        "is_pl", "is_oci", "is_oci_attribution", "is_oci_afs", "is_oci_cfh"]
 
 
 def test_a_per_share_amount_or_a_share_count_adds_into_nothing(raw):

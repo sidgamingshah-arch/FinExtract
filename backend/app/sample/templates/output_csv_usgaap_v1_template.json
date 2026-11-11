@@ -605,9 +605,9 @@
   },
   {
    "type": "profit_and_loss",
-   "label": "Consolidated Statements of Operations",
+   "label": "Consolidated Statements of Operations and of Comprehensive Income",
    "label_i18n": {
-    "en": "Consolidated Statements of Operations"
+    "en": "Consolidated Statements of Operations and of Comprehensive Income"
    },
    "sections": [
     {
@@ -895,6 +895,219 @@
        "role": "line"
       }
      ]
+    },
+    {
+     "node_id": "is_oci",
+     "canonical_key": "is_oci",
+     "label": "Other comprehensive income",
+     "label_i18n": {
+      "en": "Other comprehensive income"
+     },
+     "role": "header",
+     "children": [
+      {
+       "node_id": "is_oci__net_income",
+       "canonical_key": "is_oci__net_income",
+       "label": "Net income (loss), as comprehensive income opens on it",
+       "label_i18n": {
+        "en": "Net income (loss), as comprehensive income opens on it"
+       },
+       "role": "total"
+      },
+      {
+       "node_id": "is_oci__foreign_currency_translation",
+       "canonical_key": "is_oci__foreign_currency_translation",
+       "label": "Foreign currency translation adjustments",
+       "label_i18n": {
+        "en": "Foreign currency translation adjustments"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "is_oci__available_for_sale_securities",
+       "canonical_key": "is_oci__available_for_sale_securities",
+       "label": "Available-for-sale debt securities, net change",
+       "label_i18n": {
+        "en": "Available-for-sale debt securities, net change"
+       },
+       "role": "line",
+       "rollup": {
+        "op": "sum",
+        "children": [
+         "is_oci__afs_unrealized_gains_losses",
+         "is_oci__afs_reclassification"
+        ]
+       }
+      },
+      {
+       "node_id": "is_oci__cash_flow_hedges",
+       "canonical_key": "is_oci__cash_flow_hedges",
+       "label": "Cash flow hedges, net change",
+       "label_i18n": {
+        "en": "Cash flow hedges, net change"
+       },
+       "role": "line",
+       "rollup": {
+        "op": "sum",
+        "children": [
+         "is_oci__cfh_unrealized_gains_losses",
+         "is_oci__cfh_reclassification"
+        ]
+       }
+      },
+      {
+       "node_id": "is_oci__pension_and_postretirement",
+       "canonical_key": "is_oci__pension_and_postretirement",
+       "label": "Pension and other postretirement benefit plans",
+       "label_i18n": {
+        "en": "Pension and other postretirement benefit plans"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "is_oci__other",
+       "canonical_key": "is_oci__other",
+       "label": "Other comprehensive income (loss), other",
+       "label_i18n": {
+        "en": "Other comprehensive income (loss), other"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "is_oci__total_other_comprehensive_income",
+       "canonical_key": "is_oci__total_other_comprehensive_income",
+       "label": "Total other comprehensive income (loss)",
+       "label_i18n": {
+        "en": "Total other comprehensive income (loss)"
+       },
+       "role": "subtotal",
+       "rollup": {
+        "op": "sum",
+        "children": [
+         "is_oci__foreign_currency_translation",
+         "is_oci__available_for_sale_securities",
+         "is_oci__cash_flow_hedges",
+         "is_oci__pension_and_postretirement",
+         "is_oci__other"
+        ]
+       }
+      },
+      {
+       "node_id": "is_oci__comprehensive_income",
+       "canonical_key": "is_oci__comprehensive_income",
+       "label": "Comprehensive income (loss)",
+       "label_i18n": {
+        "en": "Comprehensive income (loss)"
+       },
+       "role": "total",
+       "rollup": {
+        "op": "sum",
+        "children": [
+         "is_oci__net_income",
+         "is_oci__total_other_comprehensive_income"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "node_id": "is_oci_attribution",
+     "canonical_key": "is_oci_attribution",
+     "label": "Comprehensive income attributable to",
+     "label_i18n": {
+      "en": "Comprehensive income attributable to"
+     },
+     "role": "header",
+     "children": [
+      {
+       "node_id": "is_oci__comprehensive_income_attributable_to_nci",
+       "canonical_key": "is_oci__comprehensive_income_attributable_to_nci",
+       "label": "Comprehensive income attributable to noncontrolling interests",
+       "label_i18n": {
+        "en": "Comprehensive income attributable to noncontrolling interests"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "is_oci__comprehensive_income_attributable_to_parent",
+       "canonical_key": "is_oci__comprehensive_income_attributable_to_parent",
+       "label": "Comprehensive income attributable to the company",
+       "label_i18n": {
+        "en": "Comprehensive income attributable to the company"
+       },
+       "role": "line"
+      }
+     ]
+    },
+    {
+     "node_id": "is_oci_afs",
+     "canonical_key": "is_oci_afs",
+     "label": "Other comprehensive income: available-for-sale debt securities",
+     "label_i18n": {
+      "en": "Other comprehensive income: available-for-sale debt securities"
+     },
+     "role": "header",
+     "children": [
+      {
+       "node_id": "is_oci__afs_unrealized_gains_losses",
+       "canonical_key": "is_oci__afs_unrealized_gains_losses",
+       "label": "Available-for-sale debt securities: change in unrealized gains (losses)",
+       "label_i18n": {
+        "en": "Available-for-sale debt securities: change in unrealized gains (losses)"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "is_oci__afs_reclassification",
+       "canonical_key": "is_oci__afs_reclassification",
+       "label": "Available-for-sale debt securities: reclassification of (gains) losses to net income",
+       "label_i18n": {
+        "en": "Available-for-sale debt securities: reclassification of (gains) losses to net income"
+       },
+       "role": "line"
+      }
+     ]
+    },
+    {
+     "node_id": "is_oci_cfh",
+     "canonical_key": "is_oci_cfh",
+     "label": "Other comprehensive income: cash flow hedges",
+     "label_i18n": {
+      "en": "Other comprehensive income: cash flow hedges"
+     },
+     "role": "header",
+     "children": [
+      {
+       "node_id": "is_oci__cfh_unrealized_gains_losses",
+       "canonical_key": "is_oci__cfh_unrealized_gains_losses",
+       "label": "Cash flow hedges: change in unrealized gains (losses)",
+       "label_i18n": {
+        "en": "Cash flow hedges: change in unrealized gains (losses)"
+       },
+       "role": "line"
+      },
+      {
+       "node_id": "is_oci__cfh_reclassification",
+       "canonical_key": "is_oci__cfh_reclassification",
+       "label": "Cash flow hedges: reclassification of (gains) losses to net income",
+       "label_i18n": {
+        "en": "Cash flow hedges: reclassification of (gains) losses to net income"
+       },
+       "role": "line"
+      }
+     ]
+    }
+   ],
+   "identities": [
+    {
+     "id": "comprehensive_income_opens_on_net_income",
+     "lhs": "is_oci__net_income",
+     "rhs": {
+      "op": "sum",
+      "children": [
+       "is_pl__profit_for_the_year"
+      ]
+     }
     }
    ]
   },

@@ -1,16 +1,63 @@
-"""Build the US GAAP (Form 10-K) template and its line-item set: three statements and additional items.
+"""Build the US GAAP (Form 10-K) template and its line-item set: the statements and additional items.
 
     python scripts/build_usgaap_pair.py     # writes app/sample/templates/output_csv_usgaap_*
 
 WHAT IT DECIDES, and why:
 
-* THREE STATEMENTS, READ FROM THE FACE. The Consolidated Balance Sheets, the Consolidated
-  Statements of Operations (or Income, or Earnings) and the Consolidated Statements of Cash Flows,
-  each line one of the rows Regulation S-X Article 5 (Rules 5-02 and 5-03) and ASC 230's indirect
-  method lead a 10-K to print. Every line declares ``route: face``, none carries a
-  ``note_source``, and the set declares ``strict_face_route``, so no stage puts a note's figure on
-  a line: a row the face does not print is left empty. The statement of comprehensive income and
-  the statement of stockholders' equity are not carried.
+* FOUR STATEMENTS, READ FROM THE FACE. The Consolidated Balance Sheets, the Consolidated
+  Statements of Operations (or Income, or Earnings), the Consolidated Statements of Comprehensive
+  Income and the Consolidated Statements of Cash Flows, each line one of the rows Regulation S-X
+  Article 5 (Rules 5-02 and 5-03), ASC 220 and ASC 230's indirect method lead a 10-K to print.
+  Every line declares ``route: face``, none carries a ``note_source``, and the set declares
+  ``strict_face_route``, so no stage puts a note's figure on a line: a row the face does not print
+  is left empty. The statement of stockholders' equity is not carried.
+* THE STATEMENT OF COMPREHENSIVE INCOME IS SECTIONS OF THE STATEMENT OF OPERATIONS, as the HK
+  template carries its `is_oci` section. The classifier folds a page titled "...Statements of
+  Comprehensive Income" into `profit_and_loss` (`stages.classify._STATEMENT_ALIAS`), and a filer may
+  print the two as one continuous statement, so the lines are scoped by the section the row is
+  printed under, not by a statement of their own: `is_oci` (the "Other comprehensive income (loss):"
+  banner) and `total_comprehensive_income_attributable_to` (the page's own title, which names
+  comprehensive income, and the "Comprehensive income attributable to:" banner). Every line of the
+  statement of operations is scoped to `is_pl`, so neither side takes the other's rows.
+  - THE LINES are the rows ASC 220-10-45-10A's components lead filers to print, most-printed
+    first: foreign currency translation; the available-for-sale debt securities block and the
+    cash-flow hedges block, each as its change in unrealized gains (losses), its reclassification
+    to net income and its net change; pension and other postretirement benefit plans as one net
+    line (its components — actuarial gains and losses, amortisation of prior service cost,
+    settlements — differ too much from one filer to the next to be lines); an "other" line for the
+    share of an equity-method investee's OCI and a row captioned "Other"; total other
+    comprehensive income; comprehensive income; and comprehensive income attributable to the
+    noncontrolling interests and to the company, which ASC 220-10-45-5 has a filer with
+    noncontrolling interests print.
+  - THE OPENING "Net income" ROW IS A LINE OF ITS OWN (`is_oci__net_income`), never the statement
+    of operations' `is_pl__profit_for_the_year`: two rows bound to one line are added, so filing it
+    there would publish net income twice over. Under the page's title it is in no section the P&L
+    line is scoped to, and where no banner names a section the P&L line outranks it
+    (`match_priority` 95 against 80). A template identity compares the two figures.
+  - THE ARITHMETIC IS WRITTEN AS THE REST OF THE TEMPLATE WRITES IT, as rollups the structural
+    checks evaluate: each block's net change is the sum of its change and its reclassification;
+    total other comprehensive income is the sum of foreign currency translation, the two blocks'
+    net changes, pension and other; comprehensive income is net income plus total other
+    comprehensive income. THE BLOCKS' ROWS ARE SECTIONS OF THEIR OWN (`is_oci_afs`, `is_oci_cfh`),
+    so the section reconciliation of `is_oci` adds the block's NET CHANGE alone: a filer printing
+    only the net change (Microsoft's "Net change related to investments") reconciles, and one
+    printing the change, the reclassification and the net change is not counted twice. The
+    attribution lines are a section of their own for the same reason: they split comprehensive
+    income and are no part of other comprehensive income.
+  - A BLOCK'S ROWS ARE PRINTED BARE AND TWICE. Alphabet prints "Change in net unrealized gains
+    (losses)", "Less: reclassification adjustment for net (gains) losses included in net income"
+    and "Net change, net of income tax ..." under "Available-for-sale investments:" and again under
+    "Cash flow hedges:". As for EPS's "Basic" / "Diluted" below, a bare caption is no line's alias,
+    since it would bind both blocks' rows to one line. On a 10-K the mapper reads such a row once
+    more behind its block's heading (`map_ontology._block_caption`), and the `_headed` patterns
+    bind that reading: the heading names the securities or the hedges, the row's own words which
+    of the three rows it is. A heading that names a line by itself lends its rows nothing, so no
+    line takes a bare "Available-for-sale investments" or "Cash flow hedges" as a caption. The
+    request also shows each row's heading as its `subheading`, for the model. A caption naming
+    its securities or hedges ("Net unrealized gains (losses) on available-for-sale securities",
+    "Change in fair value of derivative instruments") binds by itself. A reclassification keeps
+    the sign it is printed with although its caption opens on "Less:": on a 10-K a "Less:" row
+    printing both signs is signed as printed (`normalize._prints_both_signs`).
 * EARNINGS PER SHARE AND THE SHARE COUNTS ARE, AND THEY ARE NOT MONEY. Four lines of the statement
   of operations — basic and diluted EPS, and the weighted-average shares used to compute each —
   declare ``measure: per_share`` / ``shares`` (`LineItemDef.measure`). A 10-K's header gives them a
@@ -22,8 +69,9 @@ WHAT IT DECIDES, and why:
   attributable to ...", which a caption pattern binds, or as a bare "Basic" / "Diluted" under an
   "Earnings per share:" heading and the same pair again under "Shares used in computing earnings
   per share:". The bare captions are no line's alias, since they would bind both pairs to one
-  line: the request shows each row's heading as its ``subheading``, and the model places them.
-* ADDITIONAL ITEMS, READ FROM THE NOTES AND THE AUDITOR'S REPORT, as a fourth statement of the
+  line: the request shows each row's heading as its ``subheading``, and the model places them. None
+  of the four reads a caption naming comprehensive income (`_EPS_NOT`).
+* ADDITIONAL ITEMS, READ FROM THE NOTES AND THE AUDITOR'S REPORT, as a last statement of the
   template (`NOTE_LINES`): the supplemental cash flow disclosures, debt maturities, principal and
   fair value, the current and deferred tax and the effective tax rate, the inventory split,
   property at cost and accumulated depreciation, the auditor's report (the firm, the opinion's
@@ -35,7 +83,9 @@ WHAT IT DECIDES, and why:
   put Total assets, Total liabilities and stockholders' equity, Retained earnings, Cash and cash
   equivalents, the three activity totals, Stock-based compensation, Repurchase of common stock and
   Payments for property, plant and equipment near the top. A row printed by few filers is left to
-  its section's leftover line rather than given one of its own.
+  its section's leftover line rather than given one of its own. The comprehensive-income lines
+  follow the order in which a 10-K's comprehensive-income components are most often printed;
+  that ranking is the judgement of what filers print, not a count.
 * A US BALANCE SHEET PRINTS NO "NON-CURRENT" HEADING. It prints "Current assets:", then "Total
   current assets", then the non-current rows with no banner over them, and the same for the
   liabilities. The reader carries the "Current assets" banner on past its total; the mapper reads a
@@ -97,6 +147,12 @@ LINE_ITEMS_KEY = "output_csv_usgaap"
 PL = ["is_pl"]
 ATTRIBUTION = ["profit_attributable_to", "is_pl"]
 TOP = ["bs_top_level"]
+# THE STATEMENT OF COMPREHENSIVE INCOME'S ROWS are printed under an "Other comprehensive income
+# (loss):" banner (`is_oci`, the section `mapping.SECTION_WORDS` reads it as), or under the page's own
+# title or a "Comprehensive income attributable to:" banner, both of which name comprehensive income
+# (`total_comprehensive_income_attributable_to`). `is_oci` first: it is the section the structural
+# checks read a line's sign evidence in (`structural_checks._signed_on_filing`).
+OCI = ["is_oci", "total_comprehensive_income_attributable_to"]
 
 # (id, label, statement, section_scope, sign convention, analyst bucket)
 SECTIONS = [
@@ -110,6 +166,13 @@ SECTIONS = [
     ("bs_mezz", "Temporary equity", "balance_sheet", ["bs_mezz"], "positive_expected", "others"),
     ("bs_equity", "Stockholders' equity", "balance_sheet", ["bs_equity"], "either", "equity"),
     ("is_pl", "Statement of operations", "profit_and_loss", PL, "either", "others"),
+    ("is_oci", "Other comprehensive income", "profit_and_loss", OCI, "either", "others"),
+    ("is_oci_attribution", "Comprehensive income attributable to", "profit_and_loss", OCI, "either",
+     "others"),
+    ("is_oci_afs", "Other comprehensive income: available-for-sale debt securities",
+     "profit_and_loss", OCI, "either", "others"),
+    ("is_oci_cfh", "Other comprehensive income: cash flow hedges", "profit_and_loss", OCI, "either",
+     "others"),
     ("cf_oper_indirect", "Operating activities", "cash_flow", ["cf_oper_indirect"], "either",
      "cash_flow_operating"),
     ("cf_investing", "Investing activities", "cash_flow", ["cf_investing"], "either",
@@ -119,7 +182,8 @@ SECTIONS = [
 ]
 NOTES_LABEL = "Additional Items"
 STATEMENT_LABELS = {"balance_sheet": "Consolidated Balance Sheets",
-                    "profit_and_loss": "Consolidated Statements of Operations",
+                    "profit_and_loss": "Consolidated Statements of Operations and of Comprehensive "
+                                       "Income",
                     "cash_flow": "Consolidated Statements of Cash Flows"}
 
 # Captions a leftover line never takes: a total printed in its section.
@@ -127,12 +191,14 @@ _TOTALS = [r"^\W*(?:sub[\s-]*)?total\b", r"^\W*net\s+cash\b"]
 
 
 def L(key, label, aliases=(), definition="", *, exclude=(), regex=(), sign="positive_expected",
-      scope=None, roll=None, role=None, bucket=None, measure="money"):
+      scope=None, roll=None, role=None, bucket=None, measure="money", priority=None):
     """One line of the spec. ``roll`` is ``(op, [children])`` for a calculated line. ``measure`` is
-    what the figure is counted in (`LineItemDef.measure`): money, an amount per share, or shares."""
+    what the figure is counted in (`LineItemDef.measure`): money, an amount per share, or shares.
+    ``priority`` overrides the `match_priority` the line's kind gives it, for a line that shares its
+    captions with another and must lose to it where no banner tells the two apart."""
     return {"key": key, "label": label, "aliases": list(aliases), "definition": definition,
             "exclude": list(exclude), "regex": list(regex), "sign": sign, "scope": scope,
-            "roll": roll, "role": role, "bucket": bucket, "measure": measure}
+            "roll": roll, "role": role, "bucket": bucket, "measure": measure, "priority": priority}
 
 
 def R(key, label, definition, exclude=(), aliases=(), sign="positive_expected"):
@@ -202,6 +268,48 @@ _NOT_AN_AMOUNT = [r"^\W*(?:basic\s+|diluted\s+)?(?:net\s+)?(?:income|earnings|lo
 # no share count.
 _GLUED_HEADING = [r":\s*$"]
 _NOT_A_COUNT_ROW = [r"\$"] + _GLUED_HEADING
+
+# THE STATEMENT OF COMPREHENSIVE INCOME (ASC 220). Patterns on the normalised caption: "(gains)
+# losses" and "gains/losses" arrive as "gains losses", "available-for-sale" as "available for sale".
+# The securities a block is about, and the hedges: what a caption must name to bind a block's line,
+# since the block's own rows are printed bare under a heading naming them (see the module docstring).
+_AFS = (r"(?:available\s+for\s+sale\s+(?:debt\s+)?(?:securities|investments)|marketable\s+(?:debt\s+)?"
+        r"securities|short\s+term\s+investments|(?:debt\s+)?investments)")
+_CFH = (r"(?:cash\s+flow\s+hedg(?:es|ing\s+(?:instruments|activities|transactions))|derivative\s+"
+        r"(?:instruments|financial\s+instruments|contracts)|derivatives|hedging\s+(?:instruments|"
+        r"activities))")
+_GL = r"(?:gains?|loss(?:es)?)(?:\s+(?:and\s+|or\s+)?(?:gains?|loss(?:es)?))?"
+_UNREALIZED = r"(?:total\s+|net\s+)?(?:change\s+in\s+)?(?:net\s+)?unrealized\s+(?:holding\s+)?" + _GL
+# A block's three rows: a change and a reclassification are its parts, and the net change is its
+# total. A caption naming the change "arising during the period", or the change in fair value, is
+# the part; one naming the reclassification is the other part; the rest is the net change.
+_DURING = r"\s+(?:arising|recognized|occurring)\s+during\s+(?:the\s+)?(?:period|year)\b"
+_RECLASS = r"(?:reclassification|reclassified|realized\s+and\s+included|amounts?\s+reclassified)"
+_THE_OTHER_COMPONENTS = [r"translation", r"pension", r"post\s*retirement", r"retirement",
+                         r"benefit\s+plans?", r"accumulated", r"attributable", r"equity\s+method",
+                         r"investees", r"affiliates"]
+_NOT_SECURITIES = [r"hedg", r"derivativ"] + _THE_OTHER_COMPONENTS
+_NOT_HEDGES = [r"available\s+for\s+sale", r"marketable", r"\binvestments?\b",
+               r"net\s+investment\s+hedg"] + _THE_OTHER_COMPONENTS
+# A block's net change is not its part: a caption opening on the reclassification, or naming the
+# change during the period or in fair value, is one of the parts.
+# A BLOCK'S BARE ROW READ WITH ITS HEADING. On a 10-K the mapper reads a comprehensive-income row
+# whose own caption names no line once more, behind the heading printed over its block
+# (`map_ontology._block_caption`): "Available-for-sale investments: Change in net unrealized gains
+# (losses)". These patterns bind that reading: the heading names the securities or the hedges, and
+# the bare caption after it says which of the block's three rows it is.
+def _headed(subject: str) -> str:
+    return E + r"(?:\w+\s+){0,10}?" + subject + r"\s+"
+
+
+_BLOCK_CHANGE = (r"(?:change\s+in\s+)?(?:net\s+)?(?:unrealized\s+(?:holding\s+)?" + _GL
+                 + r"|fair\s+value(?:\s+adjustments?)?)\b.*$")
+_BLOCK_RECLASS = (LESS + r"(?:reclassification|reclassified|amounts?\s+reclassified|adjustments?\s+"
+                  r"for\s+(?:net\s+)?" + _GL + r"\s+realized)\b.*$")
+_BLOCK_NET = r"(?:net\s+change|total(?:\s+change)?)\b.*$"
+_NOT_A_NET_CHANGE = [rf"^\W*(?:less\W+)?{_RECLASS}",
+                     r"(?:arising|recognized|occurring)\s+during\s+(?:the\s+)?(?:period|year)\b",
+                     r"fair\s+value\s+of"]
 
 LINES = {
     # ── BALANCE SHEET ──────────────────────────────────────────────────────────────────────────
@@ -953,6 +1061,250 @@ LINES = {
                  E + _SHARES_USED + r"\b.*\bdiluted$",
                  E + _SHARES_USED + r"\s+diluted\b.*$"]),
     ],
+    # ── STATEMENT OF COMPREHENSIVE INCOME ─────────────────────────────────────────────────────
+    # The summary: the net income it opens on, the components as their net changes, the total and
+    # comprehensive income. The section reconciliation of `is_oci` adds the five components.
+    "is_oci": [
+        L("is_oci__net_income", "Net income (loss), as comprehensive income opens on it",
+          ["Net income", "Net income (loss)", "Net loss", "Net earnings", "Consolidated net income",
+           "Net earnings (loss)", "Net (loss) income", "Net income including noncontrolling interests"],
+          "The net income or loss the statement of comprehensive income opens on, as that statement "
+          "prints it: the statement of operations' net income, printed again as the first row of "
+          "comprehensive income. It is this line's, never the statement of operations' net income "
+          "line, so the figure is not filed twice; a template identity compares the two. Empty "
+          "where the filer prints one continuous statement of operations and comprehensive income, "
+          "whose net income is printed once.",
+          sign="either", scope=OCI, role="total", bucket="income", priority=80,
+          exclude=[r"attributable", r"available\s+to", r"\bfrom\b", r"comprehensive"]
+          + _NOT_PER_SHARE,
+          regex=[E + r"(?:consolidated\s+)?net\s+(?:income|earnings|loss|profit)(?:\s+(?:loss|income|earnings))?"
+                 r"(?:\s+including\s+non\s*controlling\s+interests?)?$"]),
+        L("is_oci__foreign_currency_translation", "Foreign currency translation adjustments",
+          ["Foreign currency translation adjustments", "Foreign currency translation adjustment",
+           "Change in foreign currency translation adjustment",
+           "Foreign currency translation adjustments, net of tax", "Foreign currency translation",
+           "Currency translation adjustments", "Translation adjustments",
+           "Cumulative translation adjustment", "Foreign currency translation gains (losses)",
+           "Translation adjustments and other, net of tax"],
+          "The year's foreign currency translation adjustment recognised in other comprehensive "
+          "income (ASC 830): the translation of foreign operations' net assets, with any net "
+          "investment hedge and the reclassification on disposal of a foreign operation where the "
+          "filer prints them inside it, net of tax as printed.",
+          sign="either", scope=OCI,
+          exclude=[r"accumulated", r"attributable", r":\s*$"],
+          regex=[E + r"(?:net\s+)?(?:change\s+in\s+)?(?:(?:foreign\s+)?currency\s+|cumulative\s+)?"
+                 r"translation\s+(?:adjustments?|gains?|loss(?:es)?|differences?)\b.*$",
+                 E + r"(?:net\s+)?(?:change\s+in\s+)?foreign\s+currency\s+translation\b.*$"]),
+        L("is_oci__available_for_sale_securities", "Available-for-sale debt securities, net change",
+          ["Net unrealized gains (losses) on available-for-sale securities",
+           "Unrealized gains (losses) on available-for-sale securities",
+           "Change in unrealized gains (losses) on available-for-sale securities",
+           "Net change in unrealized gains (losses) on available-for-sale securities",
+           "Net unrealized gains (losses) on available-for-sale debt securities",
+           "Unrealized gains (losses) on marketable securities", "Unrealized gains (losses) on investments",
+           "Net change related to investments",
+           "Total change in unrealized gains/losses on marketable debt securities"],
+          "The year's net change in unrealized gains and losses on available-for-sale debt "
+          "securities (ASC 320) recognised in other comprehensive income, net of tax: the change "
+          "in unrealized gains (losses) and the reclassification of (gains) losses to net income "
+          "together. Where the filer prints the two and their total under a heading naming the "
+          "securities ('Available-for-sale investments:'), this is the total — often a bare 'Net "
+          "change, net of income tax ...' row whose `subheading` names the securities; the same "
+          "caption under a cash-flow-hedges heading is the hedges' line. Where it prints one row, "
+          "that row.",
+          sign="either", scope=OCI, roll=("sum", ["is_oci__afs_unrealized_gains_losses",
+                                                   "is_oci__afs_reclassification"]),
+          exclude=_NOT_SECURITIES + _NOT_A_NET_CHANGE + _GLUED_HEADING,
+          regex=[E + _UNREALIZED + r"\s+on\s+" + _AFS + r"\b.*$",
+                 E + r"(?:net\s+)?change\s+(?:related\s+to|in)\s+" + _AFS + r"\b.*$",
+                 # Named with its tax, not bare: a bare "Available-for-sale investments" is the
+                 # block's HEADING, and a heading that names a line binds no row beneath it
+                 # (`map_ontology._block_caption`).
+                 E + r"available\s+for\s+sale\s+(?:debt\s+)?(?:securities|investments)\s+net\s+of\s+"
+                 r"(?:income\s+)?tax(?:es)?\b.*$",
+                 _headed(_AFS) + _BLOCK_NET]),
+        L("is_oci__cash_flow_hedges", "Cash flow hedges, net change",
+          ["Net unrealized gains (losses) on cash flow hedges", "Unrealized gains (losses) on cash flow hedges",
+           "Change in unrealized gains (losses) on cash flow hedges",
+           "Net change in unrealized gains (losses) on cash flow hedges",
+           "Cash flow hedges, net of tax", "Net change in cash flow hedges", "Net change related to derivatives",
+           "Unrealized gains (losses) on derivative instruments",
+           "Total change in unrealized gains/losses on derivative instruments"],
+          "The year's net change on derivatives designated as cash flow hedges (ASC 815) recognised "
+          "in other comprehensive income, net of tax: the change in their unrealized gains (losses) "
+          "and the reclassification of (gains) losses to net income together. Where the filer "
+          "prints the two and their total under a 'Cash flow hedges:' heading, this is the total — "
+          "often a bare 'Net change, net of income tax ...' row whose `subheading` names the "
+          "hedges; the same caption under an available-for-sale heading is the securities' line. "
+          "Not a net investment hedge, which is part of the foreign currency translation.",
+          sign="either", scope=OCI, roll=("sum", ["is_oci__cfh_unrealized_gains_losses",
+                                                   "is_oci__cfh_reclassification"]),
+          exclude=_NOT_HEDGES + _NOT_A_NET_CHANGE + _GLUED_HEADING,
+          regex=[E + _UNREALIZED + r"\s+on\s+" + _CFH + r"\b.*$",
+                 E + r"(?:net\s+)?change\s+(?:related\s+to|in)\s+" + _CFH + r"\b.*$",
+                 # With its tax, not bare: a bare "Cash flow hedges" is the block's heading.
+                 E + _CFH + r"\s+net\s+of\s+(?:income\s+)?tax(?:es)?\b.*$",
+                 _headed(_CFH) + _BLOCK_NET]),
+        L("is_oci__pension_and_postretirement", "Pension and other postretirement benefit plans",
+          ["Pension and other postretirement benefit plans", "Pension and other postretirement benefits",
+           "Pension and postretirement benefits", "Defined benefit pension plans", "Defined benefit plans",
+           "Pension and other postretirement benefit plans, net of tax",
+           "Change in pension and postretirement benefit plans", "Postretirement benefit plans",
+           "Pension liability adjustment", "Employee benefit plans", "Retirement benefit plans"],
+          "The year's other comprehensive income on defined-benefit pension and other "
+          "postretirement benefit plans (ASC 715), net of tax: actuarial gains and losses, prior "
+          "service cost or credit, and their amortisation and settlement, as one figure. Where the "
+          "filer prints the plans' rows and their net change under a heading, the net change; "
+          "where it prints one row, that row.",
+          sign="either", scope=OCI,
+          exclude=[r"accumulated", r"attributable", r":\s*$"],
+          regex=[E + r"(?:net\s+)?(?:change\s+in\s+)?(?:defined\s+benefit\s+)?(?:pension|post\s*retirement|"
+                 r"retirement|employee\s+benefit)\b.*$",
+                 E + r"(?:net\s+)?(?:change\s+in\s+)?defined\s+benefit\s+(?:pension\s+)?(?:plans?|"
+                 r"obligations?)\b.*$"]),
+        L("is_oci__other", "Other comprehensive income (loss), other",
+          ["Other comprehensive income (loss), other", "Other, net of tax", "Other, net of taxes",
+           "Share of other comprehensive income (loss) of equity method investees",
+           "Other comprehensive income (loss) of equity method investees"],
+          "Any other component of other comprehensive income the filer prints as a row of its own: "
+          "the share of an equity-method investee's other comprehensive income, a row captioned "
+          "'Other', net of tax as printed. Not foreign currency translation, the securities, the "
+          "hedges or the pension plans, which are lines of their own.",
+          sign="either", scope=OCI,
+          exclude=[r"attributable", r"accumulated", r":\s*$"],
+          regex=[E + r"(?:share\s+of\s+)?other\s+comprehensive\s+(?:income|loss)(?:\s+(?:loss|income))?\s+"
+                 r"(?:of|from|in|on)\s+(?:equity\s+method\s+|unconsolidated\s+)?(?:investees|affiliates|"
+                 r"investments|joint\s+ventures|associates)\b.*$",
+                 E + r"other\s+net\s+of\s+(?:income\s+)?tax(?:es)?$",
+                 E + r"other\s+comprehensive\s+(?:income|loss)(?:\s+(?:loss|income))?\s+other$"]),
+        L("is_oci__total_other_comprehensive_income", "Total other comprehensive income (loss)",
+          ["Other comprehensive income (loss)", "Total other comprehensive income (loss)",
+           "Other comprehensive income (loss), net of tax", "Other comprehensive income",
+           "Other comprehensive loss", "Total other comprehensive income", "Total other comprehensive loss",
+           "Other comprehensive income (loss), net of income taxes", "Other comprehensive (loss) income",
+           "Total other comprehensive income (loss), net of tax"],
+          "Total other comprehensive income or loss for the year, net of tax, as printed, and the sum "
+          "of foreign currency translation, the available-for-sale securities' and the cash flow "
+          "hedges' net changes, the pension plans and any other component. Not the accumulated "
+          "balance on the balance sheet, nor a total printed before the tax on it.",
+          sign="either", scope=OCI, role="subtotal",
+          exclude=[r"attributable", r"accumulated", r"\bother$", r"before\s+(?:income\s+)?tax",
+                   r"(?:of|from)\s+(?:equity\s+method|unconsolidated|investees|affiliates)", r":\s*$"],
+          regex=[E + r"(?:total\s+)?other\s+comprehensive\s+(?:income|loss|earnings)(?:\s+(?:loss|income|"
+                 r"earnings))?(?:\s+net(?:\s+of\s+(?:income\s+)?tax(?:es)?\b.*)?)?$"],
+          roll=("sum", ["is_oci__foreign_currency_translation",
+                        "is_oci__available_for_sale_securities", "is_oci__cash_flow_hedges",
+                        "is_oci__pension_and_postretirement", "is_oci__other"])),
+        L("is_oci__comprehensive_income", "Comprehensive income (loss)",
+          ["Comprehensive income", "Comprehensive income (loss)", "Comprehensive loss",
+           "Total comprehensive income", "Total comprehensive income (loss)", "Total comprehensive loss",
+           "Consolidated comprehensive income", "Comprehensive income including noncontrolling interests"],
+          "Comprehensive income or loss for the year as printed, including any part attributable "
+          "to noncontrolling interests: net income and total other comprehensive income.",
+          sign="either", scope=OCI, role="total", bucket="income",
+          exclude=[r"attributable", r"available\s+to", r"\bother\s+comprehensive", r"accumulated",
+                   r":\s*$"] + _NOT_PER_SHARE,
+          regex=[E + r"(?:total\s+|consolidated\s+)?comprehensive\s+(?:income|loss|earnings)(?:\s+(?:loss|"
+                 r"income|earnings))?(?:\s+(?:net\s+of\s+(?:income\s+)?tax(?:es)?|including\s+non\s*"
+                 r"controlling\s+interests?))?$"],
+          roll=("sum", ["is_oci__net_income", "is_oci__total_other_comprehensive_income"])),
+    ],
+    # Who comprehensive income belongs to (ASC 220-10-45-5): a section of its own, since it splits
+    # comprehensive income and is no part of other comprehensive income.
+    "is_oci_attribution": [
+        L("is_oci__comprehensive_income_attributable_to_nci",
+          "Comprehensive income attributable to noncontrolling interests",
+          ["Comprehensive income attributable to noncontrolling interests",
+           "Less: Comprehensive income attributable to noncontrolling interests",
+           "Comprehensive (income) loss attributable to noncontrolling interests",
+           "Comprehensive income attributable to noncontrolling interest",
+           "Comprehensive loss attributable to noncontrolling interests"],
+          "The part of comprehensive income attributable to noncontrolling interests, with the "
+          "sign the face gives it (often printed as a deduction).",
+          sign="either", scope=OCI, bucket="income", exclude=list(_NOT_PER_SHARE),
+          regex=[E + LESS + r"(?:total\s+)?comprehensive\s+(?:income|loss|earnings)(?:\s+(?:loss|income|"
+                 r"earnings))?\s+attributable\s+to\s+(?:the\s+)?(?:redeemable\s+)?(?:non\s*controlling|"
+                 r"minority)\s+interests?\b.*$"]),
+        L("is_oci__comprehensive_income_attributable_to_parent",
+          "Comprehensive income attributable to the company",
+          ["Comprehensive income attributable to common stockholders",
+           "Comprehensive income attributable to the Company",
+           "Comprehensive income attributable to shareholders",
+           "Total comprehensive income attributable to the Company"],
+          "The part of comprehensive income attributable to the filer's own stockholders, where the "
+          "face prints it; empty where the filer has no noncontrolling interests and prints "
+          "comprehensive income alone.",
+          sign="either", scope=OCI, bucket="income",
+          exclude=list(_NOT_PER_SHARE) + [r"non\s*controlling", r"minority"],
+          regex=[E + r"(?:total\s+)?comprehensive\s+(?:income|loss|earnings)(?:\s+(?:loss|income|"
+                 r"earnings))?\s+(?:attributable|available)\s+to\s+.*$"]),
+    ],
+    # A block's rows: its change and its reclassification, each a part of the block's net change
+    # in `is_oci`. Sections of their own, so the net change is what `is_oci` reconciles.
+    "is_oci_afs": [
+        L("is_oci__afs_unrealized_gains_losses",
+          "Available-for-sale debt securities: change in unrealized gains (losses)",
+          [],
+          "The change in unrealized gains and losses on available-for-sale debt securities arising "
+          "in the year, before the reclassification to net income, as printed in the securities' "
+          "block of other comprehensive income. A 10-K usually prints it as a bare 'Change in net "
+          "unrealized gains (losses)' or 'Change in fair value' row under a heading naming the "
+          "securities ('Available-for-sale investments:'), which is the row's `subheading`; the "
+          "same caption under 'Cash flow hedges:' is the hedges' line, not this one. Not the "
+          "block's net change.",
+          sign="either", scope=OCI,
+          exclude=_NOT_SECURITIES + [rf"^\W*(?:less\W+)?{_RECLASS}"] + _GLUED_HEADING,
+          regex=[E + r"(?:change\s+in\s+)?fair\s+value\s+of\s+" + _AFS + r"\b.*$",
+                 E + _UNREALIZED + r"\s+on\s+" + _AFS + _DURING + r".*$",
+                 E + _UNREALIZED + _DURING + r".*\bon\s+" + _AFS + r"\b.*$",
+                 _headed(_AFS) + _BLOCK_CHANGE]),
+        L("is_oci__afs_reclassification",
+          "Available-for-sale debt securities: reclassification of (gains) losses to net income",
+          [],
+          "The reclassification adjustment for (gains) losses on available-for-sale debt "
+          "securities realised in the year and included in net income, with the sign the face "
+          "gives it in the securities' block: printed '(gains) losses', a gain reclassified is "
+          "negative and a loss positive. A 10-K usually prints it as a bare 'Less: reclassification "
+          "adjustment for net (gains) losses included in net income' under the securities' heading, "
+          "the row's `subheading`; the same caption under 'Cash flow hedges:' is the hedges' line.",
+          sign="either", scope=OCI,
+          exclude=_NOT_SECURITIES + _GLUED_HEADING,
+          regex=[E + LESS + _RECLASS + r"\b.*\b" + _AFS + r"\b.*$",
+                 E + LESS + r"(?:net\s+)?" + _GL + r"\s+on\s+" + _AFS + r"\s+" + _RECLASS + r"\b.*$",
+                 _headed(_AFS) + _BLOCK_RECLASS]),
+    ],
+    "is_oci_cfh": [
+        L("is_oci__cfh_unrealized_gains_losses",
+          "Cash flow hedges: change in unrealized gains (losses)",
+          [],
+          "The change in unrealized gains and losses on derivatives designated as cash flow hedges "
+          "arising in the year (the effective portion), before the reclassification to net income, "
+          "as printed in the hedges' block of other comprehensive income. A 10-K usually prints it "
+          "as a bare 'Change in net unrealized gains (losses)' or 'Change in fair value' row under "
+          "a 'Cash flow hedges:' heading, which is the row's `subheading`; the same caption under "
+          "an available-for-sale heading is the securities' line, not this one. Not the block's "
+          "net change.",
+          sign="either", scope=OCI,
+          exclude=_NOT_HEDGES + [rf"^\W*(?:less\W+)?{_RECLASS}"] + _GLUED_HEADING,
+          regex=[E + r"(?:change\s+in\s+)?fair\s+value\s+of\s+" + _CFH + r"\b.*$",
+                 E + _UNREALIZED + r"\s+on\s+" + _CFH + _DURING + r".*$",
+                 E + _UNREALIZED + _DURING + r".*\bon\s+" + _CFH + r"\b.*$",
+                 _headed(_CFH) + _BLOCK_CHANGE]),
+        L("is_oci__cfh_reclassification",
+          "Cash flow hedges: reclassification of (gains) losses to net income",
+          [],
+          "The reclassification adjustment for (gains) losses on cash flow hedges included in net "
+          "income in the year, with the sign the face gives it in the hedges' block: printed "
+          "'(gains) losses', a gain reclassified is negative and a loss positive. A 10-K usually "
+          "prints it as a bare 'Less: reclassification adjustment for net (gains) losses included "
+          "in net income' under 'Cash flow hedges:', the row's `subheading`; the same caption under "
+          "an available-for-sale heading is the securities' line.",
+          sign="either", scope=OCI,
+          exclude=_NOT_HEDGES + _GLUED_HEADING,
+          regex=[E + LESS + _RECLASS + r"\b.*\b" + _CFH + r"\b.*$",
+                 E + LESS + r"(?:net\s+)?" + _GL + r"\s+on\s+" + _CFH + r"\s+" + _RECLASS + r"\b.*$",
+                 _headed(_CFH) + _BLOCK_RECLASS]),
+    ],
     # ── STATEMENT OF CASH FLOWS ───────────────────────────────────────────────────────────────
     "cf_oper_indirect": [
         L("cf_oper_indirect__net_income", "Net income",
@@ -1649,15 +2001,22 @@ KPIS = {"intermediates": [], "ratios": [
 
 PROMPT = (
     "These are the consolidated financial statements of a US registrant filed on Form 10-K under US "
-    "GAAP: the Consolidated Balance Sheets, the Consolidated Statements of Operations (or Income) "
-    "and the Consolidated Statements of Cash Flows. Amounts are in US dollars, usually in millions or "
+    "GAAP: the Consolidated Balance Sheets, the Consolidated Statements of Operations (or Income), "
+    "the Consolidated Statements of Comprehensive Income (on a page of their own or continuing the "
+    "statement of operations) and the Consolidated Statements of Cash Flows. Amounts are in US "
+    "dollars, usually in millions or "
     "thousands except per-share amounts; the statements of operations and of cash flows print three "
     "years and the balance sheet two. Earnings per share is an amount in dollars per share and the "
     "weighted-average shares are a count of shares, each as printed and neither in the statements' "
     "millions or thousands; a bare 'Basic' or 'Diluted' row is earnings per share under an 'Earnings "
     "per share' heading and a share count under a 'Shares used in computing earnings per share' or "
-    "'Weighted-average shares outstanding' heading, and its `subheading` names the heading. Every "
-    "line of the three statements is a row the face of those "
+    "'Weighted-average shares outstanding' heading, and its `subheading` names the heading. The "
+    "statement of comprehensive income opens on the net income: that row is the comprehensive "
+    "income line's own net income, not the statement of operations' line. It prints each block of "
+    "other comprehensive income — the available-for-sale securities, the cash flow hedges — as a "
+    "change, a reclassification and a net change, often with the same bare captions in both "
+    "blocks; the row's `subheading` names the block. Every line of the statements is a row the "
+    "face of those "
     "statements prints: cite the printed statement row, never a note, and leave a line empty when the "
     "face does not print it. The additional items are read from the notes, the supplemental cash flow "
     "disclosures and the report of the independent registered public accounting firm, as each line "
@@ -1732,6 +2091,15 @@ def build() -> tuple[dict, dict]:
             st["identities"] = [{"id": "bs_balances", "lhs": "bs_ca__total_assets",
                                  "rhs": {"op": "sum",
                                          "children": ["bs_cl__total_equity_and_liabilities"]}}]
+        if st_type == "profit_and_loss":
+            # THE NET INCOME COMPREHENSIVE INCOME OPENS ON IS THE STATEMENT OF OPERATIONS'. Two lines,
+            # so the opening row is not filed onto the P&L line twice; one identity, so a row bound
+            # to the wrong one of them is reported. An identity and not a rollup: a one-term sum
+            # across two sections is a relation the sign gate would decline
+            # (`structural_checks._signs_established`), and nothing about its sign is in doubt.
+            st["identities"] = [{"id": "comprehensive_income_opens_on_net_income",
+                                 "lhs": "is_oci__net_income",
+                                 "rhs": {"op": "sum", "children": ["is_pl__profit_for_the_year"]}}]
         statements.append(st)
     statements.append({
         "type": "notes", "label": NOTES_LABEL, "label_i18n": {"en": NOTES_LABEL},
@@ -1787,6 +2155,8 @@ def build() -> tuple[dict, dict]:
                 cross.append(k)
             elif spec["role"]:
                 item["match_priority"] = 95
+            if spec["priority"] is not None:
+                item["match_priority"] = spec["priority"]
             if spec.get("residual"):
                 residuals.append(k)
                 item["match_priority"] = 0
@@ -1860,12 +2230,19 @@ def build() -> tuple[dict, dict]:
             "name": "US GAAP (Form 10-K) line items", "version": "1",
             "changes": [
                 ("Built by scripts/build_usgaap_pair.py: the rows the face of a Form 10-K's "
-                 "consolidated balance sheets, statements of operations and indirect-method "
-                 "statements of cash flows print."),
+                 "consolidated balance sheets, statements of operations, statements of "
+                 "comprehensive income and indirect-method statements of cash flows print."),
+                ("The statement of comprehensive income: four sections of the statement of "
+                 "operations (other comprehensive income; comprehensive income attributable to; "
+                 "the available-for-sale securities' and the cash flow hedges' change and "
+                 "reclassification), scoped by the section a row is printed under. The net income "
+                 "it opens on is a line of its own, compared with the statement of operations' "
+                 "by a template identity; each block's net change, total other comprehensive "
+                 "income and comprehensive income are rollups."),
                 (f"{face_lines} statement lines, every one read from the face (strict_face_route); "
                  "no internal parts. One leftover line per asset, liability, stockholders' equity "
-                 "and cash-flow section; none in the statement of operations or in temporary "
-                 "equity."),
+                 "and cash-flow section; none in the statement of operations, its comprehensive "
+                 "income or temporary equity."),
                 ("Earnings per share (basic, diluted) and the weighted-average shares used to "
                  "compute them (basic, diluted): four statement-of-operations lines declaring "
                  "`measure: per_share` / `shares`, published as printed in dollars per share and "
