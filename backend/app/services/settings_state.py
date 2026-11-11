@@ -142,6 +142,19 @@ EXTRACTION_KNOBS: tuple[Knob, ...] = (
          "thing as \"identical\"; lower it to group more aggressively and pay for fewer copies "
          "of the note block, at the cost of lines receiving notes they did not ask for.",
          minimum=0.0, maximum=1.0, step=0.05),
+    Knob("llm_note_synonyms", "bool", "Search note headings with the shared synonym list",
+         "A line's notes are found by the words their headings share with its note terms, so a "
+         "note headed \"Fixed assets\" is not found for a line that says \"Property, plant and "
+         "equipment\". On, a note whose heading prints another spelling of the line's own concept "
+         "— English, Simplified or Traditional Chinese, from one list in the code — is added to "
+         "the line's request, at most two, after every note the configuration found. It changes "
+         "which notes the model is shown and nothing else."),
+    Knob("llm_note_router", "bool", "Ask the model which notes print each line (one call)",
+         "One extra model call per filing, before the line-item requests: the model reads every "
+         "note heading and each asked-about line's definition and note terms, and names the notes "
+         "that print the line's figure. Up to two of its notes are ADDED to each line's request, "
+         "never in place of one the configuration found, and never a policy note or another "
+         "entity's. If the call fails the run carries on without it. Off, no call is made."),
     Knob("llm_gap_routing", "bool", "Close subtotal gaps (LLM)",
          "When a section subtotal computed from the template's lines differs from the printed "
          "one, offer the model the extracted lines that reached no statement and ask which "

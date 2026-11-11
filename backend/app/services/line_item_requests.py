@@ -29,7 +29,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.services import line_item_notes, line_item_routes
+from app.services import heading_synonyms, line_item_notes, line_item_routes
 
 
 @dataclass(frozen=True)
@@ -105,7 +105,8 @@ def _note_keys(hits) -> tuple[str, ...]:
     return tuple(seen)
 
 
-def plan_requests(line_item_set, notes, settings, *, cited=None) -> list[RequestPlan]:
+def plan_requests(line_item_set, notes, settings, *, cited=None, routed=None,
+                  stats=None) -> list[RequestPlan]:
     """The requests to make for one document, in the order they should be made.
 
     Every line item the model is asked about appears in exactly one plan. That is the property the
@@ -116,6 +117,11 @@ def plan_requests(line_item_set, notes, settings, *, cited=None) -> list[Request
     face row, which go into the set ahead of anything a probe found. It reaches the grouping too,
     and that is the point rather than a side effect: two lines that cite the same note now share a
     request, which the scoring alone had no way to notice.
+
+    `extraction.llm_note_synonyms` ADDS THE SHARED SYNONYM LIST to each line's heading search
+    (`heading_synonyms`), and `routed` — the model's own reading of the headings
+    (`note_router.route`) — adds up to two notes per line after everything else. Neither displaces
+    a note the configuration found; `stats` is told how many each added (`note_sets`).
     """
     mode = str(getattr(settings.extraction, "llm_request_grouping", "none") or "none")
     similarity = float(getattr(settings.extraction, "llm_group_similarity", 0.8) or 0.8)
@@ -124,7 +130,10 @@ def plan_requests(line_item_set, notes, settings, *, cited=None) -> list[Request
 
     # The note set per line item, computed once. Needed by every mode: the authored modes group on
     # it, and "manual" still has to say which notes each request carries.
-    sets = line_item_notes.note_sets(items, notes, cited=cited)
+    synonyms = (heading_synonyms.extras_by_key(line_item_set)
+                if getattr(settings.extraction, "llm_note_synonyms", True) else None)
+    sets = line_item_notes.note_sets(items, notes, cited=cited, synonyms=synonyms, routed=routed,
+                                     stats=stats)
     notes_of = {key: _note_keys(hits) for key, hits in sets.items()}
 
     if mode == "manual":

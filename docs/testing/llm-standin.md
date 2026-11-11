@@ -123,6 +123,19 @@ cache, and the question after it holding only its own other notes. `payload_of` 
 changes those requests' ids: an answer written before is carried to the new id by its line keys,
 since each line is asked with the same `notes_supplied`.
 
+### The note router request (`extraction.llm_note_router`)
+
+A run with a provider makes ONE `note_router` request (schema `NoteRouterReply`) before every line
+request: its `notes` list is every note heading of the filing — number, heading, chapter, a few
+sub-headings, `prints_figures` — and its `line_items` are the lines asked about that read a note,
+each with its `definition`, `note_terms`, `row_terms` and `not_in`. Answer it from the headings and
+the configuration alone: `{"routes": [{"key": "...", "notes": ["14", "7"]}]}`, up to three note
+numbers per line, best first, exactly as listed, and leave out a line no heading fits. Unanswered,
+it abstains like every other request and the line requests carry the configuration's own notes. An
+answered router changes the note sets, so the line requests it adds a note to get new ids; their
+answers are carried by line keys (`cache/carry.py`) only where the added note does not change what
+the answer should cite.
+
 ### Report requests (the `anywhere` lines)
 
 A line whose route is `anywhere` is asked in a batch of at most 12, and the request has **two

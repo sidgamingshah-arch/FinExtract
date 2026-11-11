@@ -1125,7 +1125,7 @@ def ask(provider, system: str, request: dict, *, max_tokens: int,
     return reply, meta
 
 
-def plan_and_notes(line_item_set, notes, settings, *, doc=None):
+def plan_and_notes(line_item_set, notes, settings, *, doc=None, routed=None, stats=None):
     """``(plans, by_key, notes_of, identified)`` — everything a run needs, computed once.
 
     `identified_notes` is document-level (its IDF is a property of the filing), so it is built once
@@ -1136,13 +1136,17 @@ def plan_and_notes(line_item_set, notes, settings, *, doc=None):
     `line_item_notes.cited_notes`. Every caller that has a document should pass it; the ones that
     do not (the audit scripts, which are handed reconstructed note tables and no face rows) keep
     the pure-scoring behaviour rather than being rewritten to fake a document.
+
+    `routed` is the note router's reading of the headings (`note_router.route`), added to each
+    line's set after every other source; `stats` is filled with what the synonyms and the router
+    added. See `line_item_requests.plan_requests`.
     """
     items = [i for i in (getattr(line_item_set, "items", None) or [])
              if line_item_requests.asked_about(i)]
     by_key = {i.key: i for i in items}
     cited = line_item_notes.cited_notes(doc)
     plans = line_item_requests.plan_requests(line_item_set, notes, settings,
-                                             cited=cited)
+                                             cited=cited, routed=routed, stats=stats)
     notes_of = {p.keys[0] if len(p.keys) == 1 else k: p.notes
                 for p in plans for k in p.keys}
     identified = note_context.identified_notes(line_item_set, notes, cited=cited, doc=doc)

@@ -139,6 +139,10 @@ class _Caching:
         self.calls: list[dict] = []
 
     def complete_structured(self, *, system, messages, response_schema, **_):
+        # The note router's one call is answered empty and not recorded: this file is about the
+        # line-item requests (`test_the_note_router_adds_notes_and_never_displaces.py`).
+        if response_schema.__name__ == "NoteRouterReply":
+            return response_schema(), {}
         self.calls.append({"system": system, "messages": [dict(m) for m in messages]})
         asked = [e["key"] for e in json.loads(messages[-1]["content"])["line_items"]]
         return response_schema.model_validate(

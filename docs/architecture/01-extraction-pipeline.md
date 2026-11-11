@@ -209,6 +209,53 @@ The face and its cited notes are processed in this order:
     remainder, so a figure filed there makes the reconciliation that would have REPORTED the gap
     tie instead.
 
+    *Which notes a line is shown* (`line_item_notes.note_sets`), in this order, each source
+    adding only what the ones before it did not give: the notes the line DECLARES
+    (`declared_notes`); the notes the filing CITES beside its face row (`cited_notes`); the notes
+    whose HEADING names the line's note terms, scored by the words they share weighted by rarity
+    (`notes_for_line_item`, floor `MIN_SCORE`, at most four); a note printing a row under the
+    line's own name when the heading search came up short (`named_row_notes`); the note the
+    line's note points to (`referenced_notes`). Then two layers that only ever add:
+
+    - *The shared synonym list* (`services.heading_synonyms`, `extraction.llm_note_synonyms`, on).
+      Concepts written down once in English, Simplified and Traditional Chinese — "fixed assets"
+      is "property, plant and equipment" is 固定资产. A line whose own term IS one of a concept's
+      spellings is shown a note whose heading PRINTS another of them, at most `SYNONYM_CAP` (2),
+      the note printing the most figures first, marked `via="synonym"`. A term that only contains
+      a spelling ("Profit before income tax") names nothing; a short spelling is printed only as a
+      whole heading; the longest spelling a heading prints decides its concept (递延所得税 is
+      deferred tax, not income tax); a spelling a sibling part names is the sibling's. Measured on
+      18 filings: 47 notes added to 34 of 2,826 line-filings, none removed, 46 the right note by
+      concept — "Net trade receivables", configured in English, reaches 应收账款 on all eleven
+      CAS filings.
+    - *The note router* (`services.note_router`, `extraction.llm_note_router`, on). ONE call per
+      filing, before the line requests: the model is shown every note heading once (number,
+      heading, chapter, a few sub-headings, whether it prints a figure) and each asked-about
+      line's configuration (definition cut to 400 characters, note terms, row terms,
+      `note_terms_none`, and `part_of` for a part — parts of one figure are split by the note
+      each is printed in), and names up to three notes per line that print its figure. The reply
+      is checked — an unknown key, an unknown note number or a second answer is dropped and
+      counted — and at most `ROUTED_CAP` (2) notes no other source gave are added, marked
+      `via="routed"`. A failed call is logged (`line_item_llm:note_router FAILED …`) and the sets
+      are the configuration's own. Measured with stand-in answers on the five reference filings
+      and Alphabet: 171 picks for 140 lines, 148 of them notes the configuration already gave the
+      line, 13 kept out by the fences below or the cap, 10 added — 7 printing a row the line's own row rule
+      takes (the non-current FVOCI line reaches 其他权益工具投资 on all three CAS filings; 1966's
+      right-of-use depreciation reaches its LEASES note) — at one call of 4,000–16,000 tokens.
+
+    Both layers pass the same fences: never an accounting-policy note (`names_policy`), another
+    entity's note, a note printing no figure for a line that reads a row, or a note
+    `claimed_notes` gives a SIBLING PART of the same figure (`sibling_claims`) — the router's
+    first prompt called fixed assets and property, plant and equipment one subject, and its
+    answers sent both depreciation parts to the same note on every reference filing. The run log
+    gives `line_item_llm:note_router` (lines, notes, picks, tokens) and `line_item_llm:note_search`
+    (over the lines asked: notes each layer added; `routed_agreed`, the router's picks the
+    configuration already held; `sibling_refused`).
+
+    The claims that give each note to one part (`claimed_notes`), the deterministic route and the
+    document's note text are not changed by either layer; a note added to a line's set has its
+    text added to the request (`plan_and_notes`).
+
     *Which lines share a request.* `extraction.llm_request_grouping` — `none` (one per line, the
     baseline and the only mode whose answer is attributable to one line), `identical`, `similar`
     (`llm_group_similarity`) or `manual` (the groups authored on the set). What grouping buys is

@@ -102,6 +102,11 @@ class Answers:
         self.documents: list[str | None] = []
 
     def complete_structured(self, *, system, messages, response_schema, **_):
+        # THE NOTE ROUTER'S ONE CALL (`services.note_router`) is answered empty and not recorded:
+        # every assertion here is about the line-item requests, and the router has its own tests
+        # (`test_the_note_router_adds_notes_and_never_displaces.py`).
+        if response_schema.__name__ == "NoteRouterReply":
+            return response_schema(), {"model": "answers"}
         self.systems.append(system)
         self.requests.append(json.loads(messages[-1]["content"]))
         self.documents.append(messages[0]["content"] if len(messages) > 1 else None)

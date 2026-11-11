@@ -61,6 +61,12 @@ class SpyLineItemLlm:
     # Matches `app.ports.llm.LlmProvider.complete_structured`.
     def complete_structured(self, *, system, messages, response_schema,
                             temperature: float = 0.0, max_tokens: int = 2048):
+        # THE NOTE ROUTER'S ONE CALL (`services.note_router`) is answered empty and not recorded:
+        # this spy stands in for the LINE-ITEM requests, and the router has its own tests
+        # (`test_the_note_router_adds_notes_and_never_displaces.py`). Answered as a line request,
+        # its `line_items` would be cited a second time.
+        if response_schema.__name__ == "NoteRouterReply":
+            return response_schema(), {"model": "spy"}
         first = messages[0]
         req = json.loads(first["content"] if isinstance(first, dict) else first.content)
         self.requests.append(req)

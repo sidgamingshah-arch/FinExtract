@@ -650,3 +650,79 @@ recall it costs is zero. That is a measurement session of its own.
 `caption_agrees_with_row_terms(by['sub__fixed_asset_depreciation'], caption)` against
 `subject_tokens`; the 8-of-43 count is a weak-token sweep over
 `scripts/audit_request_context.py`'s own payloads.
+
+---
+
+## 15. A note headed in other words than the line's — the synonym list and the note router — BUILT
+
+**What broke.** The heading search counts the words a line's note terms share with a heading. A
+line configured in English reached no CAS note — "Net Trade Receivables" scored nothing against
+应收账款 on any of the eleven CAS filings — and a line configured with 财务费用 alone reached no
+HKFRS FINANCE COSTS note. "Fixed assets" and "property, plant and equipment" share no word.
+
+**What was built.** Two layers that only add, after every source the configuration already has
+(pipeline doc, stage 10, *Which notes a line is shown*):
+
+* `services.heading_synonyms` (`extraction.llm_note_synonyms`, on) — concepts written once in
+  English, Simplified and Traditional; a line whose own term IS a spelling is shown a note whose
+  heading PRINTS another, at most two.
+* `services.note_router` (`extraction.llm_note_router`, on) — one model call per filing that reads
+  every heading and each asked-about line's configuration and names the notes that print its
+  figure; at most two added per line, behind the same fences.
+
+**Measured — the synonyms.** 18 filings (notes before pruning, `notesearch/syn2.py`): 47 notes
+added to 34 of 2,826 line-filings, none removed, every line's existing notes kept in order; 46 are
+the right note by concept. The first version — the spellings added to the word count — changed
+388 sets, removed 98 notes and added wrong ones (贸易应付款项 matched 其他应付款 on two shared
+two-character pieces); it was replaced before landing. On the corpus captures (five reference
+filings with the shipped focus list, Apple, Alphabet, six 10-K fixtures) no line request changed:
+the focus lines' own terms already reach their notes.
+
+**Measured — the router.** Stand-in answers (`scripts/llm_standin.py`, the router request answered
+from its recorded body alone) on the five reference filings and Alphabet: 171 picks for 140 lines;
+148 were notes the configuration already gave the line — the model and the configuration agree on
+87%; 13 were kept out by the fences or the two-note cap; 10 were added, 7 of them printing a row
+the line's own row rule takes. Every added note, by filing:
+
+| filing | line | added note | prints the line's row |
+|---|---|---|---|
+| 688008, 300319, 000709 | `sub__ltp_fvtoci_note_total` | 其他权益工具投资 (七、18 / 七、11 / 七、10) | yes |
+| hkex_1966_ar | `sub__prepaid_lease_depreciation` | 16 LEASES | yes |
+| hkex_1966_ar, kaming | `sub__cos_depreciation` | 8 PROFIT / LOSS BEFORE TAX | yes |
+| hkex_kaming_2025_26 | `sub__rp_other_payable` | 20 TRADE AND OTHER PAYABLES | yes |
+| hkex_1966_ar | `sub__rp_other_payable`, `sub__rp_payable_ltp` | 44 RELATED PARTY TRANSACTIONS | no — transactions, not balances |
+| goog | `notes_debt__fair_value` | 3, whose extracted text is the exhibit index | no |
+
+No figure, row or structural relation moved on any capture (the line requests the router changed
+have no stand-in answers, so they abstain). Cost: one call of 4,000–16,000 tokens, +1–2% of a run.
+Apple: the stand-in named nothing for any of its 24 lines — see the first open item.
+
+**The first prompt merged sibling parts, and that is what the sibling fence is for.** It said fixed
+assets and property, plant and equipment are one subject; all five reference-filing answers sent
+the PP&E and the fixed-asset depreciation parts to one note, and 688008's sent two FVTPL parts to
+七、19. The parent adds those parts, so the request invited a double count the settlement then had
+to undo. Fixed twice: `note_sets` now refuses a note `claimed_notes` gives a sibling part
+(`sibling_claims`, for both layers), and the prompt says parts of one figure (`part_of`) are split
+by the note each is printed in. Re-answered under the corrected prompt, 1966's router named
+24 notes for 20 lines (35 for 24 before): note 14 to the PP&E part only, the related-party balance
+lines to their balances note only — and it no longer offered cost-of-sales depreciation the profit
+before tax note, the one plausible pick it gave up.
+
+**Config gap the router found.** `sub__ltp_fvtoci_note_total` does not reach 其他权益工具投资 by its
+own note terms on any CAS reference filing; adding that spelling to the line is the configuration
+fix (not made here).
+
+**Open.**
+
+* **Apple's 10-K notes 5–13 never arrive, because their pages are classified OTHER.** The page
+  classifier marks pages 36–39 (notes 1–4) as notes and pages 40 onward — Property, Plant and
+  Equipment, the financial-statement details, income taxes, leases, debt, equity, share-based
+  compensation, commitments, segments — as `other`, so no table is extracted from them; and it
+  marks pages 74–79, the SOX 302/906 certifications, as notes, whose numbered paragraphs become
+  notes 1, 4, 5 and 18 ("I have reviewed this annual report…", "18 U.S.C. SECTION 1350"). Every
+  Apple line that reads a note (debt maturities, the tax split, PP&E at cost) therefore has nothing
+  to read, and the router, shown those headings, rightly named nothing for any of its 24 lines.
+  Alphabet's notes 1–16 arrive, but its exhibit index is filed under note 3 and as a "note 101".
+  A page-classification fix (`stages/classify.py`), not of either layer.
+* **The router's figure impact needs answers to the line requests it changes.** A stand-in capture
+  answers the router; the line requests it adds a note to get new ids and abstain unless answered.

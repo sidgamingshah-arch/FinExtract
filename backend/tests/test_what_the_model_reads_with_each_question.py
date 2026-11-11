@@ -110,10 +110,12 @@ def test_full_sends_the_report_with_every_question_under_one_system_text():
     doc, ctx = _run(provider, extra_face=2, llm_document_context="full")
     figure_calls = [c for c in provider.calls if c["schema"] == "LineItemReply"]
     assert len(figure_calls) == 4, "three face lines one by one, the two anywhere lines together"
-    assert all(len(c["messages"]) == 2 for c in provider.calls), "every request carries the report"
+    # EVERY LINE-ITEM REQUEST — the note router's one call reads the note headings, not the report.
+    asked = [c for c in provider.calls if c["schema"] != "NoteRouterReply"]
+    assert all(len(c["messages"]) == 2 for c in asked), "every request carries the report"
     report = figure_calls[0]["messages"][0]
     assert report["content"].startswith("THE ANNUAL REPORT") and report["cache"] is True
-    assert all(c["messages"][0] == report for c in provider.calls), "the same report every time"
+    assert all(c["messages"][0] == report for c in asked), "the same report every time"
     # ONE PREFIX FOR EVERY FIGURE REQUEST: the same system text, the `anywhere` batch's included.
     (system,) = {c["system"] for c in figure_calls}
     assert system.endswith(line_item_llm.FULL_REPORT_GUIDE)

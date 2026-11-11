@@ -226,6 +226,17 @@ def _prints_figures(table) -> bool:
     return False
 
 
+def _figure_rows(table) -> int:
+    """How many rows of this note table carry a figure."""
+    count = 0
+    for row in getattr(table, "items", None) or ():
+        values = getattr(row, "values", None) or {}
+        items = values.values() if hasattr(values, "values") else values
+        if any(getattr(ev, "value", None) is not None for ev in items):
+            count += 1
+    return count
+
+
 def note_probe(item, parent=None) -> str:
     """LEVEL 1 — what the NOTE this line sits inside is about. Scored against note HEADERS.
 
@@ -499,6 +510,25 @@ _OTHER_ENTITY = tuple(re.compile(p, re.IGNORECASE) for p in (
     r"\bsegments?\b|分部",
     r"\bstructured\s+entit(?:y|ies)\b|其他主体|其他主體|结构化主体|結構化主體",
 ))
+
+
+# A NOTE ABOUT ACCOUNTING POLICIES, JUDGEMENTS OR ESTIMATES — the chapter a CAS filing prints them
+# under (五、重要会计政策及会计估计, 重大会计判断和估计说明) or the heading an IFRS note carries
+# (MATERIAL ACCOUNTING POLICIES, CRITICAL ACCOUNTING JUDGEMENTS AND ESTIMATES). Its tables print
+# useful lives and depreciation rates, so a figure test passes it, and its sub-headings are the
+# subjects of the disclosure notes — 固定资产, 所得税 — so a heading test passes it too; it is never
+# where a line's figure is. Read by the notes `note_sets` ADDS past the configuration's own
+# (`via="synonym"` and `via="routed"`), which have no score to rank it below the disclosure.
+_POLICY = re.compile(
+    r"accounting\s+polic|significant\s+accounting|accounting\s+(?:judge?ment|estimate)"
+    r"|critical\s+(?:accounting\s+)?(?:judge?ment|estimate)|judge?ments?\s+and\s+(?:key\s+)?estimat"
+    r"|会计政策|會計政策|会计估计|會計估計|会计判断|會計判斷|判断和估计|判斷和估計", re.IGNORECASE)
+
+
+def names_policy(heading: str) -> bool:
+    """Whether a note heading (or its chapter) is an accounting-policy, judgement or estimate
+    note's (`_POLICY`)."""
+    return bool(_POLICY.search(heading or ""))
 
 
 def names_other_entity(item, heading: str) -> bool:
@@ -1077,6 +1107,30 @@ def readable_tables(item, notes) -> set[int]:
     return out
 
 
+def claim_group(item) -> tuple:
+    """The parts that compete for one note in `claimed_notes`: one parent, one measure, one column
+    selector."""
+    src = getattr(item, "note_source", None)
+    return (str(getattr(item, "parent", "") or ""), str(getattr(src, "measure", "") or ""),
+            (tuple(getattr(src, "column_heading_any", None) or ()),
+             tuple(getattr(src, "column_heading_none", None) or ())))
+
+
+def sibling_claims(items, notes) -> dict[tuple, str]:
+    """(claim group, note number) -> the PART that `claimed_notes` gives that note to — for parts
+    only, the lines of one figure that add up. What `note_sets` reads so that no note it adds past
+    the configuration's own reaches a part whose sibling the note belongs to."""
+    out: dict[tuple, str] = {}
+    by_key = {i.key: i for i in items or ()}
+    for key, numbers in claimed_notes(items, notes).items():
+        item = by_key.get(key)
+        if item is None or not str(getattr(item, "parent", "") or ""):
+            continue
+        for number in numbers:
+            out[(claim_group(item), number)] = key
+    return out
+
+
 def claimed_notes(items, notes) -> dict[str, set[str]]:
     """For every by-meaning line: the covered notes it may READ ROWS FROM, one sibling per note.
 
@@ -1109,12 +1163,7 @@ def claimed_notes(items, notes) -> dict[str, set[str]]:
     by_parent: dict[tuple, list] = {}
     for item in items or ():
         if item.key in covered:
-            src = getattr(item, "note_source", None)
-            measure = str(getattr(src, "measure", "") or "")
-            selector = (tuple(getattr(src, "column_heading_any", None) or ()),
-                        tuple(getattr(src, "column_heading_none", None) or ()))
-            by_parent.setdefault((str(getattr(item, "parent", "") or ""), measure, selector),
-                                 []).append(item)
+            by_parent.setdefault(claim_group(item), []).append(item)
     for siblings in by_parent.values():
         score = {}
         for item in siblings:
@@ -1175,9 +1224,18 @@ def declared_notes(item, notes) -> tuple[str, ...]:
     return tuple(out)
 
 
+# AT MOST THIS MANY NOTES ARE ADDED TO A LINE BY THE SHARED SYNONYM LIST (`heading_synonyms`),
+# and at most `ROUTED_CAP` from the model's own reading of the headings (`note_router`), each after
+# every source before it — so neither can displace a note the configuration found.
+SYNONYM_CAP = 2
+ROUTED_CAP = 2
+
+
 def note_sets(items, notes, *, min_score: float = MIN_SCORE,
-              cap: int = 4, cited: dict[str, tuple[str, ...]] | None = None
-              ) -> dict[str, list[NoteHit]]:
+              cap: int = 4, cited: dict[str, tuple[str, ...]] | None = None,
+              synonyms: dict[str, tuple[str, ...]] | None = None,
+              routed: dict[str, list[str]] | None = None,
+              stats: dict | None = None) -> dict[str, list[NoteHit]]:
     """Every `extract` line item's note set, keyed by line-item key.
 
     THE INPUT TO BATCHING. Two line items may share one request only when they need the same notes,
@@ -1193,10 +1251,77 @@ def note_sets(items, notes, *, min_score: float = MIN_SCORE,
     because it is not an inference. Passing nothing keeps the pure-scoring behaviour, which is what
     every caller that has no document does (the audit scripts, the calibration sweep, the tests
     that hand in bare items).
+
+    `synonyms` IS THE SHARED SYNONYM LIST'S SPELLINGS PER LINE (`heading_synonyms.extras_by_key`):
+    a note whose heading PRINTS one of a line's spellings (`heading_synonyms.heading_prints_one`)
+    and that nothing above gave is added after every other source, at most `SYNONYM_CAP` of them,
+    the ones printing the most figures first — marked `via="synonym"`. The same fences as the
+    routed notes below, and a heading the line's `note_terms_none` refuses is refused. None keeps
+    the sets exactly as they were.
+
+    `routed` IS THE MODEL'S OWN READING OF THE HEADINGS (`note_router.route`): per line, the notes
+    it judged the figure to be printed in. They are added LAST, past every other source, at most
+    `ROUTED_CAP` of them, only notes this document holds that no other source already gave, a
+    row-reading line only notes that print a figure, never an accounting-policy note
+    (`names_policy`) and never a note about another entity (`names_other_entity`) — marked
+    `via="routed"`. They add; they never displace.
+
+    NEITHER HANDS A PART ITS SIBLING'S NOTE. The configuration splits some figures into parts by
+    the note each is printed in — depreciation charged in the property-and-equipment note is one
+    part, in the 固定资产 note another, and the parent adds them — and `claimed_notes` gives each
+    note to exactly one part of a figure. A note either layer would add to a part is skipped when
+    that claim gives it to a sibling (`sibling_claims`): measured, a model told that fixed assets
+    and property, plant and equipment are one subject sent both parts to the same note on 1966 and
+    300319.
+
+    `stats`, when given, is filled with how many notes each of those two added, with how many of
+    the router's picks the set already held (`routed_agreed`), and with how many notes either
+    would have added that belong to a sibling part (`sibling_refused`) — in total, and per line
+    under `by_key`, so a caller that asks about some lines only can count those.
     """
     pool = header_pool(notes)
     titles = {str(getattr(t, "note_number", "") or ""): str(getattr(t, "title", "") or "")
               for t in (notes or ())}
+    # Per note NUMBER: whether any of its tables prints a figure in a row and how many rows do, its
+    # heading — the first fragment's title and the chapter it is printed under — and every distinct
+    # fragment title, in the order printed. What the synonym and routed notes are checked against;
+    # a later fragment's sub-heading is not the note's subject.
+    note_figures: dict[str, bool] = {}
+    figure_rows: dict[str, int] = {}
+    note_headings: dict[str, str] = {}
+    # number -> (title, chapter, prints a figure) per fragment, in the order printed.
+    fragments: dict[str, list[tuple[str, str, bool]]] = {}
+    for t in notes or ():
+        number = str(getattr(t, "note_number", "") or "")
+        if not number:
+            continue
+        prints_here = _prints_figures(t)
+        note_figures[number] = note_figures.get(number, False) or prints_here
+        figure_rows[number] = figure_rows.get(number, 0) + _figure_rows(t)
+        note_headings.setdefault(number, " ".join(filter(None, (
+            str(getattr(t, "title", "") or ""), str(getattr(t, "chapter_title", "") or "")))))
+        fragments.setdefault(number, []).append((str(getattr(t, "title", "") or "").strip(),
+                                                 str(getattr(t, "chapter_title", "") or "").strip(),
+                                                 prints_here))
+    # As `header_pool` rules: notes handed in with no rows at all give the figure test nothing to
+    # tell them apart by.
+    figures_known = any(note_figures.values())
+    # Whose note is whose among the parts of one figure — read only when something is to be added.
+    claims = sibling_claims(items, notes) if (synonyms or routed) else {}
+
+    def count(item, what: str, n: int = 1) -> None:
+        if stats is None or not n:
+            return
+        stats[what] = stats.get(what, 0) + n
+        line = stats.setdefault("by_key", {}).setdefault(item.key, {})
+        line[what] = line.get(what, 0) + n
+
+    def siblings_note(item, number: str) -> bool:
+        owner = claims.get((claim_group(item), number))
+        if owner is not None and owner != item.key:
+            count(item, "sibling_refused")
+            return True
+        return False
     by_key = {i.key: i for i in items}
     out: dict[str, list[NoteHit]] = {}
     for item in items:
@@ -1395,6 +1520,70 @@ def note_sets(items, notes, *, min_score: float = MIN_SCORE,
         seen = {h.note for h in hits}
         hits.extend(h for h in referenced_notes(item, [h.note for h in hits], notes)
                     if h.note not in seen)
+        # THE SHARED SYNONYM LIST, after every source above — see the docstring. A heading printing
+        # one of the line's spellings, the note printing the most figures first, document order
+        # breaking ties.
+        spellings = (synonyms or {}).get(item.key)
+        if spellings:
+            from app.services import heading_synonyms
+            seen = {h.note for h in hits}
+            refusals = [frozenset(_fold(t)) for t in _term_sets(
+                getattr(getattr(item, "note_source", None), "note_terms_none", None))]
+            found: list[tuple[int, int, str, str]] = []
+            for order, (number, pieces) in enumerate(fragments.items()):
+                if number in seen:
+                    continue
+                # THE PIECE THAT PRINTS THE SPELLING must print a figure itself, for a line that
+                # reads a row: a policy note is printed as one piece per subject (Fixed Assets,
+                # Intangible Assets and Goodwill …) and only some of them carry a table.
+                head = next((title for title, _chapter, prints_here in pieces
+                             if title and heading_synonyms.heading_prints_one(title, spellings)
+                             and (prints_here or not rows_only or not figures_known)), None)
+                if head is None:
+                    continue
+                chapter = next((c for t_, c, _p in pieces if t_ == head), "")
+                if names_policy(" ".join((note_headings.get(number, ""), head, chapter))):
+                    continue
+                if names_other_entity(item, " ".join((note_headings.get(number, ""), head))):
+                    continue
+                words = _fold(subject_tokens(head))
+                if any(t <= words for t in refusals):
+                    continue
+                if siblings_note(item, number):
+                    continue
+                found.append((-figure_rows.get(number, 0), order, number, head))
+            found.sort()
+            for _rows, _order, number, head in found[:SYNONYM_CAP]:
+                hits.append(NoteHit(note=number, title=head, score=0.0, via="synonym"))
+            if stats is not None:
+                stats.setdefault("synonym", 0)
+            count(item, "synonym", len(found[:SYNONYM_CAP]))
+        # THE MODEL'S OWN READING, LAST — see the docstring. Ahead of nothing, and only what every
+        # other source left out.
+        picks = [n for n in (routed or {}).get(item.key, ()) if n]
+        if picks:
+            seen = {h.note for h in hits}
+            added = 0
+            count(item, "routed_agreed", sum(1 for n in dict.fromkeys(picks) if n in seen))
+            for number in picks:
+                if added >= ROUTED_CAP:
+                    break
+                if number in seen or number not in titles:
+                    continue
+                if rows_only and figures_known and not note_figures.get(number, False):
+                    continue
+                if names_policy(note_headings.get(number, "")):
+                    continue
+                if names_other_entity(item, note_headings.get(number, "")):
+                    continue
+                if siblings_note(item, number):
+                    continue
+                hits.append(NoteHit(note=number, title=titles[number], score=0.0, via="routed"))
+                seen.add(number)
+                added += 1
+            if stats is not None:
+                stats.setdefault("routed", 0)
+            count(item, "routed", added)
         if hits:
             out[item.key] = hits
     return out

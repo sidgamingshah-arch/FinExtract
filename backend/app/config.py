@@ -464,6 +464,21 @@ class ExtractionSettings(BaseModel):
     # and not where the whole report already goes in front of the question. Off sends every note
     # in its question, as before.
     llm_shared_notes: bool = True
+    # A SHARED LIST OF ACCOUNTING SYNONYMS IN THE HEADING SEARCH. The search that picks each line's
+    # notes counts the words a heading shares with the line's note terms, so "fixed assets" and
+    # "property, plant and equipment" share none. On, every spelling of one concept that
+    # `services.heading_synonyms` lists — English, Simplified and Traditional Chinese — is searched
+    # beside the line's own, plurals folded, except a spelling a sibling part of the same figure
+    # names. It changes which notes a model request is shown and nothing else; off searches each
+    # line's own words only, as before.
+    llm_note_synonyms: bool = True
+    # ONE MODEL CALL PER FILING THAT READS THE NOTE HEADINGS FOR EVERY LINE ASKED ABOUT
+    # (`services.note_router`). The model is shown the headings and each line's configuration —
+    # definition, note terms, row terms — and names the notes that print the line's figure. Its
+    # picks are ADDED to what the configuration and the synonyms found, at most two per line, only
+    # notes this filing holds, none about another entity; they never replace a note. A call that
+    # fails is logged and the run carries on without it. Needs a provider; off makes no call.
+    llm_note_router: bool = True
     # READ SCANNED PAGES WITH OCR. A page with a text layer is always read from that layer — OCR
     # would only re-guess characters the file already holds — so this decides what happens to a
     # page WITHOUT one: on, it is rasterised and read by the `[ocr]` engine (Docling, offline); off,

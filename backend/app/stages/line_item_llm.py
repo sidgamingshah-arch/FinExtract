@@ -113,12 +113,35 @@ class LineItemLlmStage(Stage):
                     f"{type(exc).__name__}: {exc})")
             return doc
 
+        # WHICH LINE ITEMS THIS RUN ASKS ABOUT, read before anything is planned so the note router
+        # below asks about the same lines the requests will. See the focus block further down.
+        named = (list(ctx.settings.extraction.llm_focus_keys or ())
+                 if getattr(ctx.settings.extraction, "llm_focus_only", False) else [])
+        # A KEY ENDING IN "*" NAMES EVERY LINE WHOSE KEY STARTS WITH WHAT PRECEDES IT, so a whole
+        # set can be put in focus without copying its keys into the deployment file — `bs_icon__*`
+        # is every ICON balance-sheet line the model is asked about, and stays so as ICON changes.
+        # A pattern only ever ADDS keys of this run's own set, so a run of another set is focused
+        # exactly as before.
+        prefixes = tuple(k[:-1] for k in named if k.endswith("*") and len(k) > 1)
+        focus = {k for k in named if not k.endswith("*")}
+        focus |= {i.key for i in (getattr(line_item_set, "items", None) or ())
+                  if prefixes and i.key.startswith(prefixes) and line_item_requests.asked_about(i)}
+
+        # THE NOTE ROUTER — ONE CALL THAT READS EVERY NOTE HEADING FOR THE LINES ASKED ABOUT
+        # (`services.note_router`). Its picks are added to each line's note set after every other
+        # source, at most two per line; they never replace a note the configuration found. A
+        # failed call is logged and the sets are what the configuration builds alone.
+        routed = None
+        if getattr(ctx.settings.extraction, "llm_note_router", True):
+            routed = self._route_notes(doc, ctx, provider, line_item_set, focus)
+
         # `doc` FOR THE CITATIONS. The notes the filing itself prints against a face caption go
         # into each line's note set ahead of anything a probe scored — see
         # `line_item_notes.cited_notes`. It is the only reason the whole document is passed here
         # rather than just its notes.
+        search: dict = {}
         plans, by_key, notes_of, identified = line_item_llm.plan_and_notes(
-            line_item_set, doc.notes, ctx.settings, doc=doc)
+            line_item_set, doc.notes, ctx.settings, doc=doc, routed=routed, stats=search)
         if not plans:
             ctx.log("line_item_llm:no line item is asked about (every line is a derived parent or "
                     "declares no note source)")
@@ -130,16 +153,7 @@ class LineItemLlmStage(Stage):
         # the lines under review rather than on the whole filing. Applied to the PLANS so a group
         # containing one focus line is still asked whole: the group exists because its members
         # share notes, and splitting it would pay for that note block twice.
-        named = (list(ctx.settings.extraction.llm_focus_keys or ())
-                 if getattr(ctx.settings.extraction, "llm_focus_only", False) else [])
-        # A KEY ENDING IN "*" NAMES EVERY LINE WHOSE KEY STARTS WITH WHAT PRECEDES IT, so a whole
-        # set can be put in focus without copying its keys into the deployment file — `bs_icon__*`
-        # is every ICON balance-sheet line the model is asked about, and stays so as ICON changes.
-        # A pattern only ever ADDS keys of this run's own set, so a run of another set is focused
-        # exactly as before.
-        prefixes = tuple(k[:-1] for k in named if k.endswith("*") and len(k) > 1)
-        focus = {k for k in named if not k.endswith("*")}
-        focus |= {k for k in by_key if prefixes and k.startswith(prefixes)}
+        # (`named`, `prefixes` and `focus` are read above, before the plans.)
         if getattr(ctx.settings.extraction, "llm_focus_only", False) and not focus:
             ctx.log("line_item_llm:focus_only_requested_but_no_focus_keys_configured")
         skipped_by_focus = 0
@@ -158,6 +172,20 @@ class LineItemLlmStage(Stage):
                     + (f" keys_that_name_no_asked_about_line={unanswerable}"
                        if unanswerable else ""))
             plans = kept
+
+        # WHAT THE SYNONYMS AND THE ROUTER ADDED to the note sets of the lines this run ASKS ABOUT
+        # (the focus applied), counted in notes: a note the shared synonym list found that the
+        # line's own words did not, a note only the router named — and how many of the router's
+        # picks the set already held, which is the model agreeing with the configuration and the
+        # one figure here that says the sets were right.
+        if search or routed is not None:
+            asked = {k for plan in plans for k in plan.keys}
+            total = {what: sum(v.get(what, 0) for k, v in (search.get("by_key") or {}).items()
+                               if k in asked)
+                     for what in ("synonym", "routed", "routed_agreed", "sibling_refused")}
+            ctx.log(f"line_item_llm:note_search synonym_notes={total['synonym']} "
+                    f"routed_notes={total['routed']} routed_agreed={total['routed_agreed']} "
+                    f"sibling_refused={total['sibling_refused']}")
 
         # NO NOTE TAG BESIDE THE FACE ROW, NO REQUEST. `llm_only_if_note_tagged` says the printed
         # note reference IS this line's evidence threshold: with no tag anywhere on the face
@@ -704,6 +732,37 @@ class LineItemLlmStage(Stage):
         from app.stages.note_sourced import carve_note_figures
         carve_note_figures(doc, ctx, by="line_item_llm")
         return doc
+
+    def _route_notes(self, doc, ctx, provider, line_item_set, focus):
+        """The note router's one call (`services.note_router.route`), counted and logged like every
+        other call of this stage. Returns key -> note numbers, or None when nothing was routed —
+        no line to ask about, no notes, or a call that failed."""
+        from app.services import note_router
+        routed, summary = note_router.route(provider, line_item_set, doc.notes,
+                                            focus=focus or None)
+        if summary.get("skipped"):
+            ctx.log(f"line_item_llm:note_router skipped({summary['skipped']})")
+            return None
+        if summary.get("error"):
+            ctx.llm_failures += 1
+            ctx.log(f"line_item_llm:note_router FAILED {summary['error']} — the note sets are "
+                    f"the configuration's own")
+            return None
+        ctx.llm_calls += 1
+        used = summary.get("usage") or {}
+        ctx.llm_input_tokens += used.get("input_tokens", 0)
+        ctx.llm_output_tokens += used.get("output_tokens", 0)
+        ctx.llm_cached_tokens += used.get("cached_input_tokens", 0)
+        ctx.llm_cache_write_tokens += used.get("cache_write_tokens", 0)
+        if summary.get("model"):
+            ctx.llm_model = summary["model"]
+        refused = {k: summary.get(k, 0) for k in ("unknown_keys", "duplicate_keys",
+                                                  "unknown_notes") if summary.get(k)}
+        ctx.log(f"line_item_llm:note_router lines={summary['lines']} notes={summary['notes']} "
+                f"routed_lines={sum(1 for v in routed.values() if v)} picks={summary['picks']} "
+                f"input={used.get('input_tokens', 0)} output={used.get('output_tokens', 0)}"
+                + "".join(f" refused_{k}={v}" for k, v in refused.items()))
+        return routed
 
     def _ask_text(self, doc, ctx, provider, text_plans, by_key: dict, by_concept: dict, *,
                   page_texts=None, report_plans=(), report=None, report_text=None
