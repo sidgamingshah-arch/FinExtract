@@ -88,7 +88,7 @@ defaults" means what the file shipped, never the last value that happened to be 
 secret is ever written.
 
 The admin **Settings** screen (`frontend/src/screens/Settings.tsx`) renders the whole
-snapshot: the read-only parts (OCR, embeddings, access flags, locales) alongside the
+snapshot: the read-only parts (OCR, access flags, locales) alongside the
 editable ones above. Non-admins do not see the screen; the server enforces the
 `config:settings` permission regardless.
 

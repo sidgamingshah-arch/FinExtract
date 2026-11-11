@@ -29,7 +29,7 @@ filing in place of its text layer or OCR (off by default); the LLM ships the **C
 gateway** (Bedrock, the default), **Azure OpenAI**, **Anthropic** and any OpenAI-compatible
 gateway. A loud `stub` is registered for each so the app also runs fully offline. What is *not* built is listed plainly in
 [`docs/architecture/06-testing-and-roadmap.md`](docs/architecture/06-testing-and-roadmap.md)
-— chiefly: no embedding adapter is bound, no optimistic-concurrency (`If-Match`) on edits,
+— chiefly: no optimistic-concurrency (`If-Match`) on edits,
 no Alembic migrations, and progress is polled rather than pushed.
 
 ## Monorepo layout
@@ -109,7 +109,7 @@ the Settings screen does not edit it, and the key stays in the environment, neve
 
 Optional backend engines install behind extras so the core stays light:
 `pip install -e ".[docling]"` (the recommended free OCR), `.[ocr]` (PaddleOCR),
-`.[llm]` (the Anthropic SDK), `.[embeddings]`, `.[pdf]`, `.[lang]`, `.[cjk]`
+`.[llm]` (the Anthropic SDK), `.[pdf]`, `.[lang]`, `.[cjk]`
 (Traditional↔Simplified Han folding — `app/services/han.py` falls back to a built-in table
 without it). Azure OpenAI and Azure Document Intelligence need no extra; both speak REST
 over `httpx`.

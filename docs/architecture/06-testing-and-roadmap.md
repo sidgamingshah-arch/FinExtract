@@ -70,10 +70,9 @@ Run: `cd backend && pip install -e ".[dev]" && pytest -q`; `cd frontend && pnpm 
    Progress is polled, not pushed — the WebSocket stream is not built and the
    `progress_url` in the 202 response names the poll endpoint.
 9. ✅ LLM beyond mapping: gap closing, containment netting, the credit narrative, and the
-   analysis run — behind `azure_openai` (default), `anthropic` and OpenAI-compatible
-   adapters.
-10. **Outstanding.** Bind an `EmbeddingProvider` so the matcher's cosine tier actually
-    runs (only a stub is registered today). Confidence calibration. Optimistic concurrency
+   analysis run — behind `bedrock_gateway` (the default: Claude through a Bedrock
+   gateway), `anthropic`, `azure_openai` and OpenAI-compatible adapters.
+10. **Outstanding.** Confidence calibration. Optimistic concurrency
     (`row_version` + `If-Match`) on edits. An append-only edit ledger — `services/audit.py`
     is process-local. Alembic migrations. A real background worker/broker in place of
     `BackgroundTasks`.
@@ -89,8 +88,19 @@ splitting (neither needed while the bundle is five dependencies).
 
 ## Deferred, non-blocking decisions
 
-- LLM hosting: Azure OpenAI is the shipped default; Anthropic and any OpenAI-compatible
-  gateway are one config change away (adapter + `[llm]`).
+- LLM hosting: Claude through a Bedrock gateway (`bedrock_gateway`) is the shipped default;
+  Anthropic, Azure OpenAI and any OpenAI-compatible gateway are one config change away
+  (adapter + `[llm]`).
+- No embedding tier — DECIDED, not pending. The `EmbeddingProvider` port, its stub and the
+  matcher's cosine tier were removed in `ae8f51e` (2026-08-23): it never ran (the matcher was
+  built without a provider), and it would have judged a caption by resemblance, the same kind of
+  judgement as the fuzzy tier it followed — "Profit before exceptional items and tax" against
+  "Profit before tax". Measured on the five reference filings with the model off (2026-11), the
+  rows it could help are ~44 HKEX cash-flow and balance-sheet rows swept into an Others line
+  under a paraphrased caption ("Purchases of items of property and equipment"); the line-item
+  route already asks about those lines. If help is wanted for runs with the model off, the
+  smallest useful form is a review-only shortlist for swept rows, never an automatic mapping —
+  or the HK phrasings added as aliases.
 - Background worker (arq/RQ/Celery) — `BackgroundTasks` today; the task signature is
   already queue-shaped (JSON-carryable arguments only).
 - Auth/multi-tenancy depth — `tenant_id` columns exist; identity is an in-memory session

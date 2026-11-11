@@ -581,7 +581,7 @@ half-record.
 ## Adapter ports
 
 `ports/`: `OcrProvider`, `TableStructureProvider`, `LlmProvider` (structured JSON,
-temp 0, Pydantic-validated), `EmbeddingProvider`, `ObjectStore` (local impl provided),
+temp 0, Pydantic-validated), `ObjectStore` (local impl provided),
 `FxConverter`. Concrete impls register into `Registry` keyed by id; config selects them.
 Stub engines are registered for every kind and raise a clear message, so a mis-wired
 pipeline fails loudly rather than silently.
