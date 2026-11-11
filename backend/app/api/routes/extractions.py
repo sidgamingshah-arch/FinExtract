@@ -1153,6 +1153,9 @@ def _serialize_rows(doc_model, working_view=None) -> list[dict]:
             # folio, as a trail input's does.
             **({"disclosure": _disclosure_with_folios(li.disclosure, folio_of)}
                if getattr(li, "disclosure", None) else {}),
+            # The template line a model proposed for a row nothing placed (services.row_suggestions),
+            # which its review card offers for a person to apply.
+            **({"suggestion": dict(li.suggestion)} if getattr(li, "suggestion", None) else {}),
             "values": values,
         })
     return rows

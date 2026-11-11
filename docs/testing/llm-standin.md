@@ -136,6 +136,18 @@ answered router changes the note sets, so the line requests it adds a note to ge
 answers are carried by line keys (`cache/carry.py`) only where the added note does not change what
 the answer should cite.
 
+### The row-suggestions request (`extraction.llm_row_suggestions`)
+
+After the checks, a run with a provider makes ONE `row_suggestions` request (schema
+`RowSuggestionReply`) when any printed row nothing recognised raises an `unmapped` card: its `rows`
+are those rows — number, caption, statement, section, heading, figures, the rows printed before and
+after — and its `lines` the template's lines for those statements, each with its key, label,
+section and definition. Answer it from the request alone:
+`{"suggestions": [{"row": 3, "key": "...", "reason": "..."}]}`, one line per row and only a line of
+the row's own statement, leaving out a row no line fits. Unanswered, it abstains and the cards show
+no suggestion. It never changes a figure, so a capture answered or not differs only in the rows'
+`suggestion` field.
+
 ### Report requests (the `anywhere` lines)
 
 A line whose route is `anywhere` is asked in a batch of at most 12, and the request has **two

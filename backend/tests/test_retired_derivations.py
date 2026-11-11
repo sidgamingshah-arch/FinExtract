@@ -307,7 +307,7 @@ def test_the_four_derivation_stages_left_the_pipeline_and_the_disclosure_stage_d
         assert retired not in names, (
             f"stage {retired!r} is back in the pipeline. Nothing computes these figures now — "
             f"they come from the line-item configuration.")
-    # 22, NOT 17. Five stages were added after this test was written, and ALL FIVE are the
+    # 23, NOT 17. Six stages were added after this test was written, and ALL SIX are the
     # opposite of what the four retired ones were — not one enumerates a caption or computes a
     # figure of its own:
     #
@@ -336,7 +336,12 @@ def test_the_four_derivation_stages_left_the_pipeline_and_the_disclosure_stage_d
     #     names, so it serves any two lines whose vocabulary happens to overlap on a filing nobody
     #     has run. With no provider it moves no figure at all — it records the contest and flags
     #     the rows, which is why it is safe on by default.
-    assert len(names) == 22, names
+    #   * `row_suggestions` asks a model which template line a printed row NOTHING PLACED belongs
+    #     on, and writes only a suggestion on that row for its review card. It maps nothing and
+    #     moves no figure — the row stays unmapped until a person applies the suggestion — and it
+    #     enumerates nothing: it reads the rows that raise an `unmapped` card and the template's
+    #     own lines. (23.)
+    assert len(names) == 23, names
     assert "assemble_components" in names, (
         "the component assembly is gone, so a line item printed as several rows cannot be filled "
         "at all — that is not a return to the derivations, it is the loss of their replacement")

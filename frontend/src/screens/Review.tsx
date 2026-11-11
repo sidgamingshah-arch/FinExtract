@@ -310,6 +310,42 @@ function RemapPanel({
           })}
         </div>
       )}
+      {/* THE MODEL'S SUGGESTION, when one call per filing proposed a line for this row
+          (`services.row_suggestions`). Offered, never applied: "Use this line" only fills the pick
+          and the reason below, and the row moves when a person presses the same button a hand pick
+          goes through — so the remap is recorded under their name, with their reason. */}
+      {offer.suggested && (
+        <div data-testid="rv-remap-suggested" style={{ marginBottom: 9 }}>
+          <div style={{ ...head, marginBottom: 4 }}>{t("r.suggestHead")}</div>
+          <div style={{ display: "flex", gap: 9, alignItems: "center", flexWrap: "wrap" }}>
+            <div style={{ fontSize: 11.5, color: color.ink, lineHeight: 1.6, flex: "1 1 220px" }}>
+              <span style={{ fontWeight: 600 }}>{offer.suggested.label}</span>
+              {offer.suggested.reason ? (
+                <span style={{ color: color.sec2 }}> — {offer.suggested.reason}</span>
+              ) : null}
+            </div>
+            {canEdit && targets.some((x) => x.canonical_key === offer.suggested?.canonical_key) && (
+              <Button
+                variant="ghost"
+                testid="rv-remap-use-suggestion"
+                disabled={busy || picked === offer.suggested.canonical_key}
+                onClick={() => {
+                  const s = offer.suggested;
+                  if (!s) return;
+                  onPick(s.canonical_key);
+                  if (!reason.trim()) onReason(`${t("r.suggestReasonPrefix")} ${s.reason}`.trim());
+                }}
+                style={{ fontSize: 11.5, padding: "6px 12px", borderRadius: 8 }}
+              >
+                {t("r.suggestUse")}
+              </Button>
+            )}
+          </div>
+          <div style={{ fontSize: 10.5, color: color.muted, marginTop: 3 }}>
+            {t("r.suggestNote")}
+          </div>
+        </div>
+      )}
       {/* Where the row sits now, so the pick is made against a known starting point rather than
           against a caption alone. */}
       {/* BY ITS NAME where this template names it — "Revenue", not "sub__face_principal_revenue" —

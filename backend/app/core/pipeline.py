@@ -58,6 +58,7 @@ def default_pipeline() -> Pipeline:
     from app.stages.gap_closing import GapClosingStage
     from app.stages.face_mapping_contract import FaceMappingContractStage
     from app.stages.note_tag_gate import NoteTagGateStage
+    from app.stages.row_suggestions import RowSuggestionsStage
     from app.stages.segment import SegmentStage
     from app.stages.shared_figures import SharedFiguresStage
 
@@ -161,6 +162,11 @@ def default_pipeline() -> Pipeline:
         # stage then removed would report a tie that is no longer true.
         NoteTagGateStage(),
         StructuralStage(),
+        # A SUGGESTION FOR EVERY ROW THAT ENDS THE RUN UNPLACED — one model call, after every stage
+        # that can still place a row and after the checks, so it sees exactly the rows that raise an
+        # `unmapped` card. It writes a suggestion on the row and maps nothing: see
+        # services.row_suggestions.
+        RowSuggestionsStage(),
         # Last, and the position is the point: the eight analyst buckets are four balance-sheet
         # sections plus equity, all printed on one page, so only a row's RESOLVED section can
         # separate them. See stages/segment.py.

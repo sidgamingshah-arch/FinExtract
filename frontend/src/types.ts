@@ -1625,6 +1625,17 @@ export interface RemapOffer {
    *  nothing moves until the re-map below is applied. [] when the row explains nothing; absent on
    *  an older payload. Nothing is preselected from it: arithmetic cannot choose the line. */
   explains?: RemapExplains[];
+  /** The template line a model proposed for this row (`services.row_suggestions`), with its
+   *  reason — or null. A suggestion only: nothing is mapped until a person picks it and applies the
+   *  re-map below. Absent on an older payload. */
+  suggested?: RemapSuggestion | null;
+}
+
+/** One model suggestion for an unmapped row: a line this run's template holds, and why. */
+export interface RemapSuggestion {
+  canonical_key: string;
+  label: string;
+  reason: string;
 }
 
 export interface ReviewResponse {

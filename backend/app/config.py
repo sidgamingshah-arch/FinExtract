@@ -479,6 +479,13 @@ class ExtractionSettings(BaseModel):
     # notes this filing holds, none about another entity; they never replace a note. A call that
     # fails is logged and the run carries on without it. Needs a provider; off makes no call.
     llm_note_router: bool = True
+    # A SUGGESTED LINE FOR EVERY ROW THAT REACHED NONE (`services.row_suggestions`). One model call
+    # per filing, after the checks: each printed row raising an `unmapped` card is shown with its
+    # statement, heading, figures and neighbours beside the template's lines for that statement,
+    # and the model names the line it belongs on, or none. The suggestion is shown on the card with
+    # its reason and applied only by a person, through the card's remap; nothing is mapped by it.
+    # Needs a provider; off makes no call.
+    llm_row_suggestions: bool = True
     # READ SCANNED PAGES WITH OCR. A page with a text layer is always read from that layer — OCR
     # would only re-guess characters the file already holds — so this decides what happens to a
     # page WITHOUT one: on, it is rasterised and read by the `[ocr]` engine (Docling, offline); off,

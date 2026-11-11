@@ -343,6 +343,11 @@ class LineItem(BaseModel):
     # figure with its category, caption, note and page, and the note text quoted as printed. Set
     # only on a derived line built from note-read parts (Related Party Transactions); None elsewhere.
     disclosure: dict | None = None
+    # A MODEL'S SUGGESTION FOR A ROW THAT REACHED NO LINE — see services.row_suggestions.
+    # ``{"key": ..., "reason": ..., "by": "model"}``: the template line one call per filing proposed
+    # for a printed row raising an ``unmapped`` card. A suggestion and nothing more: the row stays
+    # unmapped until a person applies it through the card's remap. None on every other row.
+    suggestion: dict | None = None
     is_computed: bool = False
     source: ValueSource = ValueSource.MACHINE
     confidence: ConfidenceVector = Field(default_factory=ConfidenceVector)

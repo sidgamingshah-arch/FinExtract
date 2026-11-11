@@ -7,7 +7,7 @@ results are available (`app/core/pipeline.py::Pipeline.run`).
 
 ## Stages
 
-**Twenty-two stages, assembled by `app/core/pipeline.py::default_pipeline()`.** That
+**Twenty-three stages, assembled by `app/core/pipeline.py::default_pipeline()`.** That
 function is the only place the order is stated; `api/routes/extractions.py::pipeline_stage_names`
 reads the list off it rather than keeping a copy, and the run row records the list it was
 queued with. Do not add a third copy — the list below names each stage and its file, and
@@ -15,7 +15,7 @@ its order is `default_pipeline()`'s:
 
 `ingest · integrity · language_detect · classify · extract · map_line_items · residual ·
 normalize · link_notes · line_item_llm · note_sourced · contingent_liabilities · assemble_components · shared_figures · reconcile · prune_notes · confidence ·
-gap_closing · face_mapping_contract · note_tag_gate · structural · segment`
+gap_closing · face_mapping_contract · note_tag_gate · structural · row_suggestions · segment`
 
 **Why the list is four stages shorter, and why six output lines are now blank.** Five
 *derivation* services used to sit between `link_notes` and `reconcile`, and they have been
@@ -468,7 +468,23 @@ The face and its cited notes are processed in this order:
     carrying a classifiable `reason` (`services/coverage.py`), so partial coverage is
     visible rather than implied. A failure flags the participating line items and values.
 
-22. **Segment** (`stages/segment.py` + `services/buckets.py`) — files every face row and
+22. **Row suggestions** (`stages/row_suggestions.py` + `services/row_suggestions.py`,
+    `extraction.llm_row_suggestions`, on) — ONE model call per filing for the printed rows that
+    end the run reaching no line: exactly the rows that raise an `unmapped` review card, read
+    through the card's own test (`documents._unmapped_card_positions`). Each is shown with its
+    statement (its page's), section banner, the heading above it, its figures and the two rows
+    printed on each side; beside them, the template's lines for those statements only — the
+    card's own remap targets, so never a calculated subtotal or a header — with each line's
+    definition cut to 220 characters. The model names the one line a row belongs on, or none.
+    The reply is checked: a key off the row's own statement, a line the request did not list, or
+    a row number not asked about is dropped and counted. **It suggests and never maps**: the
+    suggestion is written on the row (`LineItem.suggestion`, served as `suggestion`) and the row
+    stays unmapped; the card offers it as `remap.suggested` — dropped at read time when the
+    template no longer holds the line — and "Use this line" only fills the pick and the reason,
+    so the row moves when a person applies the same remap a hand pick goes through. A failed call
+    is logged (`row_suggestions:FAILED …`) and the cards are shown without one.
+
+23. **Segment** (`stages/segment.py` + `services/buckets.py`) — files every face row and
     every note into the **thirteen face sections** an analyst reads a filing in, plus Others:
     the balance sheet's five (current / non-current assets, current / non-current
     liabilities, equity & reserves), the income statement's four (income, expenses,

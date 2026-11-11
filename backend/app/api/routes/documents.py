@@ -1236,7 +1236,22 @@ def _remap_targets(template_def: dict | None, locale: str = "en") -> list[dict]:
     return out
 
 
-def _remap_offer(r: dict, locale: str = "en", explains: list[dict] | None = None) -> dict:
+def _suggested(r: dict, targets_by_key: dict[str, dict] | None) -> dict | None:
+    """The model's suggestion for this row (`services.row_suggestions`), as the card offers it — or
+    None: when there is none, when this run's template no longer holds the line it names (a
+    template edited since the run), or when the row is on that line already."""
+    s = r.get("suggestion") or {}
+    key = str(s.get("key") or "")
+    if not key or not targets_by_key or key not in targets_by_key:
+        return None
+    if key == (r.get("canonical_key") or ""):
+        return None
+    return {"canonical_key": key, "label": targets_by_key[key].get("label") or key,
+            "reason": str(s.get("reason") or "")}
+
+
+def _remap_offer(r: dict, locale: str = "en", explains: list[dict] | None = None,
+                 targets_by_key: dict[str, dict] | None = None) -> dict:
     """What a row-shaped finding needs to offer "map this to a different line item".
 
     The candidate list is NOT in here — it is served once per payload as ``remap_targets``, because
@@ -1250,6 +1265,10 @@ def _remap_offer(r: dict, locale: str = "en", explains: list[dict] | None = None
     ``explains`` lists the calculated lines whose printed difference this row accounts for (see
     ``_explains_for_row``), so the card can say what mapping it would close. Always present, and []
     when the row explains nothing. It preselects nothing: arithmetic cannot choose the line.
+
+    ``suggested`` is the line a model proposed for the row (`_suggested`), with its reason, or None.
+    It preselects nothing either: the card shows it beside the control, a person picks it with one
+    click, and the remap that applies it is the same one a hand pick goes through.
     """
     prior = r.get("remap") or {}
     note = ""
@@ -1263,7 +1282,8 @@ def _remap_offer(r: dict, locale: str = "en", explains: list[dict] | None = None
             "current_key": r.get("canonical_key") or "",
             "remapped": prior or None,
             "remapped_note": note,
-            "explains": explains or []}
+            "explains": explains or [],
+            "suggested": _suggested(r, targets_by_key)}
 
 
 def _gap_explanations(rows: list[dict], template_def: dict | None, basis: str, *,
@@ -3325,6 +3345,9 @@ def _build_review(rows: list[dict], filename: str, locale: str = "en",
                                     structural_live=structural_live)
     checks: list[dict] = list(accounting)
     remap_targets = _remap_targets(template_def, locale)
+    # THE LINES A SUGGESTION MAY NAME: the ones this card's remap control offers, whether or not the
+    # gap explanations below are asked for (`_suggested`).
+    offerable = {t["canonical_key"]: t for t in remap_targets}
     # WHICH PRINTED ROW EXPLAINS A DIFFERENCE, per basis the document presented. Un-netted, like
     # `_calculated_checks`, so the explanation describes the arithmetic the card states.
     explanations: dict[str, dict] = {}
@@ -3500,7 +3523,8 @@ def _build_review(rows: list[dict], filename: str, locale: str = "en",
                 # correct template line item"; until this there was nothing on the card that could.
                 # It names the calculated lines mapping this row would close, when it explains any.
                 "remap": _remap_offer(r, locale, explains=_explains_for_row(
-                    i, explanations, template_def, locale, targets_by_key)),
+                    i, explanations, template_def, locale, targets_by_key),
+                    targets_by_key=offerable),
             })
     # The rows swept into each Others line, and the figures two readings disagree on. Each card
     # carries the line it is about (`line`), which is where "Open in workspace" lands.

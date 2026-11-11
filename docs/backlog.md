@@ -726,3 +726,44 @@ fix (not made here).
   A page-classification fix (`stages/classify.py`), not of either layer.
 * **The router's figure impact needs answers to the line requests it changes.** A stand-in capture
   answers the router; the line requests it adds a note to get new ids and abstain unless answered.
+
+---
+
+## 16. A row nothing recognised is given a suggested line — BUILT, and what it showed about the queue
+
+**What was asked.** "A row with an unknown name goes straight to review — isn't the AI allowed to
+suggest?" It is now: one model call per filing, after the checks (`services.row_suggestions`,
+`extraction.llm_row_suggestions`, on; pipeline doc, stage 22), for the rows that raise an
+`unmapped` card and that nothing recognised. The card shows the suggested line and the model's
+reason; "Use this line" fills the pick and the reason, and a person presses "Map this row". Nothing
+is mapped by the call.
+
+**Measured with stand-in answers** (the request answered from its recorded body alone):
+
+| filing | rows asked | suggested | right | left out, and why |
+|---|---|---|---|---|
+| hkex_1966_ar | 20 | 2 | 2 | 18: subtotals the template computes (net current assets, net assets, total comprehensive loss), cash-flow reconciliation rows, NCI's share of comprehensive loss |
+| 300319 | 43 | 2 | 2 | 41: subtotals (营业总收入, 营业利润, every 小计), revenue / net profit / EPS (computed lines the card cannot offer), a translation difference no OCI line takes, equity-statement rows |
+| apple | 0 | — | — | all 17 unmapped rows are on the shareholders' equity statement, which the template does not carry: no call is made |
+
+The four suggestions: "Finance costs 財務費用" → Interest Expense (the line's definition names that
+row — an alias gap); "Equity attributable to owners of the parent Issued capital" → Common Share
+Capital (a heading run into the caption); 其他权益工具投资公允价值变动 → Unreal Gain (Loss)
+Investments, twice (consolidated and parent). Every figure, row and structural relation is as it
+was on all seven captures. Cost: one call of ~34,000 tokens on an HK-template filing (the template's
+332 lines with their definitions, compact), ~6,000 on Alphabet. Cutting definitions to 120
+characters was measured and rejected: the phrases the answers turned on ("'Finance costs'
+(融资成本, 财务成本, 財務費用)", "投资收益 … whole") sit between characters 120 and 220.
+
+**What it showed about the queue (not changed here).** Most `unmapped` cards on the reference
+filings are not "nothing recognised this caption":
+
+* 11–34 a filing are rows the configuration placed on an internal part (`sub__face_principal_revenue`
+  …) that feeds a parent's cascade; the card calls them off-template because the template prints no
+  column for a part. They are not asked about — a printed line suggested for one would count its
+  figure twice — but the card itself is noise.
+* Of the rest, most are printed subtotals the template COMPUTES (revenue, net profit, net current
+  assets, 小计) and so cannot offer as a remap target either. A card a reviewer can do nothing with.
+
+Exempting both from the queue would leave the rows a person can act on; it is a review-queue change
+of its own.

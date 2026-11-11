@@ -155,6 +155,12 @@ EXTRACTION_KNOBS: tuple[Knob, ...] = (
          "that print the line's figure. Up to two of its notes are ADDED to each line's request, "
          "never in place of one the configuration found, and never a policy note or another "
          "entity's. If the call fails the run carries on without it. Off, no call is made."),
+    Knob("llm_row_suggestions", "bool", "Suggest a line for each unmapped row (one call)",
+         "One extra model call per filing, after the checks: every printed row that reached no line "
+         "of the template is shown with its statement, the heading above it, its figures and the "
+         "rows beside it, and the model names the template line it belongs on, or none. The "
+         "suggestion and its reason appear on the row's review card; nothing is mapped until a "
+         "person applies it. If the call fails the cards are shown without one."),
     Knob("llm_gap_routing", "bool", "Close subtotal gaps (LLM)",
          "When a section subtotal computed from the template's lines differs from the printed "
          "one, offer the model the extracted lines that reached no statement and ask which "
