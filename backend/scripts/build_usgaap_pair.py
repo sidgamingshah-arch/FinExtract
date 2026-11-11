@@ -192,7 +192,8 @@ _TOTALS = [r"^\W*(?:sub[\s-]*)?total\b", r"^\W*net\s+cash\b"]
 
 def L(key, label, aliases=(), definition="", *, exclude=(), regex=(), sign="positive_expected",
       scope=None, roll=None, role=None, bucket=None, measure="money", priority=None):
-    """One line of the spec. ``roll`` is ``(op, [children])`` for a calculated line. ``measure`` is
+    """One line of the spec. ``roll`` is ``(op, [children])`` for a calculated line, or
+    ``(op, [children], {extra rollup keys})``. ``measure`` is
     what the figure is counted in (`LineItemDef.measure`): money, an amount per share, or shares.
     ``priority`` overrides the `match_priority` the line's kind gives it, for a line that shares its
     captions with another and must lose to it where no banner tells the two apart."""
@@ -299,7 +300,10 @@ _NOT_HEDGES = [r"available\s+for\s+sale", r"marketable", r"\binvestments?\b",
 # (losses)". These patterns bind that reading: the heading names the securities or the hedges, and
 # the bare caption after it says which of the block's three rows it is.
 def _headed(subject: str) -> str:
-    return E + r"(?:\w+\s+){0,10}?" + subject + r"\s+"
+    # ", NET OF TAX" MAY FOLLOW THE SUBJECT: Apple heads its blocks "Change in unrealized
+    # gains/losses on derivative instruments, net of tax:", so the row's own words start after it.
+    return (E + r"(?:\w+\s+){0,10}?" + subject
+            + r"\s+(?:net\s+of\s+(?:income\s+)?tax(?:es)?(?:\s+effects?)?\s+)?")
 
 
 _BLOCK_CHANGE = (r"(?:change\s+in\s+)?(?:net\s+)?(?:unrealized\s+(?:holding\s+)?" + _GL
@@ -309,7 +313,23 @@ _BLOCK_RECLASS = (LESS + r"(?:reclassification|reclassified|amounts?\s+reclassif
 _BLOCK_NET = r"(?:net\s+change|total(?:\s+change)?)\b.*$"
 _NOT_A_NET_CHANGE = [rf"^\W*(?:less\W+)?{_RECLASS}",
                      r"(?:arising|recognized|occurring)\s+during\s+(?:the\s+)?(?:period|year)\b",
-                     r"fair\s+value\s+of"]
+                     r"fair\s+value\s+of",
+                     # …AND ONE THAT CARRIES THE RECLASSIFICATION AFTER ITS SUBJECT. Read with its
+                     # heading (`map_ontology._block_caption`), Apple's "Adjustment for net
+                     # (gains)/losses realized and included in net income" opens on the heading's
+                     # "Change in unrealized gains/losses on derivative instruments", which the
+                     # net-change patterns read too. Only these two spellings: "net of
+                     # reclassification adjustments" is a one-row net change and stays one.
+                     r"\badjustments?\s+for\s+(?:net\s+)?" + _GL + r"\s+realized\b",
+                     r"\bless\s+(?:reclassification|amounts?\s+reclassified)\b"]
+
+# A BLOCK'S NET CHANGE HOLDS ITS PARTS (`services.rollups`, `parts_of_printed`): the change and the
+# reclassification are inside the printed figure, so a block printing its net change with one of its
+# parts unread keeps its printed figure. Without it the rule for a face line whose parts are printed
+# beside it (net fixed assets on a mainland face) added the part to the printed net change — measured
+# on Apple FY2025, whose reclassification rows did not bind: 637 + 849 = 1,486 for the hedges' net
+# change, and total other comprehensive income 3,267 against a printed 1,601.
+PARTS_OF_PRINTED = {"parts_of_printed": True}
 
 LINES = {
     # ── BALANCE SHEET ──────────────────────────────────────────────────────────────────────────
@@ -964,8 +984,11 @@ LINES = {
         # dollars per share or in shares, and no export converts it with the statements' scale.
         # BARE "Basic" / "Diluted" IS NO ALIAS OF ANY OF THEM. A 10-K prints the pair twice, under
         # "Earnings per share:" and again under "Shares used in computing earnings per share:",
-        # and an alias would bind both rows of a pair to one line; the request shows each row's
-        # heading as its `subheading`, and the model places them.
+        # and an alias would bind both rows of a pair to one line. On a 10-K the mapper reads such a
+        # row again with its heading ("Earnings per share: Basic", `map_ontology._block_caption`),
+        # and these lines' own patterns place it — the per-share pair prints a "$" and the count
+        # none (`_NOT_A_COUNT_ROW`). Apple FY2025 and two of the synthetic 10-Ks print it so; the
+        # request still shows each row's heading as its `subheading` for the model.
         L("is_pl__eps_basic", "Earnings per share — basic",
           ["Earnings per share – basic", "Earnings per share - basic", "Earnings per share, basic",
            "Earnings per common share – basic", "Net income per share – basic",
@@ -1113,7 +1136,8 @@ LINES = {
           "caption under a cash-flow-hedges heading is the hedges' line. Where it prints one row, "
           "that row.",
           sign="either", scope=OCI, roll=("sum", ["is_oci__afs_unrealized_gains_losses",
-                                                   "is_oci__afs_reclassification"]),
+                                                   "is_oci__afs_reclassification"],
+                                    PARTS_OF_PRINTED),
           exclude=_NOT_SECURITIES + _NOT_A_NET_CHANGE + _GLUED_HEADING,
           regex=[E + _UNREALIZED + r"\s+on\s+" + _AFS + r"\b.*$",
                  E + r"(?:net\s+)?change\s+(?:related\s+to|in)\s+" + _AFS + r"\b.*$",
@@ -1138,7 +1162,8 @@ LINES = {
           "hedges; the same caption under an available-for-sale heading is the securities' line. "
           "Not a net investment hedge, which is part of the foreign currency translation.",
           sign="either", scope=OCI, roll=("sum", ["is_oci__cfh_unrealized_gains_losses",
-                                                   "is_oci__cfh_reclassification"]),
+                                                   "is_oci__cfh_reclassification"],
+                                    PARTS_OF_PRINTED),
           exclude=_NOT_HEDGES + _NOT_A_NET_CHANGE + _GLUED_HEADING,
           regex=[E + _UNREALIZED + r"\s+on\s+" + _CFH + r"\b.*$",
                  E + r"(?:net\s+)?change\s+(?:related\s+to|in)\s+" + _CFH + r"\b.*$",
@@ -2081,8 +2106,8 @@ def build() -> tuple[dict, dict]:
                         "label_i18n": {"en": spec["label"]},
                         "role": spec["role"] or "line"}
                 if spec["roll"]:
-                    op, kids = spec["roll"]
-                    node["rollup"] = {"op": op, "children": list(kids)}
+                    op, kids, *extra = spec["roll"]
+                    node["rollup"] = {"op": op, "children": list(kids), **(extra[0] if extra else {})}
                 children.append(node)
             st["sections"].append({"node_id": sid, "canonical_key": sid, "label": slabel,
                                    "label_i18n": {"en": slabel}, "role": "header",
@@ -2147,7 +2172,7 @@ def build() -> tuple[dict, dict]:
                 assert not calculated and not spec["role"], (k, "a measured line is a leaf")
                 item["measure"] = spec["measure"]
             if calculated:
-                op, kids = spec["roll"]
+                op, kids = spec["roll"][:2]
                 item["extraction_mode"] = "extract_or_derive"
                 item["terms"] = [{"ref": c, "sign": -1 if (op == "diff" and n) else 1}
                                  for n, c in enumerate(kids)]

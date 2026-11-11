@@ -75,6 +75,15 @@ _CLOSING_TOTAL = "is_pl__profit_loss_bef_extraord_items"
 
 # A 10-K COMPREHENSIVE-INCOME ROW READ WITH ITS BLOCK'S HEADING — see `_block_caption`.
 _OCI_SECTION = "other_comprehensive_income"
+# …AND A PER-SHARE BLOCK'S, wherever it is printed. A 10-K prints its earnings per share as a bare
+# "Basic" / "Diluted" pair under "Earnings per share:" (or "Net income per share:") and the same pair
+# again under "Shares used in computing earnings per share:" (or "Weighted-average shares
+# outstanding:"). The captions alone name neither line, so each pair was left unplaced: Apple FY2025
+# published no EPS and no share count. Read with the heading ("Earnings per share: Basic"), the
+# lines' own patterns tell the four apart — the per-share pair prints a "$", the share count none.
+_PER_SHARE_HEADING = re.compile(
+    r"\bper\s+(?:common\s+|ordinary\s+)?shares?\b|\bshares\s+used\b"
+    r"|\bweighted[\s-]*average\b.*\bshares?\b|\bnumber\s+of\s+(?:common\s+)?shares\b", re.IGNORECASE)
 BLOCK_HEADING_FLAG = "bound_with_block_heading"
 
 
@@ -111,13 +120,16 @@ def _block_caption(li, section: str | None) -> tuple[str, str] | None:
 
     ASKED ONLY WHERE NOTHING ELSE ANSWERED, AND ONLY HERE: a filing `regime.is_us_10k_filing`
     detected, a face row with a sub-heading whose own caption bound no line, printed under the
-    other-comprehensive-income banner. A caption that names its line still binds by itself; no
+    other-comprehensive-income banner — or under a per-share heading (`_PER_SHARE_HEADING`), where
+    the bare "Basic" / "Diluted" pairs of earnings per share and of the shares it is computed on are
+    told apart only by their headings. A caption that names its line still binds by itself; no
     HKFRS, CAS or Ind AS row is read this way, and nor is any other section of a 10-K.
     """
     heading = (getattr(li, "group_hint", "") or "").strip()
     if not heading or li.printed_in is PrintedIn.NOTES:
         return None
-    if section_of_banner(section or "") != _OCI_SECTION:
+    if (section_of_banner(section or "") != _OCI_SECTION
+            and not _PER_SHARE_HEADING.search(heading)):
         return None
     return heading.rstrip(":").strip(), f"{heading} {li.source_label or ''}"
 

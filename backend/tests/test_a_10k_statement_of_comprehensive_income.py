@@ -133,8 +133,13 @@ def test_every_comprehensive_income_line_is_a_face_line_scoped_by_its_banner(raw
 
 def test_the_arithmetic_is_written_as_the_templates_rollups_and_an_identity(raw):
     nodes = _nodes(raw)
-    assert nodes[AFS_NET]["rollup"] == {"op": "sum", "children": [AFS_CHG, AFS_RCL]}
-    assert nodes[CFH_NET]["rollup"] == {"op": "sum", "children": [CFH_CHG, CFH_RCL]}
+    # `parts_of_printed`: a block's parts are inside its printed net change, so one part unread
+    # leaves the printed figure standing rather than adding the other to it
+    # (`test_an_apple_style_10k_reads_its_blocks_by_heading.py`).
+    assert nodes[AFS_NET]["rollup"] == {"op": "sum", "children": [AFS_CHG, AFS_RCL],
+                                        "parts_of_printed": True}
+    assert nodes[CFH_NET]["rollup"] == {"op": "sum", "children": [CFH_CHG, CFH_RCL],
+                                        "parts_of_printed": True}
     assert nodes[TOTAL]["rollup"] == {"op": "sum", "children": [FX, AFS_NET, CFH_NET, PENSION, OTHER]}
     assert nodes[CI]["rollup"] == {"op": "sum", "children": [NI, TOTAL]}
     assert _pl(raw)["identities"] == [{

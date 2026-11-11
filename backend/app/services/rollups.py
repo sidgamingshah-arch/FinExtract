@@ -550,8 +550,15 @@ def evaluate(template_def: dict | None, reported, *, labels: dict[str, str] | No
         #
         # MEASURED: 000709 non-current assets 175.5bn against a printed 203.7bn, short by exactly
         # 在建工程 + 使用权资产 (28.25bn); 688008, 300319 and 1966 short by their gross figure too.
+        #
+        # NOT FOR A LINE WHOSE PARTS ARE INSIDE ITS PRINTED FIGURE (`parts_of_printed`). A 10-K's
+        # comprehensive-income block prints its net change AND the change and reclassification it
+        # is made of, so a part beside it is not a figure of its own to add: with one part unread,
+        # the printed net change stands and the line is not computed. Added to it, Apple FY2025's
+        # hedges read 637 + 849 = 1,486 against a printed 637, and every total above them moved.
         if (not calc.computable and total is not None and reported_total is None
-                and nodes[key].get("role") == "line" and not reported_total_key):
+                and nodes[key].get("role") == "line" and not reported_total_key
+                and not rollup.get("parts_of_printed")):
             own = reported(key)
             if own is None:
                 calc.value, calc.computable = total, True

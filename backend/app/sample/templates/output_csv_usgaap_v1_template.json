@@ -936,7 +936,8 @@
         "children": [
          "is_oci__afs_unrealized_gains_losses",
          "is_oci__afs_reclassification"
-        ]
+        ],
+        "parts_of_printed": true
        }
       },
       {
@@ -952,7 +953,8 @@
         "children": [
          "is_oci__cfh_unrealized_gains_losses",
          "is_oci__cfh_reclassification"
-        ]
+        ],
+        "parts_of_printed": true
        }
       },
       {

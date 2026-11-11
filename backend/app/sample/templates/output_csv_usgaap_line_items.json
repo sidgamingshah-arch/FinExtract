@@ -4803,7 +4803,7 @@
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:total\\s+|net\\s+)?(?:change\\s+in\\s+)?(?:net\\s+)?unrealized\\s+(?:holding\\s+)?(?:gains?|loss(?:es)?)(?:\\s+(?:and\\s+|or\\s+)?(?:gains?|loss(?:es)?))?\\s+on\\s+(?:available\\s+for\\s+sale\\s+(?:debt\\s+)?(?:securities|investments)|marketable\\s+(?:debt\\s+)?securities|short\\s+term\\s+investments|(?:debt\\s+)?investments)\\b.*$",
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:net\\s+)?change\\s+(?:related\\s+to|in)\\s+(?:available\\s+for\\s+sale\\s+(?:debt\\s+)?(?:securities|investments)|marketable\\s+(?:debt\\s+)?securities|short\\s+term\\s+investments|(?:debt\\s+)?investments)\\b.*$",
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}available\\s+for\\s+sale\\s+(?:debt\\s+)?(?:securities|investments)\\s+net\\s+of\\s+(?:income\\s+)?tax(?:es)?\\b.*$",
-    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:\\w+\\s+){0,10}?(?:available\\s+for\\s+sale\\s+(?:debt\\s+)?(?:securities|investments)|marketable\\s+(?:debt\\s+)?securities|short\\s+term\\s+investments|(?:debt\\s+)?investments)\\s+(?:net\\s+change|total(?:\\s+change)?)\\b.*$"
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:\\w+\\s+){0,10}?(?:available\\s+for\\s+sale\\s+(?:debt\\s+)?(?:securities|investments)|marketable\\s+(?:debt\\s+)?securities|short\\s+term\\s+investments|(?:debt\\s+)?investments)\\s+(?:net\\s+of\\s+(?:income\\s+)?tax(?:es)?(?:\\s+effects?)?\\s+)?(?:net\\s+change|total(?:\\s+change)?)\\b.*$"
    ],
    "exclude_hints": [
     "(?i)hedg",
@@ -4821,6 +4821,8 @@
     "(?i)^\\W*(?:less\\W+)?(?:reclassification|reclassified|realized\\s+and\\s+included|amounts?\\s+reclassified)",
     "(?i)(?:arising|recognized|occurring)\\s+during\\s+(?:the\\s+)?(?:period|year)\\b",
     "(?i)fair\\s+value\\s+of",
+    "(?i)\\badjustments?\\s+for\\s+(?:net\\s+)?(?:gains?|loss(?:es)?)(?:\\s+(?:and\\s+|or\\s+)?(?:gains?|loss(?:es)?))?\\s+realized\\b",
+    "(?i)\\bless\\s+(?:reclassification|amounts?\\s+reclassified)\\b",
     "(?i):\\s*$"
    ]
   },
@@ -4886,7 +4888,7 @@
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:total\\s+|net\\s+)?(?:change\\s+in\\s+)?(?:net\\s+)?unrealized\\s+(?:holding\\s+)?(?:gains?|loss(?:es)?)(?:\\s+(?:and\\s+|or\\s+)?(?:gains?|loss(?:es)?))?\\s+on\\s+(?:cash\\s+flow\\s+hedg(?:es|ing\\s+(?:instruments|activities|transactions))|derivative\\s+(?:instruments|financial\\s+instruments|contracts)|derivatives|hedging\\s+(?:instruments|activities))\\b.*$",
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:net\\s+)?change\\s+(?:related\\s+to|in)\\s+(?:cash\\s+flow\\s+hedg(?:es|ing\\s+(?:instruments|activities|transactions))|derivative\\s+(?:instruments|financial\\s+instruments|contracts)|derivatives|hedging\\s+(?:instruments|activities))\\b.*$",
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:cash\\s+flow\\s+hedg(?:es|ing\\s+(?:instruments|activities|transactions))|derivative\\s+(?:instruments|financial\\s+instruments|contracts)|derivatives|hedging\\s+(?:instruments|activities))\\s+net\\s+of\\s+(?:income\\s+)?tax(?:es)?\\b.*$",
-    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:\\w+\\s+){0,10}?(?:cash\\s+flow\\s+hedg(?:es|ing\\s+(?:instruments|activities|transactions))|derivative\\s+(?:instruments|financial\\s+instruments|contracts)|derivatives|hedging\\s+(?:instruments|activities))\\s+(?:net\\s+change|total(?:\\s+change)?)\\b.*$"
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:\\w+\\s+){0,10}?(?:cash\\s+flow\\s+hedg(?:es|ing\\s+(?:instruments|activities|transactions))|derivative\\s+(?:instruments|financial\\s+instruments|contracts)|derivatives|hedging\\s+(?:instruments|activities))\\s+(?:net\\s+of\\s+(?:income\\s+)?tax(?:es)?(?:\\s+effects?)?\\s+)?(?:net\\s+change|total(?:\\s+change)?)\\b.*$"
    ],
    "exclude_hints": [
     "(?i)available\\s+for\\s+sale",
@@ -4906,6 +4908,8 @@
     "(?i)^\\W*(?:less\\W+)?(?:reclassification|reclassified|realized\\s+and\\s+included|amounts?\\s+reclassified)",
     "(?i)(?:arising|recognized|occurring)\\s+during\\s+(?:the\\s+)?(?:period|year)\\b",
     "(?i)fair\\s+value\\s+of",
+    "(?i)\\badjustments?\\s+for\\s+(?:net\\s+)?(?:gains?|loss(?:es)?)(?:\\s+(?:and\\s+|or\\s+)?(?:gains?|loss(?:es)?))?\\s+realized\\b",
+    "(?i)\\bless\\s+(?:reclassification|amounts?\\s+reclassified)\\b",
     "(?i):\\s*$"
    ]
   },
@@ -5310,7 +5314,7 @@
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:change\\s+in\\s+)?fair\\s+value\\s+of\\s+(?:available\\s+for\\s+sale\\s+(?:debt\\s+)?(?:securities|investments)|marketable\\s+(?:debt\\s+)?securities|short\\s+term\\s+investments|(?:debt\\s+)?investments)\\b.*$",
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:total\\s+|net\\s+)?(?:change\\s+in\\s+)?(?:net\\s+)?unrealized\\s+(?:holding\\s+)?(?:gains?|loss(?:es)?)(?:\\s+(?:and\\s+|or\\s+)?(?:gains?|loss(?:es)?))?\\s+on\\s+(?:available\\s+for\\s+sale\\s+(?:debt\\s+)?(?:securities|investments)|marketable\\s+(?:debt\\s+)?securities|short\\s+term\\s+investments|(?:debt\\s+)?investments)\\s+(?:arising|recognized|occurring)\\s+during\\s+(?:the\\s+)?(?:period|year)\\b.*$",
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:total\\s+|net\\s+)?(?:change\\s+in\\s+)?(?:net\\s+)?unrealized\\s+(?:holding\\s+)?(?:gains?|loss(?:es)?)(?:\\s+(?:and\\s+|or\\s+)?(?:gains?|loss(?:es)?))?\\s+(?:arising|recognized|occurring)\\s+during\\s+(?:the\\s+)?(?:period|year)\\b.*\\bon\\s+(?:available\\s+for\\s+sale\\s+(?:debt\\s+)?(?:securities|investments)|marketable\\s+(?:debt\\s+)?securities|short\\s+term\\s+investments|(?:debt\\s+)?investments)\\b.*$",
-    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:\\w+\\s+){0,10}?(?:available\\s+for\\s+sale\\s+(?:debt\\s+)?(?:securities|investments)|marketable\\s+(?:debt\\s+)?securities|short\\s+term\\s+investments|(?:debt\\s+)?investments)\\s+(?:change\\s+in\\s+)?(?:net\\s+)?(?:unrealized\\s+(?:holding\\s+)?(?:gains?|loss(?:es)?)(?:\\s+(?:and\\s+|or\\s+)?(?:gains?|loss(?:es)?))?|fair\\s+value(?:\\s+adjustments?)?)\\b.*$"
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:\\w+\\s+){0,10}?(?:available\\s+for\\s+sale\\s+(?:debt\\s+)?(?:securities|investments)|marketable\\s+(?:debt\\s+)?securities|short\\s+term\\s+investments|(?:debt\\s+)?investments)\\s+(?:net\\s+of\\s+(?:income\\s+)?tax(?:es)?(?:\\s+effects?)?\\s+)?(?:change\\s+in\\s+)?(?:net\\s+)?(?:unrealized\\s+(?:holding\\s+)?(?:gains?|loss(?:es)?)(?:\\s+(?:and\\s+|or\\s+)?(?:gains?|loss(?:es)?))?|fair\\s+value(?:\\s+adjustments?)?)\\b.*$"
    ],
    "exclude_hints": [
     "(?i)hedg",
@@ -5358,7 +5362,7 @@
    "regex_hints": [
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:less\\s+|add\\s+|plus\\s+)?(?:reclassification|reclassified|realized\\s+and\\s+included|amounts?\\s+reclassified)\\b.*\\b(?:available\\s+for\\s+sale\\s+(?:debt\\s+)?(?:securities|investments)|marketable\\s+(?:debt\\s+)?securities|short\\s+term\\s+investments|(?:debt\\s+)?investments)\\b.*$",
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:less\\s+|add\\s+|plus\\s+)?(?:net\\s+)?(?:gains?|loss(?:es)?)(?:\\s+(?:and\\s+|or\\s+)?(?:gains?|loss(?:es)?))?\\s+on\\s+(?:available\\s+for\\s+sale\\s+(?:debt\\s+)?(?:securities|investments)|marketable\\s+(?:debt\\s+)?securities|short\\s+term\\s+investments|(?:debt\\s+)?investments)\\s+(?:reclassification|reclassified|realized\\s+and\\s+included|amounts?\\s+reclassified)\\b.*$",
-    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:\\w+\\s+){0,10}?(?:available\\s+for\\s+sale\\s+(?:debt\\s+)?(?:securities|investments)|marketable\\s+(?:debt\\s+)?securities|short\\s+term\\s+investments|(?:debt\\s+)?investments)\\s+(?:less\\s+|add\\s+|plus\\s+)?(?:reclassification|reclassified|amounts?\\s+reclassified|adjustments?\\s+for\\s+(?:net\\s+)?(?:gains?|loss(?:es)?)(?:\\s+(?:and\\s+|or\\s+)?(?:gains?|loss(?:es)?))?\\s+realized)\\b.*$"
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:\\w+\\s+){0,10}?(?:available\\s+for\\s+sale\\s+(?:debt\\s+)?(?:securities|investments)|marketable\\s+(?:debt\\s+)?securities|short\\s+term\\s+investments|(?:debt\\s+)?investments)\\s+(?:net\\s+of\\s+(?:income\\s+)?tax(?:es)?(?:\\s+effects?)?\\s+)?(?:less\\s+|add\\s+|plus\\s+)?(?:reclassification|reclassified|amounts?\\s+reclassified|adjustments?\\s+for\\s+(?:net\\s+)?(?:gains?|loss(?:es)?)(?:\\s+(?:and\\s+|or\\s+)?(?:gains?|loss(?:es)?))?\\s+realized)\\b.*$"
    ],
    "exclude_hints": [
     "(?i)hedg",
@@ -5406,7 +5410,7 @@
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:change\\s+in\\s+)?fair\\s+value\\s+of\\s+(?:cash\\s+flow\\s+hedg(?:es|ing\\s+(?:instruments|activities|transactions))|derivative\\s+(?:instruments|financial\\s+instruments|contracts)|derivatives|hedging\\s+(?:instruments|activities))\\b.*$",
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:total\\s+|net\\s+)?(?:change\\s+in\\s+)?(?:net\\s+)?unrealized\\s+(?:holding\\s+)?(?:gains?|loss(?:es)?)(?:\\s+(?:and\\s+|or\\s+)?(?:gains?|loss(?:es)?))?\\s+on\\s+(?:cash\\s+flow\\s+hedg(?:es|ing\\s+(?:instruments|activities|transactions))|derivative\\s+(?:instruments|financial\\s+instruments|contracts)|derivatives|hedging\\s+(?:instruments|activities))\\s+(?:arising|recognized|occurring)\\s+during\\s+(?:the\\s+)?(?:period|year)\\b.*$",
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:total\\s+|net\\s+)?(?:change\\s+in\\s+)?(?:net\\s+)?unrealized\\s+(?:holding\\s+)?(?:gains?|loss(?:es)?)(?:\\s+(?:and\\s+|or\\s+)?(?:gains?|loss(?:es)?))?\\s+(?:arising|recognized|occurring)\\s+during\\s+(?:the\\s+)?(?:period|year)\\b.*\\bon\\s+(?:cash\\s+flow\\s+hedg(?:es|ing\\s+(?:instruments|activities|transactions))|derivative\\s+(?:instruments|financial\\s+instruments|contracts)|derivatives|hedging\\s+(?:instruments|activities))\\b.*$",
-    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:\\w+\\s+){0,10}?(?:cash\\s+flow\\s+hedg(?:es|ing\\s+(?:instruments|activities|transactions))|derivative\\s+(?:instruments|financial\\s+instruments|contracts)|derivatives|hedging\\s+(?:instruments|activities))\\s+(?:change\\s+in\\s+)?(?:net\\s+)?(?:unrealized\\s+(?:holding\\s+)?(?:gains?|loss(?:es)?)(?:\\s+(?:and\\s+|or\\s+)?(?:gains?|loss(?:es)?))?|fair\\s+value(?:\\s+adjustments?)?)\\b.*$"
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:\\w+\\s+){0,10}?(?:cash\\s+flow\\s+hedg(?:es|ing\\s+(?:instruments|activities|transactions))|derivative\\s+(?:instruments|financial\\s+instruments|contracts)|derivatives|hedging\\s+(?:instruments|activities))\\s+(?:net\\s+of\\s+(?:income\\s+)?tax(?:es)?(?:\\s+effects?)?\\s+)?(?:change\\s+in\\s+)?(?:net\\s+)?(?:unrealized\\s+(?:holding\\s+)?(?:gains?|loss(?:es)?)(?:\\s+(?:and\\s+|or\\s+)?(?:gains?|loss(?:es)?))?|fair\\s+value(?:\\s+adjustments?)?)\\b.*$"
    ],
    "exclude_hints": [
     "(?i)available\\s+for\\s+sale",
@@ -5456,7 +5460,7 @@
    "regex_hints": [
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:less\\s+|add\\s+|plus\\s+)?(?:reclassification|reclassified|realized\\s+and\\s+included|amounts?\\s+reclassified)\\b.*\\b(?:cash\\s+flow\\s+hedg(?:es|ing\\s+(?:instruments|activities|transactions))|derivative\\s+(?:instruments|financial\\s+instruments|contracts)|derivatives|hedging\\s+(?:instruments|activities))\\b.*$",
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:less\\s+|add\\s+|plus\\s+)?(?:net\\s+)?(?:gains?|loss(?:es)?)(?:\\s+(?:and\\s+|or\\s+)?(?:gains?|loss(?:es)?))?\\s+on\\s+(?:cash\\s+flow\\s+hedg(?:es|ing\\s+(?:instruments|activities|transactions))|derivative\\s+(?:instruments|financial\\s+instruments|contracts)|derivatives|hedging\\s+(?:instruments|activities))\\s+(?:reclassification|reclassified|realized\\s+and\\s+included|amounts?\\s+reclassified)\\b.*$",
-    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:\\w+\\s+){0,10}?(?:cash\\s+flow\\s+hedg(?:es|ing\\s+(?:instruments|activities|transactions))|derivative\\s+(?:instruments|financial\\s+instruments|contracts)|derivatives|hedging\\s+(?:instruments|activities))\\s+(?:less\\s+|add\\s+|plus\\s+)?(?:reclassification|reclassified|amounts?\\s+reclassified|adjustments?\\s+for\\s+(?:net\\s+)?(?:gains?|loss(?:es)?)(?:\\s+(?:and\\s+|or\\s+)?(?:gains?|loss(?:es)?))?\\s+realized)\\b.*$"
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:\\w+\\s+){0,10}?(?:cash\\s+flow\\s+hedg(?:es|ing\\s+(?:instruments|activities|transactions))|derivative\\s+(?:instruments|financial\\s+instruments|contracts)|derivatives|hedging\\s+(?:instruments|activities))\\s+(?:net\\s+of\\s+(?:income\\s+)?tax(?:es)?(?:\\s+effects?)?\\s+)?(?:less\\s+|add\\s+|plus\\s+)?(?:reclassification|reclassified|amounts?\\s+reclassified|adjustments?\\s+for\\s+(?:net\\s+)?(?:gains?|loss(?:es)?)(?:\\s+(?:and\\s+|or\\s+)?(?:gains?|loss(?:es)?))?\\s+realized)\\b.*$"
    ],
    "exclude_hints": [
     "(?i)available\\s+for\\s+sale",

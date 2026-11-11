@@ -38,6 +38,13 @@ class Rollup(BaseModel):
     # ``children`` is an authoring mistake, not a no-op: it would read as a handled sign
     # convention while changing nothing, so the upload gate refuses it.
     cost_magnitude_children: list[str] = Field(default_factory=list)
+    # The children are INSIDE the printed figure — a breakdown of it, not figures beside it. A
+    # `line` whose parts are only partly read then keeps its printed figure rather than being
+    # published as the printed figure plus the parts read (``services.rollups.evaluate``): a 10-K
+    # comprehensive-income block's net change holds its change and its reclassification, where a
+    # mainland face's net fixed assets is printed beside the parts it adds. Off by default, so a
+    # template that does not declare it evaluates exactly as before.
+    parts_of_printed: bool = False
 
     @model_validator(mode="after")
     def _magnitude_members_are_children(self) -> "Rollup":
