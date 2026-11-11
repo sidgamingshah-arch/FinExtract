@@ -660,6 +660,79 @@ def build_request(plan, by_key: dict, notes_of: dict, identified: list[dict],
     return out
 
 
+# ── NOTES SENT ONCE, CACHED, for the requests that share them ─────────────────────────────────
+#
+# A request carries only the notes ITS lines selected (`build_request`), and that is right: a note
+# for a line in another request is not context. But the lines of one filing select the same notes
+# again and again — measured on the five reference filings, 852k estimated tokens of notes went in
+# requests' questions, and 628k of them were a note some earlier request had already carried. A
+# question is the one part of a request no provider caches, so every copy was paid for in full.
+#
+# SENDING THEM ALL ONCE IS NOT THE ANSWER, and was measured: one block of every note a run uses,
+# cached and put in front of every request, cost MORE than today on four of the five filings (962k
+# token-equivalents against 852k), because a request that needs two notes would then read forty.
+# What pays is per note, and it is exact because each note's cost is its own: a note of `t` tokens
+# that `c` requests carry costs `c·t` today, and once, cached, `t·(write + read·(R−1))` across the
+# R requests that carry the shared block. So a note goes in the shared block when it is carried by
+# more than `write + read·(R−1)` requests (`shared_note_ids`), and every other note stays where it
+# was. At Claude's prices that is five or more of ~30 requests; measured, 28% of the notes' cost.
+#
+# THE FENCE IS UNCHANGED. A line may still cite only the notes ITS configuration selected
+# (`notes_supplied`, `resolve(notes_supplied=...)`): a shared note in front of a request whose
+# lines did not select it is something that request may read and may not cite.
+
+SHARED_NOTES_LEAD = (
+    "NOTES SHARED BY SEVERAL QUESTIONS OF THIS FILING, sent once ahead of the question. A line item "
+    "may be answered only from the notes its `notes_supplied` names, and each of them is either "
+    "here or in the next message's `notes`. A note here that no line item in the next message "
+    "names is not context for it, and a citation of it is refused. The questions follow in the "
+    "next message.")
+
+
+def note_id(block: dict) -> str:
+    """A note block's identity, as a plan names it (`RequestPlan.notes`)."""
+    return str(block.get("note", ""))
+
+
+def shared_note_ids(note_sets, *, write: float, read: float) -> set[str]:
+    """The notes worth sending once, cached, in front of every request that carries one of them.
+
+    `note_sets` is, per request, the ids of the notes its question carries; `write` and `read` are
+    the provider's cache prices as multiples of its input price (`adapters._structured.CACHE_PRICES`).
+    A note goes when more requests carry it than the shared block would cost it — see the block
+    comment above. R counts every request that carries a note; a request that carries none of the
+    shared ones is not sent the block, so the real cost is at most the one priced here.
+    """
+    carrying = [set(s) for s in note_sets if s]
+    if len(carrying) < 2:
+        return set()
+    uses: dict[str, int] = {}
+    for s in carrying:
+        for n in s:
+            uses[n] = uses.get(n, 0) + 1
+    bar = write + read * (len(carrying) - 1)
+    return {n for n, c in uses.items() if c > bar}
+
+
+def shared_notes_message(identified: list[dict], shared: set[str]) -> str:
+    """The first user message of a request that carries shared notes: one line saying what it is,
+    then the notes as compact JSON, in the order `identified` holds them — the same bytes on every
+    request, which is what the provider's cache keys on."""
+    return (SHARED_NOTES_LEAD + "\n"
+            + json.dumps({"notes": [n for n in identified if note_id(n) in shared]},
+                         ensure_ascii=False, separators=(",", ":")))
+
+
+def without_shared(request: dict, shared: set[str]) -> dict:
+    """`request` with the shared notes taken out of its question (they are in the message before
+    it). A question left with no note of its own sends no `notes` key, as `build_request` omits an
+    empty statement block: an empty list would say this request was given no note."""
+    own = [n for n in request.get("notes") or () if note_id(n) not in shared]
+    # Rebuilt key by key so the question keeps `build_request`'s order.
+    return {k: (own if k == "notes" else v) for k, v in request.items()
+            if k != "notes" or own}
+
+
 # ── THE WHOLE ANNUAL REPORT, for the `anywhere` lines ─────────────────────────────────────────
 #
 # A LINE WHOSE ROUTE IS `anywhere` MAY BE READ FROM ANYWHERE IN THE REPORT, and it is now given

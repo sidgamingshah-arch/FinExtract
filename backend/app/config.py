@@ -454,6 +454,16 @@ class ExtractionSettings(BaseModel):
     # are checked against the same extracted rows and pages, under the same route fences.
     # Read by `stages.line_item_llm`; an admin can change it from the Settings screen.
     llm_document_context: Literal["selected", "anywhere", "full"] = "anywhere"
+    # SEND THE NOTES MANY REQUESTS SHARE ONCE, CACHED. A request's question carries the notes its
+    # lines selected, and a provider caches no question, so a note ten requests need was paid for
+    # ten times. On, a note carried by enough requests to be cheaper cached
+    # (`line_item_llm.shared_note_ids`) is sent in one block before the question, the same bytes on
+    # every request that needs one of them, and cached; every other note stays in its question. A
+    # line may still cite only the notes it selected. Applies only where the provider caches
+    # (`prompt_cache_prices` — the Anthropic and Bedrock gateway adapters with `llm.prompt_cache`),
+    # and not where the whole report already goes in front of the question. Off sends every note
+    # in its question, as before.
+    llm_shared_notes: bool = True
     # READ SCANNED PAGES WITH OCR. A page with a text layer is always read from that layer — OCR
     # would only re-guess characters the file already holds — so this decides what happens to a
     # page WITHOUT one: on, it is rasterised and read by the `[ocr]` engine (Docling, offline); off,

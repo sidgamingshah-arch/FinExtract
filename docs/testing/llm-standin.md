@@ -113,6 +113,16 @@ may cache and changes nothing the model reads. So a request is recorded and keye
 **canonical** form (`canonical_body`): every text block joined back into the string it spells. A
 request whose words did not change keeps its id and its answer, whether or not caching is on.
 
+### Shared notes (`extraction.llm_shared_notes`)
+
+The stand-in declares the gateway's cache prices (`prompt_cache_prices`), so a capture is the shape
+the gateway would send: a request whose lines selected a note that enough other requests also
+carry has TWO messages — the shared notes first (one lead line, then compact JSON), marked for the
+cache, and the question after it holding only its own other notes. `payload_of` merges the two
+`notes` lists, so the lint and the grader find a cited note in whichever message carried it. This
+changes those requests' ids: an answer written before is carried to the new id by its line keys,
+since each line is asked with the same `notes_supplied`.
+
 ### Report requests (the `anywhere` lines)
 
 A line whose route is `anywhere` is asked in a batch of at most 12, and the request has **two

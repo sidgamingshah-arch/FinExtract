@@ -39,6 +39,17 @@ disagree and the screen believes the wrong one. 8 of the current test failures a
 
 ## 2. Every request repeats a note's ENVELOPE — and the fix is caching, not collapsing
 
+**DONE (2026-11), AND ATTACK 1 BELOW WAS WRONG AS WRITTEN.** "Move the block to the system prompt"
+assumed every request carries the same notes. It does not: each carries only the notes its lines
+selected. Measured on the five reference filings' captured requests, one block of every note a run
+uses, cached in front of every request, cost **more** than today on four of the five (962k
+token-equivalents against 852k at Claude's 1.25x write / 0.1x read), because a request needing two
+notes would read forty. What pays is per note: a note goes into a shared, cached first message when
+more requests carry it than the block would cost it, and every other note stays in its question
+(`extraction.llm_shared_notes`, `line_item_llm.shared_note_ids`; pipeline doc, stage 10). A line may
+still cite only the notes it selected. The figures measured on the captures are in the commit that
+landed it.
+
 **CORRECTED.** This entry claimed 26-39% off the note block by collapsing fragments. That number
 was measured on a collapse that **keeps the longest prose and throws the rest away** — and the
 fragments do not carry the same prose. Measured on laisun's note 4: 7 fragments with prose lengths

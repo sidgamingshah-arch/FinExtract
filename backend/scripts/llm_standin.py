@@ -135,14 +135,22 @@ def _content_of(message: dict, *, lead_in: bool = False) -> Any:
     return content
 
 
+def _cache_prices():
+    """The gateway's cache prices under the settings in force (`adapters._structured`)."""
+    from app.adapters._structured import cache_prices
+    from app.config import get_settings
+    return cache_prices(get_settings())
+
+
 def payload_of(body: dict) -> Any:
     """The request's payload: the last user message's content, as JSON when it is JSON.
 
     A REQUEST THAT SENDS A DOCUMENT FIRST — the whole annual report, which an `anywhere` line is
     asked with and, under `llm_document_context = "full"`, every line — carries its notes,
-    statements and pages in that first message and only the lines in the last. Its blocks are
-    merged in under the question's, so a reader looking a cited row up (the grader, the lint)
-    finds it whichever message carried it."""
+    statements and pages in that first message and only the lines in the last; a request sent
+    shared notes carries them first and its own notes in the last. Its blocks are merged in under
+    the question's, so a reader looking a cited row up (the grader, the lint) finds it whichever
+    message carried it."""
     msgs = [m for m in body.get("messages", []) if m.get("role") == "user"]
     if not msgs:
         return None
@@ -154,7 +162,12 @@ def payload_of(body: dict) -> Any:
             if isinstance(doc, dict):
                 merged.update(doc)
         if merged:
-            return {**merged, **last}
+            # A BLOCK BOTH MESSAGES CARRY IS BOTH HALVES. The shared notes travel first and a
+            # request's own notes in its question, under one key; the question's alone would lose
+            # every note a citation names from the first message.
+            return {**merged, **last,
+                    **{k: [*merged[k], *last[k]] for k in merged.keys() & last.keys()
+                       if isinstance(merged[k], list) and isinstance(last[k], list)}}
     return last
 
 
@@ -199,6 +212,10 @@ class Recorder:
 
         class Standin:
             id = "standin"
+            # The body is recorded as the GATEWAY sends it, breakpoints and all, so the stand-in
+            # declares the gateway's cache prices too: a capture is then the request shape the
+            # gateway would send, shared notes included (`stages.line_item_llm`).
+            prompt_cache_prices = _cache_prices()
 
             def complete_structured(self, *, system, messages, response_schema, temperature=0.0,
                                     max_tokens=2048):

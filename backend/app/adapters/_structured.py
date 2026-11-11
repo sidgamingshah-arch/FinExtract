@@ -29,6 +29,21 @@ def schema_instruction(response_schema: type[BaseModel]) -> str:
 # outlasts the gap between the requests of one run, which are sent back to back.
 CACHE_CONTROL = {"type": "ephemeral"}
 
+# WHAT THAT CACHE COSTS, as multiples of the model's ordinary input price: `(write, read)`. Writing
+# an entry with the five-minute lifetime costs 1.25x; reading it back costs 0.1x on most Claude
+# models and less on the newest (0.05x, 0.025x). The larger figure is used, so a decision priced
+# with it never expects a saving the provider does not give — on a cheaper-reading model it shares
+# a little less than it could, and loses nothing. Read by `stages.line_item_llm` to decide which
+# notes are worth sending once, cached, rather than in every request that needs them.
+CACHE_PRICES = (1.25, 0.1)
+
+
+def cache_prices(settings) -> tuple[float, float] | None:
+    """`CACHE_PRICES` when this adapter's bodies carry breakpoints (`llm.prompt_cache`), else None:
+    with the breakpoints off nothing is cached, and a block sent once for the cache would be paid
+    for in full by every request that carries it."""
+    return CACHE_PRICES if bool(getattr(settings.llm, "prompt_cache", True)) else None
+
 
 def messages_body(system: str, messages, *, cache: bool) -> tuple[object, list[dict]]:
     """`(system, messages)` for an Anthropic Messages body, with its prompt-cache breakpoints.

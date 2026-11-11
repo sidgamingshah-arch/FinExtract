@@ -342,6 +342,31 @@ class LineItemLlmStage(Stage):
         # (plan, request, system text, document message, asked with the whole report)
         prepared = [(plan, request, system, document, everything) for plan in plans
                     for request in [_build(plan)] if request["line_items"]]
+        # NOTES SENT ONCE, CACHED, for the requests that share them (`line_item_llm.shared_note_ids`
+        # says which, and why not all). Only where the provider caches — `prompt_cache_prices` is
+        # declared by the adapters whose bodies carry breakpoints, so a provider that caches
+        # nothing would pay for the block in full on every request — and only where no report is
+        # already in front of these requests. The block is the request's first message, as the
+        # report is, so the send order below writes it once before the others read it. A request
+        # carrying none of the shared notes is sent as before.
+        prices = getattr(provider, "prompt_cache_prices", None)
+        if (document is None and prices
+                and getattr(ctx.settings.extraction, "llm_shared_notes", True)):
+            carried_notes = [{line_item_llm.note_id(n) for n in entry[1].get("notes") or ()}
+                             for entry in prepared]
+            shared_ids = line_item_llm.shared_note_ids(carried_notes, write=prices[0],
+                                                       read=prices[1])
+            if shared_ids:
+                shared_text = line_item_llm.shared_notes_message(identified, shared_ids)
+                carrying = 0
+                for i, (plan, request, system_text, _none, whole) in enumerate(prepared):
+                    if carried_notes[i] & shared_ids:
+                        prepared[i] = (plan, line_item_llm.without_shared(request, shared_ids),
+                                       system_text, shared_text, whole)
+                        carrying += 1
+                ctx.log(f"line_item_llm:shared_notes notes={len(shared_ids)} "
+                        f"est_tokens={line_item_llm.estimated_tokens(shared_text)} "
+                        f"requests={carrying} of={len(prepared)}")
         # A REPORT REQUEST IS ITS QUESTION ALONE — the lines, each with the notes its configuration
         # points to — after the report, which carries every page, note and statement.
         prepared += [(plan, request, report_system, report_text, True) for plan in report_plans
@@ -375,7 +400,7 @@ class LineItemLlmStage(Stage):
                 if futures[i] is None:
                     futures[i] = pool.submit(_send, prepared[i])
         try:
-            for done, (plan, request, _system, sent_document, whole_report) in enumerate(
+            for done, (plan, request, _system, _document, whole_report) in enumerate(
                     prepared, start=1):
                 try:
                     reply, meta = futures[done - 1].result()
@@ -445,7 +470,10 @@ class LineItemLlmStage(Stage):
                     # `note_sourced.resolve_sources`. A request sent the report was given every
                     # note, every statement and every page's text, so there only the route fences
                     # hold, and a sentence it cites by its page is checked against that page.
-                    whole_document = sent_document is not None
+                    # WHETHER IT WAS SENT THE REPORT, not whether it was sent a first message: the
+                    # shared notes travel in one too, and a request sent them was given only what
+                    # its lines selected — its fences hold exactly as if they were in the question.
+                    whole_document = bool(whole_report)
                     resolved, unresolved, _ = line_item_llm.resolve(
                         answer, doc.notes, face_context.face_index(doc), allow_face=may_face,
                         pages=face_context.other_page_index(doc) if may_pages else None,

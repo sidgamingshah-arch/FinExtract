@@ -262,6 +262,22 @@ The face and its cited notes are processed in this order:
     for, so the requests after it read the prefix from the provider's cache. The run log gives
     every request's input, cached and cache-write tokens.
 
+    *Notes many requests share are sent once, cached* (`extraction.llm_shared_notes`, on). A
+    request's question carries the notes its lines selected, and no provider caches a question,
+    so a note ten requests need was paid for ten times. Where the provider declares
+    `prompt_cache_prices` (the two Anthropic-format adapters with `llm.prompt_cache`) and no
+    report is in front of the question, a note goes into one block sent as the request's first
+    message, marked `cache`, when more requests carry it than the cached block would cost it:
+    `write + read·(R−1)` requests, R being the requests that carry a note
+    (`line_item_llm.shared_note_ids`). Every other note stays in its question, and a request
+    carrying none of the shared notes is sent as before. Sending every note once was measured and
+    rejected: it cost more than today on four of the five reference filings, because a request
+    that needs two notes would read forty. A line may still cite only the notes it selected —
+    the fences key on whether the request was sent the REPORT, not on whether it has a first
+    message — so a shared note in front of a request whose lines did not select it is refused if
+    cited. The log line `line_item_llm:shared_notes` says how many notes, how many tokens and how
+    many requests.
+
     *Position.* Immediately before `note_sourced`, the deterministic reader of the same
     `note_source` declarations. Every site that stage writes a figure asks `_llm_holds` first, so a
     line answered here keeps its answer and the declared route fills what was left empty — neither

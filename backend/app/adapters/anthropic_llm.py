@@ -20,8 +20,8 @@ from typing import Sequence
 
 from pydantic import BaseModel
 
-from app.adapters._structured import (LlmConfigError, messages_body, schema_instruction,
-                                      strip_fences)
+from app.adapters._structured import (LlmConfigError, cache_prices, messages_body,
+                                      schema_instruction, strip_fences)
 from app.config import Settings, get_settings
 from app.ports.llm import LlmMessage, LlmMeta, anthropic_usage
 
@@ -34,6 +34,12 @@ class AnthropicLlmProvider:
     def __init__(self, settings: Settings | None = None):
         self._settings = settings or get_settings()
         self._client = None  # lazily constructed so importing this module needs no key
+
+    @property
+    def prompt_cache_prices(self) -> tuple[float, float] | None:
+        """`(write, read)` price multiples of this provider's prompt cache, or None when its bodies
+        carry no breakpoints (`_structured.cache_prices`)."""
+        return cache_prices(self._settings)
 
     def _client_or_raise(self):
         if self._client is not None:
