@@ -787,3 +787,30 @@ for the year, net of tax, on the comprehensive income statement), which only tha
 Every other card — calculated mismatches, structural relations, containment gaps and the rows they
 are explained by — is the same on all seven, and every figure is untouched: this is the queue, read
 at request time. Pinned in `tests/test_review_queue_scope.py`.
+
+## 17. 其他权益工具投资 as a note term of the FVOCI part — MEASURED AND HELD BACK
+
+**The idea.** The note router (entry 15) sent `sub__ltp_fvtoci_note_total` the 其他权益工具投资 note
+on all three CAS filings, and the part's `note_terms` do not name it, so it looked like a
+configuration gap: add 其他权益工具投资 / 其他權益工具投資 to the part's note terms.
+
+**Measured on the five reference filings** (a scratchpad copy of the line-item set; the repo's is
+untouched). It counts the figure TWICE on every CAS filing:
+
+| filing | face 其他权益工具投资 (current / prior) | LTP securities, now | with the change | `section_reconciliation:bs_nca` |
+|---|---|---|---|---|
+| 688008 | 22,270,908.60 / 22,636,234.66 (+ 其他非流动金融资产 575,243,925.97 / 582,867,750.91) | 597,514,834.57 / 605,503,985.57 | 620,654,365.58 / 610,358,024.63 | pass → **fail**, both years |
+| 000709 | 411,683,468.98 / 411,683,468.98 | 411,683,468.98 / 411,683,468.98 | 623,660,108.96 / 823,366,937.96 | pass → **fail**, both years |
+| 300319 | 43,239,858.66 / 22,156,000.00 | 43,239,858.66 / 22,156,000.00 | 86,479,717.32 / 44,312,000.00 | pass → **fail**, both years |
+| hkex_1966_ar, hkex_kaming_2025_26 | — | unchanged | unchanged | unchanged |
+
+**Why.** There was no gap in any figure. The LTP rungs `LTP_P1` / `LTP_P2` sum the face part
+`sub__ltp_face_other_equity_instrument_investments` beside the note parts, and that face part already
+carries 其他权益工具投资 into the parent — today's figure IS the face figures, on all three. A note
+reading of the same balance is a second copy of it. The note reading was also wrong where it was not
+equal: 688008's note gave 23,139,531.01 / 4,854,039.06 against a face of 22,270,908.60 / 22,636,234.66,
+and 000709's current year 211,976,639.98 against 411,683,468.98.
+
+**If it is wanted later**, the change is to the cascade, not the terms: the note part and the face
+part would have to be alternatives for one balance (the note when it reads the face figure, the face
+otherwise), so the parent can never take both.
