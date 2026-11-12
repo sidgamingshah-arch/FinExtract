@@ -48,7 +48,10 @@ def test_folding_survives_without_opencc(monkeypatch):
     monkeypatch.setattr(han, "_CC", None)
     for trad, simp in [("銷售成本", "销售成本"), ("財務費用", "财务费用"),
                        ("遞延稅項資產", "递延税项资产"), ("年內虧損", "年内亏损"),
-                       ("綜合損益及其他全面收益表", "综合损益及其他全面收益表")]:
+                       ("綜合損益及其他全面收益表", "综合损益及其他全面收益表"),
+                       # 利潤, profit — the pair the generated table missed
+                       ("經營利潤", "经营利润"), ("除稅前利潤", "除税前利润"),
+                       ("淨利潤", "净利润")]:
         assert han.to_simplified(trad) == simp
 
 
