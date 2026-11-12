@@ -1,0 +1,147 @@
+"""A US 10-K's notes run to their last note, and no further (`stages.classify`, `_US_10K_NOTE_HEADING`,
+`_US_10K_BACK_PART`).
+
+Two reading rules, on a 10-K only:
+
+* "Note 6 – Consolidated Financial Statement Details" and "Note 15.    Information about Segments"
+  are note headings. Neither matched `_NUMBERED_HEADING`, so on Apple's FY2025 10-K the pages of
+  Notes 4 (continued) to 13 carried no note evidence and were decoded OTHER: no request was shown
+  property and equipment, income taxes, leases, debt, equity or segments.
+* A page that opens with Item 9-16, Part III or IV, the signatures or an exhibit is not a note.
+  Alphabet's pages from Item 9 to the signature block, and Apple's exhibits (the certifications'
+  numbered paragraphs read as numbered note headings), were NOTES.
+
+Gated on `services.regime.is_us_10k_filing`: the HKEX, mainland and Indian corpus was measured
+with the gate shut and does not move.
+"""
+from __future__ import annotations
+
+import pytest
+
+from app.stages import classify
+
+
+def _page(*texts: str) -> list[dict]:
+    return [{"text": t, "y": 40.0 + 14.0 * i, "size": 11.0 if i < 2 else 9.0, "bold": i < 2}
+            for i, t in enumerate(texts)]
+
+
+def _feats(lines: list[dict], *, us_10k: bool, index: int = 0):
+    return classify._features(index, lines, 842.0, "\n".join(x["text"] for x in lines),
+                              us_10k=us_10k)
+
+
+PROSE = ("The Company records its assets at cost and reviews them for impairment whenever events "
+         "indicate that the carrying amount may not be recoverable.")
+
+
+# ── THE NOTE HEADING ─────────────────────────────────────────────────────────────────────────
+
+@pytest.mark.parametrize("heading", [
+    "Note 6 – Consolidated Financial Statement Details",          # Apple
+    "Note 15.    Information about Segments and Geographic Areas",  # Alphabet
+    "Note 12 — Commitments, Contingencies and Supply Concentrations",
+    "NOTE 3: INVENTORIES",
+    "Note 4 - Financial Instruments",
+])
+def test_a_10k_note_heading_is_a_note_heading_on_a_10k_only(heading):
+    lines = _page(PROSE, PROSE, heading, PROSE)
+    assert _feats(lines, us_10k=True).note_heading
+    assert not _feats(lines, us_10k=False).note_heading       # the gate: unchanged elsewhere
+
+
+@pytest.mark.parametrize("line", [
+    "Note 6 of the Notes to Consolidated Financial Statements describes the leases.",
+    "See Note 4 – Financial Instruments for the fair value hierarchy.",
+    "Notes 4 and 5 describe the Company's marketable securities.",
+])
+def test_a_line_that_cites_a_note_is_not_a_heading(line):
+    assert not _feats(_page(PROSE, line, PROSE), us_10k=True).note_heading
+
+
+# ── THE BACK OF THE 10-K ─────────────────────────────────────────────────────────────────────
+
+@pytest.mark.parametrize("opening", [
+    ("Item 9.", "Changes in and Disagreements with Accountants on Accounting and Financial Disclosure"),
+    ("ITEM 9A.", "CONTROLS AND PROCEDURES"),
+    ("PART III", "Item 10.", "Directors, Executive Officers and Corporate Governance"),
+    ("PART IV", "Item 15.", "Exhibit and Financial Statement Schedules"),
+    ("SIGNATURES",),
+    ("Exhibit 31.1", "CERTIFICATION"),
+    ("Exhibit 21.1", "Subsidiaries of Example Corp.*"),
+])
+def test_a_page_opening_the_back_of_a_10k_is_read_as_narrative(opening):
+    lines = _page(*opening, PROSE, PROSE)
+    assert _feats(lines, us_10k=True).narrative
+    assert not _feats(lines, us_10k=False).narrative
+
+
+def test_a_note_that_cites_an_exhibit_in_its_body_is_still_a_note():
+    """Read off the page's OPENING lines only: the body of a debt note names the exhibit its
+    indenture was filed as, and the page is still a note."""
+    lines = _page("Note 9 – Debt", *[PROSE] * 8, "Exhibit 4.1", PROSE)
+    feats = _feats(lines, us_10k=True)
+    assert feats.note_heading and not feats.narrative
+
+
+# ── THE DECODE ───────────────────────────────────────────────────────────────────────────────
+
+def _filing() -> list[list[dict]]:
+    """A 10-K from its last MD&A page to its last exhibit, shaped like Apple's: the notes banner
+    on the first notes page only, a heading on some pages and prose continuations between them,
+    then the auditor's report, the back part and the certifications."""
+    table = [f"Item {k} {1000 + 37 * k:,} {900 + 29 * k:,} {800 + 23 * k:,}" for k in range(12)]
+    return [
+        _page("Item 7.", "Management's Discussion and Analysis of Financial Condition", PROSE, PROSE),
+        _page("Example Corp.", "CONSOLIDATED BALANCE SHEETS", "(In millions)",
+              "Cash and cash equivalents 1,204 1,100", "Accounts receivable, net 3,410 2,900",
+              "Total current assets 4,614 4,000", "Total assets 5,174 4,250"),
+        _page("Example Corp.", "CONSOLIDATED STATEMENTS OF CASH FLOWS", "(In millions)",
+              "Net income 1,204 1,100", "Depreciation and amortization 410 290",
+              "Cash generated by operating activities 1,614 1,390"),
+        _page("Example Corp.", "Notes to Consolidated Financial Statements",
+              "Note 1 – Summary of Significant Accounting Policies", PROSE, PROSE),
+        _page(PROSE, PROSE, PROSE),
+        _page(PROSE, PROSE, "Note 5 – Property, Plant and Equipment", PROSE),
+        _page(PROSE, PROSE, PROSE),
+        _page("Note 6 – Consolidated Financial Statement Details", *table),
+        _page(*table),
+        _page("Report of Independent Registered Public Accounting Firm",
+              "In our opinion, the consolidated financial statements present fairly", PROSE),
+        _page("Item 9.", "Changes in and Disagreements with Accountants on Accounting and "
+              "Financial Disclosure", "None.", PROSE),
+        _page("PART IV", "Item 15.", "Exhibit and Financial Statement Schedules", PROSE),
+        _page("SIGNATURES", "Pursuant to the requirements of Section 13 or 15(d) of the Securities "
+              "Exchange Act of 1934", PROSE),
+        _page("Exhibit 31.1", "CERTIFICATION", "I, Jane Doe, certify that:",
+              "1. I have reviewed this annual report on Form 10-K of Example Corp.;",
+              "2. Based on my knowledge, this report does not contain any untrue statement;",
+              "3. Based on my knowledge, the financial statements fairly present the results;"),
+        _page("Exhibit 32.1", "CERTIFICATIONS OF CHIEF EXECUTIVE OFFICER",
+              "1. The Annual Report on Form 10-K fully complies with the requirements;",
+              "2. The information contained in the Report fairly presents the condition."),
+    ]
+
+
+def _kinds(*, us_10k: bool) -> str:
+    pages = _filing()
+    feats = [_feats(lines, us_10k=us_10k, index=i) for i, lines in enumerate(pages)]
+    path, _ = classify._decode(feats)
+    path = classify._notes_follow_the_face(path, feats=feats)
+    return "".join({"pre": "o", "post": "o", "face": "F", "notes": "n"}[s] for s in path)
+
+
+def test_a_10ks_notes_run_to_their_last_note_and_no_further():
+    #                                      0  1-2  3-8     9-14
+    assert _kinds(us_10k=True) == "o" + "FF" + "nnnnnn" + "oooooo"
+
+
+def test_without_the_rules_the_same_pages_lose_their_last_notes_and_gain_the_certifications():
+    """THE DEFECT, AS THE GATE LEAVES IT for every other regime — kept so the test above is known to
+    be the rules' doing: the prose continuations take the decode out of the notes early, and the
+    certifications' numbered paragraphs take it back in."""
+    off = _kinds(us_10k=False)
+    assert off != _kinds(us_10k=True)
+    assert off[1:3] == "FF"
+    assert "o" in off[3:9]          # a note page read as OTHER
+    assert "n" in off[9:]           # a page of the back part read as a note

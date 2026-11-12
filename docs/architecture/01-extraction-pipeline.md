@@ -109,6 +109,19 @@ The face and its cited notes are processed in this order:
    COMPANY's re-presentation of a Group statement. A front-matter page latching that flag
    before the statements were reached could make a filing's own balance sheet read as the
    Company's second copy of one.
+
+   **On a US 10-K, the notes run to their last note and no further** (`_US_10K_NOTE_HEADING`,
+   `_US_10K_BACK_PART`, on only when `services.regime.is_us_10k_filing` says so). A 10-K heads
+   its notes "Note 6 – Consolidated Financial Statement Details" or "Note 15.    Information
+   about Segments", which the numbered-heading pattern never matched (it is case-sensitive and
+   wants a space after the number), so a notes page had nothing but its figure density to go on.
+   Apple's FY2025 Notes 4 (continued) to 13 — pages 40-50 — were decoded OTHER, and its exhibits
+   (the certifications' numbered paragraphs read as note headings) NOTES; Alphabet's pages from
+   Item 9 to the signature block were NOTES. Now a "Note N –" heading anywhere on the page is a
+   note heading, and a page that OPENS with Item 9-16, Part III or IV, the signatures or an
+   exhibit reads as narrative, as an auditor's report does. Apple's notes are pages 36-50 and
+   Alphabet's 53-88, each to its last note; every other filing in the corpus, the 10-K layout
+   fixtures and the e2e fixtures decode exactly as before.
 5. **Extract** (`stages/extract.py`) — rows → `LineItem`s with values keyed by
    (basis, period), note refs, unit context, and provenance. **Table reconstruction happens
    inside this stage**, which is why there is no separate `reconstruct` stage (the comment

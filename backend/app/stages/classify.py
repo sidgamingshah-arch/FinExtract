@@ -1222,6 +1222,56 @@ def _opens_with_zh_note_heading(lines: list[dict]) -> bool:
     return False
 
 
+# A US 10-K's NOTES RUN TO THEIR LAST NOTE, AND NO FURTHER. Two reading rules, both switched on only
+# when `services.regime.is_us_10k_filing` says so (`_features(us_10k=...)`), because the HKEX,
+# mainland and Indian corpus was measured without them and does not print either shape.
+#
+# 1. A 10-K HEADS A NOTE "Note 6 – Consolidated Financial Statement Details" (Apple) or
+#    "Note 15.    Information about Segments" (Alphabet). Neither is a `_NUMBERED_HEADING`: that
+#    pattern is case-sensitive, so its "note" never matches "Note", and it wants whitespace after
+#    the number, not a dash. So `note_heading` never fired on a 10-K's own note headings, and a
+#    notes page carried no evidence but its figure density. Measured on Apple's FY2025 10-K:
+#    pages 40-50 — Notes 4 (continued) to 13, property, plant and equipment, the financial statement
+#    details, income taxes, leases, debt, equity, share-based compensation, commitments, segments —
+#    were decoded OTHER. A prose page scores PRE +1.0 against NOTES 0.0, and eleven of them paid
+#    NOTES -> PRE's 10.0 once and were out of the notes. No request could be shown any of them.
+#    The pattern needs the WORD "Note", a number and a separator before the title, so the 7,419
+#    figures that relaxing `_NUMBERED_HEADING` once moved (its comment above) are not in reach of it.
+#
+# 2. THE BACK OF A 10-K — Items 9 to 16, Parts III and IV, the signatures, the exhibits filed with it
+#    — is not a note, and a page that OPENS with one of those headings says so. Measured: Alphabet's
+#    pages 89-98 (Item 9 to the signature block) were NOTES, because NOTES -> PRE costs 10.0 and ten
+#    prose pages only just pay it; Apple's exhibits (21.1 subsidiaries, 23.1 consent, the 31.1 / 31.2
+#    / 32.1 certifications) were NOTES too, because a certification's numbered paragraphs ("2. Based
+#    on my knowledge, …") read as numbered note headings. The page is read as narrative, as an
+#    auditor's report is. Asked of the page's opening lines only, as `_opens_with_note_heading`
+#    is: a note that cites "Exhibit 10.1" or "Part II, Item 8" in its body is still a note, and a
+#    10-K that prints its statements on F-pages after Part IV still reaches them — the rule is
+#    about the page carrying the heading, not about what follows it.
+_US_10K_NOTE_HEADING = re.compile(r"^\s*note\s+\d{1,3}[A-Z]?\s*[.:–—\-]\s*[A-Za-z]", re.I)
+_US_10K_BACK_PART = re.compile(
+    r"^\s*(?:item\s+(?:9[a-c]?|1[0-6])\s*[.:]"
+    r"|part\s+(?:iii|iv)\b"
+    r"|signatures?\s*$"
+    r"|exhibit\s+\d{1,3}(?:\.\d{1,3})?\s*$)", re.I)
+
+
+def _opens_a_10k_back_part(lines: list[dict]) -> bool:
+    """Whether a page OPENS with a heading of a 10-K's back part — see `_US_10K_BACK_PART`. The same
+    opening-lines window `_opens_with_note_heading` reads, for the same reason."""
+    seen = 0
+    for line in lines:
+        text = (line.get("text") or "").strip()
+        if not text:
+            continue
+        if _US_10K_BACK_PART.match(text):
+            return True
+        seen += 1
+        if seen >= _TOP_LINES:
+            return False
+    return False
+
+
 def _page_lines(page) -> tuple[list[dict], float]:
     """Lines as (text, y, size, bold), top-down. Read from the span dict rather than plain text
     because a title's position and weight are evidence the decode uses."""
@@ -1254,7 +1304,7 @@ def _page_lines(page) -> tuple[list[dict], float]:
 
 
 def _features(index: int, lines: list[dict], page_h: float, text: str, *,
-              dated_titles: bool = False) -> PageFeat:
+              dated_titles: bool = False, us_10k: bool = False) -> PageFeat:
     f = PageFeat(index=index)
     nav = _navigation_strip(lines)
     if nav:
@@ -1288,7 +1338,9 @@ def _features(index: int, lines: list[dict], page_h: float, text: str, *,
     # `_REPORT_SECTION` against the TITLE ZONE alone — a running header is printed there, and a
     # genuine note's body may discuss management's analysis without belonging to that section.
     f.narrative = bool(_NARRATIVE.search(joined) or _NARRATIVE.search(text[:1500])
-                       or _REPORT_SECTION.search(joined))
+                       or _REPORT_SECTION.search(joined)
+                       # a 10-K's Items 9-16, Parts III-IV, signatures and exhibits
+                       or (us_10k and _opens_a_10k_back_part(lines)))
     if f.narrative:
         # The auditor's report names every statement it audited, in bold, in the top band; a
         # management discussion prints the name of every statement it discusses.
@@ -1316,7 +1368,10 @@ def _features(index: int, lines: list[dict], page_h: float, text: str, *,
 
     f.notes_banner = any(re.search(p, joined, re.I) for p in _NOTES_BANNER)
     f.note_heading = (bool(_NUMBERED_HEADING.search(text))
-                      or _opens_with_zh_note_heading(lines)) and not f.strong_title
+                      or _opens_with_zh_note_heading(lines)
+                      # "Note 6 – …" / "Note 15.    …" — see `_US_10K_NOTE_HEADING`
+                      or (us_10k and any(_US_10K_NOTE_HEADING.match(line["text"])
+                                         for line in lines))) and not f.strong_title
     f.note_one = bool(_NOTE_ONE.search(text)) and not f.strong_title
     f.backmatter = bool(_BACKMATTER.search(joined))
 
@@ -1921,7 +1976,8 @@ class ClassifyStage:
         whole_pages, whole_cache = pages, cache
         pages, cache, texts, spreads = _spread_units(pdf, pages, cache, texts, log=ctx.log)
         for page_src, (lines, height), text in zip(pages, cache, texts):
-            feats.append(_features(page_src.index, lines, height, text, dated_titles=indian))
+            feats.append(_features(page_src.index, lines, height, text, dated_titles=indian,
+                                   us_10k=us_10k))
 
         path, margins = _decode(feats)
         # The notes explain statements already printed, so none of them precedes the face.
