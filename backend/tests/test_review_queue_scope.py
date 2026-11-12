@@ -431,3 +431,97 @@ def test_the_real_route_paints_a_failed_check_loudly_and_a_placement_gently(clie
     assert {"balance", "structural", "unmapped"} <= set(tones), tones
     for kind, tone in tones.items():
         assert tone == ("high" if kind in _ACCOUNTING_TYPES else "med"), f"{kind}={tone}"
+
+
+# --------------------------------------------------------------------------------------------
+# A CARD A PERSON COULD DO NOTHING WITH — a row placed on an internal PART, a face figure split
+# into its note's components, and a PRINTED TOTAL. Measured on the five reference filings before
+# the guard: 27–74 unmapped cards a filing, of which 11–34 were rows on a part and 6–22 printed
+# totals; after it, 4–21, every one of them a row a person can place.
+# --------------------------------------------------------------------------------------------
+
+_ENGINE = "engine_unclassified_face__profit_and_loss__unresolved_section__"
+
+
+def _hk_unmapped(rows: list[dict]) -> list[str]:
+    """The `unmapped` card titles for `rows` under the shipped HK output template — the template
+    whose parts (`sub__…`) the configuration places rows on."""
+    import json
+    from pathlib import Path
+
+    from app.api.routes.documents import _build_review, _unmapped_card_positions
+
+    samples = Path(__file__).resolve().parent.parent / "app" / "sample" / "templates"
+    template = json.loads((samples / "output_csv_hk_v1_template.json").read_text(encoding="utf-8"))
+    checks = _build_review(rows, "q.pdf", "en", [], [], template)["checks"]
+    titles = [c["title"] for c in checks if c["type"] == "unmapped"]
+    # ONE SPELLING: the gap explanation and the row suggestions read the same positions.
+    assert [rows[i]["source_label"] for i in _unmapped_card_positions(rows, template)] == titles
+    return titles
+
+
+def _flagged(label: str, key=None, *flags: str) -> dict:
+    return {**_row(label, key=key, printed_in="face"), "flags": list(flags)}
+
+
+def test_a_row_placed_on_an_internal_part_raises_no_card():
+    """The configuration RECOGNISED it: a part has no column by design and adds into its parent's
+    cascade (CLAUDE.md, "the template boundary"), so its figure reaches the output. The card called
+    it off-template, and mapping it to a printed line by hand would count the figure twice. A key
+    the template declares nowhere that is NOT a part keeps its card: the rulebook and the template
+    disagree about it, which is a finding."""
+    assert _hk_unmapped([
+        _flagged("其中：营业收入", "sub__face_principal_revenue"),
+        _flagged("A concept no template declares", "bs_ca__not_a_line_of_this_template"),
+        _flagged("Deferred consideration payable"),
+    ]) == ["A concept no template declares", "Deferred consideration payable"]
+
+
+def test_a_face_figure_split_into_its_notes_components_raises_no_card():
+    """Un-filed on purpose, as a demoted gross parent is: its note's components were filed in its
+    place (`decomposed_into:`), so its money reaches the output through them. A split the face-mapping
+    contract could NOT verify is given an engine key instead, and that one keeps its card."""
+    split = ("alloc:parent_gross_evidence_only", "note_decomposed_from:is_pl__interest_expense",
+             "decomposed_into:is_pl__interest_expense,is_pl__interest_on_lease_liabilities")
+    assert _hk_unmapped([
+        _flagged("Finance costs 財務費用", None, *split),
+        _flagged("Finance costs (unverified split)", _ENGINE + "finance_costs", *split,
+                 "engine_unclassified_face"),
+    ]) == ["Finance costs (unverified split)"]
+
+
+@pytest.mark.parametrize("label,flags", [
+    # by the role the reader gave it, as the residual stage records it
+    ("EQUITY 權益", ("residual_ineligible:section subtotal",)),
+    ("一、营业总收入", ("residual_ineligible:statement total",)),
+    ("AT END OF YEAR", ("residual_ineligible:total caption(AT END OF YEAR)",)),
+    # by its caption, the residual stage's own test, on a row no residual flag speaks for
+    ("NET CURRENT ASSETS/(LIABILITIES) 流動資產╱（負債）淨額", ()),
+    ("TOTAL COMPREHENSIVE LOSS FOR THE YEAR 年內全面虧損總額", ()),
+    ("Cash generated from operations 經營產生所得現金", ()),
+    ("Total shareholders’ equity, ending balances", ()),
+    ("经营活动现金流入小计", ()),
+])
+def test_a_printed_total_raises_no_card(label, flags):
+    """Its figure is the sum of rows the output carries, and the card could not place it: a
+    calculated line is not a remap target."""
+    assert _hk_unmapped([_flagged(label, _ENGINE + "x", *flags, "engine_unclassified_face"),
+                         _flagged("Deferred consideration payable")]) == [
+        "Deferred consideration payable"]
+
+
+def test_a_component_an_others_bucket_refused_still_raises_its_card():
+    """THE ASSERTION THAT FAILS IF THE VETO IS READ AS "A TOTAL". An Others bucket's `exclude_hints`
+    name most totals, and components too — the OCI bucket refuses 所得税费用 and 少数股东损益 because
+    a CAS filing prints the income statement and the OCI as one — so a component nothing placed
+    carries the same flag as a total, and it is exactly what the card is for. So does a component
+    the residual stage refused for any other reason."""
+    rows = [
+        _flagged("所得税费用", _ENGINE + "income_tax", "residual_never_sweep:exclude_hints:所得税费用",
+                 "engine_unclassified_face"),
+        _flagged("其中：子公司吸收少数股东投资收到的现金", _ENGINE + "nci",
+                 "residual_ineligible:of which breakdown", "engine_unclassified_face"),
+        _flagged("Loss per share Basic 每股虧損", _ENGINE + "eps",
+                 "residual_ineligible:per-share figure", "engine_unclassified_face"),
+    ]
+    assert _hk_unmapped(rows) == [r["source_label"] for r in rows]

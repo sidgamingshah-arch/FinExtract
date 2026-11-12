@@ -755,15 +755,35 @@ was on all seven captures. Cost: one call of ~34,000 tokens on an HK-template fi
 characters was measured and rejected: the phrases the answers turned on ("'Finance costs'
 (融资成本, 财务成本, 財務費用)", "投资收益 … whole") sit between characters 120 and 220.
 
-**What it showed about the queue (not changed here).** Most `unmapped` cards on the reference
-filings are not "nothing recognised this caption":
+**What it showed about the queue — CHANGED SINCE.** Most `unmapped` cards on the reference filings
+were not "nothing recognised this caption":
 
-* 11–34 a filing are rows the configuration placed on an internal part (`sub__face_principal_revenue`
-  …) that feeds a parent's cascade; the card calls them off-template because the template prints no
-  column for a part. They are not asked about — a printed line suggested for one would count its
-  figure twice — but the card itself is noise.
-* Of the rest, most are printed subtotals the template COMPUTES (revenue, net profit, net current
-  assets, 小计) and so cannot offer as a remap target either. A card a reviewer can do nothing with.
+* 11–34 a filing were rows the configuration placed on an internal part (`sub__face_principal_revenue`
+  …) that feeds a parent's cascade; the card called them off-template because the template prints no
+  column for a part.
+* Of the rest, most were printed totals (营业总收入, net current assets, every 小计, the cash at the
+  end of the year) — the sum of rows the output carries, which the card cannot offer as a remap
+  target either because a calculated line is not one.
 
-Exempting both from the queue would leave the rows a person can act on; it is a review-queue change
-of its own.
+Neither raises a card now (`documents._raises_unmapped_card`: `_placed_on_a_part`,
+`_printed_total`), nor does a face figure split into its note's components (`_decomposed_parent`,
+1966's "Finance costs"). A printed total is known by the residual stage's reasons — the reader gave
+the row a subtotal's or a statement total's role, or its caption reads as one by
+`stages.residual._reads_as_total`. An Others bucket's `exclude_hints` veto is NOT read as one: it
+names components too (所得税费用, 少数股东损益, "investment property"), and a component nothing placed is
+what the card is for. That costs two cards on 佳明 that are totals ("Loss for the year" and the OCI
+for the year, net of tax, on the comprehensive income statement), which only that veto names.
+
+| filing | `unmapped` cards before | after | what is left |
+|---|---|---|---|
+| hkex_1966_ar | 33 | 5 | the OCI that may be reclassified, the profit attributable to owners and NCI, a heading run into "Issued capital", the non-pledged deposits deducted from cash |
+| hkex_kaming_2025_26 | 27 | 4 | basic and diluted loss per share, and the two totals above |
+| 688008 | 73 | 19 | `其中：` components, OCI items, EPS, attribution rows, equity-statement rows |
+| 300319 | 72 | 21 | the same kinds |
+| 000709 | 74 | 18 | the same kinds, and 应收股利 / 永续债 |
+| apple | 17 | 15 | shareholders' equity statement rows (the two "Total shareholders' equity" balances are gone) |
+| goog | 2 | 1 | "Total cash, cash equivalents, and marketable securities" is gone |
+
+Every other card — calculated mismatches, structural relations, containment gaps and the rows they
+are explained by — is the same on all seven, and every figure is untouched: this is the queue, read
+at request time. Pinned in `tests/test_review_queue_scope.py`.

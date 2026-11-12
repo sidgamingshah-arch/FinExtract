@@ -45,11 +45,12 @@ class RowSuggestionsStage:
         from app.api.routes.extractions import _serialize_rows
         rows = _serialize_rows(doc)
         # ONLY A ROW NOTHING RECOGNISED — no concept, or the engine's placeholder for an unplaced
-        # face row. A card is also raised for a row the configuration DID place, on a key the
-        # template prints no column for: measured on the reference filings, 11–34 rows a filing are
-        # mapped to an internal part (`sub__face_principal_revenue` …) that feeds its parent's
-        # cascade. Suggesting a printed line for one of those would invite a reviewer to undo the
-        # split the configuration made and count its figure twice, so it is not asked about.
+        # face row. A card is also raised for a row the configuration DID place, on a concept the
+        # template declares nowhere: the rulebook and the template disagree about that line, which
+        # is a configuration fix, not a row to place. (A row on an internal PART raises no card at
+        # all — `documents._placed_on_a_part` — so a printed line is never suggested for one, which
+        # would invite a reviewer to undo the split the configuration made and count its figure
+        # twice.)
         from app.stages.face_mapping_contract import is_unclassified_face_key
         positions = [p for p in _unmapped_card_positions(rows, template)
                      if not rows[p].get("canonical_key")

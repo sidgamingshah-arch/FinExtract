@@ -3218,6 +3218,50 @@ def _conflict_note(subject: dict, count: int, withheld: bool, locale: str) -> st
     return note
 
 
+# A PRINTED TOTAL IS NOT A FIGURE TO PLACE. Its figure is the sum of rows the output carries, and
+# the card's remap cannot take it anywhere either — a calculated line is not a remap target — so a
+# card for it is a finding a reviewer can do nothing with. The residual stage records why it would
+# not sweep a row into its section's Others (`stages.residual`), and these three reasons say the row
+# IS a total: the reader gave it a subtotal's or a statement total's role, or its caption reads as
+# one.
+_PRINTED_TOTAL_FLAGS = ("residual_ineligible:section subtotal",
+                        "residual_ineligible:statement total",
+                        "residual_ineligible:total caption(")
+
+
+def _printed_total(r: dict) -> bool:
+    """Whether a row IS a printed total: by the residual stage's reasons above, or — on a statement
+    whose residuals do not test captions, or a row no residual was asked about — by the same caption
+    test (`stages.residual._reads_as_total`, each half of a bilingual caption on its own).
+
+    An Others bucket's `exclude_hints` veto (`residual_never_sweep:exclude_hints:`) is NOT read as
+    one, although most of the totals carry it: the hints also name COMPONENTS — 所得税费用,
+    少数股东损益, "investment property", 收到其他与经营活动有关的现金 — and a component nothing placed
+    is exactly what the card is for."""
+    from app.stages.residual import _reads_as_total
+
+    if any(str(f).startswith(_PRINTED_TOTAL_FLAGS) for f in (r.get("flags") or ())):
+        return True
+    return _reads_as_total(str(r.get("source_label") or "")) is not None
+
+
+def _decomposed_parent(r: dict) -> bool:
+    """A face figure the mapper split into its note's components and un-filed
+    (`map_ontology`, flagged `decomposed_into:`): its money reaches the output through them, as a
+    demoted gross parent's does through its children. Read the way `_demoted_parent` reads its own
+    flag — on a row with NO key: a split the face-mapping contract could not verify is given an
+    engine key instead (`face_mapping_contract._resolved_as_evidence`), and keeps its card."""
+    return (not r.get("canonical_key")
+            and any(str(f).startswith("decomposed_into:") for f in (r.get("flags") or ())))
+
+
+def _placed_on_a_part(key: str | None) -> bool:
+    """Whether a row was placed on a PART — a `sub__` line item, which the template prints no
+    column for by design and adds into its parent's cascade (CLAUDE.md, "the template boundary").
+    The configuration recognised the row; that the part has no column is not a mapping failure."""
+    return bool(key) and str(key).startswith("sub__")
+
+
 def _raises_unmapped_card(i: int, r: dict, declared_keys: set[str], on_a_matrix: set[int],
                           templated: bool) -> bool:
     """Whether row ``i`` raises the row-shaped ``unmapped`` card — ONE spelling of it.
@@ -3227,14 +3271,27 @@ def _raises_unmapped_card(i: int, r: dict, declared_keys: set[str], on_a_matrix:
     when nothing claimed its caption, when it was claimed for a concept the template declares
     nowhere, or when it carries an engine key; and it is exempt when it is a demoted gross parent, a
     matrix row, or a row printed in the notes — see ``_build_review`` for why each one is.
+
+    AND WHEN A PERSON COULD DO NOTHING WITH THE CARD, which was most of the queue on the reference
+    filings: a row placed on an internal PART (`_placed_on_a_part`, 11–34 a filing — its figure
+    reaches its parent's cascade), a face figure the mapper split into its note's components
+    (`_decomposed_parent`, filed under those concepts, as a demoted parent's are), and a PRINTED
+    TOTAL (`_printed_total`). Each of those reaches the output already, or is the sum of rows that
+    do, and mapping one by hand would count its figure twice.
     """
     from app.stages.face_mapping_contract import is_unclassified_face_key
 
     key = r.get("canonical_key")
+    if _placed_on_a_part(key):
+        return False
     off_template = bool(key and templated and key not in declared_keys and i not in on_a_matrix)
     if key and not off_template and not is_unclassified_face_key(key):
         return False
     if _demoted_parent(r) is not None:
+        return False
+    if _decomposed_parent(r):
+        return False
+    if _printed_total(r):
         return False
     if any(v.get("column_index") is not None for v in (r.get("values") or [])):
         return False
