@@ -60,29 +60,92 @@ function DetailRow({ row }: { row: NoteDetailRow }) {
   );
 }
 
+/** A decimal string as the statements print it — grouped, negatives in brackets. Blank for a
+ *  column the row prints nothing in; a string that is not a number is shown as it is. */
+function cell(value: string | null | undefined): string {
+  if (value === null || value === undefined || value === "") return "";
+  const n = Number(value);
+  return Number.isFinite(n) ? fmtIN(n) : String(value);
+}
+
+/** THE NOTE AS PRINTED: every column, under its printed heading, in printed order.
+ *
+ *  A note is not always two years — a PP&E note is Land | Buildings | Plant | Total, with a Cost
+ *  block, a depreciation block and often a block per year. Each block's sub-heading is a row of its
+ *  own, the rows under it are indented, and where the table prints more than one year's block each
+ *  row says which year it belongs to. A wide table scrolls sideways with the captions held still. */
 function StructuredTable({ table }: { table: NonNullable<NoteDetail["table"]> }) {
-  const columns = `minmax(190px, 2fr) repeat(${table.columns.length}, minmax(94px, 1fr))`;
+  const t = useT();
+  const n = table.columns.length;
+  const columns = `minmax(220px, 2.2fr) repeat(${n}, minmax(96px, 1fr))`;
+  const minWidth = 220 + 104 * n;
+  const years = new Set(table.rows.map((r) => r.period).filter(Boolean));
+  const showYear = years.size > 1;
+  const sticky = { position: "sticky" as const, left: 0, zIndex: 1 };
+  let section: string | null | undefined = undefined;
   return (
-    <>
-      <div style={{ display: "grid", gridTemplateColumns: columns, padding: "10px 18px",
-                    background: color.rowAltBg, borderBottom: `1px solid ${color.hairline}`,
-                    fontSize: 10.5, fontWeight: 600, color: color.muted }}>
-        <span>PARTICULARS</span>
-        {table.columns.map((column) => <span key={column} style={{ textAlign: "right" }}>{column}</span>)}
-      </div>
-      {table.rows.map((row, index) => (
-        <div key={`${row.section ?? ""}-${row.label}-${index}`} style={{ display: "grid", gridTemplateColumns: columns,
-          alignItems: "center", padding: "10px 18px", borderBottom: `1px solid ${color.hairline}` }}>
-          <span style={{ fontSize: 12.5, color: color.ink }}>
-            {row.section ? `${row.section}: ${row.label}` : row.label}
-          </span>
+    <div data-testid="note-table" data-layout={table.layout ?? "periods"}
+         style={{ overflowX: "auto" }}>
+      <div style={{ minWidth }}>
+        <div style={{ display: "grid", gridTemplateColumns: columns, padding: "10px 18px",
+                      background: color.rowAltBg, borderBottom: `1px solid ${color.hairline}`,
+                      fontSize: 10.5, fontWeight: 600, color: color.muted, alignItems: "end",
+                      gap: 8 }}>
+          <span style={{ ...sticky, background: color.rowAltBg }}>{t("n.particulars")}</span>
           {table.columns.map((column) => (
-            <span key={column} style={{ textAlign: "right", fontFamily: font.mono, fontSize: 12,
-              color: color.sec2 }}>{row.values[column] ?? "-"}</span>
+            <span key={column} data-testid="note-col"
+                  style={{ textAlign: "right", lineHeight: 1.35, overflowWrap: "anywhere" }}>
+              {column}
+            </span>
           ))}
         </div>
-      ))}
-    </>
+        {table.rows.map((row, index) => {
+          const heading = row.section && row.section !== section ? row.section : null;
+          section = row.section;
+          const isTot = row.kind === "tot";
+          const isSub = row.kind === "sub";
+          const bg = isTot ? color.indigoTint2 : isSub ? color.rowAltBg : color.surface;
+          const fg = isTot ? color.indigo : color.ink;
+          const wt = isTot || isSub ? 600 : 400;
+          return (
+            <div key={`${row.section ?? ""}-${row.label}-${index}`}>
+              {heading && (
+                <div data-testid="note-section"
+                     style={{ padding: "9px 18px 5px", fontSize: 11.5, fontWeight: 700,
+                              color: color.sec2, borderBottom: `1px solid ${color.hairline}`,
+                              background: color.surface }}>
+                  {heading}
+                </div>
+              )}
+              <div data-testid="note-table-row"
+                   style={{ display: "grid", gridTemplateColumns: columns, alignItems: "center",
+                            padding: "9px 18px", borderBottom: `1px solid ${color.hairline}`,
+                            background: bg, gap: 8 }}>
+                <span style={{ ...sticky, background: bg, fontSize: 12.5, fontWeight: wt,
+                               color: fg, paddingLeft: row.section ? 12 : 0 }}>
+                  {row.label}
+                  {showYear && row.period && (
+                    <span data-testid="note-row-year"
+                          style={{ marginLeft: 8, fontSize: 10, fontWeight: 600,
+                                   color: color.muted, background: color.rowAltBg,
+                                   borderRadius: 3, padding: "1px 5px" }}>
+                      {row.period}
+                    </span>
+                  )}
+                </span>
+                {table.columns.map((column) => (
+                  <span key={column} style={{ textAlign: "right", fontFamily: font.mono,
+                                              fontSize: 12, fontWeight: wt,
+                                              color: isTot ? fg : color.sec2 }}>
+                    {cell(row.values[column])}
+                  </span>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -120,9 +183,14 @@ function Detail({ detail }: { detail: NoteDetail }) {
   // columns, because an empty header cell says less than "Current" does.
   const per = (i: number) =>
     detail.periods?.[i]?.trim() || t(i === 0 ? "n.periodCurrent" : "n.periodPrior");
-  const structuredTable = detail.table && detail.table.columns.length > 2 ? detail.table : null;
+  // EVERY COLUMN THE NOTE PRINTS, table by table, wherever a table prints more than the two years
+  // or its columns are not years at all. A note whose every table is a plain two-year table keeps
+  // the two-column view with its confidence column; nothing it prints is left out of that.
+  const tables = detail.tables?.length ? detail.tables : detail.table ? [detail.table] : [];
+  const gridView = tables.some((tb) => tb.layout === "columns" || tb.columns.length > 2);
+  const wide = gridView && tables.some((tb) => tb.columns.length > 4);
   return (
-    <div style={{ maxWidth: 760 }}>
+    <div style={{ maxWidth: wide ? 1240 : 760 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
         <span style={{ fontFamily: font.mono, fontSize: 13, fontWeight: 600, color: color.indigo }}>
           {t("n.note")} {detail.no}
@@ -143,8 +211,27 @@ function Detail({ detail }: { detail: NoteDetail }) {
         </a>{" "}
         {t("n.onFace")}
       </div>
+      {gridView ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {tables.map((tb, i) => (
+            <div key={i}>
+              {tables.length > 1 && (
+                <div data-testid="note-table-caption"
+                     style={{ fontSize: 11, color: color.muted, margin: "0 0 5px 2px" }}>
+                  {t("n.tableOf").replace("{i}", String(i + 1)).replace("{n}", String(tables.length))}
+                  {tb.page !== null && tb.page !== undefined && tb.page !== ""
+                    ? ` · ${t("n.sourcePage").replace("{p}", String(tb.page))}` : ""}
+                </div>
+              )}
+              <Card pad={0} style={{ overflow: "hidden" }}>
+                <StructuredTable table={tb} />
+              </Card>
+            </div>
+          ))}
+        </div>
+      ) : (
       <Card pad={0} style={{ overflow: "hidden" }}>
-        {structuredTable ? <StructuredTable table={structuredTable} /> : <><div
+        <><div
           style={{
             display: "grid",
             gridTemplateColumns: GRID,
@@ -164,8 +251,9 @@ function Detail({ detail }: { detail: NoteDetail }) {
         {detail.rows.map((r, i) => (
           <DetailRow key={i} row={r} />
         ))}
-        </>}
+        </>
       </Card>
+      )}
       {detail.reconciliation && (
         <div
           style={{

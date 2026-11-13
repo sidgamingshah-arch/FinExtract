@@ -1271,10 +1271,22 @@ def _serialize_notes(doc_model) -> list[dict]:
     """Extracted note detail tables → view/export shape: each note with its own breakdown
     rows (label + period values) and provenance."""
     folio_of = _folio_lookup(doc_model)
+    # THE PRINTED COLUMN OF EVERY FIGURE OF A TABLE WHOSE COLUMNS ARE NOT PERIODS — a PP&E note's
+    # Land | Buildings | Plant | Total, a fair-value table's levels, an ageing schedule's buckets —
+    # and the year of each row's block. The SAME reading the model's requests are built from
+    # (`note_columns.notes_layout`), so the Notes screen and the model see one table. Guarded: a
+    # layout that fails costs the screen its column names, never the run.
+    try:
+        from app.services import note_columns
+        layout = note_columns.notes_layout(doc_model.notes)
+    except Exception:  # noqa: BLE001
+        layout = {}
     notes = []
     for nt in doc_model.notes:
         rows = []
         for it in nt.items:
+            lay = layout.get(id(it)) or {}
+            keys = lay.get("keys") or {}
             values = [{
                 "period_label": ev.period_label,
                 # The printed column header ("31 December 2024"), carried the same way the face
@@ -1292,7 +1304,14 @@ def _serialize_notes(doc_model) -> list[dict]:
                 # this the call-out was raised on the value and served to nobody.
                 "flags": list(ev.confidence.flags),
                 "provenance": _prov_dict(ev.provenance, folio_of),
-            } for ev in it.values.values()]
+                # THE COLUMN AS PRINTED. `column` is the laid-out table's name for it (above);
+                # `column_heading` the reader's heading off the header band, on any table;
+                # `column_period` the period that header states, where it states one.
+                **({"column": keys[vk]} if vk in keys else {}),
+                **({"column_heading": ev.column_heading} if ev.column_heading else {}),
+                **({"column_period": ev.column_period} if ev.column_period else {}),
+                **({"column_index": ev.column_index} if ev.column_index is not None else {}),
+            } for vk, ev in it.values.items()]
             # Carry the row's role (line/subtotal/total) and mapping confidence so the notes
             # detail renders subtotal/total emphasis and a per-row confidence badge.
             supports_face_key = next((flag.split(":", 1)[1]
@@ -1314,7 +1333,18 @@ def _serialize_notes(doc_model) -> list[dict]:
                          "group": it.group_hint,
                          "caption_borrowed": it.caption_borrowed,
                          "component_ordinals": list(it.component_ordinals),
-                         "ordinal": it.ordinal})
+                         "ordinal": it.ordinal,
+                         # EVERY COLUMN THE TABLE PRINTS, blank ones included, left to right.
+                         **({"printed_columns": list(it.printed_columns)}
+                            if it.printed_columns else {}),
+                         # Where the row sits in a table whose columns are not periods: a line of
+                         # the column header (not a row), the block it is under ("Accumulated
+                         # depreciation"), and the year of that block — current / prior, or ""
+                         # where the table does not date it.
+                         **({"header_line": True} if lay.get("fragment") else {}),
+                         **({"block": lay.get("group") or "",
+                             "block_period": lay.get("period") or ""}
+                            if keys else {})})
         page = (nt.source_pages[0] if nt.source_pages else 0)
         # ``page`` stays the 1-based SHEET position: the Notes screen turns it straight back into an
         # index to scroll the viewer and to size the page stack. ``printed_page`` is the folio, a

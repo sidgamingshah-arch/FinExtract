@@ -1726,9 +1726,26 @@ export interface NoteDetailRow {
   conf_pct?: number | null;
   kind?: "sub" | "tot";
 }
+/** A note's table AS PRINTED: every column the note prints, under its printed heading, in printed
+ *  order (`documents._note_table_rows`). A PP&E note is Land | Buildings | Plant | Total, a
+ *  fair-value table its levels, an ageing schedule its buckets — not two years. */
 export interface NoteStructuredTable {
+  /** "columns" for a table whose columns are not periods; "periods" for one whose columns are
+   *  years. Absent on a run extracted before the column names were served. */
+  layout?: "columns" | "periods";
   columns: string[];
-  rows: { label: string; section?: string | null; values: Record<string, string | null> }[];
+  rows: {
+    label: string;
+    /** The sub-heading the row sits under — "Cost", "Accumulated depreciation". */
+    section?: string | null;
+    kind?: "sub" | "tot";
+    /** The year of the row's block, on a table that prints a block per year. */
+    period?: string;
+    /** Decimal strings, keyed by column heading. Null where the row prints nothing there. */
+    values: Record<string, string | null>;
+  }[];
+  /** The page this table starts on (the printed folio where there is one). */
+  page?: string | number | null;
 }
 export interface NoteDetail {
   /** As the filing prints it — see NoteIndexItem.no. */
@@ -1755,6 +1772,10 @@ export interface NoteDetail {
   periods?: string[];
   /** The source table's full shape, used for AI-structured multi-column note schedules. */
   table?: NoteStructuredTable;
+  /** THE NOTE'S TABLES ONE BY ONE, each with every column it prints. A note prints several tables
+   *  more often than one (classification, ageing, movement); one grid of every column any of them
+   *  prints was mostly empty cells. Absent on a server that predates it. */
+  tables?: NoteStructuredTable[];
 }
 export interface NotesResponse {
   notes: NoteIndexItem[];

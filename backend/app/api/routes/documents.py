@@ -7037,14 +7037,20 @@ def _note_index(details: list[dict]) -> dict[str, dict]:
     printed table and this index — the presentation layer — is where they become one note.
     """
     out: dict[str, dict] = {}
+    tables_of: dict[str, int] = {}
     for d in details:
         n = _note_key(d.get("no"))
         if n is None:
             continue
         page = d.get("page") or 0
+        # WHICH PRINTED TABLE each row came from, and its page — the Notes screen shows a note's
+        # tables one by one (`_note_tables`), not as one grid of every column any of them prints.
+        k = tables_of[n] = tables_of.get(n, -1) + 1
+        tagged = [{**r, "_table": k, "_table_page": d.get("printed_page") or page or None}
+                  for r in (d.get("rows") or [])]
         cur = out.get(n)
         if cur is None:
-            out[n] = {**d, "rows": list(d.get("rows") or []),
+            out[n] = {**d, "rows": tagged,
                       "pages": [page] if page else [],
                       # Kept as (sheet, folio) pairs so the folio of the note's FIRST page can be
                       # named after the sheet pages are sorted. A folio is a string and sorts
@@ -7052,7 +7058,7 @@ def _note_index(details: list[dict]) -> dict[str, dict]:
                       "printed_by_page": ({page: d.get("printed_page")}
                                           if page and d.get("printed_page") else {})}
             continue
-        cur["rows"].extend(d.get("rows") or [])
+        cur["rows"].extend(tagged)
         if page and d.get("printed_page"):
             cur.setdefault("printed_by_page", {})[page] = d["printed_page"]
         if page:
@@ -7179,34 +7185,145 @@ def _reconciliation_text(entries: list[dict], note_no: str) -> str | None:
     return " ".join(parts)
 
 
+_BASIS_WORD = {"consolidated": "Group", "standalone": "Company"}
+
+
 def _note_table_rows(rows: list[dict], periods: list[str]) -> dict:
-    """Normalize extracted note rows into a table-like shape for the Notes screen."""
-    columns: list[str] = []
+    """EVERY COLUMN THE NOTE PRINTS, under its printed heading, for the Notes screen.
 
-    def _key(value: dict) -> str | None:
-        label = str(value.get("period_display") or value.get("period_label") or "").strip()
-        return label or None
+    A note is not always two years. A PP&E note prints Land | Buildings | Plant | Total, a
+    fair-value table its three levels and a total, an ageing schedule its buckets, a PRC note
+    期末余额 · 账面余额 | 坏账准备 | 期初余额 · …. This used to key each figure by its period label or
+    period display, so a wide table's columns were "current, prior, col2 …", and two columns whose
+    header printed the same year collapsed into one — the second's figures overwriting the first's.
 
-    for row in rows:
-        for value in row.get("values", []) or []:
-            key = _key(value)
-            if key and key not in columns:
-                columns.append(key)
+    A column is now identified by WHERE the figure stands — the printed column the laid-out table
+    names (`note_columns.notes_layout`, the reading the model's requests are built from, served as
+    `column`), else its basis and positional key — and headed by what is printed over it: that
+    name, else the reader's `column_heading`, else the period display, else the period itself
+    (`periods`), else "Column N". Columns are ordered as printed: by the matrix's column index, else
+    by where their figures sit across the page, else by first appearance. Two columns printing the
+    same heading are told apart by basis ("· Group" / "· Company"), else by number.
 
-    if not columns:
-        columns = [str(period).strip() for period in periods if str(period).strip()]
+    A line of the column header is not a row (`header_line`). Each row carries its block (the
+    sub-heading it sits under — "Cost", "Accumulated depreciation") and, on a laid-out table, the
+    period of that block as one of `periods`, so a note printing a 2024 block above a 2023 block
+    reads as two years and not one.
+
+    ``layout`` is "columns" for a table whose columns are not periods, "periods" otherwise.
+    """
+    live = [r for r in rows if not r.get("header_line")]
+    laid = any(v.get("column") for r in live for v in (r.get("values") or []))
+
+    def col_id(v: dict) -> tuple:
+        if v.get("column"):
+            return ("column", str(v["column"]))
+        return ("period", str(v.get("basis") or ""), str(v.get("period_label") or ""))
+
+    def period_name(slot: str | None) -> str:
+        if slot == "current" and periods:
+            return str(periods[0]).strip()
+        if slot == "prior" and len(periods) > 1:
+            return str(periods[1]).strip()
+        return ""
+
+    cols: dict[tuple, dict] = {}
+    for r in live:
+        for v in r.get("values") or []:
+            cid = col_id(v)
+            c = cols.setdefault(cid, {"first": len(cols), "xs": [], "idx": [], "heads": {},
+                                      "basis": str(v.get("basis") or ""),
+                                      "slot": str(v.get("period_label") or "")})
+            head = str(v.get("column") or v.get("column_heading") or v.get("period_display")
+                       or "").strip()
+            if head:
+                c["heads"][head] = c["heads"].get(head, 0) + 1
+            box = ((v.get("provenance") or {}).get("bbox") or {})
+            if isinstance(box.get("x0"), (int, float)):
+                c["xs"].append(float(box["x0"]))
+            if isinstance(v.get("column_index"), int):
+                c["idx"].append(v["column_index"])
+
+    def median(xs: list[float]) -> float:
+        xs = sorted(xs)
+        return xs[len(xs) // 2]
+
+    ordered = list(cols.items())
+    if ordered and all(c["idx"] for _cid, c in ordered):
+        ordered.sort(key=lambda kv: (median(kv[1]["idx"]), kv[1]["first"]))
+    elif ordered and all(c["xs"] for _cid, c in ordered):
+        ordered.sort(key=lambda kv: (median(kv[1]["xs"]), kv[1]["first"]))
+    else:
+        ordered.sort(key=lambda kv: kv[1]["first"])
+
+    headings: list[str] = []
+    for n, (cid, c) in enumerate(ordered, 1):
+        head = max(c["heads"].items(), key=lambda kv: (kv[1], -len(kv[0])))[0] if c["heads"] else ""
+        headings.append(head or period_name(c["slot"]) or f"Column {n}")
+    bases = {c["basis"] for _cid, c in ordered}
+    seen: dict[str, int] = {}
+    # Decided on the headings as read, before any is renamed: counting while renaming left the last
+    # of three "2024" columns unlabelled, because by then it was the only one still called that.
+    repeated = {h for h in headings if headings.count(h) > 1}
+    for i, (cid, c) in enumerate(ordered):
+        if headings[i] in repeated and len(bases) > 1 and c["basis"] in _BASIS_WORD:
+            headings[i] = f"{headings[i]} · {_BASIS_WORD[c['basis']]}"
+    for i, head in enumerate(headings):
+        if headings.count(head) > 1:
+            seen[head] = seen.get(head, 0) + 1
+            if seen[head] > 1:
+                headings[i] = f"{head} ({seen[head]})"
+    if not ordered:
+        headings = [str(p).strip() for p in periods if str(p).strip()]
 
     table_rows: list[dict] = []
-    for row in rows:
-        values = {}
-        for value in row.get("values", []) or []:
-            key = _key(value)
-            if key is not None:
-                values[key] = value.get("value")
-        table_rows.append({"label": row.get("label", ""), "section": row.get("group_hint") or None,
-                   "values": {col: values.get(col) for col in columns}})
+    for r in live:
+        by_col = {col_id(v): v.get("value") for v in (r.get("values") or [])}
+        block_period = period_name(r.get("block_period")) if laid else ""
+        table_rows.append({
+            "label": r.get("label", ""),
+            "section": (r.get("block") or r.get("group") or r.get("group_hint") or None),
+            **({"kind": _note_row_kind(r)} if _note_row_kind(r) else {}),
+            **({"period": block_period} if block_period else {}),
+            "values": {headings[i]: by_col.get(cid) for i, (cid, _c) in enumerate(ordered)}})
 
-    return {"columns": columns, "rows": table_rows}
+    return {"layout": "columns" if laid else "periods", "columns": headings,
+            "rows": table_rows}
+
+
+def _note_tables(rows: list[dict], periods: list[str]) -> list[dict]:
+    """THE NOTE'S TABLES, ONE BY ONE, each with every column it prints (`_note_table_rows`).
+
+    A note prints several tables more often than one: a receivables note its classification, its
+    ageing and its allowance movement; a PP&E note one table per year. Laid side by side in one
+    grid they made 13 to 16 columns, most of every row empty — measured on 河钢股份 000709, where
+    42 notes were wide. A table is the rows of one printed table (`_note_index`'s `_table`), split
+    again where a new column header is printed inside it (`header_line`), and joined back to the
+    table before it when it prints the same columns — a table continued over a page break.
+
+    Each is `{"columns", "layout", "rows", "page"}`, in printed order.
+    """
+    groups: list[list[dict]] = []
+    last_table = object()
+    for r in rows:
+        table = r.get("_table", 0)
+        new_header = bool(r.get("header_line")) and bool(groups) and any(
+            not x.get("header_line") for x in groups[-1])
+        if table != last_table or new_header:
+            groups.append([])
+            last_table = table
+        groups[-1].append(r)
+    out: list[dict] = []
+    for g in groups:
+        built = _note_table_rows(g, periods)
+        if not built["rows"]:
+            continue
+        built["page"] = next((r.get("_table_page") for r in g if r.get("_table_page")), None)
+        if out and out[-1]["columns"] == built["columns"]:
+            out[-1]["rows"].extend(built["rows"])
+            continue
+        out.append(built)
+    return out
 
 
 @router.get("/{document_id}/notes", dependencies=[Depends(authorized_document)])
@@ -7304,6 +7421,8 @@ def get_document_note(document_id: str, note_no: str, locale: str = Depends(outp
             # so a header cannot disagree with the column under it.
             "periods": periods,
             "table": _note_table_rows(d.get("rows", []), periods),
+            # The same rows, one table per printed table, each with every column it prints.
+            "tables": _note_tables(d.get("rows", []), periods),
             "reconciliation": _reconciliation_text(result.get("reconciliation", []), note_no),
         }
 

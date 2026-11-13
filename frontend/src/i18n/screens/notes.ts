@@ -22,6 +22,7 @@ export const notes: Record<Locale, Record<string, string>> = {
     "n.reconciliation": "Note-to-face reconciliation.",
     "n.sourceView": "Annual report",
     "n.sourcePage": "Page {p}",
+    "n.tableOf": "Table {i} of {n}",
   },
   zh: {
     "n.heading": "已提取附注",
@@ -40,6 +41,7 @@ export const notes: Record<Locale, Record<string, string>> = {
     "n.reconciliation": "附注与表内核对。",
     "n.sourceView": "年度报告",
     "n.sourcePage": "第{p}页",
+    "n.tableOf": "表 {i}/{n}",
   },
   ar: {
     "n.heading": "الإيضاحات المستخرجة",
@@ -58,6 +60,7 @@ export const notes: Record<Locale, Record<string, string>> = {
     "n.reconciliation": "تسوية الإيضاح مع القائمة.",
     "n.sourceView": "التقرير السنوي",
     "n.sourcePage": "صفحة {p}",
+    "n.tableOf": "الجدول {i} من {n}",
   },
   fr: {
     "n.heading": "Notes extraites",
@@ -76,5 +79,6 @@ export const notes: Record<Locale, Record<string, string>> = {
     "n.reconciliation": "Rapprochement note-bilan.",
     "n.sourceView": "Rapport annuel",
     "n.sourcePage": "Page {p}",
+    "n.tableOf": "Tableau {i} sur {n}",
   },
 };
