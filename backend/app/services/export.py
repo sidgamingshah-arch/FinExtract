@@ -987,6 +987,7 @@ def _add_analysis_sheets(wb, rows: list[dict], disclosures: list[dict],
         # number of lines per matter type and per unclassified paragraph — and a "Where found"
         # snippet is a location, not an account of the figure. A sheet showing 118,754,500 with no
         # statement of what it is made of cannot be reviewed.
+        ri = _emit_disclosure_reading(ws, d, ri)
         ri = _emit_disclosure_working(ws, d, ri, wrap, num_fmt, right)
     summary_row = ri + 1
     found = sum(bool(d.get("present")) for d in disclosures)
@@ -1069,6 +1070,40 @@ def _disclosure_amount(ws, row: int, value, num_fmt, right) -> None:
     except (TypeError, ValueError):
         cell = ws.cell(row, 4, str(value))
     cell.alignment = right
+
+
+def _emit_disclosure_reading(ws, d: dict, ri: int) -> int:
+    """Indented rows with the model's checked reading of the topic (services.disclosure_reading):
+    what the filing discloses, then each point with its page and the words it quotes.
+
+    The amount of a point stays in the text, as printed: it is the filing's string ("HK$'000
+    1,234"), not a figure the run computed, and the Amount column holds only computed figures.
+    Returns the next free row; an entry without a reading is untouched.
+    """
+    from openpyxl.styles import Alignment, Font
+
+    reading = d.get("reading")
+    if not isinstance(reading, dict) or not reading.get("status"):
+        return ri
+    indent1 = Alignment(indent=1, wrap_text=True, vertical="top")
+    indent2 = Alignment(indent=2, wrap_text=True, vertical="top")
+    grey = Font(size=9, color="6B7280")
+    c = ws.cell(ri, 1, f"Read: {reading.get('status_label') or reading['status']}")
+    c.alignment = indent1
+    c.font = Font(bold=True, size=9, color="374151")
+    ws.cell(ri, 5, reading.get("summary") or "").alignment = Alignment(wrap_text=True,
+                                                                       vertical="top")
+    ri += 1
+    for pt in reading.get("points") or ():
+        ws.cell(ri, 1, pt.get("text") or "").alignment = indent2
+        ws.cell(ri, 3, pt.get("page") or "")
+        amount = " ".join(x for x in (pt.get("currency") or "", pt.get("amount") or "") if x)
+        quote = f"\u201c{pt.get('quote') or ''}\u201d"
+        c = ws.cell(ri, 5, f"{amount} · {quote}" if amount else quote)
+        c.font = grey
+        c.alignment = Alignment(wrap_text=True, vertical="top")
+        ri += 1
+    return ri
 
 
 def _emit_disclosure_working(ws, d: dict, ri: int, wrap, num_fmt, right) -> int:

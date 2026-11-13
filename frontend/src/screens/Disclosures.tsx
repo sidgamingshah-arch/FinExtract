@@ -10,6 +10,7 @@
  * its nav destinations (All Notes, Review Queue, Analysis are each one), so a local tab strip would
  * be a second, competing idiom for the same idea.
  */
+import { useState } from "react";
 import { Card } from "../components/ui";
 import { EmptyState } from "../components/EmptyState";
 import { useT } from "../i18n";
@@ -25,6 +26,130 @@ function amount(value: string | null | undefined, currency: string | null | unde
   if (!Number.isFinite(n)) return String(value);
   return `${currency ? `${currency} ` : ""}${n.toLocaleString(undefined, {
     minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+/** The badge colours of a reading's status. A finding is amber, or red where it bears on whether
+ *  the figures can be relied on at all (a modified opinion, a material going-concern uncertainty);
+ *  an answer that nothing is disclosed is quiet. */
+function statusTone(d: Disclosure): { bg: string; fg: string } {
+  const r = d.reading;
+  if (!r) return { bg: color.hairline2, fg: color.muted };
+  if (r.finding) {
+    return d.key === "going_concern" || d.key === "auditor_qualification"
+      ? { bg: color.redBg, fg: color.redFg } : { bg: color.amberBg, fg: color.amberFg };
+  }
+  return { bg: color.greenBg, fg: color.greenFg };
+}
+
+/** The pages a row cites: its reading's points where it has some, else the scan's one page. */
+function citedPages(d: Disclosure): string[] {
+  const pts = d.reading?.points ?? [];
+  if (pts.length) {
+    const out: string[] = [];
+    for (const p of pts) {
+      const page = p.page === null || p.page === undefined ? "" : String(p.page);
+      if (page && !out.includes(page)) out.push(page);
+    }
+    return out;
+  }
+  return d.present && d.page !== null && d.page !== undefined ? [String(d.page)] : [];
+}
+
+/** WHAT THE FILING DISCLOSES, as the model read it: the summary in the evidence cell, and here,
+ *  under the row, each point with its page, the amount as printed and the words it quotes. The
+ *  scan's passage stays one click away, because it is what the reading was checked against. */
+function DisclosureReadingPoints({ d }: { d: Disclosure }) {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  const r = d.reading;
+  if (!r) return null;
+  const pages = (r.pages_read ?? []).join(", ");
+  return (
+    <div data-testid={`disc-reading-${d.key}`}
+         style={{ gridColumn: "1 / -1", marginTop: 6, paddingLeft: 14,
+                  borderLeft: `2px solid ${statusTone(d).fg}`,
+                  display: "flex", flexDirection: "column", gap: 6 }}>
+      {r.points.map((pt, i) => (
+        <div key={i} data-testid={`disc-point-${d.key}-${i}`}
+             style={{ display: "grid", gridTemplateColumns: "56px 1fr", gap: 10 }}>
+          <span style={{ fontSize: 10.5, fontWeight: 700, color: color.greenFg }}>
+            {pt.page !== null && pt.page !== undefined && pt.page !== ""
+              ? t("view.folioN").replace("{n}", String(pt.page)) : ""}
+          </span>
+          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            <span style={{ fontSize: 12, color: color.ink, lineHeight: 1.5 }}>
+              {pt.text}
+              {pt.amount && (
+                <span style={{ marginLeft: 6, fontFamily: font.mono, fontSize: 11.5,
+                               color: color.ink, fontVariantNumeric: "tabular-nums" }}>
+                  {[pt.currency, pt.amount].filter(Boolean).join(" ")}
+                </span>
+              )}
+            </span>
+            <span style={{ fontSize: 11, color: color.muted, fontStyle: "italic", lineHeight: 1.5 }}>
+              “{pt.quote}”
+            </span>
+          </div>
+        </div>
+      ))}
+      <div style={{ display: "flex", gap: 12, alignItems: "baseline", flexWrap: "wrap" }}>
+        <span style={{ fontSize: 10.5, color: color.faint }}>
+          {t("disc.read.by").replace("{n}", String(r.passages_read ?? 0)).replace("{pages}", pages)}
+        </span>
+        {d.snippet && (
+          <button type="button" data-testid={`disc-passage-toggle-${d.key}`}
+                  onClick={() => setOpen((v) => !v)}
+                  style={{ fontSize: 10.5, color: color.sec2, background: "none", border: "none",
+                           padding: 0, cursor: "pointer", textDecoration: "underline" }}>
+            {open ? t("disc.read.hidePassage") : t("disc.read.showPassage")}
+          </button>
+        )}
+      </div>
+      {open && d.snippet && (
+        <div data-testid={`disc-passage-${d.key}`}
+             style={{ fontSize: 11, color: color.muted, fontStyle: "italic", lineHeight: 1.5 }}>
+          {d.present && d.page !== null ? `${t("view.folioN").replace("{n}", String(d.page))} · ` : ""}
+          {d.snippet}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** A topic the model did not read: the scan's passage, marked as a keyword scan and cut to six
+ *  lines. The passage is the whole of the text around the keyword — on a filing that runs its notes
+ *  together that is the page — and a wall of it read as an answer when it is only a location. */
+function ScanPassage({ d }: { d: Disclosure }) {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  if (!d.snippet) {
+    return <span style={{ fontSize: 11.5, color: color.muted }}>{t("ex.notFound")}</span>;
+  }
+  const long = d.snippet.length > 420;
+  return (
+    <span style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+      <span data-testid={`disc-scan-only-${d.key}`}
+            style={{ fontSize: 10.5, color: color.faint }}>
+        {t("disc.read.scanOnly")}
+      </span>
+      <span data-testid={`disc-snippet-${d.key}`}
+            style={{ fontSize: 11.5, color: color.muted, lineHeight: 1.5, fontStyle: "italic",
+                     ...(long && !open ? { display: "-webkit-box", WebkitLineClamp: 6,
+                                           WebkitBoxOrient: "vertical" as const,
+                                           overflow: "hidden" } : {}) }}>
+        {d.snippet}
+      </span>
+      {long && (
+        <button type="button" data-testid={`disc-snippet-toggle-${d.key}`}
+                onClick={() => setOpen((v) => !v)}
+                style={{ alignSelf: "flex-start", fontSize: 10.5, color: color.sec2,
+                         background: "none", border: "none", padding: 0, cursor: "pointer",
+                         textDecoration: "underline" }}>
+          {open ? t("disc.read.hidePassage") : t("disc.read.showPassage")}
+        </button>
+      )}
+    </span>
+  );
 }
 
 /** The working behind a quantified disclosure: the sentence, the per-type sums, the leftovers.
@@ -229,9 +354,13 @@ export default function DisclosuresScreen() {
                           gap: 12, alignItems: "start", padding: "8px 0",
                           borderBottom: `1px solid ${color.hairline2}` }}>
               <span style={{ fontSize: 12.5, color: color.ink }}>{d.label}</span>
-              <span style={{ fontSize: 10.5, fontWeight: 700,
-                             color: d.present ? color.greenFg : color.faint }}>
-                {d.present ? t("view.folioN").replace("{n}", String(d.page)) : "—"}
+              <span data-testid={`disc-pages-${d.key}`}
+                    style={{ fontSize: 10.5, fontWeight: 700,
+                             color: citedPages(d).length ? color.greenFg : color.faint }}>
+                {citedPages(d).length
+                  ? citedPages(d).slice(0, 3).map((n) => t("view.folioN").replace("{n}", n))
+                      .join(", ") + (citedPages(d).length > 3 ? "…" : "")
+                  : "—"}
               </span>
               {/* Blank, never 0, when no amount was computed: most of these are qualitative, and
                   for the quantified one an empty cell means "no figure was disclosed", which is a
@@ -244,15 +373,33 @@ export default function DisclosuresScreen() {
                       undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                   : ""}
               </span>
-              <span style={{ fontSize: 11.5, color: color.muted, lineHeight: 1.5,
-                             fontStyle: d.snippet ? "italic" : "normal" }}>
-                {d.snippet || t("ex.notFound")}
-              </span>
+              {/* THE READING FIRST, where the model read the topic: its status and what the filing
+                  discloses, in a sentence or three. The keyword passage is what it was checked
+                  against, and is under the points. Without a reading the passage is all there is,
+                  and it is shown as before — marked as a keyword scan, because a keyword is not a
+                  finding. */}
+              {d.reading ? (
+                <span data-testid={`disc-summary-${d.key}`}
+                      style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  <span data-testid={`disc-status-${d.key}`}
+                        style={{ alignSelf: "flex-start", fontSize: 10.5, fontWeight: 700,
+                                 padding: "1px 7px", borderRadius: 3,
+                                 background: statusTone(d).bg, color: statusTone(d).fg }}>
+                    {d.reading.status_label}
+                  </span>
+                  <span style={{ fontSize: 12, color: color.ink, lineHeight: 1.55 }}>
+                    {d.reading.summary}
+                  </span>
+                </span>
+              ) : (
+                <ScanPassage d={d} />
+              )}
               {/* HOW THE FIGURE WAS ARRIVED AT. Spans all four columns beneath the row rather
                   than squeezing into the evidence cell: it is a variable number of lines — one
                   per type, one per unclassified paragraph — and the amounts have to line up
                   under one another to be read as a breakdown that sums. Rendered only where the
                   pipeline computed one, so every other disclosure looks exactly as before. */}
+              <DisclosureReadingPoints d={d} />
               <DisclosureWorking d={d} />
             </div>
           ))}

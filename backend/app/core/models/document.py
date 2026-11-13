@@ -86,6 +86,10 @@ class DocumentModel(BaseModel):
     # services.contingent_liabilities) — a paragraph and two small tables, not a single figure, so
     # it is kept here rather than forced into a LineItem's numeric ``value``.
     contingent_liabilities: dict | None = None
+    # The Disclosures screen's topics as the model read them, checked against the pages they cite
+    # (services.disclosure_reading): topic key -> {reading, refused, usage, passages}. Folded onto
+    # the disclosure entries by the worker; empty when no provider is configured.
+    disclosure_readings: dict = Field(default_factory=dict)
     unit_context: UnitContext | None = None    # detected source currency + scale ("in ₹ crore")
     # Headings that LOOKED like a statement title and resolved to nothing. The lexicon's coverage is
     # otherwise unmeasurable — you cannot tell a filing whose titles are all recognised from one

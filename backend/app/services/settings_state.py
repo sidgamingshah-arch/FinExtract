@@ -161,6 +161,14 @@ EXTRACTION_KNOBS: tuple[Knob, ...] = (
          "rows beside it, and the model names the template line it belongs on, or none. The "
          "suggestion and its reason appear on the row's review card; nothing is mapped until a "
          "person applies it. If the call fails the cards are shown without one."),
+    Knob("llm_disclosures", "bool", "Read the disclosures with the model (one call per topic)",
+         "Up to eight extra model calls per filing, one per topic of the Disclosures screen — "
+         "auditor's opinion, going concern, contingent liabilities, guarantees, commitments, "
+         "related parties, subsequent events, litigation — each with its own prompt, on the passages "
+         "where the filing mentions the topic. The model says what is actually disclosed (not just "
+         "where the word appears), with the amounts and counterparties as printed; every point must "
+         "quote the page it cites or it is dropped. The credit view's report signals follow the "
+         "reading. Off, or if a call fails, the screen shows the keyword scan."),
     Knob("llm_gap_routing", "bool", "Close subtotal gaps (LLM)",
          "When a section subtotal computed from the template's lines differs from the printed "
          "one, offer the model the extracted lines that reached no statement and ask which "

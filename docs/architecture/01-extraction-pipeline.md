@@ -7,7 +7,7 @@ results are available (`app/core/pipeline.py::Pipeline.run`).
 
 ## Stages
 
-**Twenty-three stages, assembled by `app/core/pipeline.py::default_pipeline()`.** That
+**Twenty-four stages, assembled by `app/core/pipeline.py::default_pipeline()`.** That
 function is the only place the order is stated; `api/routes/extractions.py::pipeline_stage_names`
 reads the list off it rather than keeping a copy, and the run row records the list it was
 queued with. Do not add a third copy — the list below names each stage and its file, and
@@ -15,7 +15,8 @@ its order is `default_pipeline()`'s:
 
 `ingest · integrity · language_detect · classify · extract · map_line_items · residual ·
 normalize · link_notes · line_item_llm · note_sourced · contingent_liabilities · assemble_components · shared_figures · reconcile · prune_notes · confidence ·
-gap_closing · face_mapping_contract · note_tag_gate · structural · row_suggestions · segment`
+gap_closing · face_mapping_contract · note_tag_gate · structural · row_suggestions ·
+disclosure_reading · segment`
 
 **Why the list is four stages shorter, and why six output lines are now blank.** Five
 *derivation* services used to sit between `link_notes` and `reconcile`, and they have been
@@ -497,7 +498,28 @@ The face and its cited notes are processed in this order:
     so the row moves when a person applies the same remap a hand pick goes through. A failed call
     is logged (`row_suggestions:FAILED …`) and the cards are shown without one.
 
-23. **Segment** (`stages/segment.py` + `services/buckets.py`) — files every face row and
+23. **Disclosure reading** (`stages/disclosure_reading.py` + `services/disclosure_reading.py`,
+    `extraction.llm_disclosures`, on) — the Disclosures screen's eight topics (auditor's opinion,
+    going concern, contingent liabilities, guarantees, commitments, related parties, subsequent
+    events, litigation) READ by the model, one call per topic, each with its own prompt. The
+    presence scan (`derived.scan_disclosures`) finds a keyword, and a keyword is not a finding:
+    "going concern" is printed in every basis-of-preparation note and every auditor's statement of
+    responsibilities. For each topic the stage collects every passage where the topic's words — the
+    scan's patterns plus the phrases that mark a real finding ("material uncertainty", "basis for
+    qualified opinion", 无重大或有事项 …) — are printed, ranks them, keeps ~6,000 tokens of them in
+    page order, and asks the topic's own question: what the topic is, the answers it can have (a
+    status code each, e.g. `material_uncertainty` / `doubt_resolved` / `basis_only` / `not_found`),
+    what is NOT a finding for it, and what an analyst needs about a real one (counterparty, amount
+    as printed, date, status). The reply is checked: the status must be one of the topic's codes; a
+    point must quote the passage it cites, or it is dropped; an amount not printed in its quote is
+    removed; a summary sentence with a figure no passage prints is removed; a finding with no point
+    left is withheld. The checked reading is written to `DocumentModel.disclosure_readings` and the
+    worker adds it to the topic's disclosure entry as `reading` — `present`, `page` and `snippet`
+    stay the scan's. The credit view's report signals and the supplemental "auditor's opinion" row
+    read `disclosure_reading.raises_signal`: the reading where there is one, the scan where there
+    is not. No call for a topic the filing never mentions; a failed call costs only its topic.
+
+24. **Segment** (`stages/segment.py` + `services/buckets.py`) — files every face row and
     every note into the **thirteen face sections** an analyst reads a filing in, plus Others:
     the balance sheet's five (current / non-current assets, current / non-current
     liabilities, equity & reserves), the income statement's four (income, expenses,

@@ -44,7 +44,7 @@ sys.path.insert(0, str(BACKEND))
 from pydantic import BaseModel, Field  # noqa: E402
 
 STAGES = ("note_router", "line_item_llm", "shared_figures", "gap_closing", "contingent_liabilities",
-          "row_suggestions", "analysis_llm")
+          "row_suggestions", "disclosure_reading", "analysis_llm")
 DEFAULT_BUDGET_TOKENS = 32_000
 EST_CHARS_PER_TOKEN = 4  # what the batching math itself assumes
 

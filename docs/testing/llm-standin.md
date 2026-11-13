@@ -148,6 +148,19 @@ the row's own statement, leaving out a row no line fits. Unanswered, it abstains
 no suggestion. It never changes a figure, so a capture answered or not differs only in the rows'
 `suggestion` field.
 
+### The disclosure-reading requests (`extraction.llm_disclosures`)
+
+A run with a provider makes up to EIGHT `disclosure_reading` requests (schema `DisclosureReply`),
+one per topic of the Disclosures screen that the filing mentions at all. The system prompt is the
+topic's own — what the topic is, its status codes, what is not a finding for it — and the user
+message is `{"topic", "company", "passages": [{"id": "P1", "page", "page_kind", "text"}]}`. Answer
+it from the passages alone: `{"status": "<one of the topic's codes>", "summary": "...", "points":
+[{"text": "...", "passage": "P3", "quote": "<copied exactly from P3>", "amount": "<as printed in
+the quote>", "currency": "..."}]}`. The check drops a point whose quote is not in its passage and
+withholds a finding left with no point, so an answer that paraphrases its quotes shows nothing.
+Unanswered, a topic has no reading and the screen shows the keyword scan. It never changes a
+figure; a capture answered or not differs only in the disclosure entries' `reading`.
+
 ### Report requests (the `anywhere` lines)
 
 A line whose route is `anywhere` is asked in a batch of at most 12, and the request has **two

@@ -493,6 +493,14 @@ class ExtractionSettings(BaseModel):
     # its reason and applied only by a person, through the card's remap; nothing is mapped by it.
     # Needs a provider; off makes no call.
     llm_row_suggestions: bool = True
+    # THE DISCLOSURES SCREEN, READ BY THE MODEL (`services.disclosure_reading`). One call per topic
+    # the presence scan knows (auditor's opinion, going concern, contingent liabilities, guarantees,
+    # commitments, related parties, subsequent events, litigation), each with its own prompt, on the
+    # passages where the filing's words touch the topic. Every point must quote the passage it
+    # cites or it is dropped; a finding with no point left is withheld. Up to eight calls per
+    # filing, none for a topic the filing never mentions. Needs a provider; off makes no call and
+    # the screen shows the scan.
+    llm_disclosures: bool = True
     # READ SCANNED PAGES WITH OCR. A page with a text layer is always read from that layer — OCR
     # would only re-guess characters the file already holds — so this decides what happens to a
     # page WITHOUT one: on, it is rasterised and read by the `[ocr]` engine (Docling, offline); off,

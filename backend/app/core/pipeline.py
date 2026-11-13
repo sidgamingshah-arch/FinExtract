@@ -59,6 +59,7 @@ def default_pipeline() -> Pipeline:
     from app.stages.face_mapping_contract import FaceMappingContractStage
     from app.stages.note_tag_gate import NoteTagGateStage
     from app.stages.row_suggestions import RowSuggestionsStage
+    from app.stages.disclosure_reading import DisclosureReadingStage
     from app.stages.segment import SegmentStage
     from app.stages.shared_figures import SharedFiguresStage
 
@@ -167,6 +168,11 @@ def default_pipeline() -> Pipeline:
         # `unmapped` card. It writes a suggestion on the row and maps nothing: see
         # services.row_suggestions.
         RowSuggestionsStage(),
+        # THE DISCLOSURES, READ — one model call per topic of the Disclosures screen, each point
+        # checked against the page it cites. Writes `disclosure_readings` and no figure, so its
+        # place among the stages is free; it sits with the other model calls of the run's end.
+        # See services.disclosure_reading.
+        DisclosureReadingStage(),
         # Last, and the position is the point: the eight analyst buckets are four balance-sheet
         # sections plus equity, all printed on one page, so only a row's RESOLVED section can
         # separate them. See stages/segment.py.

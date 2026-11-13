@@ -416,7 +416,11 @@ def _build_supplemental_rows(*, template_def: dict | None, base_rows: list[dict]
         if k:
             ratio_map[k] = r
 
-    hit_disclosures = {str(d.get("key") or ""): d for d in disclosures if d.get("present")}
+    # A disclosure that RAISES something: the model's checked reading where there is one ("prepared
+    # on a going concern basis" is not doubt, an "unqualified opinion" is not a qualified one), the
+    # scan's presence where there is not.
+    from app.services.disclosure_reading import raises_signal
+    hit_disclosures = {str(d.get("key") or ""): d for d in disclosures if raises_signal(d)}
     unit = getattr(doc_model, "unit_context", None)
     # A TARGET CURRENCY IS WRITTEN ONLY OVER FIGURES IN IT. The run converts nothing: its figures
     # stay in the filing's own currency, and conversion is a presentation step (the Workspace's FX
@@ -1767,6 +1771,10 @@ def _run_extraction_task(run_id: str, object_key: str, filename: str, options: d
         # does. Runs after the pipeline, so `doc_model.contingent_liabilities` is populated.
         from app.services.contingent_liabilities import attach_contingent_explanation
         disclosures = attach_contingent_explanation(disclosures, doc_model.contingent_liabilities)
+        # THE MODEL'S READING OF EACH TOPIC, checked against its pages (stages.disclosure_reading),
+        # added to the topic's entry under `reading`. The scan's own keys stay as they were.
+        from app.services.disclosure_reading import attach_readings
+        disclosures = attach_readings(disclosures, getattr(doc_model, "disclosure_readings", None))
 
         recon = doc_model.reconciliation
         structural = doc_model.structural

@@ -341,7 +341,11 @@ def test_the_four_derivation_stages_left_the_pipeline_and_the_disclosure_stage_d
     #     moves no figure — the row stays unmapped until a person applies the suggestion — and it
     #     enumerates nothing: it reads the rows that raise an `unmapped` card and the template's
     #     own lines. (23.)
-    assert len(names) == 23, names
+    #   * `disclosure_reading` asks a model what the filing DISCLOSES on each topic of the
+    #     Disclosures screen, and writes only a checked reading for that screen. It sets no figure
+    #     and enumerates no concept: it reads the passages where the topic's words are printed, and
+    #     every point it keeps quotes one of them. (24.)
+    assert len(names) == 24, names
     assert "assemble_components" in names, (
         "the component assembly is gone, so a line item printed as several rows cannot be filled "
         "at all — that is not a return to the derivations, it is the loss of their replacement")

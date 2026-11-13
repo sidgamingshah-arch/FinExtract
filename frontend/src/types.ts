@@ -945,6 +945,33 @@ export interface Disclosure {
   item_totals?: DisclosureItemTotal[];
   /** Which basis and period the explanation describes, e.g. "consolidated:current". */
   basis_period?: string | null;
+  /** THE MODEL'S READING OF THE TOPIC, checked against the pages it cites
+   *  (`services/disclosure_reading`). Absent when no model read it — no provider, the setting off,
+   *  a failed call, or a reply the check refused — and then the scan above is all there is. */
+  reading?: DisclosureReading | null;
+}
+/** What the filing discloses on one topic, as the model read it. Every point quotes the passage it
+ *  cites; a point whose quote was not found on that page was dropped before it reached here. */
+export interface DisclosureReading {
+  /** The topic's own status code, e.g. "material_uncertainty", "basis_only", "given", "none". */
+  status: string;
+  status_label: string;
+  /** True when the status IS a finding an analyst acts on — only these raise a credit signal. */
+  finding: boolean;
+  summary: string;
+  points: DisclosureReadingPoint[];
+  passages_read?: number;
+  pages_read?: string[];
+}
+export interface DisclosureReadingPoint {
+  text: string;
+  /** The folio printed on the page, or the sheet position. Rendered, never arithmetic. */
+  page: number | string | null;
+  /** Words copied from the page, in the filing's own language. */
+  quote: string;
+  /** The amount AS PRINTED in the quote — a string from the filing, never a computed figure. */
+  amount: string;
+  currency: string;
 }
 /** One row of the detail table — a single disclosed exposure. */
 export interface DisclosureItem {

@@ -856,7 +856,12 @@ def build_credit_analysis(rows: list[dict], disclosures: list[dict] | None = Non
             })
             break  # first available ratio per category
 
-    present = {d.get("key") for d in (disclosures or []) if d.get("present")}
+    # A SIGNAL IS A FINDING, NOT A KEYWORD. Where the model read the topic and its reading survived
+    # the check (services.disclosure_reading), the reading decides: "prepared on a going concern
+    # basis" — printed in nearly every annual report — no longer caps every stance at weak. Where
+    # there is no reading, the scan's presence is all that is known, and it decides as before.
+    from app.services.disclosure_reading import raises_signal, signal_page
+    present = {d.get("key") for d in (disclosures or []) if raises_signal(d)}
     dmap = {d.get("key"): d for d in (disclosures or [])}
     flags: list[dict] = []
     penalty = 0
@@ -868,7 +873,8 @@ def build_credit_analysis(rows: list[dict], disclosures: list[dict] | None = Non
         flags.append({
             "key": key, "label": d.get("label") or key, "severity": sev,
             "implication": impl.get(locale) or impl["en"],
-            "page": d.get("page"), "snippet": d.get("snippet", ""),
+            "page": signal_page(d),
+            "snippet": ((d.get("reading") or {}).get("summary") or d.get("snippet", "")),
         })
 
     n = len(factors)
