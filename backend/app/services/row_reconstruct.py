@@ -330,6 +330,20 @@ def _is_period_only_label(label: str) -> bool:
 # Latin "As at <day> <Month> <year>" only, in a note, and only with a figure that is not a date
 # fragment — a header band "As at 31 March 2025  As at 31 March 2024" carries nothing but 31s and
 # years.
+# A NOTE'S DATED CAPTION AS AN HKEX NOTE PRINTS IT, for the one use of dropping the date's digits
+# from the row's figures (below, `if not on_face …`). `_DATED_BALANCE_LABEL` asks for "As at …" and
+# nothing after the year, so China SCE's PP&E note — "At 1 January 2023 於二零二三年一月一日", a
+# caption with its translation — kept 1 and 2023 as two figures in two columns of their own (notes
+# 14, 32 and 34 of hkex_1966_ar). Here: "As at" or "At", one date or two ("At 31 December 2022 and
+# 1 January 2023"), and the same caption in another script before or after it. Kept apart from
+# `_DATED_BALANCE_LABEL`, which `_dated_balance_with_figures` reads for another purpose.
+_MONTH = r"(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?"
+_ONE_DATE = rf"\d{{1,2}}\s+{_MONTH},?\s+(?:19|20)\d{{2}}"
+_NOTE_DATED_CAPTION = re.compile(
+    rf"^\s*(?:[^\x00-\x7f][^a-z]*\s+)?(?:balance\s+)?(?:as\s+)?at\s+{_ONE_DATE}"
+    rf"(?:\s*(?:,|and|&)\s*(?:as\s+at\s+|at\s+)?{_ONE_DATE})*,?"
+    r"(?:\s+[^\x00-\x7f].*)?\s*$", re.I)
+
 _DATED_BALANCE_LABEL = re.compile(
     r"^\s*(?:balance\s+)?as\s+at\s+\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)"
     r"[a-z]*,?\s+(?:19|20)\d{2}\s*$", re.IGNORECASE)
@@ -8163,7 +8177,8 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
         # the caption took back stayed among the values, to be dropped by the column bands; an
         # ageing schedule whose bucket headings ("Less than 1 year", "1-2 years") are not read as
         # bands kept them, and f1 note 3's "As at 31 March 2025" row was sent {31, 2025, 1186.25 …}.
-        if not on_face and _DATED_BALANCE_LABEL.match(label):
+        if not on_face and (_DATED_BALANCE_LABEL.match(label)
+                            or _NOTE_DATED_CAPTION.match(label)):
             in_label = {id(w) for w in label_words}
             if any(id(w) in in_label for w in value_words):
                 value_words = [w for w in value_words if id(w) not in in_label]

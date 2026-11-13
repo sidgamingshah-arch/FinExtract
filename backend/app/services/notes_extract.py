@@ -284,6 +284,10 @@ _MONTH_TITLE = re.compile(r"^(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?
 # which prints no chapters — keeps bare numbers, byte for byte as before.
 # ①-⑳ and ⑴-⑽, translated to "(n)" so `_HEADING` reads them with the bracketed numbers it
 # already accepts. A mainland note nests three deep and these caption the innermost level.
+_DATED_SUB_TABLE = re.compile(
+    r"^\s*(?P<mark>[\u2460-\u2473\u2474-\u2487])\s*"
+    r"(?P<date>(?:19|20)\d{2}\s*年\s*\d{1,2}\s*月(?:\s*\d{1,2}\s*日)?)\s*[，,]?\s*"
+    r"(?P<title>[^\d\s,，].*)$")
 _CIRCLED_DIGITS = {
     **{0x2460 + i: f"({i + 1})" for i in range(20)},      # ① … ⑳
     **{0x2474 + i: f"({i + 1})" for i in range(20)},      # ⑴ … ⒇
@@ -851,6 +855,17 @@ def _is_heading(row: list[Word]) -> tuple[str, str] | None:
     changed no test and no measured output, because the first refusal above already covers every
     shape it was for. A guard that cannot fire reads like protection without being any.
     """
+    # A MAINLAND SUB-TABLE HEADING THAT OPENS WITH ITS DATE — "① 2024 年12 月31 日，单独计提坏账准备",
+    # "②2024 年12 月31 日，组合计提坏账准备" (000709 七、3, p.131). Its year reads as a figure and its
+    # comma as a sentence, so neither test below took it: ①'s caption became "①" with a figure of
+    # 2024, ② was lost, and the ageing table under ② was read as rows of the table under ① — its
+    # columns at other positions, shown as "2024 (2)", "2024 (3)". A circled numeral, a 年月日 date
+    # and a title that does not open with a figure, and nothing else on the line: the date is the
+    # title's, and the line opens its own sub-table with its own columns.
+    dated = _DATED_SUB_TABLE.match("".join(w.text for w in sorted(row, key=lambda w: w.bbox.x0)))
+    if dated:
+        return (_CIRCLED_DIGITS[ord(dated.group("mark"))].strip("()"),
+                (dated.group("date") + dated.group("title")).strip())
     _, _, values = _scan_row(row)
     if values:
         return None
