@@ -952,13 +952,11 @@ SECTION_WORDS: tuple[tuple[str, tuple[str, ...]], ...] = (
     #
     # THE OTHER SPELLINGS ARE WHOLE PHRASES ONLY, because a banner is matched ANYWHERE in its text:
     # "long term" alone would read 'Long-term debt' as a banner, "other liabilities" a caption of
-    # its own, "deficit" the accumulated deficit. A US utility prints its long-term half as
-    # "Deferred credits and other liabilities:"; a filer with negative equity heads it
+    # its own, "deficit" the accumulated deficit. A filer with negative equity heads it
     # "Stockholders' deficit:".
     ("non_current_liabilities", ("non current liabilities", "noncurrent liabilities",
                                 "long term liabilities", "liabilities due after one year",
                                 "liabilities due after more than one year",
-                                "deferred credits and other liabilities",
                                 "非流动负债", "长期负债")),
     ("non_current_assets", ("non current assets", "noncurrent assets", "long term assets",
                            "非流动资产", "长期资产")),

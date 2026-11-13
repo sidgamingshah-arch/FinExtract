@@ -120,7 +120,6 @@ def test_the_current_banner_is_still_the_current_one():
 
 @pytest.mark.parametrize("banner,section", [
     ("Liabilities due after one year:", "non_current_liabilities"),
-    ("Deferred credits and other liabilities:", "non_current_liabilities"),
     ("Long-term assets:", "non_current_assets"),
     ("Liabilities due within one year:", "current_liabilities"),
     ("Short-term liabilities", "current_liabilities"),

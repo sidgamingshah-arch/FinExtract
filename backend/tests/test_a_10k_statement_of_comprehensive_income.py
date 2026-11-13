@@ -142,7 +142,7 @@ def test_the_arithmetic_is_written_as_the_templates_rollups_and_an_identity(raw)
                                         "parts_of_printed": True}
     assert nodes[TOTAL]["rollup"] == {"op": "sum", "children": [FX, AFS_NET, CFH_NET, PENSION, OTHER]}
     assert nodes[CI]["rollup"] == {"op": "sum", "children": [NI, TOTAL]}
-    # The statement of operations carries other identities too — the product / service split
+    # The statement of operations carries other identities too — the cost of products and of services
     # (`test_a_10k_states_products_and_services_apart.py`) — so this one is looked for, not pinned
     # as the only one.
     assert {"id": "comprehensive_income_opens_on_net_income", "lhs": NI,
