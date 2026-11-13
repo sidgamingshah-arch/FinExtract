@@ -256,6 +256,10 @@
     "headings": [
      "non current liabilities",
      "noncurrent liabilities",
+     "long term liabilities",
+     "liabilities due after one year",
+     "liabilities due after more than one year",
+     "deferred credits and other liabilities",
      "非流动负债",
      "长期负债"
     ],
@@ -266,6 +270,7 @@
     "headings": [
      "non current assets",
      "noncurrent assets",
+     "long term assets",
      "非流动资产",
      "长期资产"
     ],
@@ -275,6 +280,8 @@
     "token": "current_liabilities",
     "headings": [
      "current liabilities",
+     "liabilities due within one year",
+     "short term liabilities",
      "流动负债"
     ],
     "heading_row": true
@@ -292,6 +299,13 @@
     "headings": [
      "equity",
      "capital and reserves",
+     "stockholders deficit",
+     "shareholders deficit",
+     "stockholders deficiency",
+     "shareholders deficiency",
+     "members deficit",
+     "partners capital",
+     "partners deficit",
      "权益",
      "股本及储备",
      "资本及储备"
