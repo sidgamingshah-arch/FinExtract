@@ -60,3 +60,20 @@ def test_a_dash_supports_a_column_of_figures_and_never_makes_one():
     assert len(_value_column_bands(figures, [0.79, 0.79, 0.79])) == 3
     # Dashes alone, where no row prints a figure, are no column.
     assert len(_value_column_bands(figures[1:4], [0.79, 0.79, 0.79])) == 2
+
+
+# ── a third column is never this year's ─────────────────────────────────────────────────────────
+
+def test_a_row_left_holding_only_its_third_column_has_no_current_or_prior():
+    """Madrigal's Net loss row after the model's answer took its 2025 and 2024 figures: only the
+    2023 figure (col2) was left, and the positional fallback served it as 2025."""
+    from app.services.periods import split_current_prior
+    assert split_current_prior([{"period_label": "col2", "value": "-373630"}]) == (None, None)
+    # A row positional from its first column is still read in order.
+    cur, prior = split_current_prior([{"period_label": "col0", "value": "1"},
+                                      {"period_label": "col1", "value": "2"},
+                                      {"period_label": "col2", "value": "3"}])
+    assert (cur["value"], prior["value"]) == ("1", "2")
+    cur, prior = split_current_prior([{"period_label": "current", "value": "1"},
+                                      {"period_label": "col2", "value": "3"}])
+    assert cur["value"] == "1" and prior is None

@@ -39,6 +39,12 @@ def names_a_component(label) -> bool:
     return bool(text) and not looks_like_period(text)
 
 
+# The reader's positional keys: col2, col3 … are the third and later columns of a table whose first
+# two are `current` and `prior`; col0 / col1 open a table read positionally from its first column.
+_LATER_COLUMN = re.compile(r"^col([2-9]|\d{2,})$")
+_FIRST_COLUMNS = re.compile(r"^col[01]$")
+
+
 def _named(v: dict) -> str:
     return str(v.get("period_label") or "").strip().lower()
 
@@ -113,6 +119,17 @@ def split_current_prior(vals: list[dict]) -> tuple[dict | None, dict | None]:
             by[lbl] = v
     if by:
         return by.get(CURRENT), by.get(PRIOR)
+    # A THIRD OR LATER COLUMN IS NEVER PROMOTED. The reader keys a statement's columns current,
+    # prior, col2, col3 … by position, so a row whose only figure is `col2` is printing its third
+    # column — the year before last on a 10-K — and has nothing for this year or last. Madrigal's
+    # Net loss row, after the model's answer took its 2025 and 2024 figures ("stood down … the
+    # cited figure is the line's whole"), was left holding col2 = (373,630), its 2023 figure; read
+    # positionally, that became 2025 and was added to the model's (288,284) as (661,914). The
+    # positional reading stays for a row that is positional from its first column (col0, col1 …,
+    # an equity matrix's components), which is what it exists for.
+    later = [v for v in vals if _LATER_COLUMN.match(_named(v))]
+    if later and not any(_FIRST_COLUMNS.match(_named(v)) for v in vals):
+        vals = [v for v in vals if v not in later]
     return (vals[0] if vals else None), (vals[1] if len(vals) > 1 else None)
 
 
