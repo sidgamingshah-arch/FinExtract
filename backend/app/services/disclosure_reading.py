@@ -624,6 +624,10 @@ def check_reply(key: str, reply, passages: list[dict]) -> tuple[dict | None, dic
         if any(f not in printed for f in _figures(sentence)):
             refused["summary_sentences_dropped"] += 1
             continue
+        # Whole sentences only: a summary over the limit ends at the last sentence that fits, never
+        # mid-word. The first sentence is kept whatever its length, cut if it must be.
+        if kept_sentences and len(" ".join([*kept_sentences, sentence])) > SUMMARY_CHARS:
+            break
         kept_sentences.append(sentence)
     summary = " ".join(kept_sentences)[:SUMMARY_CHARS]
     finding = status in topic["findings"]

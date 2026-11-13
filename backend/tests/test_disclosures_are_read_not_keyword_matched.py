@@ -176,6 +176,15 @@ def test_a_summary_sentence_stating_a_figure_no_passage_prints_is_removed():
     assert refused["summary_sentences_dropped"] == 1
 
 
+def test_a_long_summary_ends_at_a_whole_sentence():
+    first = "The Group reports a material uncertainty about going concern. "
+    reading, _ = dr.check_reply("going_concern", _reply(
+        "material_uncertainty", first + "It rests on losses. " * 60,
+        [{"text": "x", "passage": "P3", "quote": "casts significant doubt"}]), GC_PASSAGES)
+    assert len(reading["summary"]) <= dr.SUMMARY_CHARS
+    assert reading["summary"].startswith(first.strip()) and reading["summary"].endswith("losses.")
+
+
 def test_an_unknown_status_withholds_the_reading():
     reading, refused = dr.check_reply("going_concern", _reply("present"), GC_PASSAGES)
     assert reading is None and "unknown status" in refused["error"]
