@@ -50,7 +50,8 @@ function citedPages(d: Disclosure): string[] {
       const page = p.page === null || p.page === undefined ? "" : String(p.page);
       if (page && !out.includes(page)) out.push(page);
     }
-    return out;
+    // In the filing's order, not the points' (which are most important first).
+    return out.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
   }
   return d.present && d.page !== null && d.page !== undefined ? [String(d.page)] : [];
 }

@@ -567,10 +567,19 @@ _NUMBER = re.compile(r"\d[\d,]*(?:\.\d+)?")
 def _figures(text: str) -> list[str]:
     """The figures a sentence states that are worth checking: three significant digits or more, or
     any decimal ("RMB1.2 billion" is a conversion of a printed figure, and is refused unless the
-    filing prints 1.2 itself). A year is checked like any figure — it must be printed somewhere too.
+    filing prints 1.2 itself). A YEAR IS NOT CHECKED: it dates a figure rather than being one, and a
+    filing that writes its years 二零二三年 prints no "2023" for it to be found by — the China SCE
+    stand-in's correct "pledged as at 31 December 2022" was removed for exactly that.
     """
-    return [n for n in (_digits(m.group(0)).rstrip(".") for m in _NUMBER.finditer(text or ""))
-            if len(n.replace(".", "")) >= 3 or "." in n]
+    out = []
+    for m in _NUMBER.finditer(text or ""):
+        raw = m.group(0)
+        n = _digits(raw).rstrip(".")
+        if re.fullmatch(r"(?:19|20)\d\d", raw):
+            continue
+        if len(n.replace(".", "")) >= 3 or "." in n:
+            out.append(n)
+    return out
 
 
 def check_reply(key: str, reply, passages: list[dict]) -> tuple[dict | None, dict]:
@@ -609,12 +618,14 @@ def check_reply(key: str, reply, passages: list[dict]) -> tuple[dict | None, dic
                        not any(f in _digits(quote) for f in _figures(amount) or [digits])):
             refused["amount_not_in_quote"] += 1
             amount = ""
+        currency = " ".join(str(getattr(pt, "currency", "") or "").split()) if amount else ""
+        # "RMB" beside "RMB1,000,000,000" would print the currency twice.
+        if currency and amount.lower().startswith(currency.lower()):
+            currency = ""
         p = by_id[pid]
         points.append({"text": " ".join(str(getattr(pt, "text", "") or "").split())[:POINT_CHARS],
                        "page": p["page"], "page_index": p["page_index"], "quote": quote,
-                       "amount": amount,
-                       "currency": (" ".join(str(getattr(pt, "currency", "") or "").split())
-                                    if amount else "")})
+                       "amount": amount, "currency": currency})
     printed = "|".join(_digits(p["text"]) for p in passages)
     kept_sentences = []
     for sentence in re.split(r"(?<=[.!?;。；])\s+", " ".join(str(getattr(reply, "summary", "") or "")

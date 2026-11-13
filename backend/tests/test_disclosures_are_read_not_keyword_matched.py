@@ -128,7 +128,7 @@ def test_a_quoted_point_is_kept_with_its_page():
     assert reading["points"] == [{"text": "Net current liabilities at year end.", "page": 122,
                                   "page_index": 121,
                                   "quote": "had net current liabilities of RMB1,234,567,000",
-                                  "amount": "RMB1,234,567,000", "currency": "RMB"}]
+                                  "amount": "RMB1,234,567,000", "currency": ""}]
     assert reading["pages_read"] == ["11", "41", "122"] and reading["passages_read"] == 3
     assert not any(v for v in refused.values())
 
@@ -174,6 +174,20 @@ def test_a_summary_sentence_stating_a_figure_no_passage_prints_is_removed():
     assert reading["summary"] == ("The auditor flags a material uncertainty. "
                                   "They were RMB1,234,567,000.")
     assert refused["summary_sentences_dropped"] == 1
+
+
+def test_a_year_dates_a_figure_and_is_not_checked_as_one():
+    passages = [{"id": "P1", "page_index": 0, "page": 1, "kind": "",
+                 "text": "於二零二二年十二月三十一日 pledged deposits of RMB1,000,000,000 were released"}]
+    reading, refused = dr.check_reply("subsequent_events", _reply(
+        "disclosed", "Deposits pledged at 31 December 2022 were released in 2024.",
+        [{"text": "x", "passage": "P1", "quote": "pledged deposits of RMB1,000,000,000",
+          "amount": "RMB1,000,000,000", "currency": "RMB"}]), passages)
+    assert reading["summary"] == "Deposits pledged at 31 December 2022 were released in 2024."
+    assert refused["summary_sentences_dropped"] == 0
+    # The amount already names its currency, so it is not named twice.
+    assert reading["points"][0]["amount"] == "RMB1,000,000,000"
+    assert reading["points"][0]["currency"] == ""
 
 
 def test_a_long_summary_ends_at_a_whole_sentence():
