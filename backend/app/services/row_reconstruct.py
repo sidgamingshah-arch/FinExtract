@@ -4049,7 +4049,8 @@ _COL_TOL = 0.035
 _COL_MIN_ROWS = 3
 
 
-def _value_column_bands(value_xs: list[list[tuple[float, str]]]) -> list[float]:
+def _value_column_bands(value_xs: list[list[tuple[float, str]]],
+                        nil_xs: list[float] | None = None) -> list[float]:
     """The x-centres of the statement's value columns, from the figures on the page.
 
     A row's period CANNOT be taken from the order of its own values. When a filing reports a line
@@ -4111,7 +4112,20 @@ def _value_column_bands(value_xs: list[list[tuple[float, str]]]) -> list[float]:
         candidate = [c for c in clusters if len(c) >= len(wide) and not is_note_column(c)]
         if len(candidate) == max(len(xs) for xs in wide):
             need = len(wide)
-    kept = [c for c in clusters if len(c) >= need and not is_note_column(c)]
+    # A PRINTED NIL IS A CELL OF ITS COLUMN. Madrigal's 10-K statement of comprehensive income
+    # prints its 2024 column as "—" on every other-comprehensive-income row (there was none that
+    # year), so only two rows put a FIGURE there — Net loss and Comprehensive loss — and the column
+    # fell short of `_COL_MIN_ROWS`. Refused, it took both figures with it, and every 2023 figure on
+    # the page was filed as 2024: Net loss read (288,284) | (373,630). A dash on a row that prints a
+    # figure counts toward the column it stands in — support for a column of figures, never a
+    # column of its own: a cluster with no figure in it is not here to be counted.
+    def nil_support(cluster: list[tuple[float, str]]) -> int:
+        if not nil_xs:
+            return 0
+        lo, hi = cluster[0][0] - _COL_TOL, cluster[-1][0] + _COL_TOL
+        return sum(1 for x in nil_xs if lo <= x <= hi)
+
+    kept = [c for c in clusters if len(c) + nil_support(c) >= need and not is_note_column(c)]
     if len(kept) < 2:
         return []                       # nothing to disambiguate; order is as good as position
     return [sorted(x for x, _ in c)[len(c) // 2] for c in kept]   # median resists one outlier
@@ -7756,6 +7770,8 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
     # column is removed, so note references never look like a column) so a row reporting only one
     # of two periods still files that figure under the period it is printed in.
     col_xs: list[list[tuple[float, str]]] = []
+    # Where the printed nil marks stand, on rows that print a figure (`_value_column_bands`).
+    nil_xs: list[float] = []
     # The same figures as WORDS, row by row, for the one reader that needs their edges.
     col_words: list[list[Word]] = []
     for row in raw_rows:
@@ -7766,7 +7782,12 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
         if figures and not _is_folio_row(row, number_format):
             col_xs.append([((w.bbox.x0 + w.bbox.x1) / 2, w.text) for w in figures])
             col_words.append(figures)
-    value_bands = _value_column_bands(col_xs)
+            # From the ROW's words: `_scan_row` drops a dash that follows a figure. Only a dash
+            # to the right of the row's first figure — one inside a caption is not a cell.
+            first = min(w.bbox.x0 for w in figures)
+            nil_xs.extend((w.bbox.x0 + w.bbox.x1) / 2 for w in row
+                          if w.bbox.x0 > first and _NIL_MARK.match(w.text.strip()))
+    value_bands = _value_column_bands(col_xs, nil_xs)
     # A COLUMN NEEDS A FIGURE IN IT. The statement's title and its own column-header row print a
     # period — "合并资产负债表 2024 年12 月31 日", "项目 附注 2024 年12 月31 日 2023 年12 月31 日" —
     # and "2024", "12" and "31" all read as numbers, so those two rows contribute x-centres of
