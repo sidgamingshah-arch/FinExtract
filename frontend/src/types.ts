@@ -408,6 +408,12 @@ export interface StatementRow {
   level?: number;
   note?: string | null;
   note2?: string | null;
+  /** WHERE `note` CAME FROM when the statements print no note references (a US 10-K never does):
+   *  "figure" — the note this figure was read from; "title" — a note whose title names the line.
+   *  Absent for a reference the statement printed. Display only: no reconciliation reads it. */
+  note_by?: "figure" | "title" | null;
+  /** For a total assembled from other rows: whether those were note lines or face rows. */
+  derived_from?: "notes" | "face" | null;
   /** Where the figure was PRINTED: on the face of a statement, or inside a note. A different
    *  question from `origin` below, which says whether the figure was read off the document or typed
    *  by an analyst — a row can be printed on the face and still carry a manual value. It matters

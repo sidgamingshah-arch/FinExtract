@@ -379,9 +379,10 @@ const ORIGIN_CHIP: Record<Origin, { label: string; bg: string; fg: string; help:
   // built from, each with its page — so there is somewhere to go and check. Red beside a figure
   // that can be traced would over-state it, and reusing ƒ would claim the rollup verified it.
   derived: { label: "≡", bg: color.amberBg, fg: color.amberFg,
-             help: "Assembled by an extraction rule from note lines rather than read off one "
-                   + "caption. The template's components were not extracted, so the rollup could "
-                   + "not check it — see the contributions below for the lines it came from" },
+             help: "Assembled from other rows — note lines, or rows printed on the face — rather "
+                   + "than read off one caption. The template's components were not extracted, so "
+                   + "the rollup could not check it — see the contributions below for the rows it "
+                   + "came from" },
   reported_uncomputed: { label: "!", bg: color.redBg, fg: color.redFg,
                          help: "Printed in the document but not verifiable — none of this line's "
                                + "components were extracted" },
@@ -871,7 +872,15 @@ function OutputRow({
       <div style={{ ...colDiv, display: "flex", alignItems: "center", justifyContent: "center",
                     gap: 4, flexWrap: "wrap" }}>
         {noteRefs.map((n) => (
-          <NoteChip key={n} onClick={(e) => { e?.stopPropagation(); onOpenNote(openable(n, row)); }}>
+          <NoteChip key={n} onClick={(e) => { e?.stopPropagation(); onOpenNote(openable(n, row)); }}
+                    unprinted={!!row.note_by}
+                    hint={row.note_by === "figure"
+                      ? `Note ${n} — this figure was read from it. The statement prints no note `
+                        + "references, so this is the note the figure's own source names."
+                      : row.note_by === "title"
+                        ? `Note ${n} — its title names this line. The statement prints no note `
+                          + "references, so this is matched by title, not printed beside the line."
+                        : undefined}>
             {n}
           </NoteChip>
         ))}
@@ -2280,7 +2289,9 @@ export default function WorkspaceScreen() {
                         name. An unlabelled origin therefore says the neutral thing instead. */}
                     {inspOrigin === "calculated" ? "calculated"
                       : inspOrigin === "manual" ? "manual override"
-                      : inspOrigin === "derived" ? "assembled from notes"
+                      : inspOrigin === "derived"
+                        ? (selRowObj?.derived_from === "face" ? "added from printed rows"
+                                                              : "assembled from notes")
                       : inspOrigin === "reported_uncomputed" ? "printed, unverified"
                       : inspOrigin}
                   </span>

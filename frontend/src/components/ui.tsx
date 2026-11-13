@@ -128,21 +128,29 @@ export function ConfidencePill(
 
 /** Small indigo note-reference chip. When given an onClick it renders as a hyperlink to
  * the note (underlined, keyboard-activatable). */
-export function NoteChip({ children, onClick }: { children: ReactNode; onClick?: (e?: MouseEvent) => void }) {
+export function NoteChip({ children, onClick, hint, unprinted }: {
+  children: ReactNode; onClick?: (e?: MouseEvent) => void;
+  /** The tooltip, when the chip needs to say more than "Open note". */
+  hint?: string;
+  /** A note the statement did not print beside the line — shown dashed, so it is not read as a
+   *  printed reference. */
+  unprinted?: boolean;
+}) {
   const link = !!onClick;
   return (
     <span
       onClick={onClick}
       role={link ? "link" : undefined}
       tabIndex={link ? 0 : undefined}
-      title={link ? "Open note" : undefined}
+      title={hint ?? (link ? "Open note" : undefined)}
       onKeyDown={link ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick?.(); } } : undefined}
       style={{
         fontSize: 10,
         fontWeight: 600,
         padding: "2px 6px",
         borderRadius: radius.chip,
-        background: color.indigoTint2,
+        background: unprinted ? "transparent" : color.indigoTint2,
+        border: unprinted ? `1px dashed ${color.indigo}` : "1px solid transparent",
         color: color.indigo,
         cursor: link ? "pointer" : "default",
         textDecoration: link ? "underline" : "none",

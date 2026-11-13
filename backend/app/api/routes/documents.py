@@ -6175,6 +6175,105 @@ def _face_prefixes(template_def: dict | None) -> set[str]:
     return out
 
 
+def _column_note_titles(note_details: list[dict]) -> dict[str, str]:
+    """number -> title of the notes the NOTE column may name for a line the statement printed no
+    reference beside: the notes the run read THAT PRINT A FIGURE. A note with none is a policy note
+    or narrative — measured on 河钢 000709, 五、13 存货 (the inventory accounting policy) was named
+    for Inventories ahead of 七、7 存货分类, the note that breaks the figure down, because its title
+    is the caption exactly."""
+    out: dict[str, str] = {}
+    for no, d in _note_index(note_details).items():
+        if any(str((v or {}).get("value") or "").strip()
+               for r in (d.get("rows") or ()) for v in ((r or {}).get("values") or ())):
+            out[no] = str(d.get("title") or "")
+    return out
+
+
+def _is_citation(trail: dict | None) -> bool:
+    """Whether a trail is a model's citation of printed rows (`stages.line_item_llm`), as against a
+    rule's assembly of them (note_sourced, a cascade, the alternatives rule)."""
+    return isinstance(trail, dict) and str(trail.get("method") or "").startswith("line_item_llm:")
+
+
+def _reads_one_printed_figure(trail: dict | None) -> bool:
+    """Whether a trail's figure IS one printed figure: a citation taken whole, not a sum of rows."""
+    if not _is_citation(trail):
+        return False
+    combine = str(trail.get("combine") or "")
+    return combine == "whole" or (not combine and str(trail.get("op") or "first") != "sum")
+
+
+def _citation_reading(store: dict, basis: str) -> dict | None:
+    """Where a model's citation read a line's figure, from the line's trail — or None when the
+    trail for this basis is not a citation.
+
+    `{"notes": [the note numbers the cited rows sit in, in citation order], "combine": "whole" |
+    "component", "rows": how many rows the current figure's citation names}`. A row cited off a
+    statement carries no note, so an empty `notes` means the figure was read on the face.
+    """
+    slots = [store.get(f"{basis}:{p}") for p in ("current", "prior")]
+    slots = [t for t in slots if isinstance(t, dict)]
+    if not slots or not all(_is_citation(t) for t in slots):
+        return None
+    notes: list[str] = []
+    for t in slots:
+        for i in t.get("inputs") or ():
+            n = str((i or {}).get("note") or "").strip()
+            if n and n not in notes:
+                notes.append(n)
+    lead = slots[0]
+    return {"notes": notes,
+            "combine": "whole" if _reads_one_printed_figure(lead) else "component",
+            "rows": len([i for i in (lead.get("inputs") or ()) if (i or {}).get("counted", True)])}
+
+
+def _citation_wording(reading: dict, locale: str = "en") -> tuple[str, str]:
+    """The inspector's tag and sentence for a figure a model's citation located."""
+    notes = reading.get("notes") or []
+    rows = int(reading.get("rows") or 0)
+    where = (_t("in note {n}", locale).replace("{n}", ", ".join(notes)) if notes
+             else _t("on the face of the statement", locale))
+    if reading.get("combine") == "component" and rows > 1:
+        tag = (_t("added from notes", locale) if notes else _t("added on the face", locale))
+        note = (_t("The sum of the {k} printed rows the model cited, {where}. Each keeps its own "
+                   "figure and page — click one to jump to it in the document.", locale)
+                .replace("{k}", str(rows)).replace("{where}", where))
+        return tag, note
+    tag = (_t("read from note {n}", locale).replace("{n}", notes[0]) if notes
+           else _t("read from the face", locale))
+    note = (_t("Read from the printed row the model cited, {where} — the figure as printed, not "
+               "computed. Click it to jump to it in the document.", locale)
+            .replace("{where}", where))
+    if rows > 1:
+        note += " " + (_t("The other cited rows are listed with it.", locale))
+    return tag, note
+
+
+def _unprinted_notes(group: list[dict], basis: str, titles: dict[str, str],
+                     terms: list[str]) -> tuple[list[str], str | None]:
+    """The notes the NOTE column shows for a line of a filing whose statements print no note
+    references, and why: ``(numbers, "figure")`` — the notes this figure was read from, which the
+    line's own trail names — else ``(numbers, "title")`` — the notes whose title names the line
+    (`services.note_titles`) — else ``([], None)``. Only notes the run read (`titles`) are named,
+    so every one of them opens. Display only: nothing here links a note for reconciliation."""
+    from app.services.note_titles import notes_named
+
+    read_from: list[str] = []
+    for x in group:
+        for slot, trail in (x.get("derivation") or {}).items():
+            if not str(slot).startswith(f"{basis}:") or not isinstance(trail, dict):
+                continue
+            for i in trail.get("inputs") or ():
+                n = _note_key(str((i or {}).get("note") or "").strip()) if (i or {}).get("note") \
+                    else None
+                if n and n in titles and n not in read_from:
+                    read_from.append(n)
+    if read_from:
+        return read_from[:2], "figure"
+    named = notes_named(terms, titles)
+    return (named, "title") if named else ([], None)
+
+
 def _cited_pair(group: list[dict]) -> dict:
     """`{"note": …, "note2": …}` for a concept assembled from several printed lines.
 
@@ -6217,7 +6316,8 @@ def _build_statement(rows: list[dict], template_def: dict | None, statement_type
                      netting_rules: list | None = None,
                      cross_check: "_CrossCheck | None" = None,
                      line_item_set=None,
-                     pages: list[dict] | None = None) -> dict:
+                     pages: list[dict] | None = None,
+                     note_titles: dict[str, str] | None = None) -> dict:
     """Group the real extracted rows into one statement (by the template's sections), so the
     Workspace grid renders real data with its provenance-backed values. Only rows that
     carry a value for the requested `basis` (consolidated / standalone) are shown. Labels are
@@ -6363,7 +6463,14 @@ def _build_statement(rows: list[dict], template_def: dict | None, statement_type
             # front end hides a row's contributions when the origin is `reported_uncomputed` (a
             # line with no components extracted has none to show), so calling a derived figure
             # that deleted the only trace back to the source it had.
-            if any((x.get("derivation") or {}).get(f"{basis}:{period}") for x in group):
+            # …BUT A MODEL'S CITATION OF THE PRINTED TOTAL ASSEMBLED NOTHING. Every answered line
+            # records a trail of the rows it cited, so a total the model located on the face read
+            # "assembled from notes" with its one printed row as the "note line". Taken whole, the
+            # figure IS the printed one, and the line is what it was before the model answered:
+            # printed, and not checkable by its components.
+            trails = [(x.get("derivation") or {}).get(f"{basis}:{period}") for x in group]
+            trails = [t for t in trails if t]
+            if trails and not all(_reads_one_printed_figure(t) for t in trails):
                 return reported, "derived"
             return reported, "reported_uncomputed"
 
@@ -6412,6 +6519,14 @@ def _build_statement(rows: list[dict], template_def: dict | None, statement_type
                          else "calculated" if "calculated" in (o1, o2)
                          else "derived" if "derived" in (o1, o2)
                          else "reported_uncomputed")
+        if row["origin"] == "derived":
+            # WHAT IT WAS ASSEMBLED FROM — note lines, or rows printed on the face (a model's sum
+            # of the face rows it cited). The chip said "assembled from notes" either way.
+            row["derived_from"] = (
+                "notes" if any((i or {}).get("note")
+                               for x in group for t in (x.get("derivation") or {}).values()
+                               if isinstance(t, dict) for i in (t.get("inputs") or ()))
+                else "face")
         if row.get("status") == "missing" and (row["v1"] is not None or row["v2"] is not None):
             # The document not printing this line is no longer a gap: the template says what it
             # is made of, and the components were there.
@@ -6501,6 +6616,25 @@ def _build_statement(rows: list[dict], template_def: dict | None, statement_type
 
         return merge_for_basis(store, basis_key)
 
+    # DOES THIS FILING PRINT NOTE REFERENCES ON ITS STATEMENTS? A US 10-K never does; a mainland
+    # filing may not (河钢 000709's statements are 项目 | 期末余额 | 期初余额). Where none is printed
+    # anywhere, the NOTE column is filled from what the run knows instead (`_unprinted_notes`);
+    # where any is, the column stays the printed references, and nothing is added beside them.
+    prints_note_refs = any((x.get("note") or x.get("note2")) for x in rows)
+    items_by_key = {getattr(i, "key", None): i
+                    for i in (getattr(line_item_set, "items", None) or ())}
+
+    def line_terms(key: str, label: str) -> list[str]:
+        """The line's own words — its label and its aliases — that a note title may name."""
+        item = items_by_key.get(key)
+        terms = [label] if label else []
+        if item is not None:
+            terms += [str(getattr(item, "label", "") or "")]
+            terms += [str(a) for a in (getattr(item, "aliases", None) or ())]
+            for spellings in (getattr(item, "aliases_i18n", None) or {}).values():
+                terms += [str(a) for a in (spellings or ())]
+        return [t for t in dict.fromkeys(terms) if t]
+
     def item_row(key: str, label: str, group: list[dict], kind: str = "item") -> dict:
         """One statement row from every extracted row that mapped to this concept.
 
@@ -6533,6 +6667,8 @@ def _build_statement(rows: list[dict], template_def: dict | None, statement_type
             trail_row = None
         r = trail_row or group[0]
         cur, prior = _cur_prior(r, basis)
+        # WHERE A MODEL'S CITATION READ THIS FIGURE — the face, or a note — when its trail is one.
+        reading = _citation_reading(r.get("derivation") or {}, basis) if trail_row else None
         cat, pct = _conf_cat(min((x.get("mapping_confidence") or 0) for x in group)
                              if len(group) > 1 else r.get("mapping_confidence"))
         # An edit to the consolidated figures does not make the standalone ones edited.
@@ -6621,7 +6757,16 @@ def _build_statement(rows: list[dict], template_def: dict | None, statement_type
             derived_formula, contributions = _merge_derivation(store, basis)
             arithmetic = derived_formula or arithmetic
             slot = store.get(f"{basis}:current") or store.get(f"{basis}:prior") or {}
-            if slot.get("version"):
+            tag = "computed"
+            if reading is not None:
+                # A MODEL'S CITATION IS A READING, NOT A COMPUTATION. Every line the model answers
+                # records a trail of the rows it cited, and that trail made the line "computed" —
+                # "Assembled by the line_item_llm:1_cited_row rule from the inputs below" — for a
+                # figure read off one printed row on the face. The tag and the sentence now say
+                # what happened: read from the face or from the note it names, or added up from
+                # the rows the model cited.
+                tag, note = _citation_wording(reading, locale)
+            elif slot.get("version"):
                 # A TRAIL THAT RECORDS ITS ARITHMETIC says so in the working below, input by
                 # input; the note names the rule and nothing it would have to count.
                 note = _t("Assembled by the {method} rule from the inputs below; each keeps its "
@@ -6634,7 +6779,7 @@ def _build_statement(rows: list[dict], template_def: dict | None, statement_type
                         f"{store.get(f'{basis}:current', {}).get('method') or 'extraction'} "
                         f"rule. Each input below keeps its own figure and page — click "
                         f"one to jump to it in the document.")
-            inspector = {**inspector, "tag": "computed",
+            inspector = {**inspector, "tag": tag,
                          "formula": derived_formula or "",
                          "result": "" if v1 is None else f"{v1:,.0f}",
                          "src": " · ".join(_places_once(contributions)),
@@ -6655,14 +6800,29 @@ def _build_statement(rows: list[dict], template_def: dict | None, statement_type
                 b, _, per = str(slot).partition("/")
                 if b == basis and (meta or {}).get("text"):
                     notes[per] = meta
+        cited_notes = _cited_pair(group)
+        listed_notes = sorted({n for x in group for n in (x.get("notes") or [])},
+                              key=_note_sort_key_str) or None
+        note_by = None
+        if not cited_notes["note"] and not prints_note_refs:
+            unprinted, note_by = _unprinted_notes(group, basis, note_titles or {},
+                                                  line_terms(key, label))
+            if unprinted:
+                cited_notes = {"note": unprinted[0],
+                               "note2": unprinted[1] if len(unprinted) > 1 else None}
+                listed_notes = unprinted
         return as_calculated({
             "id": key, "label": label or r.get("source_label"),
             "source_label": r.get("source_label"), "kind": kind,
+            # WHERE THE NOTE COLUMN'S NOTES CAME FROM when the statements print none: "figure" —
+            # the note this figure was read from; "title" — a note whose title names the line.
+            # Absent for a reference the statement printed. Display only; see `_unprinted_notes`.
+            **({"note_by": note_by} if note_by and cited_notes["note"] else {}),
             # THE NOTES THE CONTRIBUTING LINES CITE, in the order they were cited, first two.
             # `note2` was hardcoded None, so a concept whose periods cite different notes ("10"
             # current, "10a" prior) lost the second linkage here even once the rows carried it —
             # which is the exact case the grid keeps two chips for.
-            **_cited_pair(group),
+            **cited_notes,
             "status": "edited" if edited else None,
             # WHERE THE FIGURE WAS PRINTED and WHICH ANALYST SECTION it belongs to, carried from the
             # contributing rows. Not the same question as ``origin`` below, which says whether the
@@ -6680,8 +6840,7 @@ def _build_statement(rows: list[dict], template_def: dict | None, statement_type
                                   if x.get("bucket_label")), None),
             # The notes that DETAIL this figure — every note any contributing line cites and that
             # the run actually extracted, so the linkage cannot offer detail that is not there.
-            "notes": sorted({n for x in group for n in (x.get("notes") or [])},
-                            key=_note_sort_key_str) or None,
+            "notes": listed_notes,
             # No confidence object at all when nothing measured one, rather than a category beside a
             # made-up percentage: `_conf_cat` used to answer ('med', 60) for a row that carries no
             # mapping confidence, and the inspector printed "60% confidence" over a figure nothing
@@ -6955,7 +7114,11 @@ def get_document_statement(
                               cross_check=_CrossCheck.of(lis),
                               # What scopes the printed row a calculated line's difference is
                               # explained by: the set's sections and the classified pages.
-                              line_item_set=lis, pages=run.result.get("pages") or [])
+                              line_item_set=lis, pages=run.result.get("pages") or [],
+                              # The notes the run read, by number, for the NOTE column of a filing
+                              # whose statements print no note references (`_unprinted_notes`).
+                              note_titles=_column_note_titles(run.result.get("note_details")
+                                                              or []))
     # Which template version this spread's SHAPE came from, and whether a newer one exists. Added
     # here rather than inside `_build_statement`, which is a pure function of a definition and has no
     # session to ask the question with — and the question is about the row in the table, not about
