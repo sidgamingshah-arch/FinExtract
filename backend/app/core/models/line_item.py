@@ -260,6 +260,12 @@ class LineItem(BaseModel):
     # borrowings" appears once as non-current and once as current — so the caption alone cannot
     # say which concept it is. Mapping uses this to tell them apart.
     section_hint: str | None = None
+    # THE SECTION CAPTION MAPPING READ THIS ROW IN, where that is not its banner's: a row printed
+    # after its section's total under a banner the reader carried past it (a 10-K's long-term rows
+    # under "Current liabilities:"). Set by `stages.map_ontology` — the banner of the section the
+    # row is read in, or "" for none — and None where the banner stands. Read through
+    # `services.mapping.section_of_row`, so every stage after mapping places the row as mapping did.
+    section_in_force: str | None = None
     # The sub-heading printed above this row WITHIN its section — "Current charge for the year:",
     # "Under-provision in prior years, net:", "Adjustments for:". Distinct from ``section_hint``
     # because it must not scope the row the way a banner does (the rows under "Adjustments for:" are

@@ -153,7 +153,8 @@ model = "us.anthropic.claude-opus-4-7"   # the Bedrock model id, exactly as the 
 # times with the same 4,096,000. 32768 clears every callee's own default — the largest is
 # run_analysis's 4096 (services/analysis_llm.py) — so nothing is truncated by the change.
 max_tokens = 32768
-timeout_seconds = 600
+timeout_seconds = 120   # one attempt's wait for a reply; at most 120 (the field refuses more)
+retries = 1             # attempts after the first, on a timeout, a dropped connection or a 429/5xx
 base_url = "https://llmgateway.crisil.local/api/bedrock"   # requests go to <base_url>/model/<model>/invoke
 api_key_env = "LLM_GATEWAY_TOKEN"   # env var the key is read from (the key itself is NOT stored here)
 auth_header = "token"               # header the key is sent in; "Authorization" sends a Bearer token

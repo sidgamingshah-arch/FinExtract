@@ -20,7 +20,12 @@
     "headings": [
      "non current liabilities",
      "noncurrent liabilities",
-     "non-current liabilities"
+     "non-current liabilities",
+     "long term liabilities",
+     "long-term liabilities",
+     "liabilities due after one year",
+     "liabilities due after more than one year",
+     "deferred credits and other liabilities"
     ],
     "heading_row": true
    },
@@ -29,14 +34,19 @@
     "headings": [
      "non current assets",
      "noncurrent assets",
-     "non-current assets"
+     "non-current assets",
+     "long term assets",
+     "long-term assets"
     ],
     "heading_row": true
    },
    {
     "token": "current_liabilities",
     "headings": [
-     "current liabilities"
+     "current liabilities",
+     "liabilities due within one year",
+     "short term liabilities",
+     "short-term liabilities"
     ],
     "heading_row": true
    },
@@ -51,7 +61,14 @@
     "token": "equity",
     "headings": [
      "equity",
-     "capital and reserves"
+     "capital and reserves",
+     "stockholders deficit",
+     "shareholders deficit",
+     "stockholders deficiency",
+     "shareholders deficiency",
+     "members deficit",
+     "partners capital",
+     "partners deficit"
     ],
     "heading_row": true
    },

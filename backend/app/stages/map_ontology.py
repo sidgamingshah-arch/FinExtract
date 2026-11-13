@@ -1068,6 +1068,14 @@ class MapOntologyStage:
                 if under and section_of_banner(under) is not None:
                     _in_force.setdefault(row_id, under)
             _bs_section = _balance_sheet_past_total(doc)
+            # RECORDED ON THE ROW, so the stages after this one read the row in the section this
+            # one reads it in (`mapping.section_of_row`) rather than in the banner the reader
+            # carried past its total. "" is "in no section", which is not the same as None ("the
+            # banner stands").
+            for li in doc.line_items:
+                li.section_in_force = None
+                if id(li) in _bs_section:
+                    li.section_in_force = _bs_section[id(li)] or ""
         except Exception as exc:  # noqa: BLE001 — a section the request text cannot place is no
             # reason to stop mapping; every row then keeps the banner it was read under.
             ctx.log(f"map_line_items:section_in_force_unavailable({type(exc).__name__})")

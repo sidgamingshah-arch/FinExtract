@@ -942,13 +942,33 @@ SECTION_WORDS: tuple[tuple[str, tuple[str, ...]], ...] = (
                "notes to the financial statements", "notes to financial statements",
                "财务报表附注")),
     # Longest first: "non current liabilities" must not be read as "current liabilities".
+    #
+    # "LONG TERM LIABILITIES" IS THE US SPELLING OF THE SAME BANNER, and 长期负债 already stood
+    # here for it in Chinese. Madrigal's 10-K prints "Long term liabilities:" over its loan payable
+    # and its non-current lease liabilities; read as no section, the reader carried "Current
+    # liabilities:" down over both, so the model's correct citations of 'Lease liabilities' and
+    # 'Loan payable, net of discount' for the long-term lines were refused as printed under the
+    # current banner. ("Long-term" folds to "long term" in `normalize_label`.)
+    #
+    # THE OTHER SPELLINGS ARE WHOLE PHRASES ONLY, because a banner is matched ANYWHERE in its text:
+    # "long term" alone would read 'Long-term debt' as a banner, "other liabilities" a caption of
+    # its own, "deficit" the accumulated deficit. A US utility prints its long-term half as
+    # "Deferred credits and other liabilities:"; a filer with negative equity heads it
+    # "Stockholders' deficit:".
     ("non_current_liabilities", ("non current liabilities", "noncurrent liabilities",
+                                "long term liabilities", "liabilities due after one year",
+                                "liabilities due after more than one year",
+                                "deferred credits and other liabilities",
                                 "非流动负债", "长期负债")),
-    ("non_current_assets", ("non current assets", "noncurrent assets",
+    ("non_current_assets", ("non current assets", "noncurrent assets", "long term assets",
                            "非流动资产", "长期资产")),
-    ("current_liabilities", ("current liabilities", "流动负债")),
+    ("current_liabilities", ("current liabilities", "liabilities due within one year",
+                            "short term liabilities", "流动负债")),
     ("current_assets", ("current assets", "流动资产")),
-    ("equity", ("equity", "capital and reserves", "权益", "股本及储备", "资本及储备")),
+    ("equity", ("equity", "capital and reserves", "stockholders deficit", "shareholders deficit",
+                "stockholders deficiency", "shareholders deficiency", "members deficit",
+                "partners capital", "partners deficit",
+                "权益", "股本及储备", "资本及储备")),
     # The cash flow statement is namespaced the same way, and its captions repeat across
     # activities: "Interest received" and "Dividends received" appear under both operating and
     # investing, "Acquisition of subsidiaries" under investing and financing.
@@ -1185,6 +1205,27 @@ _COMPACT_KEY_SECTION_TOKENS: dict[str, str] = dict(_COMPACT_SECTION_TOKENS)
 _KEY_SECTION_OVERRIDES: dict[str, str] = {
     "is_pl__minority_interests_pl": "profit_attributable_to",
 }
+
+
+def section_of_row(row) -> str | None:
+    """The section a printed row is IN — the one caption mapping read it under.
+
+    ONE ANSWER FOR EVERY STAGE. The reader carries a banner down the page until another replaces
+    it, so a row printed after its section's total can still carry the closed section's banner
+    ("Current liabilities:" over a 10-K's long-term rows). Caption mapping reads such a row in the
+    section printed after the one that closed (`stages.map_ontology._balance_sheet_past_total`, the
+    balance sheet's correction) and records that on the row as `section_in_force` — "" where it
+    reads the row in no section. Every
+    later reader asks this, not the banner: the model's answer checks read the bare banner, and on
+    Madrigal's 10-K they refused the model's correct citations of 'Loan payable, net of discount'
+    and 'Lease liabilities' for the long-term lines as "printed under Current liabilities:", while
+    caption mapping had already read those rows as long-term.
+
+    A row caption mapping did not move keeps its banner's answer.
+    """
+    in_force = getattr(row, "section_in_force", None)
+    banner = getattr(row, "section_hint", None) if in_force is None else in_force
+    return section_of_banner(banner or "")
 
 
 def section_of_banner_only(text: str | None) -> str | None:

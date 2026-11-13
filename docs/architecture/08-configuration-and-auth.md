@@ -27,7 +27,7 @@ model per table; a few sit at the top level and take no table at all:
 | *(no table — bare top-level keys, before the first `[section]`)* | `app_name`, `api_prefix`, `database_url`, `object_store_backend`, `object_store_root` |
 | `[auth]` | `allow_role_header`, `demo_mode`, `session_ttl_minutes` |
 | `[features]` | `ui_localization`, `review_required`, `seed_demo`, `default_output_locale`, `supported_locales` |
-| `[llm]` | `provider`, `model`, `max_tokens`, `timeout_seconds`, `base_url`, `api_key_env`, plus the Azure address: `azure_endpoint`, `azure_api_version`, `azure_deployment` |
+| `[llm]` | `provider`, `model`, `max_tokens`, `timeout_seconds` (one attempt's wait, 120 at most), `retries` (attempts after the first on a timeout, a dropped connection or a 429/5xx; 1 — read by the Bedrock gateway adapter), `base_url`, `api_key_env`, plus the Azure address: `azure_endpoint`, `azure_api_version`, `azure_deployment` |
 | `[ocr]` | `engine`, `languages`, `dpi`, plus the Azure Document Intelligence address: `azure_endpoint`, `azure_model`, `azure_api_version`, `azure_api_key_env` |
 | `[extraction]` | native/scanned thresholds, the mapping thresholds (`evidence_floor` and `alias_coverage_floor` — how nearly a caption must BE an authored alias for the two guards that read it; `mapping_margin`, `auto_accept_confidence`), reconciliation tolerances (`recon_*`), and the LLM-mapping knobs (`llm_mapping`, `llm_candidate_cap`, `mapping_scope`, `llm_gap_routing`) |
 

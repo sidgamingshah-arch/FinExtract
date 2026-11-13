@@ -546,7 +546,10 @@ LINES = {
           ["Operating lease liabilities, current", "Current operating lease liabilities",
            "Current portion of operating lease liabilities",
            "Operating lease obligations due within one year", "Short-term operating lease liabilities",
-           "Operating lease liabilities"],
+           "Operating lease liabilities",
+           # A bare "Lease liabilities" (Madrigal's 10-K) is an operating lease filer's spelling: a
+           # finance lease is printed as such and goes to debt. The banner settles current or not.
+           "Lease liabilities"],
           "The part of operating lease liabilities (ASC 842) due within a year: a bare 'Operating "
           "lease liabilities' printed above the current liabilities' total.",
           exclude=[r"non\s*current|long\s+term|less\s+current|net\s+of\s+current"],
@@ -581,7 +584,9 @@ LINES = {
           ["Long-term debt", "Long-term debt, net of current portion", "Long-term debt, less current portion",
            "Long-term debt, net", "Long-term borrowings", "Term debt, non-current",
            "Long-term debt, excluding current maturities", "Long-term debt due after one year",
-           "Non-current debt", "Long-term notes payable", "Term debt"],
+           "Non-current debt", "Long-term notes payable", "Term debt",
+           # Madrigal's 10-K prints its term loan as this under "Long term liabilities:".
+           "Loan payable", "Loan payable, net of discount"],
           "Borrowings due after a year (notes, bonds, term loans), net of the current portion, as "
           "the balance sheet prints them, and the long-term part of finance lease obligations, "
           "which a credit analyst counts as debt; the rows are added. Operating lease liabilities "
@@ -598,7 +603,8 @@ LINES = {
            "Operating lease liabilities, noncurrent", "Non-current operating lease liabilities",
            "Noncurrent operating lease liabilities", "Long-term operating lease obligations",
            "Operating lease liabilities, less current portion",
-           "Operating lease liabilities, net of current portion", "Operating lease liabilities"],
+           "Operating lease liabilities, net of current portion", "Operating lease liabilities",
+           "Lease liabilities"],
           "The part of operating lease liabilities (ASC 842) due after a year: a bare 'Operating "
           "lease liabilities' printed below the current liabilities' total.",
           exclude=[r"due\s+within\s+one\s+year", r"short\s+term",

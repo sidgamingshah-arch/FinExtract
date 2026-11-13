@@ -1077,7 +1077,7 @@ def block_sides(doc, line_item_set) -> dict[int, dict[int, str]]:
     left unassigned and read as before.
     """
     from app.core.models.enums import LineRole
-    from app.services.mapping import section_of_banner, section_of_key, section_token_of_scope
+    from app.services.mapping import section_of_key, section_of_row, section_token_of_scope
 
     items = list(getattr(line_item_set, "items", None) or ())
     by_key = {i.key: i for i in items}
@@ -1095,7 +1095,7 @@ def block_sides(doc, line_item_set) -> dict[int, dict[int, str]]:
         if item is not None:
             scopes = [str(x) for x in (getattr(item, "section_scope", None) or ()) if x]
             return scopes[0] if len(scopes) == 1 else ""
-        token = section_of_banner(getattr(row, "section_hint", None) or "") or section_of_key(key)
+        token = section_of_row(row) or section_of_key(key)
         scopes = scopes_by_token.get(token, set()) if token else set()
         return next(iter(scopes)) if len(scopes) == 1 else ""
 
@@ -1688,9 +1688,11 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
                 on_stmt = in_entity
             on_face = best_caption(want_cap, on_stmt, key=lambda f: norm(f[1]))
             if on_face is not None and sections:
-                from app.services.mapping import section_of_banner
+                # The section caption mapping read the row in (`mapping.section_of_row`), not the
+                # banner the reader carried past its total.
+                from app.services.mapping import section_of_row
                 own = [f for f in _tied_captions(want_cap, on_stmt, key=lambda f: norm(f[1]))
-                       if section_of_banner(getattr(f[2], "section_hint", None)) in sections]
+                       if section_of_row(f[2]) in sections]
                 if own:
                     on_face = own[0]
             # THE HEADING THE ROW IS PRINTED UNDER, when the citation names one in `group`: an
@@ -1738,15 +1740,21 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
             # "Borrowings", "Lease liabilities") and prints the non-current block first; any other
             # section still falls back to document order, as before.
             if on_face is not None and sections:
-                from app.services.mapping import section_of_banner
-                where = section_of_banner(getattr(on_face[2], "section_hint", None))
+                # READ WHERE CAPTION MAPPING READ IT. A 10-K's long-term rows can carry the
+                # "Current liabilities:" banner the reader did not replace; mapping reads them as
+                # long-term (`mapping.section_of_row`), and refusing the model's citation of one
+                # on the stale banner left Madrigal's loan payable and long-term lease liabilities
+                # in Other non-current liabilities.
+                from app.services.mapping import section_of_row
+                where = section_of_row(on_face[2])
                 if where and where not in sections and any(
                         {where, own} in _OTHER_PORTIONS for own in sections):
+                    read_under = getattr(on_face[2], "section_in_force", None)
                     unresolved.append({
                         "at": at, "note": "", "statement": want_stmt,
                         "caption": getattr(ref, "caption", ""), "quote": quote,
                         "why": (f"the row of that caption is printed under "
-                                f"{getattr(on_face[2], 'section_hint', '')!s}, outside this "
+                                f"{read_under or getattr(on_face[2], 'section_hint', '')!s}, outside this "
                                 f"line's section")})
                     continue
             if on_face is None:

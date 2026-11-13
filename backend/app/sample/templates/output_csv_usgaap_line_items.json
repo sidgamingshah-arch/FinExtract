@@ -200,7 +200,12 @@
     "headings": [
      "non current liabilities",
      "noncurrent liabilities",
-     "non-current liabilities"
+     "non-current liabilities",
+     "long term liabilities",
+     "long-term liabilities",
+     "liabilities due after one year",
+     "liabilities due after more than one year",
+     "deferred credits and other liabilities"
     ],
     "heading_row": true
    },
@@ -209,14 +214,19 @@
     "headings": [
      "non current assets",
      "noncurrent assets",
-     "non-current assets"
+     "non-current assets",
+     "long term assets",
+     "long-term assets"
     ],
     "heading_row": true
    },
    {
     "token": "current_liabilities",
     "headings": [
-     "current liabilities"
+     "current liabilities",
+     "liabilities due within one year",
+     "short term liabilities",
+     "short-term liabilities"
     ],
     "heading_row": true
    },
@@ -231,7 +241,14 @@
     "token": "equity",
     "headings": [
      "equity",
-     "capital and reserves"
+     "capital and reserves",
+     "stockholders deficit",
+     "shareholders deficit",
+     "stockholders deficiency",
+     "shareholders deficiency",
+     "members deficit",
+     "partners capital",
+     "partners deficit"
     ],
     "heading_row": true
    },
@@ -1833,7 +1850,8 @@
     "Current portion of operating lease liabilities",
     "Operating lease obligations due within one year",
     "Short-term operating lease liabilities",
-    "Operating lease liabilities"
+    "Operating lease liabilities",
+    "Lease liabilities"
    ],
    "aliases_i18n": {
     "en": [
@@ -1842,11 +1860,12 @@
      "Current portion of operating lease liabilities",
      "Operating lease obligations due within one year",
      "Short-term operating lease liabilities",
-     "Operating lease liabilities"
+     "Operating lease liabilities",
+     "Lease liabilities"
     ]
    },
    "regex_hints": [
-    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity|commitments\\s+and\\s+contingencies(?:\\s+(?:see\\s+)?notes?\\s+\\d{1,2})?)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+|plus\\s+)?(?:operating\\s+lease\\s+obligations\\s+due\\s+within\\s+one\\s+year|current\\s+portion\\s+of\\s+operating\\s+lease\\s+liabilities|short\\s+term\\s+operating\\s+lease\\s+liabilities|current\\s+operating\\s+lease\\s+liabilities|operating\\s+lease\\s+liabilities\\s+current|operating\\s+lease\\s+liabilities)$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity|commitments\\s+and\\s+contingencies(?:\\s+(?:see\\s+)?notes?\\s+\\d{1,2})?)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+|plus\\s+)?(?:operating\\s+lease\\s+obligations\\s+due\\s+within\\s+one\\s+year|current\\s+portion\\s+of\\s+operating\\s+lease\\s+liabilities|short\\s+term\\s+operating\\s+lease\\s+liabilities|current\\s+operating\\s+lease\\s+liabilities|operating\\s+lease\\s+liabilities\\s+current|operating\\s+lease\\s+liabilities|lease\\s+liabilities)$",
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:current\\s+(?:portion\\s+of\\s+)?|short\\s+term\\s+)operating\\s+lease\\s+(?:liabilities|liability|obligations?)$",
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}operating\\s+lease\\s+(?:liabilities|liability|obligations?)\\s+(?:current|due\\s+within\\s+one\\s+year)$"
    ],
@@ -2034,7 +2053,9 @@
     "Long-term debt due after one year",
     "Non-current debt",
     "Long-term notes payable",
-    "Term debt"
+    "Term debt",
+    "Loan payable",
+    "Loan payable, net of discount"
    ],
    "aliases_i18n": {
     "en": [
@@ -2048,11 +2069,13 @@
      "Long-term debt due after one year",
      "Non-current debt",
      "Long-term notes payable",
-     "Term debt"
+     "Term debt",
+     "Loan payable",
+     "Loan payable, net of discount"
     ]
    },
    "regex_hints": [
-    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity|commitments\\s+and\\s+contingencies(?:\\s+(?:see\\s+)?notes?\\s+\\d{1,2})?)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+|plus\\s+)?(?:long\\s+term\\s+debt\\s+excluding\\s+current\\s+maturities|long\\s+term\\s+debt\\s+net\\s+of\\s+current\\s+portion|long\\s+term\\s+debt\\s+less\\s+current\\s+portion|long\\s+term\\s+debt\\s+due\\s+after\\s+one\\s+year|long\\s+term\\s+notes\\s+payable|term\\s+debt\\s+non\\s+current|long\\s+term\\s+borrowings|long\\s+term\\s+debt\\s+net|non\\s+current\\s+debt|long\\s+term\\s+debt|term\\s+debt)$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity|commitments\\s+and\\s+contingencies(?:\\s+(?:see\\s+)?notes?\\s+\\d{1,2})?)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+|plus\\s+)?(?:long\\s+term\\s+debt\\s+excluding\\s+current\\s+maturities|long\\s+term\\s+debt\\s+net\\s+of\\s+current\\s+portion|long\\s+term\\s+debt\\s+less\\s+current\\s+portion|long\\s+term\\s+debt\\s+due\\s+after\\s+one\\s+year|loan\\s+payable\\s+net\\s+of\\s+discount|long\\s+term\\s+notes\\s+payable|term\\s+debt\\s+non\\s+current|long\\s+term\\s+borrowings|long\\s+term\\s+debt\\s+net|non\\s+current\\s+debt|long\\s+term\\s+debt|loan\\s+payable|term\\s+debt)$",
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}long\\s+term\\s+(?:debt|borrowings?|notes(?:\\s+payable)?|obligations)\\b.*$",
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:non\\s*current|noncurrent)\\s+(?:debt|borrowings)\\b.*$",
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}term\\s+debt\\s+non\\s*current$",
@@ -2095,7 +2118,8 @@
     "Long-term operating lease obligations",
     "Operating lease liabilities, less current portion",
     "Operating lease liabilities, net of current portion",
-    "Operating lease liabilities"
+    "Operating lease liabilities",
+    "Lease liabilities"
    ],
    "aliases_i18n": {
     "en": [
@@ -2107,11 +2131,12 @@
      "Long-term operating lease obligations",
      "Operating lease liabilities, less current portion",
      "Operating lease liabilities, net of current portion",
-     "Operating lease liabilities"
+     "Operating lease liabilities",
+     "Lease liabilities"
     ]
    },
    "regex_hints": [
-    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity|commitments\\s+and\\s+contingencies(?:\\s+(?:see\\s+)?notes?\\s+\\d{1,2})?)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+|plus\\s+)?(?:operating\\s+lease\\s+liabilities\\s+net\\s+of\\s+current\\s+portion|operating\\s+lease\\s+liabilities\\s+less\\s+current\\s+portion|non\\s+current\\s+operating\\s+lease\\s+liabilities|operating\\s+lease\\s+liabilities\\s+non\\s+current|noncurrent\\s+operating\\s+lease\\s+liabilities|operating\\s+lease\\s+liabilities\\s+noncurrent|long\\s+term\\s+operating\\s+lease\\s+liabilities|long\\s+term\\s+operating\\s+lease\\s+obligations|operating\\s+lease\\s+liabilities)$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity|commitments\\s+and\\s+contingencies(?:\\s+(?:see\\s+)?notes?\\s+\\d{1,2})?)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+|plus\\s+)?(?:operating\\s+lease\\s+liabilities\\s+net\\s+of\\s+current\\s+portion|operating\\s+lease\\s+liabilities\\s+less\\s+current\\s+portion|non\\s+current\\s+operating\\s+lease\\s+liabilities|operating\\s+lease\\s+liabilities\\s+non\\s+current|noncurrent\\s+operating\\s+lease\\s+liabilities|operating\\s+lease\\s+liabilities\\s+noncurrent|long\\s+term\\s+operating\\s+lease\\s+liabilities|long\\s+term\\s+operating\\s+lease\\s+obligations|operating\\s+lease\\s+liabilities|lease\\s+liabilities)$",
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:long\\s+term|non\\s*current)\\s+operating\\s+lease\\s+(?:liabilities|liability|obligations?)$",
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}operating\\s+lease\\s+(?:liabilities|liability|obligations?)\\s+(?:non\\s*current|long\\s+term|(?:less|net\\s+of)\\s+current\\s+portion)$"
    ],

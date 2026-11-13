@@ -107,3 +107,108 @@ def test_a_missing_key_is_reported_at_startup_naming_the_variable(monkeypatch):
     assert "LLM_GATEWAY_TOKEN" in warn_if_llm_key_missing(settings)[0]
     monkeypatch.setenv("LLM_GATEWAY_TOKEN", "x")
     assert warn_if_llm_key_missing(settings) == []
+
+
+# ── one retry, and an attempt bounded at 120 seconds ─────────────────────────────────────────────
+# Madrigal's 10-K: the request holding the eight current-liability lines timed out after 600
+# seconds and was never sent again, so none of those lines was answered.
+
+def _gateway(monkeypatch, outcomes, **llm):
+    """A provider whose httpx.Client answers each attempt with the next outcome: an exception to
+    raise, or an HTTP status to return."""
+    import httpx
+
+    from app.adapters import bedrock_gateway_llm
+
+    settings = Settings()
+    settings.llm.base_url = "https://llm-gateway.example.invalid/api/bedrock"
+    settings.llm.model = "m"
+    for k, v in llm.items():
+        setattr(settings.llm, k, v)
+    monkeypatch.setenv(settings.llm.api_key_env, "k")
+    monkeypatch.setattr(bedrock_gateway_llm, "_RETRY_PAUSE_SECONDS", 0)
+    calls = []
+
+    class _Client:
+        def __init__(self, **kw):
+            calls.append(kw.get("timeout"))
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def post(self, url, headers=None, json=None):
+            outcome = outcomes[len(calls) - 1]
+            if isinstance(outcome, Exception):
+                raise outcome
+            return httpx.Response(outcome, request=httpx.Request("POST", url), json={
+                "content": [{"type": "text", "text": '{"label": "ok"}'}], "usage": {}})
+
+    monkeypatch.setattr(httpx, "Client", _Client)
+    return BedrockGatewayLlmProvider(settings), calls
+
+
+def _ask(provider):
+    return provider.complete_structured(system="s", messages=[{"role": "user", "content": "q"}],
+                                        response_schema=_Out, max_tokens=50)
+
+
+def test_a_timed_out_request_is_sent_once_more(monkeypatch):
+    import httpx
+
+    provider, calls = _gateway(monkeypatch, [httpx.ReadTimeout("slow"), 200])
+    parsed, _ = _ask(provider)
+    assert parsed.label == "ok" and len(calls) == 2
+
+
+def test_after_one_retry_the_timeout_stands(monkeypatch):
+    import httpx
+    import pytest
+
+    provider, calls = _gateway(monkeypatch, [httpx.ReadTimeout("slow"), httpx.ReadTimeout("slow")])
+    with pytest.raises(httpx.ReadTimeout):
+        _ask(provider)
+    assert len(calls) == 2
+
+
+def test_a_busy_gateway_is_asked_again_and_a_refused_request_is_not(monkeypatch):
+    import httpx
+    import pytest
+
+    provider, calls = _gateway(monkeypatch, [503, 200])
+    assert _ask(provider)[0].label == "ok" and len(calls) == 2
+    provider, calls = _gateway(monkeypatch, [400, 200])
+    with pytest.raises(httpx.HTTPStatusError):
+        _ask(provider)
+    assert len(calls) == 1, "a malformed request is not sent twice"
+
+
+def test_no_retries_means_one_attempt(monkeypatch):
+    import httpx
+    import pytest
+
+    provider, calls = _gateway(monkeypatch, [httpx.ConnectError("down"), 200], retries=0)
+    with pytest.raises(httpx.ConnectError):
+        _ask(provider)
+    assert len(calls) == 1
+
+
+def test_an_attempt_waits_120_seconds_at_most():
+    import pytest
+    from pydantic import ValidationError
+
+    from app import config
+    from app.config import LlmSettings
+
+    assert LlmSettings().timeout_seconds == 120 and LlmSettings().retries == 1
+    with pytest.raises(ValidationError):
+        LlmSettings(timeout_seconds=600)
+    saved = dict(config._PINNED_LLM)
+    config.pin_llm()                                 # the shipped file's own [llm]
+    try:
+        shipped = Settings().llm
+    finally:
+        config.pin_llm(**saved)
+    assert shipped.timeout_seconds == 120 and shipped.retries == 1

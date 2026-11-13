@@ -7,7 +7,9 @@ model id exactly as Bedrock names it, and reads the key from a ``token`` header
 """
 from __future__ import annotations
 
+import logging
 import os
+import time
 from typing import Sequence
 
 import httpx
@@ -17,6 +19,14 @@ from app.adapters._structured import (LlmConfigError, cache_prices, messages_bod
                                       schema_instruction, strip_fences)
 from app.config import Settings, get_settings
 from app.ports.llm import LlmMessage, LlmMeta, anthropic_usage
+
+_log = logging.getLogger(__name__)
+
+#: The gateway statuses that say "not now" rather than "not this": rate-limited, or failing upstream.
+_RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
+#: A short pause before the second attempt, so a gateway that is momentarily overloaded is not hit
+#: again in the same instant.
+_RETRY_PAUSE_SECONDS = 2.0
 
 
 class BedrockGatewayLlmProvider:
@@ -70,16 +80,11 @@ class BedrockGatewayLlmProvider:
                             response_schema: type[BaseModel], temperature: float = 0.0,
                             max_tokens: int = 2048) -> tuple[BaseModel, LlmMeta]:
         del temperature
-        with httpx.Client(
-            timeout=self._settings.llm.timeout_seconds,
-            verify=not self._settings.llm.disable_ssl_verify,
-        ) as client:
-            response = client.post(
-                self._endpoint(),
-                headers={**self._auth_headers(), "Content-Type": "application/json"},
-                json=self.build_body(system=system, messages=messages,
-                                     response_schema=response_schema, max_tokens=max_tokens),
-            )
+        endpoint = self._endpoint()
+        headers = {**self._auth_headers(), "Content-Type": "application/json"}
+        body = self.build_body(system=system, messages=messages,
+                               response_schema=response_schema, max_tokens=max_tokens)
+        response = self._post(endpoint, headers, body)
         response.raise_for_status()
         payload = response.json()
         text = "".join(block.get("text", "") for block in payload.get("content", [])
@@ -89,3 +94,38 @@ class BedrockGatewayLlmProvider:
             "model": payload.get("model", self._settings.llm.model),
             **anthropic_usage(payload.get("usage") or {}),
         }
+
+    def _post(self, endpoint: str, headers: dict, body: dict) -> httpx.Response:
+        """POST the request, and once more if the first attempt failed for a reason a second may not.
+
+        A TIMEOUT USED TO LOSE THE WHOLE REQUEST. This adapter made one attempt, so one slow reply
+        took every line the request held with it — on Madrigal's 10-K the eight current-liability
+        lines, the current lease liabilities among them, were answered by nothing after a
+        ReadTimeout. The second attempt is for what a second attempt can cure: a timeout or a
+        dropped connection (`httpx.TransportError`) and a gateway that says it is busy or failing
+        (`_RETRY_STATUSES`). A refusal of the request itself (400, 401, 403, 404) fails at once,
+        because sending it again sends the same mistake again.
+
+        `llm.retries` attempts after the first (1), each bounded by `llm.timeout_seconds`.
+        """
+        cfg = self._settings.llm
+        attempts = 1 + max(0, int(getattr(cfg, "retries", 1) or 0))
+        for attempt in range(1, attempts + 1):
+            try:
+                with httpx.Client(timeout=cfg.timeout_seconds,
+                                  verify=not cfg.disable_ssl_verify) as client:
+                    response = client.post(endpoint, headers=headers, json=body)
+            except httpx.TransportError as exc:
+                if attempt >= attempts:
+                    raise
+                _log.warning("bedrock_gateway: attempt %d of %d failed (%s: %s); retrying",
+                             attempt, attempts, type(exc).__name__, exc)
+                time.sleep(_RETRY_PAUSE_SECONDS)
+                continue
+            if response.status_code in _RETRY_STATUSES and attempt < attempts:
+                _log.warning("bedrock_gateway: attempt %d of %d answered HTTP %d; retrying",
+                             attempt, attempts, response.status_code)
+                time.sleep(_RETRY_PAUSE_SECONDS)
+                continue
+            return response
+        raise AssertionError("unreachable: the last attempt returns or raises")

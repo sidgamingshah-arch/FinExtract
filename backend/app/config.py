@@ -122,7 +122,14 @@ class LlmSettings(BaseModel):
     # Bounded, so a value no model can serve fails at startup naming the field instead of being
     # sent to the gateway on every call.
     max_tokens: int = Field(default=32768, ge=256, le=262144)
-    timeout_seconds: int = Field(default=600, ge=1, le=3600)
+    # SECONDS ONE ATTEMPT MAY WAIT FOR A REPLY, AT MOST 120. It was 600: one stalled request held
+    # its lines for ten minutes and then lost them (Madrigal's 10-K, ReadTimeout on the eight
+    # current-liability lines). Capped rather than merely defaulted, so a larger value fails at
+    # startup naming the field instead of silently waiting longer.
+    timeout_seconds: int = Field(default=120, ge=1, le=120)
+    # ATTEMPTS AFTER THE FIRST, for a timeout, a dropped connection or a busy gateway (429/5xx) —
+    # read by the Bedrock gateway adapter (`adapters.bedrock_gateway_llm._post`). One retry.
+    retries: int = Field(default=1, ge=0, le=3)
     base_url: str = "https://llmgateway.crisil.local/api/bedrock"   # the CRISIL LLM gateway
     api_key_env: str = "LLM_GATEWAY_TOKEN"  # env var the key is read from (not the key)
     # The request header the key is sent in. The CRISIL gateway reads it from `token`; "Authorization"

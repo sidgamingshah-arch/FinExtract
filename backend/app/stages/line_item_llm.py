@@ -1262,8 +1262,9 @@ class LineItemLlmStage(Stage):
         financing section, and the model cited the one printed row for both. Both lines then
         published it, and the cash flow statement counted the payment twice.
 
-        WHO KEEPS IT: the line whose section is the one the row is PRINTED under (the banner it sat
-        beneath, `section_hint`, read by `mapping.section_of_banner`, against each line's own
+        WHO KEEPS IT: the line whose section is the one the row is PRINTED under (the section caption
+        mapping read it in, `mapping.section_of_row`: its banner, unless that banner was carried past
+        its section's total), against each line's own
         section, `mapping.section_of_key`). Where no claimant's section matches — or the banner
         names no section — the first line to claim it keeps it, as before.
 
@@ -1279,7 +1280,7 @@ class LineItemLlmStage(Stage):
         claimant is never emptied. "Part" includes a line a calculated line is COMPUTED from (its
         `terms`, `_ancestry`): net intangibles may cite the 商誉 row goodwill stands on.
         """
-        from app.services.mapping import section_of_banner, section_of_key
+        from app.services.mapping import section_of_key, section_of_row
         rows = {str(getattr(li, "id", "") or ""): li for li in (doc.line_items or ())}
         ancestors = _ancestry(line_item_set)
 
@@ -1288,7 +1289,8 @@ class LineItemLlmStage(Stage):
             if len(keys) < 2:
                 continue
             printed = rows.get(rid)
-            where = section_of_banner(getattr(printed, "section_hint", "") or "") if printed else None
+            # The section caption mapping read the row in, not a banner carried past its total.
+            where = section_of_row(printed) if printed else None
             matching = [k for k in keys if where and section_of_key(k) == where]
             owner = matching[0] if matching else keys[0]
             caption = str(getattr(printed, "source_label", "") or "")[:48]
