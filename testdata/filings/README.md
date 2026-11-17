@@ -7,7 +7,9 @@ stays ignored: it is where client documents are kept locally, and nothing in it 
 Which template a filing is tested on follows its region:
 
 - China / Hong Kong: `output_csv_hk_v1_template.json` + `output_csv_hk_line_items.json`
-- India: `output_csv_icon_v1_template.json` + `output_csv_icon_line_items.json`
+- India: `output_csv_icon_v1_template.json` + `output_csv_icon_line_items.json`, or the Ind AS
+  pair (`output_csv_indas_v1_template.json` + `output_csv_indas_line_items.json`) — the table says
+  which a filing is measured on
 
 ## Reference corpus
 
@@ -40,6 +42,30 @@ The five filings `CLAUDE.md` says every configuration change is measured against
 | `hkex_3360_far_east_horizon_2024.pdf` | Far East Horizon | 3360.HK | 2024 | HKFRS | HK | — |
 | `laurus_labs_2025_26_ind.pdf` | Laurus Labs Limited | NSE: LAURUSLABS | FY 2025-26 | Ind AS | ICON | — |
 | `asian_paints_2025_26_ind.pdf` | Asian Paints Limited | NSE: ASIANPAINT | FY 2025-26 | Ind AS | ICON | — |
+| `chemplast_sanmar_2024_25_ind.pdf` | Chemplast Sanmar Limited | NSE: CHEMPLASTS | FY 2024-25 | Ind AS | Ind AS | — |
+| `hul_2024_25_ind.pdf` | Hindustan Unilever Limited | NSE: HINDUNILVR | FY 2024-25 | Ind AS | Ind AS | — |
+| `jsw_steel_2024_25_ind.pdf` | JSW Steel Limited | NSE: JSWSTEEL | FY 2024-25 | Ind AS | Ind AS | — |
+| `indigo_2024_25_ind.pdf` | InterGlobe Aviation Limited (IndiGo) | NSE: INDIGO | FY 2024-25 | Ind AS | Ind AS | — |
+| `mukand_2024_25_ind.pdf` | Mukand Limited | NSE: MUKANDLTD | FY 2024-25 | Ind AS | Ind AS | — |
+
+The five FY 2024-25 Indian reports were added together, each for a shape the others do not print:
+
+- **Hindustan Unilever** (235 pages, the 2-up "Integrated Annual Report 2024-25" from hul.co.in)
+  prints each statement across the two pages of a spread and titles only the left one: assets on
+  the left, equity and liabilities on the right; OCI and earnings per share, and the financing
+  cash flows, on the right page.
+- **JSW Steel** (383 pages, 2-up, from JSW's investor page) sets its two years so close on a half
+  page that, measured against the whole sheet, they read as one column; its cover reads "leading
+  millions to follow".
+- **Chemplast Sanmar** (272 pages, from chemplastsanmar.com) states its unit as "Indian Rupees in
+  Crores" and prints its signatories' membership numbers under the value columns.
+- **IndiGo** (322 pages) is a public mirror's copy (files.tijorifinance.com), not the company's or
+  the exchange's: goindigo.in did not answer when it was fetched. It is a different edition from
+  a 307-page copy run elsewhere.
+- **Mukand** (236 pages, from mukand.com) is kept for its text layer: many captions and the
+  statement titles are set in a font with no Unicode map, every character shifted by 29 code
+  points (`3URSHUW\3ODQW` for "Property Plant"), so little of it maps. It is a different edition
+  from a 347-page copy run elsewhere.
 
 An answer key gives the consolidated figures the filing prints, with page and caption, in the
 template's own sign convention (an expense or a minority share that a rollup deducts is negative).
