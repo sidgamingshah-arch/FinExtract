@@ -256,6 +256,12 @@ def test_a_layout_dependent_pl_subtotal_is_read_as_printed(raw):
      "Investing activities", "cf_investing__cash_flows_from_invest_activities"),
     ("Net cash flows used in financing activities - [C]", "cash_flow", "Financing activities",
      "cf_financing__cash_flows_from_finance_activities"),
+    ("Sale proceeds of current investments", "cash_flow", "Investing activities",
+     "cf_investing__proceeds_sale_fncl_assets"),
+    ("Sale proceeds of property, plant and equipment", "cash_flow", "Investing activities",
+     "cf_investing__proceeds_sale_ppe"),
+    ("Net taxes (paid)/refunds", "cash_flow", "Operating activities",
+     "cf_oper_indirect__income_taxes_paid_indirect"),
     # JSW Steel 2024-25
     ("Changes in inventories of finished and semi-finished goods, work-in-progress and "
      "stock-in-trade", "profit_and_loss", "Expenses", "is_pl__changes_in_inventories"),

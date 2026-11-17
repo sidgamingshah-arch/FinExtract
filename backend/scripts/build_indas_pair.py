@@ -831,7 +831,8 @@ LINES = {
           ["Income taxes paid (net of refunds)", "Income taxes paid (net)", "Income taxes paid",
            "Income tax paid (net of refunds)", "Income tax paid (net)", "Income tax paid",
            "Direct taxes paid (net of refunds)", "Direct taxes paid (net)", "Direct taxes paid",
-           "Taxes paid (net of refunds)", "Taxes paid (net)", "Taxes paid"],
+           "Taxes paid (net of refunds)", "Taxes paid (net)", "Taxes paid",
+           "Net taxes (paid)/refunds", "Taxes paid, net of refunds"],
           "Income taxes paid, net of refunds, after cash generated from operations; an outflow "
           "is negative.",
           sign="either"),
@@ -884,6 +885,7 @@ LINES = {
         L("cf_investing__proceeds_sale_ppe", "Proceeds from sale of property, plant and equipment",
           ["Proceeds from sale of property, plant and equipment",
            "Proceeds from disposal of property, plant and equipment",
+           "Sale proceeds of property, plant and equipment",
            "Sale of property, plant and equipment", "Proceeds from sale of fixed assets",
            "Proceeds from sale of property, plant and equipment and intangible assets"],
           "Proceeds from the sale of property, plant and equipment and other fixed assets, an "
@@ -900,7 +902,8 @@ LINES = {
            "Sale of investments", "Proceeds from sale of current investments",
            "Proceeds from sale of non-current investments", "Proceeds from redemption of investments",
            "Sale of mutual fund units", "Redemption of mutual funds",
-           "Proceeds from sale of mutual funds / equity shares / bonds"],
+           "Proceeds from sale of mutual funds / equity shares / bonds",
+           "Sale proceeds of current investments", "Sale proceeds of investments"],
           "Proceeds from selling or redeeming investments (mutual funds, bonds, other current and "
           "non-current investments), an investing inflow.",
           exclude=[r"subsidiar"], sign="either"),
