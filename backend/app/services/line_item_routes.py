@@ -50,7 +50,10 @@ route instead.
 """
 from __future__ import annotations
 
+import re
+
 ROUTES = ("face", "note_tables", "prose", "anywhere")
+_HAN = re.compile(r"[一-鿿]")
 
 #: The routes that say "not the statement" — the only two that refuse the face.
 NOTE_ONLY_ROUTES = ("note_tables", "prose")
@@ -148,3 +151,34 @@ def may_take_note_split(item, strict_face: bool = False) -> bool:
     if not may_read_face(item):
         return False
     return not (strict_face and declared_route(item) == "face")
+
+
+def expense_note_rows(item) -> tuple[tuple[str, ...], tuple[str, ...]] | None:
+    """For a `prose` line, the ONE kind of table row that may still answer it: a row naming the
+    line's subject, in the note OF THE EXPENSE the charge landed in. ``(note title terms, row
+    terms)``, or None when the line is not `prose` or declares neither.
+
+    A CAS FILING TABULATES WHAT AN HKFRS ONE STATES IN A SENTENCE. 管理费用, 销售费用 and 研发费用
+    each have a note of their own, a table of the expense by nature, and its 折旧与摊销 row IS the
+    depreciation charged to that expense — the figure `sub__ga_depreciation` asks for. Refusing
+    every row refused that one: eight citations across four CAS filings ("this line's figure is
+    stated in prose, not in a table row"). What `prose` guards against is still refused: the
+    property, plant and equipment note's depreciation row is the TOTAL the split is part of, and
+    that note's title names no expense.
+
+    The title terms are the line's own `note_source.prose_landed_in` — the expense the sentence
+    would say the charge was "included in" — and the row terms its `note_source.row_terms`.
+
+    THE CHINESE TERMS ONLY. The CAS statutory layout is what gives each function expense a note of
+    its own, tabulated by nature; an HKFRS filing states the split in a sentence, and an English
+    expense note's depreciation row is the case `prose` was declared against
+    (`tests/test_a_prose_line_is_not_filled_from_a_row.py`).
+    """
+    if declared_route(item) != "prose":
+        return None
+    source = getattr(item, "note_source", None)
+    titles = tuple(t for t in (getattr(source, "prose_landed_in", None) or ())
+                   if _HAN.search(str(t)))
+    terms = tuple(t for t in (getattr(source, "row_terms", None) or ()) if str(t).strip())
+    return (titles, terms) if titles and terms else None
+

@@ -129,6 +129,9 @@ class Relation:
     broken: str = ""
     broken_detail: dict = field(default_factory=dict)
     extra: dict = field(default_factory=dict)   # merged into the result's details
+    # (subtotal, its parts) a section reconciliation counts in place of those parts in a slot where
+    # the subtotal is printed and none of its parts was found. See `section_relations`.
+    standins: tuple = ()
 
 
 @dataclass(frozen=True)
@@ -237,12 +240,27 @@ def collect_values(items: Iterable[LineItem]) -> MappedValues:
                      if _printed(ev) is not None and not _is_restatement(ev)}
     out = MappedValues()
     unsigned_slots: set = set()
+    # ONE FACT PRINTED TWICE IS COUNTED ONCE — `periods.summable`'s rule, the one the grid, the
+    # export and the KPIs read every figure through, applied here so the checks validate the figure
+    # the grid publishes. Two rows of one concept are one fact when their captions name the same
+    # thing, they report the same amount, and they were printed on different pages. A CAS filing
+    # prints "经营活动产生的现金流量净额" on the cash flow statement and again at the foot of the
+    # supplement note that reconciles net profit to it; the grid shows 6,432,044,580.01 for 湖北能源,
+    # and the checks, which summed every row, asserted 12,864,089,160.02 — failing the operating
+    # section and the closing-cash roll-forward by exactly the amount counted twice, on all four
+    # CAS filings measured (河钢 9,678,206,759.05, 四创 244,695,836.40, 海博思创 889,984,819.39). A
+    # row with no page is not evidence of where it was printed: it neither anchors a fact nor is
+    # dropped as a repeat of one, as in `summable`.
+    from app.services.periods import caption_key
+
+    printed_at: dict[tuple, object] = {}
     for li in items:
         key = li.canonical_key
         if not key:
             continue
         printed_signed = (getattr(li.printed_in, "value", li.printed_in) == "face"
                           and prints_loss_with_minus(li.source_label))
+        names = caption_key({"source_label": li.source_label})
         for ev in li.values.values():
             val = _printed(ev)
             if val is None:
@@ -250,6 +268,12 @@ def collect_values(items: Iterable[LineItem]) -> MappedValues:
             slot: Slot = (ev.basis.value, ev.period_label)
             if _is_restatement(ev) and (key, slot) in printed_slots:
                 continue
+            page = getattr(getattr(ev, "provenance", None), "page_index", None)
+            if page is not None:
+                fact = (key, slot, names, val)
+                if fact in printed_at and printed_at[fact] != page:
+                    continue
+                printed_at.setdefault(fact, page)
             if CARVED_FROM_FACE in (ev.confidence.flags or ()):
                 out.carved.add((key, slot))
             (out.signed if printed_signed else unsigned_slots).add((key, slot))
@@ -608,6 +632,35 @@ def _signed_by_convention(rel: "Relation", costs: frozenset[str]) -> bool:
     return all(c in rel.magnitudes for c in rel.components if c in costs)
 
 
+def _signed_by_their_own_rules(rel: "Relation", vals: "MappedValues", costs: frozenset[str],
+                               subtotals: frozenset[str], oriented: frozenset[str]) -> bool:
+    """Whether every part this filing prints of a sum carries its own sign, whatever the section.
+
+    A CAS income statement prints its cost of sales unsigned, so no section of it is signed on the
+    filing and the sign gate skipped every relation on it — the bottom lines included, which hold
+    no cost at all: 五、净利润 = 四、利润总额 − 减：所得税费用, and 归属于母公司股东的净利润 = 净利润 −
+    少数股东损益. Their parts carry their signs two ways the gate did not count:
+
+    * a STATEMENT SUBTOTAL OR TOTAL is printed signed by the filing itself — a CAS one says so in
+      its own caption, 利润总额（亏损总额以“－”号填列） — so it is never an unsigned cost;
+    * a line whose CONFIGURATION ORIENTS IT (`sign_rule.flip_if_label_matches`: 所得税费用, 少数股东损益,
+      税金及附加) is stored in the template's sign by `normalize` on every filing that prints it
+      unsigned, and as printed on one that signs it.
+
+    So the sum is the template's arithmetic when every part THIS FILING PRINTS is one of those (or a
+    magnitude of this relation), and the target is not a cost. A part the filing does not print
+    takes no part. Measured on the eight filings: net profit and the profit attributable to owners
+    pass on all eight (on the six CAS ones for the first time). Net finance costs stay unchecked:
+    interest income is a line no rule orients, and the CAS 财务费用 also holds the exchange
+    differences the template keeps apart.
+    """
+    if rel.target in costs:
+        return False
+    printed = [c for c in rel.components if vals.slots(c)]
+    return bool(printed) and all(c in subtotals or c in oriented or c in rel.magnitudes
+                                 for c in printed)
+
+
 def declared_costs(template: TemplateDefinition, ontology=None) -> frozenset[str]:
     """The concepts the configuration itself calls costs.
 
@@ -852,6 +905,30 @@ def section_relations(template: TemplateDefinition, ontology,
             if not members:
                 continue
             extra = {"section": section.node_id, "blocks_auto_approval": blocks, "emits": emits}
+            # A PRINTED SUBTOTAL STANDS IN FOR ITS PARTS WHERE NONE OF THEM WAS FOUND. The members
+            # are the section's leaves, so a line the template breaks into parts — Inventories into
+            # raw materials, work in progress and finished goods — is in the sum only through those
+            # parts. A filing that prints the line and not the parts put its whole figure on a key
+            # the sum never reads: 存货 on every CAS balance sheet, and current assets then failed
+            # by exactly that figure on all four CAS filings measured (河钢 22,916,792,258.75, 四创
+            # 1,232,581,548.57, 湖北能源 1,066,344,640.48, 海博思创 1,421,241,743.37) while the grid
+            # printed the line correctly. Which subtotals qualify is read off the template: one whose
+            # rollup reaches only this section's members, and not all of them (that is the section's
+            # own total, or a statement total nested in it). Whether one stands in is decided per
+            # slot, in `_standing_in`. Balance sheet only — a section that nets carries signs a
+            # stand-in would have to take a view on.
+            if st.type.value in _SIGNS_NEVER_IN_DOUBT:
+                standins = []
+                for cand in candidates:
+                    if cand == subtotal:
+                        continue
+                    pulled = reach.get(cand, frozenset()) - {cand}
+                    if pulled and pulled <= inside and pulled != inside:
+                        standins.append((cand, tuple(sorted(pulled))))
+                # The widest first, so a subtotal nested in another is never counted beside it.
+                standins = tuple(sorted(standins, key=lambda s: -len(s[1])))
+            else:
+                standins = ()
             # AND ONLY WHERE THE MEMBERS ARE ALL ADDITIVE WITH ONE SIGN, which the rulebook
             # declares per section. "reported subtotal − Σ(members) = 0" is an identity when every
             # member is a positive magnitude, as the four asset and liability sections declare
@@ -886,6 +963,7 @@ def section_relations(template: TemplateDefinition, ontology,
                 id=f"section_reconciliation:{section.node_id}", kind="section_reconciliation",
                 statement=st.type.value, target=subtotal, components=members, op="sum",
                 severity="blocking", tol_per_row=per_row, note=text, extra=extra,
+                standins=standins,
                 # A section the template gives no subtotal node can never be reconciled; the
                 # rulebook says so itself ("flagged unreconciled"), so it is reported as that
                 # rather than as an extraction gap.
@@ -1179,6 +1257,12 @@ def evaluate_structure(template: TemplateDefinition,
     # the face rows; it widens the declared set and never narrows it.
     costs = declared_costs(template, ontology)
     signed_here = _signed_on_filing(items, section_of, costs)
+    # …and which parts carry their own sign whatever the section — see `_signed_by_their_own_rules`.
+    subtotals = frozenset(n.canonical_key for n in template.all_nodes()
+                          if n.canonical_key and n.role in (LineRole.SUBTOTAL, LineRole.TOTAL))
+    oriented = frozenset(
+        str(getattr(m, "canonical_key", "")) for m in (getattr(ontology, "mappings", None) or ())
+        if list(getattr(getattr(m, "sign_rule", None), "flip_if_label_matches", None) or ()))
     established = (None if signed_sections is None
                    else frozenset(signed_sections | signed_here))
     # A statement no key was extracted for is not thin coverage, it is a statement this filing
@@ -1255,7 +1339,8 @@ def evaluate_structure(template: TemplateDefinition,
         # from an unoriented cost, and those are exactly the relations that tie: all eight sections
         # on China SCE, and 8 of 12 relations on 000709 where 4 were passing before.
         if (rel.kind == "rollup" and rel.op == "sum" and not rel.signs
-                and not _signs_established(rel, section_of, established, costs)):
+                and not _signs_established(rel, section_of, established, costs)
+                and not _signed_by_their_own_rules(rel, vals, costs, subtotals, oriented)):
             report.results.append(_skip(rel, [], "component_signs_not_established", {
                 "sections": sorted({section_of.get(k, "?") for k in keys})}))
             continue
@@ -1290,7 +1375,8 @@ def evaluate_structure(template: TemplateDefinition,
         unmapped: dict[Slot, list[str]] = {}
         mixed: list[Slot] = []
         for slot in target_slots:
-            missing = [c for c in rel.components if vals.get(c, slot) is None]
+            stood_in, covered = _standing_in(rel, vals, slot)
+            missing = [c for c in rel.components if vals.get(c, slot) is None and c not in covered]
             # A component the template declares as a leaf of a section that owns a residual bucket
             # is nil when absent, not unknown — see ``_nil_when_absent``, including why the test is
             # restricted to this relation's own statement.
@@ -1306,11 +1392,12 @@ def evaluate_structure(template: TemplateDefinition,
                 continue
             # Values are not unit-normalized, so a relation may only be evaluated where every
             # participant shares one scale — otherwise the sum compares thousands to millions.
-            present_keys = [k for k in keys if vals.get(k, slot) is not None]
+            present_keys = [k for k in (*keys, *stood_in) if vals.get(k, slot) is not None]
             if len({vals.scale(k, slot) for k in present_keys}) > 1:
                 mixed.append(slot)
                 continue
-            report.results.append(_check(rel, slot, vals, assumed_zero=missing))
+            report.results.append(_check(rel, slot, vals, assumed_zero=missing,
+                                         stood_in=stood_in, covered=covered))
 
         if unmapped:
             missing_keys = sorted({k for ks in unmapped.values() for k in ks})
@@ -1345,8 +1432,35 @@ def _assertion(res: RuleResult) -> str:
             f"({res.scope_key}): expected {res.expected}, got {res.actual}")
 
 
+def _standing_in(rel: Relation, vals: MappedValues,
+                 slot: Slot) -> tuple[dict[str, Decimal], set[str]]:
+    """The printed subtotals counted in place of their parts in one slot, and the parts they cover.
+
+    A subtotal stands in where it holds a figure and NONE of its parts does — a part carved out of
+    the face's captions (`CARVED_FROM_FACE`) is no figure of the section's. One part found and the
+    parts are the reading, a subtotal printed beside them is not counted again, and any shortfall
+    stays the gap it is. Widest first (`section_relations` orders them), so a subtotal nested in
+    another is never counted beside it.
+    """
+    stood: dict[str, Decimal] = {}
+    covered: set[str] = set()
+    for sub, parts in rel.standins:
+        if covered & set(parts):
+            continue
+        value = vals.get(sub, slot)
+        if value is None or (sub, slot) in vals.carved:
+            continue
+        if any(vals.get(p, slot) is not None and (p, slot) not in vals.carved for p in parts):
+            continue
+        stood[sub] = value
+        covered |= set(parts)
+    return stood, covered
+
+
 def _check(rel: Relation, slot: Slot, vals: MappedValues,
-           assumed_zero: Sequence[str] = ()) -> RuleResult:
+           assumed_zero: Sequence[str] = (),
+           stood_in: dict[str, Decimal] | None = None,
+           covered: set[str] | frozenset[str] = frozenset()) -> RuleResult:
     """Evaluate one relation for one (basis, period).
 
     ``assumed_zero`` names components the filing does not print, taken as nil. They are
@@ -1354,18 +1468,21 @@ def _check(rel: Relation, slot: Slot, vals: MappedValues,
     filing states partially — a pass is a genuine pass, but not evidence every line was found.
     """
     zeroed = set(assumed_zero)
-    parts = {c: (Decimal(0) if c in zeroed or (c, slot) in vals.carved else vals.get(c, slot))
+    # A part a printed subtotal stands in for (`_standing_in`) is counted through the subtotal.
+    parts = {c: (Decimal(0) if c in zeroed or c in covered or (c, slot) in vals.carved
+                 else vals.get(c, slot))
              for c in rel.components}
     contributions = _contributions(rel, parts,
                                    {c for c in rel.components if (c, slot) in vals.signed})
     actual = vals.get(rel.target, slot)
-    expected = sum(contributions.values(), Decimal(0))
+    stood_in = dict(stood_in or {})
+    expected = sum(contributions.values(), Decimal(0)) + sum(stood_in.values(), Decimal(0))
     diff = actual - expected
     tol_abs = rel.tol_abs
     if rel.tol_per_row:
         # "one rounding unit per contributing row": a section spread over 20 printed rows may be
         # a rounding unit out on each of them without anything being wrong.
-        rows = sum(vals.sources(k, slot) for k in (rel.target, *rel.components))
+        rows = sum(vals.sources(k, slot) for k in (rel.target, *rel.components, *stood_in))
         tol_abs = Decimal(max(rows, 1))
     tol = tolerance(expected, tol_abs, rel.tol_rel)
     ok = abs(diff) <= tol
@@ -1379,6 +1496,8 @@ def _check(rel: Relation, slot: Slot, vals: MappedValues,
             "tolerance": str(tol), "severity": rel.severity,
             "component_values": {k: str(v) for k, v in parts.items()},
             "assumed_zero": sorted(zeroed),
+            **({"stood_in_for_parts": {k: str(v) for k, v in stood_in.items()}}
+               if stood_in else {}),
             "sign_suspect": (None if ok else _sign_suspect(rel.target, actual, expected,
                                                            contributions, tol, rel.magnitudes)),
             **({"note": rel.note} if rel.note and rel.kind != "section_reconciliation" else {}),

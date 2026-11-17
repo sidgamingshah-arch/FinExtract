@@ -67,13 +67,21 @@ from app.stages.note_sourced import (_prose_basis, _prose_scale, _row_unit, _sta
 # periods they put an asset class or a fair-value level in a slot the export reads as a year.
 _FILED = (*note_columns.FILED_PERIODS, "prose")
 
-_RESPONSE_RESERVE = 512
-_RESPONSE_TOKENS_PER_ANSWER = 200
-# A REPORT REQUEST'S ANSWERS ARE ALLOWED TWICE THAT. It asks up to twelve lines in one reply, and a
+#
+# SIZED FOR CHINESE, NOT ENGLISH. A CAS answer quotes Han captions and cites counterparty rows one
+# by one, and 512 + 200 an answer was cut off mid-JSON on four CAS filings (四创, 湖北能源, 海博思创
+# and 诚志: `EOF while parsing a string at line 1 column 3460`, a three-line request whose reply had
+# reached 993 output tokens). Twice the room an answer; a reply still cut off is asked for once more
+# with twice that (`ports.llm.complete_with_room`). The budget is a ceiling, not a charge — a reply
+# is billed for what it writes.
+_RESPONSE_RESERVE = 1_024
+_RESPONSE_TOKENS_PER_ANSWER = 400
+# A REPORT REQUEST'S ANSWERS ARE ALLOWED MORE. It asks up to twelve lines in one reply, and a
 # reply cut short is not valid JSON — all twelve are lost, not one. Measured over the 1,872 recorded
 # answers of the HK filings: median 125 tokens, 99th percentile 379, the longest 1,961; a sentence
-# citation carries its quote. 400 a line holds a batch in which several run long.
-_REPORT_RESPONSE_TOKENS_PER_ANSWER = 400
+# citation carries its quote. 400 a line held a batch in which several run long in English; 600
+# for the same reason the plain budget doubled.
+_REPORT_RESPONSE_TOKENS_PER_ANSWER = 600
 # A NARRATIVE IS WRITTEN, NOT CITED: up to `text_lines.PROSE_MAX_CHARS` (2,000 characters, about
 # 500 tokens) and its reason, so a narrative answer is allowed twice a report answer.
 _PROSE_RESPONSE_TOKENS_PER_ANSWER = 800
@@ -510,7 +518,8 @@ class LineItemLlmStage(Stage):
                         allow_notes=line_item_routes.may_read_notes(item),
                         notes_supplied=None if whole_document else tuple(notes_of.get(key, ())),
                         statements=None if whole_document else _own_statements(item),
-                        page_texts=report_pages if whole_report else None)
+                        page_texts=report_pages if whole_report else None,
+                        expense_rows=line_item_routes.expense_note_rows(item))
                     # A LINE THAT EXCLUDES DERIVATIVES REFUSES A DERIVATIVE CITATION — see
                     # `_refuse_derivative_citations`. Refused citations carry no figure, so they
                     # are recorded on the row and counted nowhere.

@@ -33,6 +33,13 @@ from dataclasses import dataclass, field
 #: the structural checks.
 CARVED_FROM_FACE = "carved_from_face"
 
+#: A carved figure the face SETTLED: the face row that printed the money inside its caption — a
+#: residual catch-all such as 长期应付款 — handed the whole of it to this line
+#: (`stages.note_sourced._settle_against_the_face`), so the line is now the money's only home and is
+#: added into its section like any other. Without it the money was counted nowhere: taken off the
+#: face row and, still carved, left out of the line's section too.
+SETTLED_FROM_FACE = "settled_from_face"
+
 #: A CAS face caption's own sign note SAYING A LOSS IS PRINTED WITH A MINUS: 信用减值损失（损失以“-”号填列）,
 #: 资产减值损失（损失以“-” 号填列）. Such a line is printed SIGNED — a loss negative, a reversal positive —
 #: and the rollup follows the printed sign instead of spending the figure as a cost magnitude. See

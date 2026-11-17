@@ -325,7 +325,11 @@ SUMMARY_CHARS = 700
 MIN_QUOTE_CHARS = 6
 # Calls in flight together. Eight topics at most per filing.
 PARALLEL = 4
-MAX_TOKENS = 1_400
+# A CHINESE READING NEEDS THE ROOM. Eight points of up to 320 characters and a 700-character summary
+# is ~3,300 characters, and in Han text that is about as many tokens: 1,400 cut off the related-party,
+# litigation, guarantees and commitments readings of three CAS filings mid-JSON. A reply still cut
+# off is asked for once more with twice the room (`ports.llm.complete_with_room`).
+MAX_TOKENS = 3_000
 
 _CJK = re.compile(r"[　-〿㐀-䶿一-鿿豈-﫿＀-￯]")
 
@@ -663,7 +667,13 @@ def _read_one(provider, key: str, passages: list[dict], entity: str | None) -> d
     try:
         # CALLED HERE, NOT THROUGH A SHARED HELPER: a reader of the provider's calls
         # (`scripts/llm_standin.py`) names a call by the module that made it.
-        reply, meta = provider.complete_structured(
+        # …and asked once more with twice the room when the reply is cut off at its budget
+        # (`ports.llm.complete_with_room`, which is not an `app.services` module, so the call is
+        # still named by this one).
+        from app.ports.llm import complete_with_room
+
+        reply, meta = complete_with_room(
+            provider,
             system=system_prompt(key),
             messages=[{"role": "user",
                        "content": json.dumps(request, ensure_ascii=False, indent=1)}],

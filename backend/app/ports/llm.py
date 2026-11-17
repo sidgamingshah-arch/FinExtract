@@ -35,6 +35,9 @@ class LlmMeta(TypedDict, total=False):
     cache_write_tokens: int
     model: str
     confidence: float
+    # Set when the reply was cut off at its budget and asked for again with more room
+    # (`complete_with_room`).
+    retried_for_room: bool
 
 
 def openai_usage(usage: dict | None) -> dict:
@@ -82,3 +85,52 @@ class LlmProvider(Protocol):
         temperature: float = 0.0,
         max_tokens: int = 2048,
     ) -> tuple[BaseModel, LlmMeta]: ...
+
+
+#: The most a reply given more room is allowed. Twice the request's own budget, up to this.
+ROOM_CEILING = 16_000
+
+
+def cut_off(exc: BaseException) -> bool:
+    """Whether a provider call failed because the reply was CUT OFF — its JSON ends mid-value.
+
+    A reply that hits its token budget arrives as JSON that stops part-way, and validating it raises
+    pydantic's `json_invalid` "EOF while parsing". That is not a wrong answer, it is a short budget:
+    measured on four CAS filings, every failed line-item request and every failed disclosure
+    reading was one (`EOF while parsing a string at line 1 column 3460`), Chinese captions and
+    page citations running past a budget sized for English.
+    """
+    errors = getattr(exc, "errors", None)
+    if not callable(errors):
+        return False
+    try:
+        found = errors()
+    except Exception:  # noqa: BLE001 - not a validation error after all
+        return False
+    return any(e.get("type") == "json_invalid" and "EOF" in str(e.get("msg", ""))
+               for e in found or ())
+
+
+def complete_with_room(provider, *, system: str, messages, response_schema: type[BaseModel],
+                       max_tokens: int) -> tuple[BaseModel, LlmMeta]:
+    """`complete_structured`, asked once more with twice the room when the reply is cut off.
+
+    ONE RETRY, AND ONLY FOR A CUT-OFF REPLY: any other failure raises at once, as before, because
+    asking again cannot change it. The retry's meta says so (`retried_for_room`), and its output
+    tokens are both calls' — the first reply was paid for too.
+    """
+    try:
+        return provider.complete_structured(system=system, messages=messages,
+                                            response_schema=response_schema,
+                                            max_tokens=max_tokens)
+    except Exception as exc:  # noqa: BLE001 - re-raised unless it is a cut-off reply
+        if not cut_off(exc) or max_tokens >= ROOM_CEILING:
+            raise
+    reply, meta = provider.complete_structured(system=system, messages=messages,
+                                               response_schema=response_schema,
+                                               max_tokens=min(ROOM_CEILING, 2 * max_tokens))
+    meta = dict(meta or {})
+    meta["retried_for_room"] = True
+    meta["output_tokens"] = int(meta.get("output_tokens") or 0) + max_tokens
+    return reply, meta
+

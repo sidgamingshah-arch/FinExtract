@@ -1722,7 +1722,7 @@ def carve_note_figures(doc: DocumentModel, ctx: PipelineContext, *, by: str) -> 
     Run at the end of both late writers, the model route and the note-sourced stage. Idempotent.
     """
     from app.core.models.enums import PageKind, PrintedIn
-    from app.services.rollups import CARVED_FROM_FACE
+    from app.services.rollups import CARVED_FROM_FACE, SETTLED_FROM_FACE
 
     line_item_set = getattr(ctx, "line_items", None)
     keys = {str(i.key) for i in (getattr(line_item_set, "items", None) or ())
@@ -1761,6 +1761,8 @@ def carve_note_figures(doc: DocumentModel, ctx: PipelineContext, *, by: str) -> 
             page = getattr(getattr(ev, "provenance", None), "page_index", None)
             if ev.value is None or page is None or int(page) in statement_pages:
                 continue
+            if SETTLED_FROM_FACE in ev.confidence.flags:
+                continue                  # the face handed this money over: it is counted here
             if CARVED_FROM_FACE not in ev.confidence.flags:
                 ev.confidence.flags.append(CARVED_FROM_FACE)
                 carved += 1
@@ -2868,6 +2870,24 @@ def _settle_against_the_face(doc: DocumentModel, ctx: PipelineContext, all_items
                     if not got.resolved:
                         break
 
+                # A CARVED SLOT IS SETTLED WHOLE OR NOT AT ALL. A `carved_from_face` figure is shown
+                # on its line and added into no total, because the face's captions already carry
+                # it. A residual giving the money up moves it out of those captions — so the line
+                # must then be counted, or the money is counted nowhere: 湖北能源's related-party
+                # note reads 955,133,808.33 of long-term payables, 长期应付款 prints exactly that and
+                # handed it over, and non-current liabilities came out short by exactly that sum.
+                # Where the residuals hand over the WHOLE figure the line stops being carved
+                # (`SETTLED_FROM_FACE`); where they would hand over only part of it, they keep it,
+                # and the line stays a figure shown beside the captions that carry it (河钢's
+                # 856,059,679.92 inside an 11,053,477,089.43 长期应付款).
+                from app.services.rollups import CARVED_FROM_FACE, SETTLED_FROM_FACE
+                handed = sum((t[0].amount for t in taken if t[4]), Decimal(0))
+                carved_slot = CARVED_FROM_FACE in (ev.confidence.flags or ())
+                if carved_slot and handed and handed != ev.value:
+                    taken = [t for t in taken if not t[4]]
+                    ctx.log(f"note_sourced:face_settlement: {key}[{slot}] stays carved — the "
+                            f"residuals print {handed} of its {ev.value}, not the whole")
+                    handed = Decimal(0)
                 for piece, face_row, fev, rel, is_residual in taken:
                     if not is_residual:
                         continue
@@ -2877,6 +2897,12 @@ def _settle_against_the_face(doc: DocumentModel, ctx: PipelineContext, all_items
                     ctx.log(f"note_sourced:face_settlement: {face_row.canonical_key}[{slot}] "
                             f"{before} less {key} {piece.amount} = {fev.value} (the residual "
                             f"prints the money this line read)")
+                if carved_slot and handed:
+                    ev.confidence.flags.remove(CARVED_FROM_FACE)
+                    if SETTLED_FROM_FACE not in ev.confidence.flags:
+                        ev.confidence.flags.append(SETTLED_FROM_FACE)
+                    ctx.log(f"note_sourced:face_settlement: {key}[{slot}] {ev.value} is no longer "
+                            f"carved — the face handed it over whole, so it is counted here")
                 given = [t for t in taken if not t[4]]
                 if not given:
                     continue

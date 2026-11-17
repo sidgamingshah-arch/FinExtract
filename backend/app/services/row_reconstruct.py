@@ -2069,6 +2069,23 @@ def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
     out: list[list[Word]] = []
     pending: list[Word] = []
     seen_value = False
+    # IN A NOTE, THE PAGE'S OWN CAPTIONS ARE VOCABULARY TOO, for one question only: whether a short
+    # fragment under a valued row is the rest of that row's caption. A CAS note sets a three-line
+    # caption in a narrow cell with its figures on the MIDDLE line — 600990's bills receivable,
+    # 商业 / 承兑 75,207,545.19 / 汇票 — so the third line stands between two rows and was folded
+    # forward: "商业承兑", "汇票银行承兑", "汇票合计". The same page prints 商业承兑汇票 and 银行承兑汇票
+    # whole, in the next table. Lines of four Han characters or more, so a bare fragment such as
+    # 汇票 is never itself the evidence.
+    page_vocab: frozenset[str] = frozenset()
+    if not on_face:
+        lines: set[str] = set()
+        for r in rows:
+            text = _join_words(_scan_row(r, fmt)[0])
+            if len(_HAN.findall(text)) >= 4:
+                norm = normalize_label(apply_pipeline(text, steps))
+                if norm:
+                    lines.add(norm)
+        page_vocab = frozenset(lines)
     # THE CAPTION LAST FOLDED ONTO A ROW THAT PRINTS NO CAPTION OF ITS OWN, with that row's box — a
     # caption that STRADDLES its figures. See the branch after the valued-row one.
     straddle: tuple[list[Word], BBox] | None = None
@@ -2129,7 +2146,9 @@ def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
             # 購買物業、廠房及設備項目.
             if (pending and label_words
                     and (_is_known_caption(_scan_row(pending, fmt)[0], steps, known)
-                         or (on_face and _is_enumerated_other(_scan_row(pending, fmt)[0])))
+                         or (on_face and _is_enumerated_other(_scan_row(pending, fmt)[0]))
+                         # …or one the CAS sign note closes — see `_closed_by_its_sign_note`.
+                         or _complete_by_its_sign_note(pending, fmt))
                     and not _translates(_scan_row(pending, fmt)[0], label_words)):
                 out.append(pending)
                 pending = []
@@ -2217,8 +2236,11 @@ def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
         if not tail and label_words and note_ref is None and out and not pending:
             prev_label, _prev_note, prev_values = _scan_row(out[-1], fmt)
             tail = bool(prev_values and prev_label) and _wrap_adjacent(
-                _row_box(out[-1]), _row_box(row), label_words) and _completes_the_caption_above(
-                    prev_label, label_words, steps, known)
+                _row_box(out[-1]), _row_box(row), label_words) and (
+                    _completes_the_caption_above(prev_label, label_words, steps, known)
+                    or (bool(page_vocab) and len(_HAN.findall(_join_words(label_words))) <= 3
+                        and _completes_the_caption_above(prev_label, label_words, steps,
+                                                         known | page_vocab)))
         # …OR, ON A FACE, THE CAPTION ABOVE IS PLAINLY UNFINISHED IN ENGLISH — see
         # `_english_tail_of_the_row_above`. The vocabulary test above cannot see it: the joined
         # caption of a Schedule III subtotal is rarely a known alias.
@@ -2234,7 +2256,7 @@ def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
             # the next line item and took 益）合计 with it — "所有者权益（或股东权益）合计实收资本
             # （或股本）", one row where the filing printed two.
             pending = pending + row
-            if _is_known_caption(pending, steps, known):
+            if _is_known_caption(pending, steps, known) or _complete_by_its_sign_note(pending, fmt):
                 out.append(pending)
                 pending = []
             continue
@@ -2287,7 +2309,8 @@ def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
         # next caption's first line as its continuation.
         if (pending and label_words
                 and (_is_known_caption(_scan_row(pending, fmt)[0], steps, known)
-                     or (on_face and _is_enumerated_other(_scan_row(pending, fmt)[0])))):
+                     or (on_face and _is_enumerated_other(_scan_row(pending, fmt)[0]))
+                     or _complete_by_its_sign_note(pending, fmt))):
             out.append(pending)
             pending = []
         # Label-only (or note-only) line: candidate wrapped-label continuation.
@@ -2302,6 +2325,16 @@ def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
                  or _translates(label_words, _scan_row(nxt, fmt)[0]))
             # …and on a face, an enumerated 其他 is one too — see `_is_enumerated_other`.
             and not (on_face and _is_enumerated_other(label_words))
+            # …and so is a caption the CAS sign note closes — see `_closed_by_its_sign_note`.
+            and not _closed_by_its_sign_note(_join_words(label_words))
+            # A LINE THAT CLOSES A BRACKET IT NEVER OPENED IS A TAIL, and a tail is never the head of
+            # the caption beneath it. Where the rules above found it no caption to finish, it stands
+            # alone: 600990's supplement breaks 经营性应付项目的增加（减少以 / “－”号填列） across a page,
+            # and the tail opening the next page was folded onto 其他（合同资产）, which then mapped
+            # nothing while the payables movement kept its truncated head. Standing alone, it is the
+            # page's first body row, where `_caption_continued_from_the_previous_page` looks for it.
+            and not _closes_a_bracket_it_never_opened(
+                apply_pipeline(_join_words(label_words), steps))
             # An ALL-CAPS banner is not a continuation — unless grammar shows the caption
             # actually wraps into the next line (see `_is_wrapped_head`).
             # `_looks_like_header` accepts only ALL-CAPS or a trailing colon, so a filing that
@@ -3208,6 +3241,31 @@ def _closes_a_bracket_it_never_opened(caption: str) -> bool:
     return False
 
 
+# THE CAS SIGN NOTE THAT CLOSES A CAPTION: （损失以“－”号填列）, （收益以“－”号填列）, （减少以“－”号填列）.
+# The statutory layout prints it as the LAST words of a caption, so a caption ending in it is
+# complete whatever the vocabulary knows of it.
+_CLOSING_SIGN_NOTE = re.compile(r"[(（][^()（）]{0,16}[号號]\s*填\s*列\s*[)）]\s*$")
+
+
+def _closed_by_its_sign_note(caption: str) -> bool:
+    """Whether a caption ends with the CAS sign note and leaves no bracket open or unopened.
+
+    A CAS statement prints every line of its layout, so a blank line stands above a valued one:
+    600990's cash-flow supplement prints 公允价值变动损失（收益以“－”号 / 填列） with no figures and
+    财务费用（收益以“－”号填列） beneath it with its own. The blank caption is not in the vocabulary in
+    that shape, so it was taken for the head of the next and the two were read as one caption
+    holding the finance costs' 63,190,779.45. The sign note is the layout saying the caption has
+    ended.
+    """
+    return (bool(caption) and _CLOSING_SIGN_NOTE.search(caption) is not None
+            and not opens_a_bracket_it_never_closes(caption)
+            and not _closes_a_bracket_it_never_opened(caption))
+
+
+def _complete_by_its_sign_note(words: list[Word], fmt=None) -> bool:
+    return _closed_by_its_sign_note(_join_words(_scan_row(words, fmt)[0]))
+
+
 def opens_a_bracket_it_never_closes(caption: str) -> bool:
     """Whether the caption leaves a bracket open — the head of a caption whose remainder is
     printed somewhere this reader did not reach.
@@ -3463,6 +3521,17 @@ def _caption_continued_from_the_previous_page(
         joined = _join_words(list(label_words))
         whole = normalize_label(apply_pipeline(carry_caption + joined, steps))
         if whole and (whole in known or whole in _CAS_FACE_CAPTIONS):
+            return row, carry_caption + joined
+        # …OR THE BRACKETS SAY SO ON BOTH SIDES OF THE BREAK: the previous page's caption leaves a
+        # bracket open, this fragment closes one it never opened, and together they balance. That
+        # is punctuation, independent of the vocabulary, and a complete caption does neither — so
+        # it cannot glue two of them. 600990's cash-flow supplement: 经营性应付项目的增加（减少以
+        # holds -242,203,660.48 at the foot of page index 165, and page 166 opens “－”号填列）.
+        tail = apply_pipeline(joined, steps)
+        if (opens_a_bracket_it_never_closes(carry_caption)
+                and _closes_a_bracket_it_never_opened(tail)
+                and not opens_a_bracket_it_never_closes(carry_caption + joined)
+                and not _closes_a_bracket_it_never_opened(carry_caption + joined)):
             return row, carry_caption + joined
         return None
     return None
@@ -6695,6 +6764,12 @@ def _caption_words(row: list[Word], m: _Matrix) -> dict[int, list[Word]]:
                 continue
             if _UNITS_TOKEN.search(w.text) or _NOTE_TOKEN.search(w.text):
                 continue
+            # A GROUP HEADING printed as one word: 归属于母公司所有者权益 over a CAS equity
+            # statement's parent columns is set compactly enough to pass the width test, and once
+            # the band walks through the overlapping header lines it was read into whichever
+            # column it is centred over (河钢's 减：库存股).
+            if _GROUP_SPANNER.match(w.text.strip()):
+                continue
             k = _band_of(w, m.bands)
             if k is not None:
                 out.setdefault(k, []).append(w)
@@ -6703,16 +6778,46 @@ def _caption_words(row: list[Word], m: _Matrix) -> dict[int, list[Word]]:
 
 def _join_caption(parts: list[str]) -> str:
     """Join caption fragments, honouring the hyphen a printed column header wraps on
-    ("Non-" / "controlling" / "interests" is one word plus two, not three)."""
+    ("Non-" / "controlling" / "interests" is one word plus two, not three) — and the Han line break,
+    which is no word break: 减：库存 / 股 is 减：库存股, never "减：库存 股", which no alias matches."""
     text = ""
     for p in parts:
         p = p.strip()
         if not p:
             continue
-        if text and not text.endswith("-"):
+        if text and not text.endswith("-") and not (_HAN.match(text[-1]) and _HAN.match(p[0])):
             text += " "
         text += p
     return text.strip()
+
+
+def _x_stacks(words: list[Word], gap: float) -> list[list[Word]]:
+    """Header words grouped by horizontal extent: words whose x-ranges overlap, or sit within
+    ``gap`` of each other, are one stack — the lines of one heading. Printed order kept within."""
+    order = sorted(range(len(words)), key=lambda i: words[i].bbox.x0)
+    groups: list[list[int]] = []
+    reach = None
+    for i in order:
+        w = words[i]
+        if groups and w.bbox.x0 - reach <= gap:
+            groups[-1].append(i)
+            reach = max(reach, w.bbox.x1)
+        else:
+            groups.append([i])
+            reach = w.bbox.x1
+    return [[words[i] for i in sorted(g)] for g in groups]
+
+
+_GROUP_SPANNER = re.compile(r"^(?:归属于|歸屬於|归属|歸屬)(?:母公司|本公司|本行)", re.I)
+_BLOCK_YEAR = re.compile(r"^(?:(?:19|20)\d{2}\s*年?度?|年度)$")
+
+
+def _stacked_below(cur: BBox, nxt: BBox) -> bool:
+    """`_tight_below`, allowing the next line to OVERLAP this one by up to a full line — the way a
+    header band centres each heading in its own cell. See `_matrix_column_names`."""
+    gap = nxt.y0 - cur.y1
+    line_h = max(cur.y1 - cur.y0, 1e-4)
+    return -line_h < gap <= 0.6 * line_h
 
 
 def _matrix_column_names(m: _Matrix) -> list[str] | None:
@@ -6732,8 +6837,15 @@ def _matrix_column_names(m: _Matrix) -> list[str] | None:
     # A three-line caption ("Share" / "premium" / "account") puts its first line ABOVE the row
     # that names every column, so extend upward through tightly spaced lines that caption
     # something — but no further, or the statement title and the group spanner join the names.
+    #
+    # A CAS EQUITY STATEMENT STACKS ITS HEADINGS OVER LINES THAT OVERLAP. Each heading is centred in
+    # its own cell, so 减：库存 / 股, 其他综合 / 收益 and 少数股东权 / 益 start half a line above or
+    # below their neighbours, and consecutive header "rows" overlap by most of a line — which
+    # `_tight_below`'s half-line bound refuses. The walk stopped one line out from the anchor, and
+    # 湖北能源's columns were named 股, 收益, 益 and 合计. Up to a full line of overlap is the same
+    # text block (as in `_figures_beside`).
     while (start > 0 and per_row[start - 1]
-           and _tight_below(_row_box(m.rows[start - 1]), _row_box(m.rows[start]))):
+           and _stacked_below(_row_box(m.rows[start - 1]), _row_box(m.rows[start]))):
         start -= 1
     # …and DOWNWARD through the lines the caption wraps on. An Ind AS PP&E schedule puts the first
     # word or two of every class on the line that names every column and the rest beneath it
@@ -6742,12 +6854,39 @@ def _matrix_column_names(m: _Matrix) -> list[str] | None:
     # first line that captions nothing — the group label ("Gross carrying amount") sits in the label
     # column, not under a component — and never reaches the first movement row.
     while (end + 1 < m.first_data and per_row[end + 1]
-           and _tight_below(_row_box(m.rows[end]), _row_box(m.rows[end + 1]))):
+           and _stacked_below(_row_box(m.rows[end]), _row_box(m.rows[end + 1]))):
         end += 1
 
     names: list[str] = []
     for k in range(len(m.bands)):
         words = [w for i in range(start, end + 1) for w in per_row[i].get(k, [])]
+        # A HEADING OVER A COLUMN NO FIGURE FILLS IS NOT THIS COLUMN'S. A column's band runs left to
+        # the figures of the column before it, so where the statement prints columns the filing
+        # leaves empty — a CAS 其他权益工具 / 优先股 / 永续债 / 其他, a 一般风险准备 — their headings
+        # sit inside the next band and were read into its name: 湖北能源's capital reserve column
+        # came out "其 资本公积 先 续 他 股 债" and its retained profits "风险 未分配利润 准备". A
+        # heading belongs to the column whose figures it stands over, so in a band wider than the
+        # columns' pitch only the words within a pitch of its figures' right edge name it. A column
+        # left with nothing keeps what it had: an unnamed column refuses the whole matrix.
+        left, right = m.bands[k]
+        if right - left > 1.25 * m.pitch:
+            own = [w for w in words if _xc(w) > right - m.pitch]
+            words = own or words
+        # …AND WHERE THE BAND'S HEADING WORDS STAND IN SEPARATE STACKS, the one over the figures.
+        # An empty column's heading in a narrow cell is printed a character a line — 专 / 项 / 储 /
+        # 备 — beside the next column's 盈余公积, inside its band, and the two read interleaved:
+        # "专项储盈余公积备" on 688008, "其他专综项盈余公积合储收备益" on 600990. Words whose x-extents
+        # touch are one stack (the lines of one heading overlap; the words of one English line are
+        # a space apart); the stack centred nearest the figures — set against the band's right
+        # edge — names the column.
+        stacks = _x_stacks(words, gap=0.15 * m.pitch)
+        if len(stacks) > 1:
+            target = right - 0.4 * m.pitch
+            words = min(stacks, key=lambda st: abs(
+                (min(w.bbox.x0 for w in st) + max(w.bbox.x1 for w in st)) / 2 - target))
+        # …and a year over the columns titles the block, not one column: "2024 年度" is printed
+        # over the middle of a CAS equity statement and was read into 其他综合收益's name.
+        words = [w for w in words if not _BLOCK_YEAR.match(w.text.strip())] or words
         # THE UNITS LINE IS NOT A HEADING: 600990 prints "单位：元 币种：人民币" directly over its
         # 固定资产情况 header, and its columns came out "单位：元 其他设备" and "币种：人民币 合计".
         words = [w for w in words if not _HEADING_UNIT.match(w.text.strip())] or words

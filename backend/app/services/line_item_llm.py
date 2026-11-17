@@ -1116,12 +1116,13 @@ def ask(provider, system: str, request: dict, *, max_tokens: int,
     question = {"role": "user", "content": json.dumps(request, ensure_ascii=False, indent=2)}
     messages = ([{"role": "user", "content": document, "cache": True}, question] if document
                 else [question])
-    reply, meta = provider.complete_structured(
-        system=system,
-        messages=messages,
-        response_schema=schema,
-        max_tokens=max_tokens,
-    )
+    # A REPLY CUT OFF AT ITS BUDGET IS ASKED FOR ONCE MORE WITH TWICE THE ROOM — see
+    # `ports.llm.complete_with_room`. It failed the whole request before, and its lines fell to
+    # the deterministic route: 1-2 requests per CAS filing.
+    from app.ports.llm import complete_with_room
+
+    reply, meta = complete_with_room(provider, system=system, messages=messages,
+                                     response_schema=schema, max_tokens=max_tokens)
     return reply, meta
 
 
@@ -1185,8 +1186,8 @@ def plan_and_notes(line_item_set, notes, settings, *, doc=None, routed=None, sta
 
 def resolve(answer: LineItemAnswer, notes, face=None, *, allow_face: bool = True,
             pages=None, allow_pages: bool = False, allow_rows: bool = True, sections=None,
-            allow_notes: bool = True, notes_supplied=None, statements=None, page_texts=None
-            ) -> tuple[list[dict], list[dict], dict[str, Decimal]]:
+            allow_notes: bool = True, notes_supplied=None, statements=None, page_texts=None,
+            expense_rows=None) -> tuple[list[dict], list[dict], dict[str, Decimal]]:
     """``(resolved, unresolved, figures)`` for one answer. The model supplies none of the figures.
 
     `face` is `services.face_context.face_index(doc)` — what a citation naming a STATEMENT rather
@@ -1227,6 +1228,7 @@ def resolve(answer: LineItemAnswer, notes, face=None, *, allow_face: bool = True
                                                         allow_notes=allow_notes,
                                                         notes_supplied=notes_supplied,
                                                         statements=statements,
-                                                        page_texts=page_texts)
+                                                        page_texts=page_texts,
+                                                        expense_rows=expense_rows)
     component = str(answer.role or "").strip().lower() == "component"
     return resolved, unresolved, figures_of(resolved, list(answer.signs or ()), component)

@@ -1427,7 +1427,8 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
                     pages=None, allow_pages: bool = False,
                     allow_rows: bool = True,
                     sections=None, allow_notes: bool = True, notes_supplied=None,
-                    statements=None, page_texts=None) -> tuple[list[dict], list[dict]]:
+                    statements=None, page_texts=None,
+                    expense_rows=None) -> tuple[list[dict], list[dict]]:
     """Match each citation the model gave against the extracted rows. Returns (resolved, unresolved).
 
     WHY THIS EXISTS RATHER THAN TRUSTING THE CITATION. The candidates offered to the model are
@@ -1831,7 +1832,20 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
                            else " — it was given no notes"))})
             continue
         hit = None
-        if want_cap and not allow_rows:
+        # …EXCEPT A ROW OF THE EXPENSE'S OWN NOTE — see `line_item_routes.expense_note_rows`: a CAS
+        # 管理费用 note's 折旧与摊销 row is the charge a `prose` depreciation split asks for. The cited
+        # note must be one whose TITLE names the expense, and the caption a depreciation row.
+        expense_ok = False
+        if want_cap and not allow_rows and expense_rows:
+            titles, terms = expense_rows
+            caption_text = str(getattr(ref, "caption", "") or "").casefold()
+            if any(str(t).casefold() in caption_text for t in terms):
+                pool_titles = [str(getattr(r[3], "title", "") or "") for r in rows
+                               if (not want_note or _note_key(r[0]) == _note_key(want_note))
+                               and _was_supplied(r[0])]
+                expense_ok = any(norm(t) and norm(t) in norm(title)
+                                 for title in pool_titles for t in titles)
+        if want_cap and not allow_rows and not expense_ok:
             # NAMED RATHER THAN SILENTLY FALLING THROUGH, the same way the statement refusal is:
             # "this line is read from a sentence, not a row" tells an author the PLACE was wrong,
             # where an unresolved caption would send them to fix the caption.
