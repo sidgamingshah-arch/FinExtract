@@ -12818,7 +12818,7 @@
     "Unreal Gain(Loss) Investments"
    ],
    "regex_hints": [
-    "^items that will not be reclassified (?:subsequently )?to profit or loss:? fair value changes? (?:in|of|on) equity investments? (?:measured|designated) at fair value through other comprehensive income$"
+    "^(?:items that will not be reclassified (?:subsequently )?to profit or loss:? )?fair value changes? (?:in|of|on) equity investments? (?:measured|designated) at fair value through other comprehensive income$"
    ],
    "sign_rule": {},
    "inherits": "is_oci",
@@ -18990,7 +18990,8 @@
     "investment propert",
     "投资性房地产",
     "投资物业",
-    "^items that (?:will not|may|are or may) be reclassified"
+    "^items that (?:will not|may|are or may) be reclassified",
+    "^fair value changes? (?:in|of|on) equity investments? (?:measured|designated) at fair value through other comprehensive income$"
    ],
    "route": "note_tables"
   },
@@ -19302,7 +19303,8 @@
     "investment propert",
     "投资性房地产",
     "投资物业",
-    "^items that (?:will not|may|are or may) be reclassified"
+    "^items that (?:will not|may|are or may) be reclassified",
+    "^fair value changes? (?:in|of|on) equity investments? (?:measured|designated) at fair value through other comprehensive income$"
    ]
   },
   {

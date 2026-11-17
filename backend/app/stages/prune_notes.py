@@ -169,6 +169,18 @@ class PruneNotesStage:
         # there is one. Every affected filing has 172-413 notes; every fixture has one to three.
         _NEGLIGIBLE = 0.02
         _MIN_NOTES = 20
+        # A US 10-K'S STATEMENTS CITE NO NOTES, and the reader says so: a bare integer beside a 10-K
+        # row is a figure, never a note reference (`row_reconstruct._no_note_column_on_a_10k`).
+        # Any "citation" left is a stray, and pruning by strays keeps notes by chance. Measured on
+        # BlackRock 2025: its property note page, read as a face, gave useful lives of 3, 7, 15 and
+        # 39 years as note numbers, and 8 of 85 note tables were kept, the investments note (5)
+        # not among them; before the reader stopped taking its 2025 "5" of other financing for a
+        # note it had been kept, by that misreading. Every other 10-K already keeps its notes here
+        # (no citation at all). So a 10-K keeps them all, and says why.
+        if getattr(ctx, "us_10k_filing", False):
+            ctx.log(f"prune_notes:us_10k_faces_cite_no_notes kept={len(doc.notes)} dropped=0 "
+                    f"strays={sorted(wanted)}")
+            return doc
         have = {str(nt.note_number).strip() for nt in doc.notes if nt.note_number is not None}
         resolved = wanted & have
         if (wanted and len(have) >= _MIN_NOTES

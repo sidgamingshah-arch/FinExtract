@@ -1214,12 +1214,30 @@ def _scan_row(row: list[Word], fmt=None, *, extract_note_refs: bool = True,
             # no longer fitted the figures one to one and no column was named. Text after a
             # figure is no figure, and neither is the number that opens it.
             pass
+        elif _US_10K_ROWS.get() and _dollar_amount_in_a_text_row(row, i, fmt):
+            # …AND A DOLLAR AMOUNT IN A ROW THAT GOES ON IN WORDS is one of its text cells, as it
+            # was before `_DOLLAR_SET_TIGHT`: Walmart's FY2025 debt note prints its issuances as
+            # "April 18, 2024  $750  April 15, 2027  Fixed  3.900%  746", and read as a figure the
+            # principal broke the row — four issuances and two repayments left the note. A face's
+            # "Total assets $169,998 $138,615" goes on in figures only, and is read as it is.
+            if not value_words:
+                label_words.append(row[i])
         elif _num(tok, fmt) is not None:
             value_words.append(row[i])
         elif not value_words:   # text before any number is part of the label
             label_words.append(row[i])
         i += 1
     return label_words, note_ref, value_words
+
+
+def _dollar_amount_in_a_text_row(row: list[Word], i: int, fmt=None) -> bool:
+    """Whether ``row[i]`` is a dollar amount set tight against its sign ("$750") with a word of
+    text printed after it on the row — a cell of a table of terms, not a figure column."""
+    tok = row[i].text.strip()
+    if not tok.lstrip("(").startswith("$") or _num(tok, fmt) is None:
+        return False
+    return any(re.search(r"[A-Za-z]{2,}", w.text) and _num(w.text.strip(), fmt) is None
+               for w in row[i + 1:])
 
 
 _CURRENCY_WORD = re.compile(r"^(?:₹|Rs\.?|INR)$")
@@ -6287,6 +6305,12 @@ EQUITY_BALANCE_FLAG = "equity_matrix_balance"
 # knows the figure is not the comparative the spread shows.
 RESTATED_FLAG = "restated"
 BY_POSITION_FLAG = "period_by_position"
+# A FACE SUBTOTAL CAPTIONED WITH THE ROWS IT TOTALS ("Share capital + Reserves"): the caption is
+# composed here, from the rows' own words, and is not printed anywhere. Nothing maps by it
+# (`stages.map_ontology`): Lai Sun 2024-25's bare current-assets subtotal, captioned "Properties
+# under development + Completed properties for sale + …", bound inventories by its second part and
+# added the whole of current assets, 13,991,585, to the 40,904 the filing prints.
+COMPOSED_CAPTION_FLAG = "caption_composed_of_its_rows"
 # A NOTE ROW PRINTED WITH A NIL MARK IN EVERY COLUMN ("(iii) Disputed dues - MSME  -  -  -"): kept
 # as a row so the request can say it was printed, and carrying no figure at all.
 NIL_ROW_FLAG = "printed_nil"
@@ -8793,6 +8817,8 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                     partial, parts = face_partial
                     partial.source_label = " + ".join(
                         c for c in (str(r.source_label or "").strip() for r in parts) if c)
+                    if COMPOSED_CAPTION_FLAG not in partial.confidence.flags:
+                        partial.confidence.flags.append(COMPOSED_CAPTION_FLAG)
                     if log:
                         log(f"extract:page={page_index}:face_subtotal_recaptioned("
                             f"{partial.source_label[:60]!r})")
@@ -9223,6 +9249,8 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
             if partial is not li and partial.values and parts:
                 partial.source_label = " + ".join(
                     c for c in (str(r.source_label or "").strip() for r in parts) if c)
+                if COMPOSED_CAPTION_FLAG not in partial.confidence.flags:
+                    partial.confidence.flags.append(COMPOSED_CAPTION_FLAG)
                 if log:
                     log(f"extract:page={page_index}:face_subtotal_recaptioned("
                         f"{partial.source_label[:60]!r}, total={label[:40]!r})")

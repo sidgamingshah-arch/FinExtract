@@ -1108,6 +1108,8 @@ class MapOntologyStage:
         from app.services.statement_sets import SET_NOT_READ_FLAG, unread_set_pages
         _unread = unread_set_pages(doc)
         set_refused = 0
+        composed = 0
+        from app.services.row_reconstruct import COMPOSED_CAPTION_FLAG
         us_10k = bool(getattr(ctx, "us_10k_filing", False))
         block_bound = 0
 
@@ -1117,6 +1119,14 @@ class MapOntologyStage:
             if unread is not None:
                 set_refused += 1
                 li.confidence.flags.append(f"{SET_NOT_READ_FLAG}:{unread}")
+                if done % 10 == 0 or done == total_rows:
+                    ctx.emit_step(done, total_rows, "row")
+                continue
+            # A CAPTION THE READER COMPOSED from the rows a subtotal totals is no printed caption,
+            # and binds nothing (`row_reconstruct.COMPOSED_CAPTION_FLAG`): the row stays a subtotal
+            # of the rows above it, as the residual reads it.
+            if COMPOSED_CAPTION_FLAG in li.confidence.flags:
+                composed += 1
                 if done % 10 == 0 or done == total_rows:
                     ctx.emit_step(done, total_rows, "row")
                 continue
@@ -1249,6 +1259,9 @@ class MapOntologyStage:
         if block_bound:
             ctx.log(f"map_line_items:bound_with_block_heading={block_bound} (10-K comprehensive-"
                     f"income rows read with the heading over their block)")
+        if composed:
+            ctx.log(f"map_line_items:composed_caption_not_matched={composed} (face subtotals "
+                    f"captioned with the rows they total)")
         if set_refused:
             ctx.log(f"map_line_items:statement_set_not_read={set_refused} (rows printed on the "
                     f"{'/'.join(sorted(set(_unread.values())))} statements, pages "
