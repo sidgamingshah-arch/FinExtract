@@ -153,17 +153,28 @@ def test_a_column_of_one_figure_per_row_is_left_whole():
     assert R._one_figure_per_row([flat], rows) == [flat]
 
 
-def test_a_column_of_years_on_every_row_is_kept():
+def test_on_a_10k_two_narrow_columns_are_two_bands_and_off_one_as_before():
+    rows = [[(0.50, "1,234"), (0.655, "554"), (0.690, "2024")] for _ in range(6)]
+    with us_10k_rows(True):
+        assert len(R._value_column_bands(rows)) == 3
+    # Off a 10-K the split is not made (Kaming's fixed-asset note lost its headings to it).
+    assert len(R._value_column_bands(rows)) == 2
+
+
+def test_a_column_of_years_on_every_row_is_kept_on_a_10k():
     bands = [0.50, 0.60, 0.70]
     rows = [[(0.50, "1,234"), (0.60, "554"), (0.70, "2024")] for _ in range(6)]
-    assert R._bands_with_a_figure(bands, rows) == bands
+    with us_10k_rows(True):
+        assert R._bands_with_a_figure(bands, rows) == bands
+    assert R._bands_with_a_figure(bands, rows) == [0.50, 0.60]      # off a 10-K, as before
 
 
 def test_a_years_band_on_a_row_or_two_is_still_dropped():
     bands = [0.50, 0.60, 0.70]
     rows = ([[(0.50, "2025"), (0.60, "2024")]]                 # the header's years
             + [[(0.60, "1,234"), (0.70, "554")] for _ in range(6)])
-    assert R._bands_with_a_figure(bands, rows) == [0.60, 0.70]
+    with us_10k_rows(True):
+        assert R._bands_with_a_figure(bands, rows) == [0.60, 0.70]
 
 
 def test_a_street_number_after_the_figures_is_no_figure():

@@ -19,7 +19,6 @@ the Ind AS pair, answer-free. Each test here fails on the code before the change
 """
 from __future__ import annotations
 
-import itertools
 import json
 import pathlib
 from decimal import Decimal
@@ -58,15 +57,9 @@ def _two_year_rows(x_current, x_prior, width, rows=8):
 
 
 def test_a_halfs_two_columns_are_two_columns_in_its_own_frame():
-    """In sheet coordinates the two columns chain into one cluster (the defect); in the half's
-    frame, two. Since `_one_figure_per_row` the sheet's cluster is split as well — every row prints
-    two figures in it — so the defect is pinned on the chaining, and the half's frame still reads
-    the two years apart without that help."""
+    """In sheet coordinates the two columns are one band (the defect); in the half's frame, two."""
     sheet = _two_year_rows(0.377, 0.405, 0.024)
-    flat = sorted(x for row in sheet for x in row)
-    assert max(b[0] - a[0] for a, b in itertools.pairwise(flat)) <= rr._COL_TOL, \
-        "the defect: on the sheet the two years chain into one cluster"
-    assert len(rr._value_column_bands(sheet)) == 2      # …split, one figure per row
+    assert len(rr._value_column_bands(sheet)) != 2, "the defect: the sheet's two years are not two"
     words = [_w(t, x - 0.012, 0.2, x + 0.012, 0.21) for row in sheet for x, t in row]
     half = in_half_frame(words, 0.0, 0.5)
     framed = [[((w.bbox.x0 + w.bbox.x1) / 2, w.text) for w in half[i:i + 2]]

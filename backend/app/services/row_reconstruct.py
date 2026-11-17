@@ -4155,11 +4155,14 @@ def _bands_with_a_figure(value_bands: list[float], col_xs: list[list[tuple[float
     # into one band and one of them was dropped as a duplicate — 4,104 figures over 48 pages. A
     # band of bare years is kept where most of the page's figure rows print one, and it stands
     # right of a figure column: a year printed as a row's CAPTION is at the left (`_caption_years`).
+    #
+    # 10-K ONLY, as `_one_figure_per_row`: measured where it was built (Welltower) and nowhere
+    # else it was needed.
     first_figure = next((i for i, ok in enumerate(has_figure) if ok), None)
     need = max(_COL_MIN_ROWS + 2, len(col_xs) // 2)
     for col, rows in enumerate(year_rows):
-        if (not has_figure[col] and rows >= need and first_figure is not None
-                and col > first_figure):
+        if (_US_10K_ROWS.get() and not has_figure[col] and rows >= need
+                and first_figure is not None and col > first_figure):
             has_figure[col] = True
     kept = [x for x, ok in zip(value_bands, has_figure) if ok]
     # No band qualifies on a filing that prints its figures ungrouped, and dropping every column
@@ -4388,7 +4391,8 @@ def _value_column_bands(value_xs: list[list[tuple[float, str]]],
             clusters[-1].append(item)
         else:
             clusters.append([item])
-    clusters = _one_figure_per_row(clusters, value_xs)
+    if _US_10K_ROWS.get():
+        clusters = _one_figure_per_row(clusters, value_xs)
 
     def is_note_column(cluster: list[tuple[float, str]]) -> bool:
         notes = sum(1 for _, t in cluster if _is_note_number(t))
@@ -4452,7 +4456,14 @@ def _one_figure_per_row(clusters: list[list[tuple[float, str]]],
     0.655 of the width and "2024" at 0.690, and the two became one column — every row's year of
     acquisition then shared a slot with its depreciation and was dropped as a duplicate. Split only
     where `_COL_MIN_ROWS` rows or more print two figures in the cluster, which one stray cannot
-    cause, and at the widest gap, which is the gutter between the two columns."""
+    cause, and at the widest gap, which is the gutter between the two columns.
+
+    10-K ONLY (`_value_column_bands` asks it only there). Off a 10-K it counted a header's years
+    ("2026 2025 2026") and a caption's date ("1 April 2025": "1", "2025") as a row's two figures:
+    on Kaming's fixed-asset note it split the "Sub-total" and "Total" columns' cluster, the eight
+    bands then fitted no printed header, and the note's 68 figures lost every column heading. It
+    also kept figures the note pages of Asian Paints, HUL, JSW and Laurus had dropped as
+    duplicates, and lost others — a change to those filings' notes to be measured on its own."""
     out: list[list[tuple[float, str]]] = []
     pending = list(clusters)
     while pending:
