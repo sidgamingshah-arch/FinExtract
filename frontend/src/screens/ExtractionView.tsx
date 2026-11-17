@@ -26,7 +26,7 @@ import {
 import { useCan } from "../lib/rbac";
 import { useUI, usePinnedRun } from "../store";
 import { SCREENS } from "./config";
-import { color, fmtElapsed, font, radius } from "../theme";
+import { color, fmtElapsed, font, groupingLocale, radius } from "../theme";
 import type {
   ConfigurationRecord, ExtractionProgress, ExtractionRow, LineItemVersionRef, Locale,
 } from "../types";
@@ -35,12 +35,6 @@ const GRID = "1.8fr 56px 1.3fr 1.1fr";
 /** Stage table: marker / stage / status — the Integrity screen's issue-row shape. */
 const STAGE_GRID = "22px 1fr 110px";
 
-/** Digit grouping follows the FILING, not the app: Indian filings group as 12,68,100 while
- *  IFRS/HKFRS filings group as 1,268,100. Rendering an HK filing with Indian grouping would
- *  misrepresent the printed figure, so the source currency selects the convention. */
-function groupingLocale(currency: string | undefined): string {
-  return currency === "INR" ? "en-IN" : "en-US";
-}
 
 /** Format an extracted figure for reading: grouped digits, negatives in parentheses (the
  *  accounting convention used elsewhere in the app). Anything non-numeric is passed through

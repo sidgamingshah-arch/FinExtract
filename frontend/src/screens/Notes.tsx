@@ -10,7 +10,7 @@ import { useT } from "../i18n";
 import { useDocumentNote, useDocumentNotes, useDocumentRun, useNote, useNotes, useProjectLoaded } from "../lib/queries";
 import { EmptyState } from "../components/EmptyState";
 import { usePinnedRun, useUI } from "../store";
-import { color, confStyle, fmtIN, font } from "../theme";
+import { color, confStyle, fmtIN, font, groupDigitsFor } from "../theme";
 import type { NoteDetail, NoteDetailRow } from "../types";
 
 const GRID = "1fr 120px 120px 64px";
@@ -294,6 +294,8 @@ export default function NotesScreen() {
   // Real native-PDF docs get a side-by-side annual-report view, open by default, framed to
   // the selected note's page (no note-level bbox → the whole page is highlighted, not a region).
   const run = useDocumentRun(activeDocumentId ?? undefined);
+  // The note's figures are grouped the way the filing prints them (1,268,100; 12,68,100 if INR).
+  groupDigitsFor(run.data?.result?.units?.currency);
   const result = run.data?.result;
   const showViewer = usingReal && result?.format === "pdf" && !!activeDocumentId;
   const picked: PdfPick | null =

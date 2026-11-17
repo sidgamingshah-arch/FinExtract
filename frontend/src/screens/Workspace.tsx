@@ -14,7 +14,7 @@ import { Button, ConfidencePill, NoteChip, Segmented, StatusIcon, confReadout } 
 import { EmptyState } from "../components/EmptyState";
 import { ExcelGrid, PageStack, toPicked, type Picked } from "../components/SourceViewer";
 import { TrailFooter, TrailTitle, isEntered, statusOf, statusPill, trailSentence, whyOf, whyText } from "../components/TrailWorking";
-import { color, confStyle, font, layout, radius, shadow, fmtIN, fmtPlain, parseAccounting } from "../theme";
+import { color, confStyle, digitGrouping, font, groupDigitsFor, layout, radius, shadow, fmtIN, fmtPlain, parseAccounting } from "../theme";
 import { DERIVED_STATEMENTS } from "../types";
 import type { Basis, FxRateResolution, LineItemTrace, RowContribution, StatementColumn, StatementKey, StatementResponse, StatementRow, SupersededTemplate, UnreadPage } from "../types";
 import { ApiError, refusalText } from "../lib/api";
@@ -207,7 +207,7 @@ function editErrorText(err: unknown): string {
 
 /* Accounting formatter with an explicit decimal count (fmtIN forces 0dp). */
 function fmtDec(n: number, dp: number): string {
-  const s = Math.abs(n).toLocaleString("en-IN", { minimumFractionDigits: dp, maximumFractionDigits: dp });
+  const s = Math.abs(n).toLocaleString(digitGrouping(), { minimumFractionDigits: dp, maximumFractionDigits: dp });
   return n < 0 ? `(${s})` : s;
 }
 
@@ -1513,6 +1513,8 @@ export default function WorkspaceScreen() {
   // cannot be called conditionally. `converting` is false until a real target is picked, so
   // the query stays disabled and no request goes out in the default (no conversion) case.
   const srcCcy = data?.currency || "";
+  // Every figure below is grouped the way this filing prints it (1,268,100; 12,68,100 if INR).
+  groupDigitsFor(srcCcy);
   // A "raw" view (the KPIs) has no currency and no magnitude — its figures are ratios. A target
   // currency left selected from a statement must not follow the analyst into it and raise "no
   // rate for ? → USD" about numbers that were never in a currency.

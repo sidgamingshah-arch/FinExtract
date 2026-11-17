@@ -144,18 +144,34 @@ export const fmtTokens = (n: number | null | undefined): string =>
  *  for an entry recorded before the field existed. Never "0s" for an unmeasured run. */
 export const fmtDuration = (ms: number | null | undefined): string => fmtElapsed(ms) || "—";
 
-/** Indian-grouping accounting formatter: negatives in parentheses, e.g. 12,68,100
- * and (1,210). Used for read-only monetary display (statement conventions). */
+/** Digit grouping follows the FILING, not the app: an Indian filing groups as 12,68,100, every
+ *  other filing (10-K, HKFRS, IFRS) as 1,268,100. Rendering a 10-K's computed total as 1,47,957
+ *  misstates how the filing prints it, so the source currency selects the convention. */
+export function groupingLocale(currency: string | null | undefined): string {
+  return currency === "INR" ? "en-IN" : "en-US";
+}
+
+/** The grouping the figure formatters below use. The screens that show one filing's figures (the
+ *  Workspace, Notes) set it from that filing's currency before their rows render; a screen with no
+ *  filing in view leaves it where it was, and the app starts on its long-standing Indian default. */
+let grouping = "en-IN";
+export function groupDigitsFor(currency: string | null | undefined): void {
+  if (currency) grouping = groupingLocale(currency);
+}
+export const digitGrouping = (): string => grouping;
+
+/** Accounting formatter in the filing's digit grouping: negatives in parentheses, e.g. 1,268,100
+ * (12,68,100 for an Indian filing) and (1,210). Used for read-only monetary display. */
 export const fmtIN = (n: number | null | undefined): string => {
   if (n == null) return "";
-  const s = Math.abs(n).toLocaleString("en-IN");
+  const s = Math.abs(n).toLocaleString(grouping);
   return n < 0 ? `(${s})` : s;
 };
 
 /** Plain signed formatter (e.g. -1,210) for editable inputs where a raw value is
  * expected. Pairs with parseAccounting() on save. */
 export const fmtPlain = (n: number | null | undefined): string =>
-  n == null ? "" : n.toLocaleString("en-IN");
+  n == null ? "" : n.toLocaleString(grouping);
 
 /** Parse a user-entered value: strips grouping/currency and reads parentheses or a
  * leading minus as negative. Returns null for empty/unparseable. */
