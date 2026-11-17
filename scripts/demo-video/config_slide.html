@@ -1,0 +1,89 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Configuration</title>
+<style>
+  body{margin:0;width:1600px;height:900px;background:#0f172a;color:#e5e7eb;font-family:Inter,Arial,sans-serif;
+       display:flex;flex-direction:column;padding:48px 64px 40px;box-sizing:border-box;overflow:hidden}
+  h1{margin:0;font-size:42px;font-weight:700;color:#fff;letter-spacing:-.5px}
+  .sub{font-size:20px;color:#94a3b8;margin:10px 0 30px}
+  .cols{display:grid;grid-template-columns:1fr 1.08fr;gap:44px}
+  .label{font-size:13.5px;font-weight:700;letter-spacing:.12em;color:#818cf8;text-transform:uppercase;margin-bottom:12px}
+  .routes{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .route{background:#1e293b;border:2px solid #334155;border-radius:12px;padding:15px 17px;cursor:pointer;
+         transition:border-color .2s,background .2s,transform .2s}
+  .route b{display:block;color:#fff;font-size:21px;margin-bottom:5px}
+  .route span{display:block;color:#94a3b8;font-size:15.5px;line-height:1.4}
+  .route.on{border-color:#818cf8;background:#1e1b4b;transform:translateY(-2px)}
+  .route.on b::before{content:"✓ ";color:#a5b4fc}
+  .ex{margin-top:16px;background:#111827;border:1px solid #334155;border-radius:12px;padding:16px 20px;min-height:132px}
+  .ex .k{font-size:13px;letter-spacing:.1em;color:#64748b;text-transform:uppercase;font-weight:700}
+  .ex .line{font-size:21px;color:#fff;font-weight:600;margin:6px 0 6px}
+  .ex .how{font-size:17px;color:#cbd5e1;line-height:1.5}
+  .ex .how em{font-style:normal;color:#a5b4fc}
+  .grp{display:flex;gap:14px;align-items:baseline;padding:10px 0;border-bottom:1px solid #1e293b}
+  .grp > div:first-child{flex:0 0 148px;color:#fff;font-size:17px;font-weight:600}
+  .chips{display:flex;flex-wrap:wrap;gap:7px}
+  .chip{background:#1e293b;border:1px solid #334155;border-radius:999px;padding:4px 12px;font-size:15px;color:#e2e8f0;
+        transition:background .2s,border-color .2s}
+  .grp:hover .chip{border-color:#818cf8;background:#1e1b4b}
+  .grp:hover > div:first-child{color:#a5b4fc}
+  .tpls{display:flex;gap:10px;align-items:center;margin-top:38px;flex-wrap:wrap}
+  .tpls .label{margin:0 6px 0 0}
+  .tpl{background:#172554;border:1px solid #1e40af;border-radius:8px;padding:7px 14px;font-size:16px;color:#dbeafe;font-weight:600;
+       transition:background .2s}
+  .tpl:hover{background:#1e3a8a}
+  .tpl.new{background:transparent;border-style:dashed;color:#93c5fd}
+</style></head>
+<body>
+  <h1>What makes it possible: configuration, not code</h1>
+  <div class="sub">Every template line is configured, not coded. These are the options set for each line on the Line Items screen.</div>
+  <div class="cols">
+    <div>
+      <div class="label">Where its figure is read from</div>
+      <div class="routes">
+        <div class="route on" data-r="face"><b>Face</b><span>the line on the balance sheet, income statement or cash flow statement</span></div>
+        <div class="route" data-r="notes"><b>Notes</b><span>the right row and column of a note table</span></div>
+        <div class="route" data-r="prose"><b>Prose</b><span>a sentence in the notes that states the figure</span></div>
+        <div class="route" data-r="anywhere"><b>Anywhere</b><span>the face if it prints the figure, otherwise the notes</span></div>
+      </div>
+      <div class="ex">
+        <div class="k" id="exK"></div>
+        <div class="line" id="exLine"></div>
+        <div class="how" id="exHow"></div>
+      </div>
+    </div>
+    <div>
+      <div class="label">And, for each line</div>
+      <div class="grp"><div>Recognise it by</div><div class="chips"><span class="chip">Captions, in any language</span><span class="chip">Its definition</span><span class="chip">Keyword hints</span><span class="chip">What it is not: “Other income” is not revenue</span></div></div>
+      <div class="grp"><div>Inside a note</div><div class="chips"><span class="chip">Which note</span><span class="chip">Which rows</span><span class="chip">Which column</span><span class="chip">Rows to skip, such as totals</span></div></div>
+      <div class="grp"><div>Scope</div><div class="chips"><span class="chip">Statement</span><span class="chip">Current or non-current section</span></div></div>
+      <div class="grp"><div>Build it</div><div class="chips"><span class="chip">As printed</span><span class="chip">Sum of its parts</span><span class="chip">First one found</span><span class="chip">Largest valid reading</span><span class="chip">Refuse a negative</span></div></div>
+      <div class="grp"><div>Sign</div><div class="chips"><span class="chip">Flip it when the caption shows a cost or an outflow</span></div></div>
+      <div class="grp"><div>Check it</div><div class="chips"><span class="chip">Printed total ties to its lines</span><span class="chip">Identities hold</span><span class="chip">Note agrees with the face</span></div></div>
+      <div class="grp" style="border-bottom:0"><div>The model</div><div class="chips"><span class="chip">Instructions per template and per line</span><span class="chip">Answers checked against the page</span></div></div>
+    </div>
+  </div>
+  <div class="tpls" id="tpls">
+    <span class="label">The same options, every template</span>
+    <span class="tpl">US GAAP · Form 10-K</span><span class="tpl">HKFRS</span><span class="tpl">Ind AS · Schedule III</span><span class="tpl">ICON spread</span><span class="tpl new">+ New template</span>
+  </div>
+<script>
+  const EX = {
+    face: ["US GAAP", "Cash and cash equivalents",
+           "Read off the <em>balance sheet</em> line, found by the captions a 10-K prints it under."],
+    notes: ["US GAAP", "Property, plant and equipment, at cost",
+            "The <em>property, plant and equipment note</em>: the gross row, never the net or the accumulated depreciation row."],
+    prose: ["HKFRS", "Depreciation in cost of sales",
+            "A <em>sentence</em> in the notes saying how much depreciation was charged to cost of sales."],
+    anywhere: ["US GAAP", "Cash paid for income taxes",
+               "The <em>cash flow statement</em> if it prints the figure; otherwise the <em>supplemental cash flow note</em>."],
+  };
+  const show = (r) => {
+    document.querySelectorAll(".route").forEach((e) => e.classList.toggle("on", e.dataset.r === r));
+    document.getElementById("exK").textContent = "Example from the " + EX[r][0] + " template";
+    document.getElementById("exLine").textContent = EX[r][1];
+    document.getElementById("exHow").innerHTML = EX[r][2];
+  };
+  document.querySelectorAll(".route").forEach((e) => e.addEventListener("click", () => show(e.dataset.r)));
+  show("face");
+</script>
+</body></html>
