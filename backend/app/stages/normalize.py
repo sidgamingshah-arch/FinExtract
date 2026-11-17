@@ -194,13 +194,31 @@ _COUNT_OF = re.compile(r"\s+of\s+(?!(?:the\s+)?(?:indian\s+|hong\s+kong\s+|us\s+
 _SPELLED_SCALES = {"thousand", "lakh", "lac", "million", "mn", "crore", "cr", "billion", "bn"}
 
 
-def _scan_scale(text: str) -> str | None:
+# A SPELLED SCALE IN THE FRONT MATTER IS A DECLARATION ONLY IN A DECLARATION'S FORM: straight after
+# a currency or after "in" — "(₹ in crores)", "Amounts in ₹ crore", "Indian Rupees in Crores",
+# "(In millions, except per share data)", "HK$ million". The front matter is the cover and its
+# facing page, and a cover is written to be read, not to declare a unit:
+#   Hindustan Unilever 2024-25   "Aspire: unlocking a billion aspirations"
+#   JSW Steel 2024-25            "his life was an inspirational journey leading millions to …"
+#   Chemplast Sanmar 2024-25     "Market capitalisation as on March 31, 2025 : ` 6,878.56 crores"
+# Each was scanned ahead of the statement faces and ended the search: HUL read "billion" and JSW
+# "million" over figures every face prints in ₹ crores — a hundred- and a ten-fold error in the
+# unit every request and export is told — and Chemplast read its crores off a market
+# capitalisation, so its currency, which the faces state as "Indian Rupees", was never read.
+_DECLARED_BEFORE = re.compile(
+    r"(?:\bin|₹|`|\brs\.?|\binr|\brupees?|hk\$|\bhkd|\brmb|\bcny|us\$|\busd|\$|€|\beur|£|\bgbp)"
+    r"\s*[('’]?\s*$", re.IGNORECASE)
+
+
+def _scan_scale(text: str, *, front_matter: bool = False) -> str | None:
     """The scale label declared in `text`, preferring the earliest declaration in reading order.
 
     A CJK unit is accepted only where no figure precedes it. Without that, one sentence of a
     business review ("营业收入 10.5 亿元") declared an entire filing to be presented in
     hundred-millions — measured on a CSRC filing whose statements are in plain 元, which came out
     carrying scale_factor 100,000,000.
+
+    In the FRONT MATTER a spelled scale counts only in a declaration's form (`_DECLARED_BEFORE`).
     """
     best: tuple[int, str] | None = None
     for rx, label in _SCALE_PATTERNS:
@@ -211,6 +229,9 @@ def _scan_scale(text: str) -> str | None:
             if word in _FIGURE_SENSITIVE and _NO_FIGURE_BEFORE.search(text[:m.start()]):
                 continue
             if word in _SPELLED_SCALES and label is None and _COUNT_OF.match(text, m.end()):
+                continue
+            if (front_matter and word in _SPELLED_SCALES and label is None
+                    and not _DECLARED_BEFORE.search(text[max(0, m.start() - 24):m.start()])):
                 continue
             if best is None or m.start() < best[0]:
                 best = (m.start(), word)
@@ -276,7 +297,7 @@ def _detect_units(ctx: PipelineContext, fmt: str, doc: DocumentModel | None = No
         # Remember the first currency seen: the face page declaring the scale may print only
         # "'000" with the currency stated once, elsewhere.
         currency = currency or _currency_in(text)
-        scale_word = _scan_scale(text)
+        scale_word = _scan_scale(text, front_matter=index is None)
         if scale_word is None:
             continue
         return UnitContext(currency=currency or "", units_label=scale_word,

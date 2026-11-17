@@ -431,7 +431,32 @@ def _is_noise_row(label: str, vals: list,
     # 1,424,559.26 where the three face rows swept there sum to 379.26 (crore).
     if bool(vals) and _SIGNATORY_ID.match(label):
         return True
+    if _signature_block_identifiers(label, vals):
+        return True
     return bool(vals) and bool(_HDR_LABEL.search(label)) and all(_is_date_ish(v) for v in vals)
+
+
+# …AND THE SAME IDENTIFIERS WHEN THE BLOCK'S NAMES AND TITLES ARE READ AS THEIR CAPTION. The
+# signature block prints its people in columns, so a line of it is several names and titles at
+# once — "Partner Chairman Managing Director Chairman - Audit Committee Membership No." — with the
+# membership number under a value column. Measured on Chemplast Sanmar 2024-25: the auditor's
+# membership number 203491 and the company secretary's ACS 06248 became rows of the standalone
+# balance sheet, and the sweep put both in Other current liabilities (6,248 is most of the 6,280.57
+# its prior year failed by). JSW Steel's and IndiGo's blocks print the same shape.
+#
+# AN AMOUNT IS NOT PRINTED THAT WAY. Every figure the caption carries must be a bare run of four to
+# eight digits — no thousands separator, no decimals, no sign — which is how an identifier is
+# printed and how no statement prints a figure of a thousand or more.
+_SIGNATURE_WORDS = re.compile(
+    r"membership\s+no|\bdin\b|\budin\b|firm'?s?\s+registration|\bfrn\b|\bplace\s*:|\bdate\s*:|"
+    r"chartered\s+accountants|company\s+secretary|chief\s+(?:financial|executive)\s+officer|"
+    r"\bpartner\b|managing\s+director|\bchairman\b|\bchairperson\b", re.IGNORECASE)
+_BARE_IDENTIFIER = re.compile(r"^\d{4,8}$")
+
+
+def _signature_block_identifiers(label: str, vals: list) -> bool:
+    return (bool(vals) and bool(_SIGNATURE_WORDS.search(label or ""))
+            and all(_BARE_IDENTIFIER.match(str(v).strip()) for v in vals))
 
 
 _NOTE_NO_HEADER = re.compile(r"^\s*(?:notes?\s*)?no\.?\s*$", re.I)
@@ -986,6 +1011,15 @@ def _bare_subtotal_of(value_words: list[Word],
                 return caption, [o for o, _x, _v in run]
         return None
     return None
+
+
+def _totals_its_section(label: str, section: str | None) -> bool:
+    """Whether a captioned row is printed as the total of the section in force: a "Total" caption
+    naming that section's banner — "Total - Current assets (B)" under "Current assets"."""
+    if not label or not section or not _TOTAL_LABEL.search(label):
+        return False
+    banner = normalize_label(section)
+    return bool(banner) and banner in normalize_label(label)
 
 
 def _face_section_total(value_words: list[Word], rows: list[list[tuple[float, Decimal]]],
@@ -2026,9 +2060,24 @@ def _caption_above_figures(above: list[Word], row: list[Word], fmt=None) -> bool
     they are lower than its first line by LESS than a line's height. A caption one full line up is
     an empty line item of its own and is left alone.
     """
+    # A NOTE REFERENCE ON THE CAPTION'S FIRST LINE DOES NOT MAKE IT A HEADING. An Indian face prints
+    # the note number on a wrapped caption's FIRST line and the figures between its two lines:
+    # Hindustan Unilever 2024-25 sets "Total outstanding dues of creditors other than micro
+    # enterprises  22" / "10,767  9,926" / "and small enterprises" in both balance sheets, and the
+    # row was lost whole — its figures had no caption, and the second line was folded onto "Other
+    # financial liabilities" (825). `row` is figures alone, so a heading whose items print captions
+    # of their own never reaches this test.
+    # This pass scans a row without the page's note column, so the note number arrives as a
+    # "figure": it is one when it is note-shaped and printed left of every figure of `row`, in the
+    # column the note numbers of the face stand in.
     label_words, note_ref, value_words = _scan_row(above, fmt)
-    if not label_words or value_words or note_ref is not None:
+    if not label_words:
         return False
+    if value_words:
+        figures_from = min((w.bbox.x0 for w in row if _num(w.text, fmt) is not None), default=None)
+        if figures_from is None or not all(_is_note_number(w.text) and w.bbox.x1 < figures_from
+                                           for w in value_words):
+            return False
     head, figures = _row_box(above), _row_box(row)
     line_h = max(head.y1 - head.y0, 1e-4)
     return 0 < figures.y0 - head.y0 < 0.9 * line_h
@@ -8896,6 +8945,21 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
             li.parent_id = None
             open_breakdowns.clear()
         items.append(li)
+        # …AND WHEN THE SECTION'S TOTAL IS PRINTED AFTER IT WITH A CAPTION, the bare line is the
+        # subtotal of the rows above it, not the section's total. Hindustan Unilever 2024-25 prints
+        # its current assets bare (20,876) after Other current assets, then Assets held for sale
+        # (23) and "Total - Current assets (B)" (20,899): both carried the total, and the residual
+        # read the section as 41,775 — 20,876 short, on both entities and both years.
+        if (on_face and face_partial is not None and face_total_now is None and label
+                and value_words and _totals_its_section(label, section)):
+            partial, parts = face_partial
+            if partial is not li and partial.values and parts:
+                partial.source_label = " + ".join(
+                    c for c in (str(r.source_label or "").strip() for r in parts) if c)
+                if log:
+                    log(f"extract:page={page_index}:face_subtotal_recaptioned("
+                        f"{partial.source_label[:60]!r}, total={label[:40]!r})")
+            face_partial = None
         if face_total_now is not None:
             face_partial = (li, face_total_now) if face_total_now else None
             face_total_now = None

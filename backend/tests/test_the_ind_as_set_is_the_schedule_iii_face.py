@@ -235,6 +235,39 @@ def test_a_layout_dependent_pl_subtotal_is_read_as_printed(raw):
      "cash_flow", None, "cf_financing__net_proceeds_issuance_of_capital"),
     ("Cash and cash equivalents at the year end", "cash_flow", "Financing activities",
      "cf_financing__end_of_period_cash_and_cash_equiv"),
+    # Chemplast Sanmar 2024-25
+    ("Profit / (Loss) after tax", "profit_and_loss", None, "is_pl__profit_for_the_year"),
+    ("b) Earlier years", "profit_and_loss", "Tax expense", "is_pl__earlier_years_tax"),
+    ("Changes in inventories of stock-in-trade finished goods and work-in-progress",
+     "profit_and_loss", "Expenses", "is_pl__changes_in_inventories"),
+    ("NET CASH FROM / (USED IN) OPERATING ACTIVITIES", "cash_flow", "Operating activities",
+     "cf_oper_indirect__cash_flows_oper_activ_indirect"),
+    ("NET CASH FROM / (USED IN) INVESTING ACTIVITIES", "cash_flow", "Investing activities",
+     "cf_investing__cash_flows_from_invest_activities"),
+    ("NET CASH FROM / (USED IN) FINANCING ACTIVITIES", "cash_flow", "Financing activities",
+     "cf_financing__cash_flows_from_finance_activities"),
+    # Hindustan Unilever 2024-25
+    ("Exceptional items: net credit/(charge)", "profit_and_loss", None, "is_pl__exceptional_items"),
+    ("Share of loss of equity accounted investee (net of tax)", "profit_and_loss", None,
+     "is_pl__share_of_profit_of_associates"),
+    ("Net cash flows generated from operating activities - [A]", "cash_flow",
+     "Operating activities", "cf_oper_indirect__cash_flows_oper_activ_indirect"),
+    ("Net cash flows generated from/ (used in) investing activities - [B]", "cash_flow",
+     "Investing activities", "cf_investing__cash_flows_from_invest_activities"),
+    ("Net cash flows used in financing activities - [C]", "cash_flow", "Financing activities",
+     "cf_financing__cash_flows_from_finance_activities"),
+    # JSW Steel 2024-25
+    ("Changes in inventories of finished and semi-finished goods, work-in-progress and "
+     "stock-in-trade", "profit_and_loss", "Expenses", "is_pl__changes_in_inventories"),
+    ("Net cashflow generated from operating activities", "cash_flow", "Operating activities",
+     "cf_oper_indirect__cash_flows_oper_activ_indirect"),
+    # InterGlobe Aviation (IndiGo) 2024-25
+    ("Net increase / (decrease) in cash and cash equivalents during the year (A+B+C)",
+     "cash_flow", "Financing activities", "cf_financing__net_increase_in_cash"),
+    ("Purchase of mutual funds / equity shares / bonds (Refer to Note 8)", "cash_flow",
+     "Investing activities", "cf_investing__purchase_financial_assets"),
+    ("Proceeds from sale of mutual funds / equity shares / bonds (Refer to Note 8)", "cash_flow",
+     "Investing activities", "cf_investing__proceeds_sale_fncl_assets"),
 ])
 def test_a_schedule_iii_caption_binds_its_line(matcher, caption, statement, section, key):
     hit = matcher.match(caption, statement=statement, section=section)

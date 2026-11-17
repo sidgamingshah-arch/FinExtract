@@ -1265,6 +1265,12 @@ def section_of_banner_only(text: str | None) -> str | None:
     remaining = normalize_label(text)
     for _tok, words in SECTION_WORDS:
         for word in words:
+            # …IN THE PLURAL TOO, for an English phrase. Hindustan Unilever 2024-25 heads its tax
+            # lines "Tax expenses", which "tax expense" left an "s" of, so it was no banner: the
+            # section stayed the exceptional items' above it, and "Current tax" and "Deferred tax"
+            # — claimable under tax expense only — reached no line on either statement.
+            if word.isascii():
+                remaining = remaining.replace(word + "s", " ")
             remaining = remaining.replace(word, " ")
     return token if not remaining.strip() else None
 

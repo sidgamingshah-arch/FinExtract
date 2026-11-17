@@ -89,7 +89,13 @@ def test_face_lines_collapse_onto_their_sections(shipped):
     assert len(grouped) >= 10, f"only {len(grouped)} shared section groups"
     biggest = max(grouped, key=lambda p: len(p.keys))
     assert len(biggest.keys) > 50, f"largest section group is only {len(biggest.keys)} lines"
-    assert all(len(p.sections) == 1 for p in grouped), "a shared group supplies two contexts"
+    # A SHARED GROUP SUPPLIES EXACTLY EACH OF ITS LINES' OWN CONTEXT: every line in it is
+    # claimable under exactly the group's pairs — one pair for most, several for a line whose gate
+    # names several (`_by_section`), never a mix of lines needing different ones.
+    by_key = {i.key: i for i in shipped.items}
+    for plan in grouped:
+        for key in plan.keys:
+            assert _sections_of_item(by_key[key]) == tuple(plan.sections), (key, plan.sections)
 
 
 def test_a_statement_travels_as_its_token_not_its_repr(shipped):
@@ -114,14 +120,23 @@ def test_a_line_sharing_no_context_is_never_grouped(shipped):
             f"{key} was grouped with {groups[holding[0]]}")
 
 
-def test_a_line_scoped_to_two_sections_keeps_its_own_request(shipped):
-    """It belongs in neither group's context alone, and the first would supply it half of what its
-    own gate allows — a request that cannot answer the question it asks."""
+def test_a_line_scoped_to_two_sections_is_given_both(shipped):
+    """It belongs in neither one-section group's context alone, and the first would supply it half
+    of what its own gate allows — a request that cannot answer the question it asks. So it shares a
+    request only with lines claimable under exactly its pairs, and that request carries ALL of them.
+
+    It used to be asked alone under the placeholder pair `("", key)`, which named no statement, so
+    no statement block was built and it was asked where its figure is printed with no row of the
+    statement in the request — `tests/test_an_indian_report_is_read_whole.py` measures that on the
+    Ind AS set's P&L subtotals."""
     by_key = {i.key: i for i in shipped.items if asked_about(i)}
     multi = [k for k, i in by_key.items() if len(_sections_of_item(i)) > 1]
     if not multi:
         pytest.skip("the shipped set has no line scoped to two (statement, section) pairs")
     groups = _by_section(list(by_key), by_key)
     for key in multi:
-        holding = [ks for ks in groups.values() if key in ks]
-        assert holding and holding[0] == [key], f"{key} shares a request: {holding}"
+        holding = [(pairs, ks) for pairs, ks in groups.items() if key in ks]
+        assert len(holding) == 1, f"{key} is in {len(holding)} requests"
+        pairs, keys = holding[0]
+        assert pairs == _sections_of_item(by_key[key]), (key, pairs)
+        assert all(_sections_of_item(by_key[k]) == pairs for k in keys), (key, keys)

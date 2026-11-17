@@ -241,6 +241,12 @@ def _spread_pdf() -> bytes:
     doc = fitz.open()
     page = doc.new_page(width=1191, height=842)
     put = lambda x, y, t: page.insert_text((x, y), t, fontsize=8)  # noqa: E731
+    # FIGURES RIGHT-ALIGNED, as Asian Paints prints them: a column is matched on its figures'
+    # right edges (`_COLUMN_EDGE_SLACK`), and set left-aligned their right edges differ by their
+    # widths — which a half read as the page it is (`pdf_extract.in_half_frame`) measures at twice
+    # the sheet's fraction. `x` is where the figure's text ENDS less 40, so the column stays put.
+    num = lambda x, y, t: page.insert_text(  # noqa: E731
+        (x + 40 - fitz.get_text_length(t, fontsize=8), y), t, fontsize=8)
     for x, tab in ((660, "Corporate Overview"), (760, "Strategic Review"),
                    (860, "Statutory Reports"), (960, "Financial Statements")):
         put(x, 40, tab)
@@ -255,9 +261,9 @@ def _spread_pdf() -> bytes:
     put(40, 140, "Current Assets")
     y = 154
     for cap, a, b in bs:
-        put(52, y, cap); put(420, y, a); put(490, y, b); y += 14
-    put(420, y, "12,442.25"); put(490, y, "12,060.19"); y += 14
-    put(40, y, "TOTAL ASSETS"); put(420, y, "12,442.25"); put(490, y, "12,060.19"); y += 14
+        put(52, y, cap); num(420, y, a); num(490, y, b); y += 14
+    num(420, y, "12,442.25"); num(490, y, "12,060.19"); y += 14
+    put(40, y, "TOTAL ASSETS"); num(420, y, "12,442.25"); num(490, y, "12,060.19"); y += 14
     put(40, y + 20, "Mumbai"); put(150, y + 20, "Mumbai"); put(260, y + 20, "29th May")
     put(420, y + 20, "2026")
     # RIGHT — the statement of profit and loss
@@ -272,7 +278,7 @@ def _spread_pdf() -> bytes:
           ("Other Expenses", "6,012.26", "5,610.04"), ("Profit Before Tax", "5,701.33", "5,821.24")]
     y = 140
     for cap, a, b in pl:
-        put(640, y, cap); put(1020, y, a); put(1090, y, b); y += 14
+        put(640, y, cap); num(1020, y, a); num(1090, y, b); y += 14
     return doc.tobytes()
 
 

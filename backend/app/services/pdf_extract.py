@@ -1009,6 +1009,36 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
     return added
 
 
+def in_half_frame(words, lo: float, hi: float) -> list:
+    """`words` of one half of a 2-up spread, placed as on the printed page they are.
+
+    EVERY DISTANCE THE READER MEASURES IS A FRACTION OF THE PAGE WIDTH, and every one of them was
+    measured on single printed pages: the gap that separates two value columns (`_COL_TOL`), the
+    gap that ends a column heading, the gap between a caption and its figures. A half of a spread
+    is a printed page at HALF that width, so each of its distances arrives halved, and a column
+    gap the reader would split reads as one column. Measured on JSW Steel's integrated report
+    2024-25, whose standalone balance sheet prints its two years 0.057 of the sheet apart: every
+    figure of both years fell into ONE value column, both were filed as the prior year
+    (`prior`, `prior#2`), and the current year was empty on every balance-sheet and P&L line of
+    both entities.
+
+    The reading box (`bbox`) is the half's: `x` runs 0 to 1 across the half. The page box
+    (`page_bbox`) is where the word is drawn on the sheet, which is what provenance shows
+    (`Word.source_bbox`) — the mechanism a page printed sideways already reads through.
+    """
+    width = hi - lo
+    if width <= 0:
+        return list(words)
+
+    def _x(x: float) -> float:
+        return min(1.0, max(0.0, (x - lo) / width))
+
+    return [Word(text=w.text,
+                 bbox=BBox(x0=_x(w.bbox.x0), y0=w.bbox.y0, x1=_x(w.bbox.x1), y1=w.bbox.y1),
+                 page_bbox=w.page_bbox or w.bbox)
+            for w in words]
+
+
 def _spread_batches(words, spread: dict, page_index: int, source_kind: str, off,
                     notes_chapter, log) -> tuple[list, dict]:
     """The face batches of a 2-up spread page, one per face half (two where a statement ends part
@@ -1019,8 +1049,8 @@ def _spread_batches(words, spread: dict, page_index: int, source_kind: str, off,
 
     batches: list = []
     notes: dict = {"early": [], "late": []}
-    for half_words, half in zip(page_spread.halves(words, float(spread["fold"])),
-                                spread.get("halves") or []):
+    fold = float(spread["fold"])
+    for half_words, half in zip(page_spread.halves(words, fold), spread.get("halves") or []):
         if not half_words:
             continue
         side, kind = half.get("side"), half.get("kind")
@@ -1042,6 +1072,8 @@ def _spread_batches(words, spread: dict, page_index: int, source_kind: str, off,
                 half_words = [w for w in half_words if id(w) not in inside]
                 notes["late"].append(tail)
                 log(f"extract:page={page_index}:spread_{side}:notes_below_face_from_y={opens:.3f}")
+        # A HALF IS READ IN ITS OWN FRAME, as the printed page it is (`in_half_frame`).
+        half_words = in_half_frame(half_words, *((0.0, fold) if side == "left" else (fold, 1.0)))
         title = str(ev.get("matched_title") or "") or None
         split_y, prior = ev.get("matched_title_y"), ev.get("statement_before_title")
         before = ([w for w in half_words if (w.bbox.y0 + w.bbox.y1) / 2 < split_y]

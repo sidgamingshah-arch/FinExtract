@@ -182,11 +182,12 @@ def plan_requests(line_item_set, notes, settings, *, cited=None, routed=None,
     # that hazard bigger rather than smaller, and the cheap mode stays something a run opts into.
     unplanned = [k for k in by_key if not any(k in plan.keys for plan in plans)]
     if mode in ("identical", "similar"):
-        for (statement, section), keys in _by_section(unplanned, by_key).items():
+        for pairs, keys in _by_section(unplanned, by_key).items():
+            statement = pairs[0][0]
+            section = "|".join(dict.fromkeys(sec for _st, sec in pairs))
             plans.append(RequestPlan(
                 name=keys[0] if len(keys) == 1 else f"{statement}/{section}+{len(keys) - 1}",
-                keys=tuple(keys), notes=(),
-                sections=((statement, section),)))
+                keys=tuple(keys), notes=(), sections=pairs))
         return plans
     for key in unplanned:
         plans.append(RequestPlan(name=key, keys=(key,), notes=notes_of.get(key, ()),
@@ -334,26 +335,37 @@ def _sections_of_keys(keys, by_key: dict) -> tuple[tuple[str, str], ...]:
     return tuple(out)
 
 
-def _by_section(keys, by_key: dict) -> dict[tuple[str, str], list[str]]:
-    """Group keys by the one `(statement, section)` pair they are claimable under.
+def _by_section(keys, by_key: dict) -> dict[tuple[tuple[str, str], ...], list[str]]:
+    """Group keys by the `(statement, section)` pairs they are claimable under — ALL of them.
 
-    ONLY A LINE WITH EXACTLY ONE PAIR IS GROUPED. A line scoped to two sections belongs in neither
-    group's context alone, and putting it in the first would supply it half of what its own gate
-    allows — a request that cannot answer the question it asks. Those keep a request of their own,
-    which is what they had before this function existed.
+    A LINE IS GROUPED WITH THE LINES CLAIMABLE UNDER EXACTLY ITS PAIRS. A line scoped to two
+    sections belongs in neither one-section group's context alone, and putting it in the first
+    would supply it half of what its own gate allows — a request that cannot answer the question
+    it asks. Lines that share the same SEVERAL pairs need the same context, and are grouped on it
+    as one-pair lines are on theirs.
+
+    AND THE GROUP KEEPS ITS PAIRS, which it did not. Each of these lines was asked in a request of
+    its own whose only "pair" was `("", key)` — no statement — so `face_statements` built it no
+    statement block, and the line was asked where its figure is printed with no statement in the
+    request. Measured on Chemplast Sanmar 2024-25 with the Ind AS set, whose P&L subtotals are each
+    claimable under every P&L section: finance costs, depreciation, EBITDA, profit before
+    exceptional items, share of associates, exceptional items, profit before tax, profit for the
+    year and total comprehensive income — nine requests of ~550 characters, every one without a
+    row of the statement; all five filings' logs said "answered but nothing located" for profit
+    for the year.
     """
-    out: dict[tuple[str, str], list[str]] = {}
+    out: dict[tuple[tuple[str, str], ...], list[str]] = {}
     for key in keys:
         pairs = _sections_of_item(by_key[key])
-        if len(pairs) != 1:
+        if not pairs:
             # NOT A GROUP OF ITS OWN. Measured, 39 of the shipped set's asked-about lines name
             # neither a statement nor a section, and bundling them together was the first thing
             # this function did: one request for 39 lines that share NO context, which saves
             # nothing (there is no block to amortise) and buys the whole cross-influence hazard
             # the `"none"` default exists to avoid. They are asked about one at a time.
-            out[("", key)] = [key]
+            out[(("", key),)] = [key]
             continue
-        out.setdefault(pairs[0], []).append(key)
+        out.setdefault(pairs, []).append(key)
     return out
 
 

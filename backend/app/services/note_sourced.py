@@ -1719,6 +1719,17 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
                         else [getattr(f[2], "section_hint", None) or "",
                               getattr(f[2], "group_hint", "") or ""]) if h]
                 tied = _tied_captions(want_cap, on_stmt, key=lambda f: norm(f[1]))
+                # WITHIN THE LINE'S OWN SECTION, where it prints the caption. A Schedule III
+                # balance sheet prints the SAME sub-heading in both portions — "Financial
+                # liabilities" over "(i) Borrowings" under Non-current liabilities and again under
+                # Current liabilities — so a citation naming it matched both rows, the first in
+                # document order won over the section narrowing above, and the check below refused
+                # the non-current row it had picked. Measured on Chemplast Sanmar 2024-25: current
+                # borrowings and current lease liabilities, both entities, refused; HUL's current
+                # investments, loans and other financial assets ("Financial assets") the same.
+                if sections:
+                    from app.services.mapping import section_of_row
+                    tied = [f for f in tied if section_of_row(f[2]) in sections] or tied
                 # AN EXACT HEADING FIRST. Containment alone cannot tell "Current liabilities" from
                 # "Non-current liabilities" — the one is inside the other — so a citation naming
                 # the current section took the non-current row, printed first. A heading matched

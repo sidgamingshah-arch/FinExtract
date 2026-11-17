@@ -1453,6 +1453,82 @@ def _spread_units(pdf, pages: list, cache: list, texts: list, *, log=None):
 
 _SIDES = ("left", "right")
 
+# A PERIOD HEADING: a short line naming a year — "31st March, 2025", "As at 31 March 2024",
+# "Year ended 31st March, 2025". Read only in the top of a half, where a statement's column band is.
+_PERIOD_HEADING = re.compile(r"\b(?:19|20)\d{2}\b")
+_BAND_TOP = 0.30
+_BAND_LINE_CHARS = 40
+
+
+def _period_band(lines: list[dict], height: float) -> frozenset[str]:
+    """The period headings printed in the top of a page or half, normalised."""
+    top = (height or 0.0) * _BAND_TOP
+    return frozenset(" ".join((line.get("text") or "").lower().split())
+                     for line in lines
+                     if (not top or float(line.get("y") or 0.0) <= top)
+                     and len((line.get("text") or "").strip()) <= _BAND_LINE_CHARS
+                     and _PERIOD_HEADING.search(line.get("text") or ""))
+
+
+def _continue_on_the_facing_half(pages: list, feats: list, cache: list, spreads: dict,
+                                 log=None) -> int:
+    """THE RIGHT HALF OF A SPREAD CONTINUES ITS LEFT HALF'S STATEMENT when it prints the same
+    column band and nothing of its own. Returns how many halves were taken.
+
+    An Indian integrated report prints a statement across the two pages of a spread and titles
+    only the first. Measured on Hindustan Unilever's 2024-25 report: the standalone and the
+    consolidated balance sheet each print ASSETS on the left page and EQUITY AND LIABILITIES on the
+    right, the statement of profit and loss its other comprehensive income, total comprehensive
+    income and earnings per share on the right, the cash flow its financing activities on the
+    right. Each right page re-prints the left page's column band — "Particulars | Note | As at
+    31st March, 2025 | As at 31st March, 2024" — and no title, so it was classified as notes, and
+    every line printed on it was missing from the run: equity, both liability sections, profit
+    attributable, total comprehensive income and every financing line, for both entities.
+
+    `_reclaim_statement_continuations` cannot take these. It asks for a face page on BOTH sides
+    and for consecutive page numbers, and the two halves of a spread share one; the cash flow's
+    right half is followed by the notes.
+
+    THE VETOES ARE THE ONES A REAL NOTE TRIPS: a title of its own (a second statement, as Laurus
+    and Asian Paints print side by side), the notes running header, a numbered note heading at the
+    top. And the right half must re-print the left half's period headings — the band is what
+    makes it the same table, where the notes beside a statement's last page head their own
+    tables, if at all, differently.
+    """
+    taken = 0
+    for pos in range(len(pages) - 1):
+        left, right = pages[pos], pages[pos + 1]
+        if left.index not in spreads or right.index != left.index:
+            continue
+        if left.kind is not PageKind.FACE or not left.statement or right.kind is PageKind.FACE:
+            continue
+        f = feats[pos + 1]
+        if f.notes_banner or f.strong_title or f.matched_title:
+            continue
+        lines, height = cache[pos + 1]
+        if _opens_with_note_heading(lines):
+            continue
+        band = _period_band(lines, height)
+        if len(band) < 2 or not band <= _period_band(*cache[pos]):
+            continue
+        right.kind = PageKind.FACE
+        right.statement = left.statement
+        right.scope = left.scope
+        right.scope_columns = list(left.scope_columns or [])
+        evidence = dict(right.evidence or {})
+        evidence.update({"state": _FACE, "continues_facing_half": True,
+                         "scope_reason": ({"entity": left.scope, "rule": "facing_half",
+                                           "from_page": left.index}
+                                          if left.scope is not None
+                                          else {"entity": None, "rule": "unresolved",
+                                                "why": "untitled"})})
+        right.evidence = evidence
+        taken += 1
+        if log:
+            log(f"classify:page={right.index}:right_half_continues({left.statement},"
+                f"{left.scope or '-'})")
+    return taken
+
 
 def _merge_spread_units(whole_pages: list, whole_cache: list, units: list, spreads: dict, *,
                         log=None) -> list:
@@ -2170,6 +2246,7 @@ class ClassifyStage:
                 doc.unmapped_titles.extend(f.unmapped[:3])
 
         self._reclaim_statement_continuations(pages, feats, cache, ctx)
+        _continue_on_the_facing_half(pages, feats, cache, spreads, ctx.log)
         _drop_runs_without_figures(pages, cache, ctx.log)
         pages = _merge_spread_units(whole_pages, whole_cache, pages, spreads, log=ctx.log)
         # A PERSON'S CORRECTION OUTRANKS THE READING ABOVE, and is applied last so nothing above
