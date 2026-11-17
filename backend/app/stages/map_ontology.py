@@ -1241,6 +1241,7 @@ class MapOntologyStage:
                 ctx.emit_step(done, total_rows, "row")
         mapped += self._revenue_block_parts(doc, ontology, _statement_of, ctx)
         mapped += self._closing_total_once(doc, ontology, matcher, _statement_of, ctx)
+        self._the_total_printed_below_its_part(doc, ctx)
         if block_bound:
             ctx.log(f"map_line_items:bound_with_block_heading={block_bound} (10-K comprehensive-"
                     f"income rows read with the heading over their block)")
@@ -1476,6 +1477,86 @@ class MapOntologyStage:
             ctx.log(f"map_line_items:closing_total_bound_once {_CLOSING_TOTAL} <- "
                     f"{(li.source_label or '')[:60]!r} (no other row prints it on this basis)")
         return bound
+
+    @staticmethod
+    def _the_total_printed_below_its_part(doc: DocumentModel, ctx: PipelineContext) -> int:
+        """A caption bound to a subtotal twice on one face, the lower printing the upper plus the
+        rest of a total the template builds from it, is that total. Returns rows rebound.
+
+        "Total shareholders' equity" is the US GAAP set's caption for the owners' equity — the
+        line before noncontrolling interests — and it is right for the filer that prints no
+        noncontrolling interest, or prints it after a total of its own. Walmart's FY2025 balance
+        sheet prints both: "Total Walmart shareholders' equity 91,013 / 83,861", "Nonredeemable
+        noncontrolling interest 6,408 / 6,488", "Total shareholders' equity 97,421 / 90,349". Both
+        totals bound the owners' line, two rows on one line are summed, and the run published
+        owners' equity 188,434 with total equity empty; with a model, total equity took the owners'
+        91,013.
+
+        The page proves which is which. Where a template total P sums a subtotal K with other lines,
+        and K is claimed by two rows of one printed block with rows of P's other lines between them,
+        the lower row is P's when, in every column it prints, it equals the upper row plus those
+        rows — K's figure and the parts that build P from it, printed in order. Nothing is moved on
+        a caption alone, nor where P is already bound on that block.
+        """
+        template = getattr(ctx, "template_def", None) or getattr(ctx, "template", None)
+        if hasattr(template, "model_dump"):
+            template = template.model_dump(mode="json")
+        from itertools import pairwise
+
+        from app.services.rollups import calculated_nodes
+
+        totals: dict[str, list[tuple[str, list[str]]]] = {}
+        for key, node in calculated_nodes(template or {}).items():
+            rollup = node.get("rollup") or {}
+            children = list(rollup.get("children") or [])
+            if (rollup.get("op") or "sum") != "sum" or len(children) < 2:
+                continue
+            for child in children:
+                totals.setdefault(child, []).append((key, [c for c in children if c != child]))
+        if not totals:
+            return 0
+        tol = Decimal(str(ctx.settings.extraction.recon_abs_tolerance))
+        by_page: dict[int, list] = {}
+        for li in doc.line_items:
+            page = _page_of(li)
+            if page is not None and li.canonical_key:
+                by_page.setdefault(page, []).append(li)
+
+        def figures(li) -> dict:
+            return {(v.basis, v.period_label): v.value for v in li.values.values()
+                    if v.value is not None}
+
+        rebound = 0
+        for page, rows in sorted(by_page.items()):
+            rows.sort(key=lambda li: li.ordinal)
+            for key, parents in totals.items():
+                claimed = [i for i, li in enumerate(rows) if li.canonical_key == key]
+                if len(claimed) < 2:
+                    continue
+                for upper, lower in pairwise(claimed):
+                    for parent, others in parents:
+                        if any(li.canonical_key == parent and _bases_of(li) & _bases_of(rows[lower])
+                               for li in rows):
+                            continue
+                        between = [li for li in rows[upper + 1:lower] if li.canonical_key in others]
+                        if not between:
+                            continue
+                        top, below = figures(rows[upper]), figures(rows[lower])
+                        parts = [figures(li) for li in between]
+                        if not below or any(
+                                col not in top or any(col not in p for p in parts)
+                                or abs(top[col] + sum(p[col] for p in parts) - value) > tol
+                                for col, value in below.items()):
+                            continue
+                        li = rows[lower]
+                        li.canonical_key = parent
+                        li.confidence.flags.append(f"total_printed_below_its_part:{key}")
+                        rebound += 1
+                        ctx.log(f"map_line_items:total_printed_below_its_part {parent} <- "
+                                f"{(li.source_label or '')[:50]!r} (page {page}: equals "
+                                f"{key} above it plus {','.join(b.canonical_key for b in between)})")
+                        break
+        return rebound
 
     @staticmethod
     def _unexplained_columns(parent, children: list, tol: Decimal) -> list[str]:

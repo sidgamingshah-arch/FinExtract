@@ -78,6 +78,7 @@ unchanged: the template's ``__others`` keys, the same three signals, no itemisat
 from __future__ import annotations
 
 import re
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from decimal import Decimal
 
@@ -97,7 +98,7 @@ from app.services.mapping import (
     strip_face_numbering,
 )
 from app.services.row_reconstruct import opens_a_bracket_it_never_closes
-from app.services.rollups import reconcile_section, section_members
+from app.services.rollups import SectionMembers, reconcile_section, section_members
 
 # The two splits of an income statement's bottom lines (owners / non-controlling interests).
 _SPLIT_TOKENS = frozenset({"profit_attributable_to", "total_comprehensive_income_attributable_to"})
@@ -372,6 +373,14 @@ def _label(row) -> str:
 # period heading is, which is where a signature block's membership numbers and a footnote's inline
 # amounts land.
 _STATEMENT_COLUMNS = frozenset({"current", "prior"})
+# A 10-K STATEMENT PRINTS THREE YEARS, and the third is read as `col2`. Counted out, no 10-K
+# income-statement or cash-flow row was ever in the statement's columns, so every caption past
+# `_MAX_CAPTION_WORDS` was refused as a narrative row whatever its shape. Nike's FY2026 cash flow
+# lost "(Increase) decrease in prepaid expenses, operating lease right-of-use assets and other
+# current and non-current assets" (519 / -224 / -260) that way, with operating cash flow summing
+# short of the printed 2,868. Set by the sweep for a 10-K only (`ctx.us_10k_filing`).
+_TEN_K_STATEMENT_COLUMNS = frozenset({"current", "prior", "col2"})
+_THREE_YEAR_FACES: ContextVar[bool] = ContextVar("three_year_faces", default=False)
 
 
 def _in_statement_columns(row) -> bool:
@@ -381,7 +390,79 @@ def _in_statement_columns(row) -> bool:
     values = getattr(row, "values", None) or {}
     labels = {getattr(ev, "period_label", None) for ev in values.values()
               if getattr(ev, "value", None) is not None}
-    return bool(labels) and labels <= _STATEMENT_COLUMNS
+    columns = _TEN_K_STATEMENT_COLUMNS if _THREE_YEAR_FACES.get() else _STATEMENT_COLUMNS
+    return bool(labels) and labels <= columns
+
+
+def _totals_of_residuals(ctx, residual_keys: set[str]) -> dict[str, tuple[str, frozenset[str]]]:
+    """``{residual: (the template total that sums it, every key that total reaches)}``.
+
+    THE SECTION'S SUBTOTAL IS THE ONE THAT TOTALS ITS RESIDUAL. `rollups.reconcile_section` takes
+    the highest-priority subtotal the section prints and every other concept scoped to it, which is
+    right where the section prints one total. The US GAAP template ends its financing section with
+    the cash roll-forward — the effect of exchange rates, the net change in cash, the opening
+    balance — and the set ranks the net change in cash level with the financing total and after
+    it, so the financing section was reconciled against the net change in cash with the exchange
+    effect and the opening cash counted as financing lines. Every 10-K measured reported an
+    unallocated gap in financing whatever its rows: Nike FY2026 "reported=99" — its net increase in
+    cash — against dedicated 5,276; Alphabet, BlackRock, Walmart and Welltower the same.
+
+    The template names the total a residual belongs to: the plain sum whose children include it —
+    `cf_financing__cash_flows_from_finance_activities` for "Other financing activities". Only a
+    plain sum, and only one: a difference, magnitudes or a total built from parts of a printed line
+    are left to the section rule, as is a residual two totals claim. What it reaches is followed
+    through the template's rollups, so a total built from intermediate subtotals reaches their
+    lines (`structural_checks._rollup_reach` reads the same tree).
+    """
+    template = getattr(ctx, "template_def", None) or getattr(ctx, "template", None)
+    if hasattr(template, "model_dump"):
+        template = template.model_dump(mode="json")
+    from app.services.rollups import calculated_nodes
+
+    nodes = calculated_nodes(template or {})
+    kids = {key: list((node.get("rollup") or {}).get("children") or [])
+            for key, node in nodes.items()}
+
+    def reach(key: str, seen: frozenset[str] = frozenset()) -> frozenset[str]:
+        if key not in kids or key in seen:
+            return frozenset({key})
+        out: frozenset[str] = frozenset()
+        for child in kids[key]:
+            out |= reach(child, seen | {key})
+        return out
+
+    found: dict[str, list[str]] = {}
+    for key, node in nodes.items():
+        rollup = node.get("rollup") or {}
+        if ((rollup.get("op") or "sum") != "sum" or rollup.get("cost_magnitude_children")
+                or rollup.get("parts_of_printed") or rollup.get("reported_total_key")):
+            continue
+        for child in kids[key]:
+            if child in residual_keys:
+                found.setdefault(child, []).append(key)
+    return {res: (totals[0], reach(totals[0])) for res, totals in found.items()
+            if len(totals) == 1}
+
+
+def _against_its_own_total(mem, own_total, values: dict, col) -> object:
+    """The section to reconcile one column against — `mem`, unless the section rule would take a
+    total other than the residual's own (`_totals_of_residuals`).
+
+    Only then: where the section's closing subtotal IS the residual's total, as on every HKFRS and
+    CAS face and on a 10-K's operating and investing sections, nothing changes. Where it is not —
+    a 10-K's financing section, closed by the net change in cash — the section is reconciled
+    against the residual's total and the members that total reaches, so the cash roll-forward's
+    lines are not financing lines."""
+    if own_total is None:
+        return mem
+    total, reached = own_total
+    chosen = next((k for k in reversed(mem.subtotals)
+                   if values.get(k, {}).get(col) is not None), None)
+    if chosen is None or chosen == total or values.get(total, {}).get(col) is None:
+        return mem
+    return SectionMembers(section=mem.section, statement=mem.statement, subtotals=[total],
+                          dedicated=[k for k in mem.dedicated if k in reached],
+                          residuals=list(mem.residuals))
 
 
 def _is_narrative_row(row) -> bool:
@@ -1149,7 +1230,11 @@ class ResidualStage:
         ontology = getattr(ctx, "ontology", None)
         framework = getattr(ontology, "residual_framework", None) if ontology is not None else None
         if framework is not None and doc.line_items:
-            return self._sweep(doc, ctx, ontology, framework)
+            token = _THREE_YEAR_FACES.set(bool(getattr(ctx, "us_10k_filing", False)))
+            try:
+                return self._sweep(doc, ctx, ontology, framework)
+            finally:
+                _THREE_YEAR_FACES.reset(token)
         return self._route_by_template(doc, ctx)
 
     # --- the v2 sweep ------------------------------------------------------------------------
@@ -1746,11 +1831,13 @@ class ResidualStage:
         goes to review.
         """
         values, rows_by_key = _by_canonical_key(doc)
+        totalled_by = _totals_of_residuals(ctx, {res.key for res in usable})
         report: list[dict] = []
         for res in usable:
             mem = members.get(res.section)
             if mem is None or not (res.rows or res.components):
                 continue
+            own_total = totalled_by.get(res.key)
             columns = sorted({col for li in res.rows for col in _row_values(li)})
             entry = {"residual": res.key, "section": res.section, "statement": res.statement,
                      "components": res.components, "conflicts": res.conflicts,
@@ -1759,7 +1846,8 @@ class ResidualStage:
                 comps = [float(v) for li in res.rows
                          for c, v in _row_values(li).items() if c == col]
                 recon = reconcile_section(
-                    mem, lambda k, _c=col: values.get(k, {}).get(_c), comps,
+                    _against_its_own_total(mem, own_total, values, col),
+                    lambda k, _c=col: values.get(k, {}).get(_c), comps,
                     rounding_unit=terms.rounding_unit, per_row_tolerance=terms.per_row_tolerance)
                 entry["reconciliation"].append({
                     "column": col, "subtotal_key": recon.subtotal_key, "reported": recon.reported,

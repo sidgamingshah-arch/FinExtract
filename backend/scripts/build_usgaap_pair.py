@@ -243,7 +243,8 @@ _PPE = r"(?:property|plant|fixed\s+assets|capital\s+assets)"
 _SECURITIES = (r"(?:short\s+term\s+|long\s+term\s+|other\s+|non\s*marketable\s+)?(?:marketable\s+securities"
                r"|investments|securities|available\s+for\s+sale\s+(?:debt\s+)?securities|debt\s+securities"
                r"|equity\s+securities)")
-_DEBT = r"(?:long\s+term\s+|term\s+|senior\s+)?(?:debt|borrowings?|notes|loans|bonds)"
+# …and a REIT's: Welltower 2024 prints "senior unsecured notes" and "secured debt".
+_DEBT = r"(?:long\s+term\s+|term\s+|senior\s+)?(?:(?:un)?secured\s+)?(?:debt|borrowings?|notes|loans|bonds)"
 _NOT_PER_SHARE = [r"per\s+(?:common\s+)?share", r"\bbasic\b", r"\bdiluted\b"]
 
 # EARNINGS PER SHARE AND THE SHARES BEHIND IT. Patterns run on the raw lowercased caption and on its
@@ -855,7 +856,10 @@ LINES = {
           ["Selling, general and administrative", "Selling, general and administrative expenses",
            "Sales and marketing", "General and administrative", "Selling and marketing",
            "Marketing, general and administrative", "Operating, selling, general and administrative expenses",
-           "Selling and administrative expenses", "General and administrative expenses"],
+           "Selling and administrative expenses", "General and administrative expenses",
+           # Nike's FY2026 face prints its two parts — demand creation and operating overhead —
+           # and their total under this caption.
+           "Total selling and administrative expense", "Total selling and administrative expenses"],
           "Selling, marketing, general and administrative expense, as printed, positive. Where the "
           "face prints sales and marketing and general and administrative on separate rows, the "
           "rows are added.",
@@ -1164,9 +1168,11 @@ LINES = {
           "filer prints them inside it, net of tax as printed.",
           sign="either", scope=OCI,
           exclude=[r"accumulated", r"attributable", r":\s*$"],
-          regex=[E + r"(?:net\s+)?(?:change\s+in\s+)?(?:(?:foreign\s+)?currency\s+|cumulative\s+)?"
-                 r"translation\s+(?:adjustments?|gains?|loss(?:es)?|differences?)\b.*$",
-                 E + r"(?:net\s+)?(?:change\s+in\s+)?foreign\s+currency\s+translation\b.*$"]),
+          # "…change in net foreign currency translation adjustment" (Nike FY2026) names the net
+          # after the change.
+          regex=[E + r"(?:net\s+)?(?:change\s+in\s+)?(?:net\s+)?(?:(?:foreign\s+)?currency\s+|"
+                 r"cumulative\s+)?translation\s+(?:adjustments?|gains?|loss(?:es)?|differences?)\b.*$",
+                 E + r"(?:net\s+)?(?:change\s+in\s+)?(?:net\s+)?foreign\s+currency\s+translation\b.*$"]),
         L("is_oci__available_for_sale_securities", "Available-for-sale debt securities, net change",
           ["Net unrealized gains (losses) on available-for-sale securities",
            "Unrealized gains (losses) on available-for-sale securities",
@@ -1216,6 +1222,13 @@ LINES = {
           exclude=_NOT_HEDGES + _NOT_A_NET_CHANGE + _GLUED_HEADING,
           regex=[E + _UNREALIZED + r"\s+on\s+" + _CFH + r"\b.*$",
                  E + r"(?:net\s+)?change\s+(?:related\s+to|in)\s+" + _CFH + r"\b.*$",
+                 # "Change in net gains (losses) on cash flow hedges" (Nike FY2026): the gains
+                 # named without "unrealized".
+                 E + r"(?:net\s+)?change\s+in\s+(?:net\s+)?" + _GL + r"\s+on\s+" + _CFH + r"\b.*$",
+                 # "Derivative and financial instruments designated as hedges gain (loss)"
+                 # (Welltower 2024): the filer's one hedges row, printed as such.
+                 E + r"derivatives?\s+(?:and\s+financial\s+instruments\s+)?designated\s+as\s+"
+                 r"(?:cash\s+flow\s+)?hedges\b.*$",
                  # With its tax, not bare: a bare "Cash flow hedges" is the block's heading.
                  E + _CFH + r"\s+net\s+of\s+(?:income\s+)?tax(?:es)?\b.*$",
                  _headed(_CFH) + _BLOCK_NET]),
@@ -1250,7 +1263,9 @@ LINES = {
                  r"(?:of|from|in|on)\s+(?:equity\s+method\s+|unconsolidated\s+)?(?:investees|affiliates|"
                  r"investments|joint\s+ventures|associates)\b.*$",
                  E + r"other\s+net\s+of\s+(?:income\s+)?tax(?:es)?$",
-                 E + r"other\s+comprehensive\s+(?:income|loss)(?:\s+(?:loss|income))?\s+other$"]),
+                 E + r"other\s+comprehensive\s+(?:income|loss)(?:\s+(?:loss|income))?\s+other$",
+                 # "Change in net gains (losses) on other" (Nike FY2026).
+                 E + r"(?:net\s+)?change\s+in\s+(?:net\s+)?" + _GL + r"\s+on\s+other$"]),
         L("is_oci__total_other_comprehensive_income", "Total other comprehensive income (loss)",
           ["Other comprehensive income (loss)", "Total other comprehensive income (loss)",
            "Other comprehensive income (loss), net of tax", "Other comprehensive income",
@@ -1428,7 +1443,12 @@ LINES = {
           "The change in accounts payable among the changes in operating assets and liabilities.",
           sign="either",
           regex=[PCF + _CHANGE + r"(?:trade\s+)?(?:accounts\s+payable|payables)(?:\s+and\s+accrued\s+"
-                 r"(?:liabilities|expenses))?$"]),
+                 r"(?:liabilities|expenses))?$",
+                 # A payables-led list of liabilities: Nike's FY2026 "Increase (decrease) in
+                 # accounts payable, accrued liabilities, operating lease liabilities and other
+                 # current and non-current liabilities".
+                 PCF + _CHANGE + r"(?:trade\s+)?accounts\s+payable\s+accrued\s+(?:liabilities|expenses)"
+                 r"(?:\s+(?:and|operating|lease|other|current|non|noncurrent|liabilities))+$"]),
         R("cf_oper_indirect__other_operating_items", "Other operating items",
           "Every operating-activities row the face prints that no line above claims, itemised: "
           "other adjustments to net income, gains and losses on sales, and the changes in other "
@@ -1535,8 +1555,9 @@ LINES = {
           "Cash received from issuing long-term debt (notes, bonds, term loans), net of issuance "
           "costs where the face says so. Commercial paper is the next line but one.",
           sign="either", exclude=[r"short\s+term", r"commercial\s+paper", r"repay"],
-          regex=[PCF + r"(?:proceeds\s+from\s+(?:the\s+)?(?:issuances?\s+of\s+)?|issuances?\s+of\s+)" + _DEBT
-                 + r"\b.*$"]),
+          # "Net proceeds from issuance of senior unsecured notes" (Welltower 2024).
+          regex=[PCF + r"(?:net\s+)?(?:proceeds\s+from\s+(?:the\s+)?(?:issuances?\s+of\s+)?|issuances?\s+of\s+)"
+                 + _DEBT + r"\b.*$"]),
         L("cf_financing__repayment_of_debt", "Repayments of debt",
           ["Repayments of term debt", "Repayments of debt", "Payments of long-term debt",
            "Repayments of long-term debt", "Repayment of borrowings", "Principal payments on long-term debt"],
@@ -1544,7 +1565,10 @@ LINES = {
           "negative sign the face gives it.",
           sign="either", exclude=[r"short\s+term", r"commercial\s+paper", r"lease"],
           regex=[PCF + r"(?:repayments?|payments?|principal\s+payments?|retirements?|redemptions?|"
-                 r"extinguishment)\s+(?:of|on)\s+(?:the\s+)?" + _DEBT + r"\b.*$"]),
+                 r"extinguishment)\s+(?:of|on)\s+(?:the\s+)?" + _DEBT + r"\b.*$",
+                 # "Payments to extinguish senior unsecured notes" (Welltower 2024).
+                 PCF + r"payments?\s+to\s+(?:extinguish|retire|redeem|repay)\s+(?:the\s+)?" + _DEBT
+                 + r"\b.*$"]),
         L("cf_financing__net_change_short_term_debt", "Net change in short-term borrowings",
           ["Net change in short-term borrowings", "Commercial paper, net",
            "Proceeds from/(Repayments of) commercial paper, net", "Short-term borrowings, net"],
@@ -1552,6 +1576,11 @@ LINES = {
           "printed row.",
           sign="either",
           regex=[PCF + r"(?:\w+\s+){0,6}?(?:commercial\s+paper|short\s+term\s+(?:debt|borrowings?|notes|loans))"
+                 r"\b.*$",
+                 # "Net increase (decrease) under unsecured credit facility and commercial paper"
+                 # (Welltower 2024): the net change under a revolving facility, named first.
+                 PCF + r"net\s+(?:increase|decrease|change)(?:\s+(?:increase|decrease))?\s+(?:in|under)\s+"
+                 r"(?:the\s+)?(?:(?:un)?secured\s+|revolving\s+)*(?:credit\s+facilit(?:y|ies)|line\s+of\s+credit)"
                  r"\b.*$"]),
         L("cf_financing__share_repurchases", "Repurchases of common stock",
           ["Repurchases of common stock", "Common stock repurchased", "Purchase of Company stock",
@@ -1569,16 +1598,22 @@ LINES = {
            "Dividends paid", "Cash dividends paid", "Dividends paid to shareholders"],
           "Cash dividends paid to the filer's stockholders. Dividends paid to noncontrolling "
           "interests are the leftover line's.",
-          sign="either", exclude=[r"non\s*controlling", r"minority", r"received"],
-          regex=[PCF + r"(?:payments?\s+(?:for|of)\s+)?(?:common\s+(?:stock\s+)?)?(?:cash\s+)?dividends?\b.*$"]),
+          # Not a dividend declared and not yet paid: Nike FY2026 prints "Dividends declared and
+          # not paid 614" among its supplemental disclosures, below the cash at the end of the year,
+          # and read as dividends paid it put the financing total 614 out.
+          sign="either", exclude=[r"non\s*controlling", r"minority", r"received",
+                                  r"\bnot\s+(?:yet\s+)?paid\b", r"\bunpaid\b", r"\bpayable\b"],
+          regex=[PCF + r"(?:payments?\s+(?:for|of)\s+)?(?:common\s+(?:stock\s+)?)?(?:cash\s+)?dividends?\b.*$",
+                 # A REIT's dividends: "Cash distributions to stockholders" (Welltower 2024).
+                 PCF + r"(?:cash\s+)?distributions?\s+(?:paid\s+)?to\s+(?:common\s+)?(?:stock|share)holders$"]),
         L("cf_financing__proceeds_from_stock_issuance", "Proceeds from issuance of common stock",
           ["Proceeds from issuance of common stock", "Common stock issued",
            "Proceeds from exercise of stock options", "Proceeds from employee stock plans"],
           "Cash received from issuing stock, including under employee stock plans and option "
           "exercises.",
           sign="either",
-          regex=[PCF + r"proceeds\s+from\s+(?:the\s+)?(?:issuances?|sales?)\s+of\s+(?:common\s+|class\s+[a-c]\s+)?"
-                 r"(?:stock|shares|equity)\b.*$",
+          regex=[PCF + r"(?:net\s+)?proceeds\s+from\s+(?:the\s+)?(?:issuances?|sales?)\s+of\s+"
+                 r"(?:common\s+|class\s+[a-c]\s+)?(?:stock|shares|equity)\b.*$",
                  PCF + r"proceeds\s+from\s+(?:the\s+)?exercises?\s+of\s+(?:employee\s+)?(?:stock|share)\s+"
                  r"options\b.*$",
                  PCF + r"proceeds\s+from\s+(?:employee\s+)?(?:stock|share)\s+(?:plans|option\s+exercises|purchase"
@@ -1609,8 +1644,10 @@ LINES = {
            "Effect of foreign exchange rates on cash and cash equivalents"],
           "The effect of exchange-rate changes on cash, cash equivalents and restricted cash.",
           sign="either",
+          # "Effect of foreign currency translation on cash and cash equivalents and restricted
+          # cash" (Welltower 2024) names the translation, not the rate.
           regex=[E + r"(?:net\s+)?(?:effects?|impacts?)\s+of\s+(?:changes\s+in\s+)?(?:foreign\s+)?(?:currency\s+)?"
-                 r"(?:exchange|rate)\b.*$"]),
+                 r"(?:exchange|rate|translation)\b.*$"]),
         L("cf_financing__net_increase_in_cash", "Net increase (decrease) in cash",
           ["Net increase (decrease) in cash, cash equivalents and restricted cash",
            "Increase/(Decrease) in cash, cash equivalents, and restricted cash and cash equivalents",

@@ -59,6 +59,16 @@ _BALANCE_SHEET_SECTIONS = frozenset({
 })
 
 _NUM = re.compile(r"^\(?-?[\d,]*\.?\d+\)?$")
+# A 10-K FIGURE MAY PRINT ITS DOLLAR SIGN TIGHT AGAINST IT: "$169,998", "$(12,829)", "($1,216)".
+# BlackRock's 2025 statements do, on every total and first row, and the sign made the figure no
+# number: "Total assets $169,998 $138,615" was a caption with no figures, folded onto the rows
+# under it ("Total assets $169,998 $138,615 Liabilities Accrued compensation and benefits $"), and
+# total assets were read as the 3,830 of accrued compensation. The sign comes off a token shaped
+# that way and nothing else; an amount written INTO a caption — "$0.01 par value", "of $1,692 and
+# $1,553 at December 31" — is kept in it by the tests that keep any number there
+# (`_number_inside_the_caption`, `_words_follow_in_the_cell`). Read on a 10-K only (`_US_10K_ROWS`),
+# where it was measured; an HKEX report prints its dollar as "HK$".
+_DOLLAR_SET_TIGHT = re.compile(r"^(\(?)\$(?=\(?-?[\d.])")
 _NOTE = re.compile(r"^note[s]?\.?$", re.IGNORECASE)
 # A column header for the note-reference column (English + Chinese). Real statements print it
 # once at the top; the cells beneath it hold bare note numbers, not monetary values.
@@ -555,6 +565,8 @@ def _num(t: str, fmt=None) -> Decimal | None:
     """
     if "%" in t:
         return None
+    if _US_10K_ROWS.get() and "$" in t:
+        t = _DOLLAR_SET_TIGHT.sub(r"\1", t.strip(), count=1)
     if fmt is not None:
         from app.services.numbers import parse_number
 
@@ -969,6 +981,15 @@ def _years_only(value_words: list[Word]) -> bool:
     nums = sorted(int(y) for y in years)
     return all(b == a + 1 for a, b in zip(nums, nums[1:]))
 _CAPTION_YEAR = re.compile(r"^(?:19|20)\d{2}$")
+# A 10-K FACE PRINTS ITS UNITS LINE BESIDE ITS YEAR HEADINGS: "(Dollars in millions)  2026  2025
+# 2024" on Nike's FY2026 cash flow, "(in millions, except shares and per share data)  2025  2024"
+# on BlackRock's balance sheet. Read as a row, the years were its figures, and Nike's swept into
+# other operating items — 2,026 added to the operating cash flow. On a face, a years-only row is
+# that line where its caption is a units line; a face caption with years beside it is otherwise
+# left alone, as before.
+_UNITS_CAPTION = re.compile(
+    r"^\(\s*(?:(?:dollars|amounts|\$)\s+)?in\s+(?:millions|thousands|billions)\b[^)]*\)$",
+    re.IGNORECASE)
 
 
 def _is_caption_year(w: Word) -> bool:
@@ -1116,7 +1137,7 @@ def _scan_row(row: list[Word], fmt=None, *, extract_note_refs: bool = True,
         # but it cannot help here: it returns early once `note_ref` is set, so a token taken on
         # shape alone is never reconsidered. The guard therefore belongs on both.
         if (extract_note_refs and note_ref is None and label_words and not value_words
-                and _is_note_ref_token(tok)
+                and _is_note_ref_token(tok) and not _no_note_column_on_a_10k(note_x)
                 and any(_is_money_like(w.text, fmt) for w in row[i + 1:])
                 and not _small_figure_beside_its_comparative(tok, row[i + 1:], fmt)
                 and not _outside_the_note_column(row[i], note_x)
@@ -1225,6 +1246,13 @@ def _number_inside_the_caption(row: list[Word], i: int, label_words: list[Word])
     prev = label_words[-1]
     if not _tight_after(prev, w):
         return False
+    # A 10-K AMOUNT WITH ITS DOLLAR SIGN TIGHT AGAINST IT, set tight after the caption's last word,
+    # is the caption's own: Alphabet's 2025 balance sheet wraps "Class A, Class B, and Class C
+    # stock and additional paid-in capital, $0.001" / "par value per share: …", and read as a figure
+    # the par value made the line a row of its own and the stock's 93,126 lost its caption. A figure
+    # stands in its column with clear air before it (`_DOLLAR_SET_TIGHT`).
+    if _US_10K_ROWS.get() and tok.lstrip("(").startswith("$"):
+        return True
     if _CURRENCY_WORD.match(prev.text.strip()):
         return (len(label_words) >= 2 and _tight_after(label_words[-2], prev)
                 and bool(re.search(r"[A-Za-z]{2,}", label_words[-2].text)))
@@ -2386,7 +2414,12 @@ def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
         # caption of a Schedule III subtotal is rarely a known alias.
         if not tail and on_face and label_words and note_ref is None and out and not pending:
             prev_label, _prev_note, prev_values = _scan_row(out[-1], fmt)
-            tail = _prints_an_amount(prev_values, fmt) and bool(prev_label) and _wrap_adjacent(
+            # A caption ending on a semicolon is no column header, whose dates are what
+            # `_prints_an_amount` keeps out, so its figures may be as small as BlackRock's
+            # common stock, "2 2".
+            figures = _prints_an_amount(prev_values, fmt) or (
+                bool(prev_values) and _join_words(prev_label).strip().endswith((";", "；")))
+            tail = figures and bool(prev_label) and _wrap_adjacent(
                 _row_box(out[-1]), _row_box(row), label_words) and _english_tail_of_the_row_above(
                     prev_label, label_words, steps, known)
         # A FACE HEADING IS NO CAPTION'S TAIL, whichever test above took it for one: it heads the
@@ -3573,6 +3606,13 @@ def _english_tail_of_the_row_above(prev_label: list[Word], label_words: list[Wor
         return False
     if _HANGING_CONNECTIVE.search(head):
         return True
+    # …or ENDS ON A SEMICOLON: the caption is a list still running. BlackRock's 2025 balance sheet
+    # prints "Common stock, $0.01 par value;  2  2" over "Shares authorized: 500,000,000 at December
+    # 31, 2025 and 2024;", "Shares issued: …;" and "Shares outstanding: …", and those three lines
+    # were folded FORWARD onto "Additional paid-in capital 19,748 13,446" — a caption no line
+    # matches, so paid-in capital reached no line and the stockholders' equity check failed by it.
+    if head.endswith((";", "；")):
+        return True
     if _SCHEDULE_III_ARITHMETIC_TAIL.search(text):
         return True
     return text[0].islower() and not _is_known_caption(label_words, steps, known)
@@ -4465,10 +4505,25 @@ def _resolve_note_column(note_ref: str | None, value_words: list[Word],
     if note_ref is not None:
         return note_ref, value_words
     if (len(value_words) >= 2 and _is_note_number(value_words[0].text)
+            and not _no_note_column_on_a_10k(note_x)
             and any(_is_money_like(w.text, fmt) for w in value_words[1:])
             and not _small_figure_beside_its_comparative(value_words[0].text, value_words[1:], fmt)):
         return _note_ref_value(value_words[0].text), value_words[1:]
     return note_ref, value_words
+
+
+def _no_note_column_on_a_10k(note_x: float | None) -> bool:
+    """Whether a bare integer before an amount must be read as a figure, not a note reference.
+
+    A 10-K STATEMENT CITES NO NOTES ON ITS ROWS. The note fallback reads a 1-2 digit integer
+    before an amount as the row's note ("Revenue  6  45,230"), which is how an HKEX or Ind AS face
+    with no detected note column still loses its references; a 10-K prints none, and its small
+    figures read as notes and were deleted. BlackRock's 2025 cash flow prints three years with no
+    note column — "Accounts payable and accrued liabilities  75  259  (26)" and "Other financing
+    activities  (5)  (18)  26" — and both rows lost their 2025 figure to notes 75 and 5: operating
+    cash flow summed to 3,927 against a printed 3,852, financing to -1,127 against -1,132. On a
+    10-K only (`_US_10K_ROWS`), and only where no note column was found on the page."""
+    return _US_10K_ROWS.get() and note_x is None
 
 
 _MONTHS = (r"jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|"
@@ -6436,14 +6491,27 @@ _SCALE_WORDS: tuple[tuple[re.Pattern[str], Decimal, str], ...] = (
     (re.compile(r"万元|萬元"), Decimal(10_000), "ten thousand"),
     (re.compile(r"^(?:单位|單位)\s*[:：]?\s*(?:人民币|人民幣)?元$"), Decimal(1), UNITS_WORD),
 )
-_CURRENCY_WORDS: tuple[tuple[re.Pattern[str], str], ...] = (
-    (re.compile(r"rmb|cny|人民幣|人民币|元人民幣", re.IGNORECASE), "CNY"),
-    (re.compile(r"hk\$|hkd|港幣|港币|港元", re.IGNORECASE), "HKD"),
-    (re.compile(r"us\$|usd|美元", re.IGNORECASE), "USD"),
-    (re.compile(r"eur|€", re.IGNORECASE), "EUR"),
-    (re.compile(r"gbp|£", re.IGNORECASE), "GBP"),
-    (re.compile(r"₹|inr|rs\.?", re.IGNORECASE), "INR"),
-)
+# THE CURRENCY A UNITS SIGNAL NAMES, tried in this order. A LATIN CODE IS A WORD OF ITS OWN, as
+# `stages.normalize` already reads one: matched as a bare substring, "rs" was found at the end of
+# "Dollars", and every 10-K statement headed "(Dollars in millions, except per share data)" — the
+# US GAAP rulebook declares that signal — had its figures stamped INR. Measured on Nike's FY2026
+# 10-K: 166 figures went out INR beside a document unit of USD millions, and Welltower's 2024
+# report read its Schedule III "(Dollars in thousands)" the same way. "Dollars" and a bare "$" are
+# US dollars where no other dollar is named: Hong Kong's is named ("HK$", "Hong Kong dollars") and
+# tried first, and "S$" / "A$" / "NT$" are not a bare "$".
+def _latin_code(code: str) -> str:
+    return rf"(?<![a-z]){code}(?![a-z])"
+
+
+_CURRENCY_WORDS: tuple[tuple[re.Pattern[str], str], ...] = tuple(
+    (re.compile(pattern, re.IGNORECASE), code) for pattern, code in (
+        (_latin_code("(?:rmb|cny)") + r"|人民幣|人民币", "CNY"),
+        (r"hk\$|" + _latin_code("hkd") + r"|hong\s*kong\s+dollars?|港幣|港币|港元", "HKD"),
+        (r"us\$|" + _latin_code("usd") + r"|美元|(?<![a-z])\$|" + _latin_code("dollars?"), "USD"),
+        (_latin_code("eur(?:os?)?") + r"|€", "EUR"),
+        (_latin_code("gbp") + r"|£", "GBP"),
+        (r"₹|" + _latin_code(r"(?:inr|rs\.?|rupees?)"), "INR"),
+    ))
 
 
 def _unit_signals(scope: ScopeSelection | None) -> tuple[tuple[str, str, Decimal, str], ...]:
@@ -8429,8 +8497,8 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
             while label_words and _NIL_CELL.match(_cell_text(label_words[-1].text)):
                 label_words = label_words[:-1]
         # A 10-K NOTE'S COLUMN-HEADING LINE IS NOT A ROW — see `us_10k_rows`.
-        if (not on_face and label_words and _US_10K_ROWS.get()
-                and _years_only(value_words)):
+        if (label_words and _US_10K_ROWS.get() and _years_only(value_words)
+                and (not on_face or _UNITS_CAPTION.match(_join_words(label_words).strip()))):
             if log:
                 log(f"extract:page={page_index}:column_heading_line({_join_words(label_words)[:40]!r})")
             continue
