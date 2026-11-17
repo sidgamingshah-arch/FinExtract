@@ -46,6 +46,7 @@ from app.services.line_item_config import SEED as _LINE_ITEM_SEED
 from app.services.mapping import (
     HEADING_ROW_SECTIONS,
     normalize_label,
+    numbered_face_heading,
     section_of_banner,
     section_of_banner_only,
 )
@@ -684,9 +685,24 @@ def _is_banner_line(text: str, steps: tuple[tuple[str, object], ...]) -> bool:
     head = _CONTINUED_MARK.sub("", text).strip()
     if head and head != text.strip():
         return _is_continued_banner(head, steps)
-    if section_of_banner_only(apply_pipeline(text, steps)) is None:
+    if _numbered_banner(text) is None and section_of_banner_only(apply_pipeline(text, steps)) is None:
         return False
     return len(text.split()) >= 2 or bool(_HAN.search(text))
+
+
+def _numbered_banner(text: str) -> str | None:
+    """The section a NUMBERED face line is the banner of — "XII Other comprehensive income /
+    (loss)", "IV. Expenses" — read on the line as printed, or None.
+
+    Asked of the printed text because the rulebook's normalisation folds the case before the
+    banner test sees it, and "xii" is no longer a number: JSW Steel's OCI heading was left with
+    "xii" and "(loss)" over, which no section phrase accounts for, and it was folded onto the
+    heading under it. The heading a numbered line names is its own (`numbered_face_heading`), so
+    exhaustion is asked of that.
+    """
+    if numbered_face_heading(text) is None:
+        return None
+    return section_of_banner_only(text)
 
 
 def _is_continued_banner(head: str, steps: tuple[tuple[str, object], ...]) -> bool:
@@ -1334,6 +1350,28 @@ _OPENS_ON_A_BALANCE = re.compile(
 # THE NUMBERING OF A SCHEDULE III STATEMENT FACE: "IV.", "X." for its lines, "A." for a part of one.
 _FACE_NUMBER = re.compile(r"^(?:[IVX]{1,5}|[A-H])\.$")
 _ROMAN_NUMBER = re.compile(r"^[IVX]{1,5}\.$")
+# …AND THE SAME ROMAN NUMERAL PRINTED WITHOUT ITS DOT, on an Indian filing (`enumerated_rows`). JSW
+# Steel 2024-25 numbers its consolidated profit and loss "IV Expenses", "X Tax expense/(credit)",
+# "XII Other comprehensive income / (loss)", and the face read none of them as numbered: "IV
+# Expenses" was folded onto "Cost of materials consumed", "X Tax expense/(credit) 26(a)" onto
+# "Current tax" — which then reached no line — and with no tax heading the whole statement was one
+# section, whose check took total tax as the total of every line above it. Its standalone face
+# prints "IV Expenses:" with a colon, which the colon test already read. Only on an Indian filing,
+# where the numbering is Schedule III's: a bare "I", "V" or "X" opening a line elsewhere is not
+# known to be one, and letters stay dotted — "A" opening a line is as likely an article.
+_DOTLESS_ROMAN_NUMBER = re.compile(r"^[IVX]{1,5}$")
+
+
+def _is_face_number(token: str) -> bool:
+    """Whether a face line's first word is its Schedule III number (`_FACE_NUMBER`)."""
+    return bool(_FACE_NUMBER.match(token)
+                or (_ENUMERATED_ROWS.get() and _DOTLESS_ROMAN_NUMBER.match(token)))
+
+
+def _is_roman_number(token: str) -> bool:
+    """Whether a face line's first word is a roman Schedule III number (`_ROMAN_NUMBER`)."""
+    return bool(_ROMAN_NUMBER.match(token)
+                or (_ENUMERATED_ROWS.get() and _DOTLESS_ROMAN_NUMBER.match(token)))
 
 
 def _heads_numbered_face_block(head: list[Word], nxt_label: list[Word]) -> bool:
@@ -1355,7 +1393,7 @@ def _heads_numbered_face_block(head: list[Word], nxt_label: list[Word]) -> bool:
     if not head or not nxt_label:
         return False
     first = min(head, key=lambda w: w.bbox.x0)
-    if not _FACE_NUMBER.match(first.text.strip()):
+    if not _is_face_number(first.text.strip()):
         return False
     text = " ".join(w.text for w in head).strip()
     if _HAN.search(text) or not _LATIN.search(text) or _HEAD_INCOMPLETE.search(text):
@@ -1531,6 +1569,8 @@ _HEAD_INCOMPLETE = re.compile(
     re.IGNORECASE)
 _CONT_STARTS = re.compile(r"^\s*(and|or|of|for|to|in|from|with|that|which|upon)\b",
                           re.IGNORECASE)
+# A line that ends on an article has the noun it introduces still to come.
+_ENDS_ON_AN_ARTICLE = re.compile(r"\b(?:the|a|an)\s*$", re.IGNORECASE)
 _HAN = re.compile(r"[㐀-䶿一-鿿豈-﫿]")
 
 
@@ -1631,6 +1671,29 @@ _SCHEDULE_III_FINANCIAL_HEADING = re.compile(
 _FACE_GROUP_HEADING = re.compile(
     r"(?i)^\W*(?:(?:equity|capital\s+and\s+reserves)\s+attributable\s+to\s+(?:the\s+)?"
     r"(?:owners|equity\s+holders|shareholders|holders|ordinary\s+shareholders)\b.*)$")
+# THE TWO HALVES OF AN IND AS OCI SECTION are headed the same way: "Items that will not be
+# reclassified to profit or loss" over the remeasurements, "Items that will be reclassified to
+# profit or loss" over the hedges and translation differences. With no colon, each was glued onto
+# the first row under it — "Items that will not be reclassified to profit or loss Remeasurements of
+# the net defined benefit plans" (Hindustan Unilever, both statements), the same on IndiGo, Chemplast
+# Sanmar's wrapped "…profit or loss in / subsequent periods" over "- Remeasurement of defined benefit
+# plans", JSW's "A (i) Items that will not be reclassified…" over "a) Remeasurement gain/(loss)…" —
+# and that row reached no line. The heading is only ever printed alone; a line that also carries the
+# block's figures is its subtotal, and has them beside it on the same line.
+_OCI_BLOCK_HEADING = re.compile(
+    r"(?i)^\W*(?:[a-h](?:[.)]\s*|\s+))?(?:\(?[ivx]{1,4}[.)]\s*)?"
+    r"items?\s+that\s+(?:will|would|may)\s+(?:not\s+)?(?:subsequently\s+)?(?:be\s+)?"
+    r"(?:subsequently\s+)?reclassified\s+(?:subsequently\s+)?(?:in)?to\s+(?:the\s+)?"
+    r"(?:statement\s+of\s+)?profit\s+(?:or|and|&)\s+loss"
+    r"(?:\s+in\s+subsequent\s+(?:periods?|years?))?\s*:?$")
+# AND SCHEDULE III'S "Income", printed alone over "Revenue from operations", "Other income" and
+# "Total income" (Chemplast Sanmar, IndiGo). It is the income half of the statement, but no section
+# word can say so: "income" ends "Other income" and opens "Income tax", and the section vocabulary
+# is matched inside captions (`services.mapping.SECTION_WORDS`). Not a heading, it was the first
+# line of "Income Revenue from operations", which reached no line on either statement. A heading of
+# the rows under it, as "Financial assets" is, it names no section — the rows read where they did
+# when the filing printed no "Income" at all. "Expenses" is a section word, and was already split.
+_SCHEDULE_III_INCOME_HEADING = re.compile(r"(?i)^\W*(?:(?:[ivxl]{1,6}|[a-h])[.)]\s*)?income$")
 
 
 def _is_face_group_heading(text: str) -> bool:
@@ -1638,19 +1701,26 @@ def _is_face_group_heading(text: str) -> bool:
     Judged on its Latin words, so a bilingual heading's translation does not hide it."""
     latin = re.sub(r"\s+", " ", _HAN.sub(" ", text or "")).strip()
     return bool(latin) and bool(_FACE_GROUP_HEADING.match(latin)
-                                or _SCHEDULE_III_FINANCIAL_HEADING.match(latin)) and not (
+                                or _SCHEDULE_III_FINANCIAL_HEADING.match(latin)
+                                or _OCI_BLOCK_HEADING.match(latin)
+                                or _SCHEDULE_III_INCOME_HEADING.match(latin)) and not (
         latin.endswith((",", "-", "–")))
 
 
 def _is_numbered_face_heading(text: str) -> bool:
-    """A Schedule III financial heading (`_SCHEDULE_III_FINANCIAL_HEADING`), over rows that may be
-    numbered themselves."""
+    """A Schedule III financial heading (`_SCHEDULE_III_FINANCIAL_HEADING`) or an OCI block heading
+    (`_OCI_BLOCK_HEADING`), over rows that may be numbered themselves — "(i) Investments", "a)
+    Remeasurement gain/(loss)…", "- Remeasurement of defined benefit plans"."""
     latin = re.sub(r"\s+", " ", _HAN.sub(" ", text or "")).strip()
-    return bool(_SCHEDULE_III_FINANCIAL_HEADING.match(latin))
+    return bool(_SCHEDULE_III_FINANCIAL_HEADING.match(latin) or _OCI_BLOCK_HEADING.match(latin))
 
 
 # The enumerator a Schedule III row opens with: "(i)", "(ii)", "(a)", "i.", "1.".
 _ROW_ENUMERATOR = re.compile(r"(?i)^\(?(?:[ivxl]{1,6}|[a-h]|\d{1,2})[.)]$")
+# …or the dash a filing lists a block's rows with: "- Remeasurement of defined benefit plans" under
+# Chemplast Sanmar's OCI heading. Read by `_opens_a_caption` only; `_ROW_ENUMERATOR` is also what
+# decides whether a row-opening token is a figure, and a dash may be one.
+_ROW_BULLET = re.compile(r"^[-–•]$")
 
 
 def _opens_a_caption(words: list[Word], numbered: bool = False) -> bool:
@@ -1658,12 +1728,16 @@ def _opens_a_caption(words: list[Word], numbered: bool = False) -> bool:
     letter and is not a connective. "Share capital" under "Equity attributable to owners of the
     Company" does; "investments designated at FVOCI" under "Equity" — the tail of one caption
     wrapped after its first word — does not. ``numbered``: the line may open with its own
-    enumerator ("(i) Investments" under "(b) Financial assets"), and the word after it is judged."""
+    enumerator ("(i) Investments" under "(b) Financial assets") or list dash, and the word after it
+    is judged — after two enumerators where Schedule III nests them: Asian Paints prints "(i) (a)
+    Remeasurement of defined benefit plans" under "A. Items that will not be reclassified…"."""
     if not words:
         return False
     ordered = sorted(words, key=lambda w: w.bbox.x0)
-    if numbered and len(ordered) > 1 and _ROW_ENUMERATOR.match(ordered[0].text.strip()):
-        ordered = ordered[1:]
+    for _ in range(2):
+        if numbered and len(ordered) > 1 and (_ROW_ENUMERATOR.match(ordered[0].text.strip())
+                                              or _ROW_BULLET.match(ordered[0].text.strip())):
+            ordered = ordered[1:]
     first = ordered[0].text.strip()
     text = " ".join(w.text for w in ordered)
     return bool(first[:1]) and first[:1].isupper() and not _CONT_STARTS.match(text)
@@ -2182,6 +2256,23 @@ def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
             if pending and _opens_its_own_line(label_words):
                 out.append(pending)
                 pending = []
+            # A FACE HEADING STILL PENDING when the first row under it arrives is that row's
+            # heading, not its caption's first line. A one-line heading never gets here — the wrap
+            # test below refuses to fold one over a row that opens a caption of its own — but a
+            # heading that itself wraps does: Chemplast Sanmar's "Items that will not be
+            # reclassified to profit or loss in" / "subsequent periods" is only a heading once its
+            # two lines are joined, and was folded whole onto "- Remeasurement of defined benefit
+            # plans". Not when the heading reads unfinished: "Equity attributable to" / "owners of
+            # the" over "Parent 12,345" is one caption.
+            if on_face and pending and label_words:
+                held = _join_words(_scan_row(pending, fmt)[0])
+                if (_is_face_group_heading(held) and not _HEAD_INCOMPLETE.search(held)
+                        and not _ENDS_ON_AN_ARTICLE.search(held)
+                        and _opens_a_caption(label_words,
+                                             numbered=_is_numbered_face_heading(held))
+                        and not _translates(_scan_row(pending, fmt)[0], label_words)):
+                    out.append(pending)
+                    pending = []
             # A PENDING CAPTION THAT IS ALREADY COMPLETE is a line item of its own, not the head of
             # this row's caption. The known-caption test above runs on each printed line; a blank
             # caption that itself WRAPS — 处置子公司及其他营业单位收到的 / 现金净额 on 300319 — is only
@@ -2298,6 +2389,12 @@ def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
             tail = _prints_an_amount(prev_values, fmt) and bool(prev_label) and _wrap_adjacent(
                 _row_box(out[-1]), _row_box(row), label_words) and _english_tail_of_the_row_above(
                     prev_label, label_words, steps, known)
+        # A FACE HEADING IS NO CAPTION'S TAIL, whichever test above took it for one: it heads the
+        # rows printed under it. JSW Steel's standalone profit and loss prints "Total (A) (44)
+        # 2,174" and then "B i) Items that will be reclassified to profit or loss", and the heading
+        # was spliced into the total's caption — "Total (A) B i) Items that will be reclassified…".
+        if tail and on_face and _is_face_group_heading(_join_words(label_words)):
+            tail = False
         if tail and pending and _wrap_adjacent(_row_box(pending), _row_box(row), label_words):
             # The head is still in `pending`, waiting for figures that are printed further down.
             # Completing the caption HERE is what lets the known-caption veto below see it whole:
@@ -8290,7 +8387,7 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
             nxt = _scan_row(rows[i + 1], number_format)[0]
             if _heads_numbered_face_block(lw, nxt):
                 lead = min(lw, key=lambda w: w.bbox.x0).text.strip()
-                (face_sections if _ROMAN_NUMBER.match(lead) else sub_heads).add(id(row))
+                (face_sections if _is_roman_number(lead) else sub_heads).add(id(row))
     # THE FIGURE-LESS FACE LINE PRINTED DIRECTLY ABOVE, when nothing below took it for a heading —
     # the first line of a heading that wraps onto a second, colon-ended one (`_continues_a_heading`).
     held_head: tuple[str, list[Word]] | None = None
@@ -8600,7 +8697,8 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
             # and reached NO concept on the parent's, having been offered only equity concepts.
             caption = apply_pipeline(label, steps)
             heading = _looks_like_header(label_words, steps) or id(row) in face_sections
-            banner = section_of_banner_only(caption)
+            banner = section_of_banner_only(caption) or (_numbered_banner(label) if on_face
+                                                         else None)
             if banner is None:
                 # A BANNER REPEATED OVER A CONTINUATION PAGE — see `_CONTINUED_MARK`. Its marker is
                 # in lower case, so the ALL-CAPS test misses it too, and the page's rows were read
@@ -8753,7 +8851,7 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
         # blocks and belongs to neither: read under EXPENSES, the rows after it — share of profit
         # in associates among them — were offered only expense lines. Laurus prints the same total
         # as "III. Earnings … (EBITDA) (I-II)" and the roman numeral already opened its section.
-        if on_face and value_words and label_words and (_ROMAN_NUMBER.match(
+        if on_face and value_words and label_words and (_is_roman_number(
                 min(label_words, key=lambda w: w.bbox.x0).text.strip())
                 or _SCHEDULE_III_ARITHMETIC_TAIL.search(label)) and not promoted:
             section = label

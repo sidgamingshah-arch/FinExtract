@@ -747,7 +747,12 @@ LINES = {
           exclude=[r"total\s+comprehensive", r"^\W*total\s+other\s+comprehensive",
                    (r"other\s+comprehensive\s+(?:income|loss|expense)\W*(?:/\W*\(?(?:loss|expense)\)?)?"
                    r"\s+for\s+the\s+(?:year|period)"),
-                   r"other\s+comprehensive\s+(?:income|loss)\W*(?:/\W*\(?(?:loss|expense)\)?)?\W*,?\s*net\s+of\s+tax",
+                   # The TOTAL, which opens on its own words: "Other comprehensive income, net of
+                   # tax". Unanchored, it refused the components that end the same way — IndiGo
+                   # 2024-25's "Debt instruments through other comprehensive income (net of tax)"
+                   # 40 / 6 reached no line, and the OCI check failed by exactly that row.
+                   (r"^\W*(?:(?:[ivx]{1,4}|[a-h])\W+)?other\s+comprehensive\s+(?:income|loss)\W*"
+                    r"(?:/\W*\(?(?:loss|expense)\)?)?\W*,?\s*net\s+of\s+tax"),
                    r"^\W*other\s+comprehensive\s+(?:income|loss)(?:\W*/\W*\(?(?:loss|expense)\)?)?\W*$",
                    r"(?:profit|loss)\s+for\s+the\s+(?:year|period)", r"attributable|owners\s+of",
                    r"non[-\s]?controlling|minority", r"per\s+share|\beps\b",

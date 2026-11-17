@@ -40,6 +40,15 @@ _CJK_MAX = 40
 _LATIN_MAX = 120
 # A verb inside something caption-length is not evidence; inside a long span it is a sentence.
 _VERB_MIN_LEN = 60
+# THE NAME IAS 1 GIVES EACH HALF OF AN OCI SECTION carries a verb and is no sentence: "items that
+# will not be reclassified to profit or loss", and a Schedule III face names a line after it —
+# "(ii) Income tax relating to items that will not be reclassified to profit or loss". Read as
+# prose, JSW Steel 2024-25's two OCI tax lines (-145 / -344, -141 / 37 consolidated) were refused as
+# narrative rows and the OCI items line missed them. Only the verb test is told: the phrase is
+# taken out before it looks, and every other test sees the caption whole.
+_OCI_BLOCK_NAME = re.compile(
+    r"\bitems?\s+that\s+(?:will|may|would)\s+(?:not\s+)?(?:subsequently\s+)?(?:be\s+)?"
+    r"(?:subsequently\s+)?reclassified\b", re.IGNORECASE)
 
 
 def prose_reasons(label: str) -> list[str]:
@@ -56,7 +65,7 @@ def prose_reasons(label: str) -> list[str]:
             out.append(f"cjk_chars={cjk}>{_CJK_MAX}")
     elif len(text) > _LATIN_MAX:
         out.append(f"latin_chars={len(text)}>{_LATIN_MAX}")
-    if len(text) > _VERB_MIN_LEN and _VERB.search(text):
+    if len(text) > _VERB_MIN_LEN and _VERB.search(_OCI_BLOCK_NAME.sub(" ", text)):
         out.append("finite_verb")
     if _XREF.search(text):
         out.append("cross_reference")

@@ -4483,7 +4483,7 @@
     "total\\s+comprehensive",
     "^\\W*total\\s+other\\s+comprehensive",
     "other\\s+comprehensive\\s+(?:income|loss|expense)\\W*(?:/\\W*\\(?(?:loss|expense)\\)?)?\\s+for\\s+the\\s+(?:year|period)",
-    "other\\s+comprehensive\\s+(?:income|loss)\\W*(?:/\\W*\\(?(?:loss|expense)\\)?)?\\W*,?\\s*net\\s+of\\s+tax",
+    "^\\W*(?:(?:[ivx]{1,4}|[a-h])\\W+)?other\\s+comprehensive\\s+(?:income|loss)\\W*(?:/\\W*\\(?(?:loss|expense)\\)?)?\\W*,?\\s*net\\s+of\\s+tax",
     "^\\W*other\\s+comprehensive\\s+(?:income|loss)(?:\\W*/\\W*\\(?(?:loss|expense)\\)?)?\\W*$",
     "(?:profit|loss)\\s+for\\s+the\\s+(?:year|period)",
     "attributable|owners\\s+of",

@@ -1119,7 +1119,11 @@ def section_of_banner(text: str | None) -> str | None:
 
 
 # THE NUMBERING OF A SCHEDULE III STATEMENT FACE: "IV." / "XII." for a line, "A." for a part of one.
-_FACE_NUMBERING = re.compile(r"^\s*(?:[IVX]{1,5}|[A-H])\.\s+")
+# …or the roman numeral without its dot, as JSW Steel 2024-25 prints it ("IV Expenses", "X Tax
+# expense/(credit)"), where it opens a capitalised heading or a bracket — "X Tax expense" is
+# numbered, a caption that merely begins with a capital letter is not. Letters keep their dot: "A"
+# opening a line is as likely an article (`row_reconstruct._DOTLESS_ROMAN_NUMBER`).
+_FACE_NUMBERING = re.compile(r"^\s*(?:(?:[IVX]{1,5}|[A-H])\.|[IVX]{1,5}(?=\s+[A-Z(]))\s+")
 
 
 def strip_face_numbering(text: str) -> str:
@@ -1262,7 +1266,12 @@ def section_of_banner_only(text: str | None) -> str | None:
     token = section_of_banner(text)
     if token is None:
         return None
-    remaining = normalize_label(text)
+    # A NUMBERED FACE LINE IS EXHAUSTED BY ITS HEADING: the number, a bracketed aside and anything
+    # after a colon are not words of the banner (`numbered_face_heading`). JSW Steel prints "X Tax
+    # expense/(credit)" and "XII Other comprehensive income / (loss)"; the "x" and the "credit" left
+    # over made neither a banner, and each was folded onto the row under it.
+    heading = numbered_face_heading(text)
+    remaining = heading if heading is not None else normalize_label(text)
     for _tok, words in SECTION_WORDS:
         for word in words:
             # …IN THE PLURAL TOO, for an English phrase. Hindustan Unilever 2024-25 heads its tax
