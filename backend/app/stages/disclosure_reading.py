@@ -80,8 +80,10 @@ class DisclosureReadingStage:
                         f"passages={r['passages']}{tail} — the screen shows the scan")
                 continue
             readings[key] = r
+            cut = r.get("cut_off")
             ctx.log(f"disclosure_reading:{key}:{reading['status']} points={len(reading['points'])} "
                     f"passages={r['passages']} input={used.get('input_tokens', 0)} "
-                    f"output={used.get('output_tokens', 0)}{tail}")
+                    f"output={used.get('output_tokens', 0)}{tail}"
+                    + (f" cut_off(kept the points completed; {cut})" if cut else ""))
         doc.disclosure_readings = readings
         return doc

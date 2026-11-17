@@ -661,6 +661,56 @@ def _page_order(page: str):
 
 # ── 4. the calls ─────────────────────────────────────────────────────────────────────────────────
 
+def salvage_cut_off_reply(exc: BaseException) -> DisclosureReply | None:
+    """The part of a reply cut off mid-JSON that was complete: its status, its summary and every
+    point it finished. None for any other failure, or where not even the status was written.
+
+    A READING CUT OFF IN ITS LAST POINT IS STILL A READING. Walmart's FY2025 litigation reply ended
+    at line 51 — `"amount": "",` inside a point — after the retry with twice the room
+    (`ports.llm.complete_with_room`), and the screen showed the keyword scan instead of the points
+    the model had written above it. The complete points are kept and checked like any other
+    (`check_reply`: each quote must still be found in its passage); the reading says it was cut off.
+    """
+    from app.ports.llm import cut_off
+
+    if not cut_off(exc):
+        return None
+    try:
+        text = next((str(e.get("input") or "") for e in exc.errors()
+                     if e.get("type") == "json_invalid"), "")
+    except Exception:  # noqa: BLE001 - not a validation error after all
+        return None
+    text = text.strip()
+    if text.startswith("```"):
+        text = text.split("\n", 1)[1] if "\n" in text else ""
+    start = text.find("{")
+    if start < 0:
+        return None
+    text = text[start:]
+    # Every point closes with "}"; the reply is the text up to the last point closed, its list
+    # closed after it. Tried from the end, so the most points survive.
+    for end in sorted((m.start() for m in re.finditer(r"\}", text)), reverse=True):
+        for tail in ("]}", "}"):
+            try:
+                obj = json.loads(text[:end + 1] + tail)
+            except ValueError:
+                continue
+            if isinstance(obj, dict) and obj.get("status"):
+                try:
+                    return DisclosureReply.model_validate(obj)
+                except Exception:  # noqa: BLE001, S112 - a part that does not validate is no reply
+                    continue
+    # Cut off before any point closed: the status and the summary, if both were written.
+    m = re.match(r'\{\s*"status"\s*:\s*"([^"]*)"\s*,\s*"summary"\s*:\s*"((?:[^"\\]|\\.)*)"', text)
+    if m:
+        try:
+            return DisclosureReply.model_validate(
+                {"status": m.group(1), "summary": json.loads(f'"{m.group(2)}"'), "points": []})
+        except Exception:  # noqa: BLE001
+            return None
+    return None
+
+
 def _read_one(provider, key: str, passages: list[dict], entity: str | None) -> dict:
     """One topic: ask, check. NEVER RAISES — a failed call is a summary naming the failure."""
     request = build_request(key, passages, entity=entity)
@@ -679,8 +729,18 @@ def _read_one(provider, key: str, passages: list[dict], entity: str | None) -> d
                        "content": json.dumps(request, ensure_ascii=False, indent=1)}],
             response_schema=DisclosureReply, max_tokens=MAX_TOKENS)
     except Exception as exc:  # noqa: BLE001 — a failed reading costs the disclosure its reading only
-        return {"key": key, "reading": None, "error": f"{type(exc).__name__}: {exc}"[:300],
-                "passages": len(passages)}
+        notes = " ".join(getattr(exc, "__notes__", None) or ())
+        salvaged = salvage_cut_off_reply(exc)
+        if salvaged is None:
+            return {"key": key, "reading": None,
+                    "error": (f"{type(exc).__name__}: {exc}"[:300] + (f" [{notes}]" if notes else "")),
+                    "passages": len(passages)}
+        reading, refused = check_reply(key, salvaged, passages)
+        if reading is not None:
+            reading["cut_off"] = True
+        return {"key": key, "reading": reading, "refused": refused, "passages": len(passages),
+                "cut_off": notes or True,
+                **({"error": refused["error"]} if reading is None and refused.get("error") else {})}
     reading, refused = check_reply(key, reply, passages)
     return {"key": key, "reading": reading, "refused": refused, "passages": len(passages),
             "usage": {k: int((meta or {}).get(k) or 0)

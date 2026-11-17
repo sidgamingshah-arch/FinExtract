@@ -89,7 +89,16 @@ class BedrockGatewayLlmProvider:
         payload = response.json()
         text = "".join(block.get("text", "") for block in payload.get("content", [])
                        if block.get("type") == "text")
-        parsed = response_schema.model_validate_json(strip_fences(text))
+        try:
+            parsed = response_schema.model_validate_json(strip_fences(text))
+        except Exception as exc:  # re-raised with the provider's stop reason
+            # WHY THE REPLY ENDED, on the error a caller logs: a reply cut off at its budget says
+            # "max_tokens", one the model ended itself "end_turn". Walmart's FY2025 litigation
+            # reading failed mid-JSON at about a third of its budget and nothing said which.
+            usage = payload.get("usage") or {}
+            exc.add_note(f"stop_reason={payload.get('stop_reason')} "
+                         f"output_tokens={usage.get('output_tokens')} max_tokens={max_tokens}")
+            raise
         return parsed, {
             "model": payload.get("model", self._settings.llm.model),
             **anthropic_usage(payload.get("usage") or {}),

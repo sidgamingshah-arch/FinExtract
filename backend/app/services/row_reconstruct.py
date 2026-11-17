@@ -1206,6 +1206,14 @@ def _scan_row(row: list[Word], fmt=None, *, extract_note_refs: bool = True,
         if (not value_words and _num(tok, fmt) is not None
                 and _words_follow_in_the_cell(row, i, fmt)):
             label_words.append(row[i])
+        elif (value_words and _US_10K_ROWS.get() and _num(tok, fmt) is not None
+              and _words_follow_in_the_cell(row, i, fmt)):
+            # …AND AFTER THE FIGURES, A TEXT CELL'S NUMBER: Welltower's 2024 Schedule III ends
+            # every row with the property's address, "2625 N Adrian Highway", and its street
+            # number made a figure column of its own beside "Year Built", so the printed header
+            # no longer fitted the figures one to one and no column was named. Text after a
+            # figure is no figure, and neither is the number that opens it.
+            pass
         elif _num(tok, fmt) is not None:
             value_words.append(row[i])
         elif not value_words:   # text before any number is part of the label
@@ -1699,6 +1707,15 @@ _SCHEDULE_III_FINANCIAL_HEADING = re.compile(
 _FACE_GROUP_HEADING = re.compile(
     r"(?i)^\W*(?:(?:equity|capital\s+and\s+reserves)\s+attributable\s+to\s+(?:the\s+)?"
     r"(?:owners|equity\s+holders|shareholders|holders|ordinary\s+shareholders)\b.*)$")
+# A 10-K NAMES ITS EQUITY BLOCKS THE SAME WAY, figure-less over their rows: BlackRock's 2025 balance
+# sheet prints "Permanent equity", then "BlackRock, Inc. stockholders' equity", then "Common stock,
+# $0.01 par value;  2  2", and both headings were glued onto the common stock's caption — no line
+# matched it. A line NAMING stockholders' equity with no figure is the block's heading (its total
+# prints "Total …"); one with figures is a caption, and never reaches this test.
+_EQUITY_BLOCK_HEADING = re.compile(
+    r"(?i)^\W*(?:(?:permanent|temporary|mezzanine)\s+equity"
+    r"|(?!total\b)(?!.*\bliabilit)[A-Z0-9][\w.,&'’ -]{0,60}?\s(?:stock|share)holders['’]?\s+equity"
+    r"(?:\s*\(deficit\))?)$")
 # THE TWO HALVES OF AN IND AS OCI SECTION are headed the same way: "Items that will not be
 # reclassified to profit or loss" over the remeasurements, "Items that will be reclassified to
 # profit or loss" over the hedges and translation differences. With no colon, each was glued onto
@@ -1722,6 +1739,15 @@ _OCI_BLOCK_HEADING = re.compile(
 # the rows under it, as "Financial assets" is, it names no section — the rows read where they did
 # when the filing printed no "Income" at all. "Expenses" is a section word, and was already split.
 _SCHEDULE_III_INCOME_HEADING = re.compile(r"(?i)^\W*(?:(?:[ivxl]{1,6}|[a-h])[.)]\s*)?income$")
+# …AND A FACE'S BARE "Assets", "Liabilities" OR "Expense" over the first row of its block. None is a
+# section word: the section words are matched inside captions, where "assets" ends "Total assets",
+# "liabilities" "Other liabilities" and "expense" "Interest expense" ("Expenses" is one, and is
+# split as a banner). An unclassified balance sheet prints no current / non-current banner under
+# them: BlackRock's 2025 prints "Assets" over "Cash and cash equivalents", "Liabilities" over
+# "Accrued compensation and benefits", and "Expense" over "Employee compensation and benefits" in
+# its statement of income; each read as the first words of the caption under it, and cash and
+# compensation reached no line. A heading naming no section: the rows read where they did.
+_LONE_STATEMENT_HEADING = re.compile(r"(?i)^\W*(?:assets|liabilities|expense)$")
 
 
 def _is_face_group_heading(text: str) -> bool:
@@ -1729,9 +1755,11 @@ def _is_face_group_heading(text: str) -> bool:
     Judged on its Latin words, so a bilingual heading's translation does not hide it."""
     latin = re.sub(r"\s+", " ", _HAN.sub(" ", text or "")).strip()
     return bool(latin) and bool(_FACE_GROUP_HEADING.match(latin)
+                                or _EQUITY_BLOCK_HEADING.match(latin)
                                 or _SCHEDULE_III_FINANCIAL_HEADING.match(latin)
                                 or _OCI_BLOCK_HEADING.match(latin)
-                                or _SCHEDULE_III_INCOME_HEADING.match(latin)) and not (
+                                or _SCHEDULE_III_INCOME_HEADING.match(latin)
+                                or _LONE_STATEMENT_HEADING.match(latin)) and not (
         latin.endswith((",", "-", "–")))
 
 
@@ -1785,13 +1813,19 @@ def _split_face_heading_prefix(label_words: list[Word]) -> tuple[str | None, lis
     caption of its own; ``(None, label_words)`` otherwise. Row clustering merges a heading printed
     tight above its first row into that row, as it does a section banner (`_split_banner_prefix`)."""
     lines = _label_sub_lines(label_words)
-    if len(lines) < 2:
+    # …AND A HEADING NESTED IN ANOTHER: "Permanent equity" over "BlackRock, Inc. stockholders'
+    # equity" over the common stock. Each is peeled off while the line under it opens a caption;
+    # the innermost names the rows.
+    heading = None
+    while len(lines) >= 2:
+        head = _join_words(_regroup_scripts(lines[0]))
+        if not _is_face_group_heading(head) or not _opens_a_caption(
+                lines[1], numbered=_is_numbered_face_heading(head)):
+            break
+        heading, lines = head, lines[1:]
+    if heading is None:
         return None, label_words
-    head = _join_words(_regroup_scripts(lines[0]))
-    if not _is_face_group_heading(head) or not _opens_a_caption(
-            lines[1], numbered=_is_numbered_face_heading(head)):
-        return None, label_words
-    return head, [w for line in lines[1:] for w in line]
+    return heading, [w for line in lines for w in line]
 
 
 def _continues_a_heading(held: tuple[str, list[Word]], label_words: list[Word], label: str,
@@ -4090,6 +4124,9 @@ def _column_header_region(rows: list[list[Word]], fmt=None) -> list[list[Word]]:
     return region[worded[-1]:] if worded else region
 
 
+_YEAR_CELL = re.compile(r"^(?:19|20)\d{2}$")
+
+
 def _bands_with_a_figure(value_bands: list[float], col_xs: list[list[tuple[float, str]]],
                          fmt=None) -> list[float]:
     """``value_bands`` less any band whose members are all date fragments.
@@ -4100,12 +4137,30 @@ def _bands_with_a_figure(value_bands: list[float], col_xs: list[list[tuple[float
     if len(value_bands) < 2:
         return value_bands
     has_figure = [False] * len(value_bands)
+    year_rows = [0] * len(value_bands)
     for row in col_xs:
+        years_here: set[int] = set()
         for xc, text in row:
             col = _nearest_col(xc, value_bands)
             value = _num(text, fmt)
             if col is not None and value is not None and not _is_date_ish(value):
                 has_figure[col] = True
+            elif col is not None and _YEAR_CELL.match(text.strip()):
+                years_here.add(col)
+        for col in years_here:
+            year_rows[col] += 1
+    # A COLUMN OF YEARS ON EVERY ROW IS A COLUMN. A title's or a header's date fragments are a
+    # row or two; Welltower's 2024 Schedule III prints "Year Acquired" and "Year Built" on each of
+    # its 1,800-odd property rows, and with both bands dropped as dates the two years of a row fell
+    # into one band and one of them was dropped as a duplicate — 4,104 figures over 48 pages. A
+    # band of bare years is kept where most of the page's figure rows print one, and it stands
+    # right of a figure column: a year printed as a row's CAPTION is at the left (`_caption_years`).
+    first_figure = next((i for i, ok in enumerate(has_figure) if ok), None)
+    need = max(_COL_MIN_ROWS + 2, len(col_xs) // 2)
+    for col, rows in enumerate(year_rows):
+        if (not has_figure[col] and rows >= need and first_figure is not None
+                and col > first_figure):
+            has_figure[col] = True
     kept = [x for x, ok in zip(value_bands, has_figure) if ok]
     # No band qualifies on a filing that prints its figures ungrouped, and dropping every column
     # would lose the page. Today's answer is better than none.
@@ -4333,6 +4388,7 @@ def _value_column_bands(value_xs: list[list[tuple[float, str]]],
             clusters[-1].append(item)
         else:
             clusters.append([item])
+    clusters = _one_figure_per_row(clusters, value_xs)
 
     def is_note_column(cluster: list[tuple[float, str]]) -> bool:
         notes = sum(1 for _, t in cluster if _is_note_number(t))
@@ -4384,6 +4440,34 @@ def _value_column_bands(value_xs: list[list[tuple[float, str]]],
     if len(kept) < 2:
         return []                       # nothing to disambiguate; order is as good as position
     return [sorted(x for x, _ in c)[len(c) // 2] for c in kept]   # median resists one outlier
+
+
+def _one_figure_per_row(clusters: list[list[tuple[float, str]]],
+                        value_xs: list[list[tuple[float, str]]]) -> list[list[tuple[float, str]]]:
+    """`clusters`, each split at its widest gap while rows print two figures in it.
+
+    A COLUMN HOLDS ONE FIGURE PER ROW. Clusters are chained centre to centre within `_COL_TOL`, so
+    two narrow columns set close together chain into one: Welltower's 2024 Schedule III prints
+    "Accumulated Depreciation" and "Year Acquired" side by side, a right-aligned "554" centred at
+    0.655 of the width and "2024" at 0.690, and the two became one column — every row's year of
+    acquisition then shared a slot with its depreciation and was dropped as a duplicate. Split only
+    where `_COL_MIN_ROWS` rows or more print two figures in the cluster, which one stray cannot
+    cause, and at the widest gap, which is the gutter between the two columns."""
+    out: list[list[tuple[float, str]]] = []
+    pending = list(clusters)
+    while pending:
+        cluster = pending.pop(0)
+        if len(cluster) >= 2 * _COL_MIN_ROWS:
+            lo, hi = cluster[0][0], cluster[-1][0]
+            doubled = sum(1 for xs in value_xs
+                          if sum(1 for x, _t in xs if lo <= x <= hi) >= 2)
+            if doubled >= _COL_MIN_ROWS:
+                gaps = [(cluster[i + 1][0] - cluster[i][0], i) for i in range(len(cluster) - 1)]
+                _gap, at = max(gaps)
+                pending[:0] = [cluster[:at + 1], cluster[at + 1:]]
+                continue
+        out.append(cluster)
+    return out
 
 
 def _column_index(x: float, bands: list[float]) -> int | None:
@@ -6740,7 +6824,13 @@ def _nil_row(label_words: list[Word]) -> bool:
     """
     trailing = 0
     for w in reversed(label_words):
-        if not _NIL_CELL.match(_cell_text(w.text)):
+        text = _cell_text(w.text)
+        # A 10-K prints its dollar sign before a nil cell as before a figure: Welltower 2024's
+        # "Unsecured credit facility and commercial paper  $ —  $ —" was read as a caption's first
+        # line and folded onto "Senior unsecured notes 13,162,102", which then matched nothing.
+        if text == "$" and trailing and _US_10K_ROWS.get():
+            continue
+        if not _NIL_CELL.match(text):
             break
         trailing += 1
     return trailing >= 2

@@ -274,6 +274,41 @@ _OF_WHICH = re.compile(
 _CAS_SPINE_LINE = re.compile(r"^\W*[一二三四五六七八九十]+、\s*(?![0-9０-９])\S")
 
 
+def _sums_of_the_rows_above(ordered: list) -> set:
+    """Ids of face rows that are, in every column they print, exactly the sum of the run of rows
+    printed directly above them on the same page — a subtotal whose caption does not say so.
+
+    Welltower's 2024 balance sheet prints "Net real property owned", "Right of use assets, net",
+    "Investments in sales-type leases, net", "Real estate loans receivable …" and then "Net real
+    estate investments 43,851,677 / 38,775,913", their sum. No "Total" in the caption, so the sweep
+    took it into the other non-current assets beside the rows it totals: 45,828,981 published
+    against the 1,977,304 those rows hold. The arithmetic is the evidence, and it has to be the
+    whole of it: two rows or more, at least two of them printing a figure in each column, the sum
+    exact. A row the reader already reads as a subtotal (`LineRole.SUBTOTAL`) is refused by its role.
+    """
+    out: set = set()
+    by_page: dict[int | None, list] = {}
+    for li in ordered:
+        by_page.setdefault(_page_of_row(li), []).append(li)
+    for page, rows in by_page.items():
+        if page is None:
+            continue
+        figures = [_row_values(li) for li in rows]
+        for i, own in enumerate(figures):
+            if not own or i < 2:
+                continue
+            for start in range(i - 2, -1, -1):
+                run = figures[start:i]
+                if any(not f for f in run):
+                    break
+                if all(sum(1 for f in run if col in f) >= 2
+                       and sum((f.get(col, Decimal(0)) for f in run), Decimal(0)) == value
+                       for col, value in own.items()):
+                    out.add(rows[i].id)
+                    break
+    return out
+
+
 def _broken_down_rows(ordered: list) -> set:
     """Ids of face rows printed as a further line of a 其中 breakdown of a row the section counts."""
     by_id = {li.id: li for li in ordered}
@@ -1462,6 +1497,9 @@ class ResidualStage:
         per_share = (_per_share_rows(ordered) if _PER_SHARE_PHRASE in terms.exclusions else set())
         broken_down = (_broken_down_rows(ordered) if _OF_WHICH_PHRASE in terms.exclusions
                        else set())
+        sums_above = (_sums_of_the_rows_above([li for li in ordered
+                                               if getattr(li, "printed_in", None) is PrintedIn.FACE])
+                      if "section subtotal" in terms.exclusions else set())
 
         swept = ineligible = unresolved = 0
         for idx, li in enumerate(ordered):
@@ -1493,6 +1531,8 @@ class ResidualStage:
                                 or (phrase == _PER_SHARE_PHRASE and li.id in per_share)
                                 or (phrase == _OF_WHICH_PHRASE and li.id in broken_down))),
                           None)
+            if reason is None and li.id in sums_above:
+                reason = "section subtotal"
             if reason is None and "narrative row" in terms.exclusions:
                 if _below_closing_total(li, stmt):
                     reason = "narrative row"

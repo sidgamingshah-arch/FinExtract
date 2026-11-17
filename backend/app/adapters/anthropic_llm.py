@@ -103,7 +103,14 @@ class AnthropicLlmProvider:
         text = "".join(
             getattr(b, "text", "") for b in resp.content if getattr(b, "type", None) == "text"
         ).strip()
-        parsed = response_schema.model_validate_json(strip_fences(text))
+        try:
+            parsed = response_schema.model_validate_json(strip_fences(text))
+        except Exception as exc:  # re-raised with the reply's stop reason
+            # See `bedrock_gateway_llm`: why the reply ended, on the error a caller logs.
+            exc.add_note(f"stop_reason={getattr(resp, 'stop_reason', None)} "
+                         f"output_tokens={getattr(getattr(resp, 'usage', None), 'output_tokens', None)} "
+                         f"max_tokens={max_tokens}")
+            raise
 
         meta: LlmMeta = {
             "model": resp.model,

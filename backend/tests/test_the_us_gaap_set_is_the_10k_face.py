@@ -328,7 +328,10 @@ def test_eps_and_the_share_counts_are_statement_of_operations_lines_that_are_not
     for key, measure in EPS.items():
         item = items[key]
         assert item["measure"] == measure, key
-        assert item["statements"] == [PL] and item["section_scope"] == ["is_pl"], key
+        # …admitted under an attribution heading too: BlackRock 2025 prints its per-share block
+        # under "Earnings per share attributable to BlackRock, Inc. common stockholders:".
+        assert item["statements"] == [PL], key
+        assert item["section_scope"] == ["is_pl", "profit_attributable_to"], key
         assert item["route"] == "face" and item["type"] == "extracted", key
         assert item["temporality"] == "duration", key
     assert {k for k, i in items.items() if "measure" in i} == set(EPS)

@@ -1148,6 +1148,7 @@
    "regex_hints": [
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity|commitments\\s+and\\s+contingencies(?:\\s+(?:see\\s+)?notes?\\s+\\d{1,2})?)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+|plus\\s+)?(?:investments\\s+in\\s+and\\s+advances\\s+to\\s+affiliates|investments\\s+in\\s+unconsolidated\\s+affiliates|investments\\s+in\\s+advances\\s+to\\s+affiliates|investments\\s+in\\s+affiliated\\s+companies|investments\\s+in\\s+equity\\s+affiliates|equity\\s+method\\s+investments|investments\\s+in\\s+associates)$",
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}investments?\\s+in\\s+(?:and\\s+advances\\s+to\\s+)?(?:unconsolidated\\s+|equity\\s+|nonconsolidated\\s+)?(?:affiliates?|affiliated\\s+companies|associates|joint\\s+ventures)\\b.*$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}investments?\\s+in\\s+(?:un|non)consolidated\\s+(?:entities|companies|ventures)\\b.*$",
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}equity\\s+method\\s+investments?\\b.*$"
    ]
   },
@@ -1204,7 +1205,8 @@
    },
    "regex_hints": [
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity|commitments\\s+and\\s+contingencies(?:\\s+(?:see\\s+)?notes?\\s+\\d{1,2})?)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+|plus\\s+)?(?:property\\s+equipment\\s+and\\s+software\\s+net|property\\s+plant\\s+and\\s+equipment\\s+net|property\\s+equipment\\s+software\\s+net|property\\s+plant\\s+and\\s+equipment|property\\s+plant\\s+equipment\\s+net|net\\s+property\\s+and\\s+equipment|property\\s+and\\s+equipment\\s+net|property\\s+plant\\s+equipment|net\\s+property\\s+equipment|property\\s+and\\s+equipment|property\\s+equipment\\s+net|property\\s+equipment)$",
-    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:net\\s+)?property(?:\\s+plant)?(?:\\s+and)?\\s+equipment(?:\\s+and\\s+software)?(?:\\s+net)?(?:\\s+(?:of|less)\\b.*)?$"
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:net\\s+)?property(?:\\s+plant)?(?:\\s+and)?\\s+equipment(?:\\s+and\\s+software)?(?:\\s+net)?(?:\\s+(?:of|less)\\b.*)?$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:net\\s+)?real\\s+(?:property|estate)\\s+owned(?:\\s+net)?$"
    ],
    "exclude_hints": [
     "(?i)financ",
@@ -1610,6 +1612,7 @@
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}current\\s+(?:portion|maturities)\\s+of\\s+(?:long\\s+term\\s+)?(?:debt|borrowings?|notes|term\\s+debt)\\b.*$",
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:long\\s+term\\s+)?debt\\s+due\\s+within\\s+one\\s+year\\b.*$",
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}commercial\\s+paper\\b.*$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:un)?secured\\s+|revolving\\s+)?(?:credit\\s+facilit(?:y|ies)|line\\s+of\\s+credit)(?:\\s+and\\s+commercial\\s+paper)?$",
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:notes|loans)\\s+payable(?:\\s+to\\s+banks)?(?:\\s+current)?$",
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:current\\s+(?:portion\\s+of\\s+)?|short\\s+term\\s+)finance\\s+lease\\s+(?:liabilities|obligations?)$",
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}finance\\s+lease\\s+(?:liabilities|obligations?)\\s+(?:current|due\\s+within\\s+one\\s+year)$"
@@ -2079,7 +2082,10 @@
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:non\\s*current|noncurrent)\\s+(?:debt|borrowings)\\b.*$",
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}term\\s+debt\\s+non\\s*current$",
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:long\\s+term|non\\s*current)\\s+finance\\s+lease\\s+(?:liabilities|obligations?)$",
-    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}finance\\s+lease\\s+(?:liabilities|obligations?)\\s+(?:non\\s*current|long\\s+term|(?:less|net\\s+of)\\s+current\\s+portion)$"
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}finance\\s+lease\\s+(?:liabilities|obligations?)\\s+(?:non\\s*current|long\\s+term|(?:less|net\\s+of)\\s+current\\s+portion)$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}senior\\s+(?:(?:un)?secured\\s+)?notes(?:\\s+payable)?(?:\\s+net)?$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:un)?secured\\s+(?:debt|borrowings|term\\s+loans?)(?:\\s+net)?$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}mortgages?\\s+(?:debt|notes|loans)(?:\\s+payable)?(?:\\s+net)?$"
    ],
    "exclude_hints": [
     "(?i)operating\\s+lease",
@@ -2504,7 +2510,8 @@
    },
    "regex_hints": [
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity|commitments\\s+and\\s+contingencies(?:\\s+(?:see\\s+)?notes?\\s+\\d{1,2})?)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+|plus\\s+)?(?:redeemable\\s+convertible\\s+preferred\\s+stock|redeemable\\s+non\\s+controlling\\s+interests|redeemable\\s+noncontrolling\\s+interests|redeemable\\s+noncontrolling\\s+interest|redeemable\\s+preferred\\s+stock|mezzanine\\s+equity|temporary\\s+equity)$",
-    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:commitments\\s+and\\s+contingencies(?:\\s+(?:see\\s+)?notes?\\s+\\d{1,2})?)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:redeemable\\s+(?:non\\s*controlling|convertible|preferred)|temporary\\s+equity|mezzanine\\s+equity)\\b.*$"
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:commitments\\s+and\\s+contingencies(?:\\s+(?:see\\s+)?notes?\\s+\\d{1,2})?)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:redeemable\\s+(?:non\\s*controlling|convertible|preferred)|temporary\\s+equity|mezzanine\\s+equity)\\b.*$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:commitments\\s+and\\s+contingencies(?:\\s+(?:see\\s+)?notes?\\s+\\d{1,2})?)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?redeemable\\s+nci\\b.*$"
    ]
   },
   {
@@ -2933,7 +2940,8 @@
    },
    "regex_hints": [
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity|commitments\\s+and\\s+contingencies(?:\\s+(?:see\\s+)?notes?\\s+\\d{1,2})?)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+|plus\\s+)?(?:non\\s+controlling\\s+interests|non\\s+controlling\\s+interest|noncontrolling\\s+interests|noncontrolling\\s+interest|minority\\s+interests|minority\\s+interest)$",
-    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:equity\\s+attributable\\s+to\\s+)?(?:non\\s*redeemable\\s+)?(?:non\\s*controlling|minority)\\s+interests?\\b.*$"
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:equity\\s+attributable\\s+to\\s+)?(?:non\\s*redeemable\\s+)?(?:non\\s*controlling|minority)\\s+interests?\\b.*$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}non\\s*redeemable\\s+nci\\b.*$"
    ],
    "exclude_hints": [
     "(?i)(?<!non)(?<!non )redeemable",
@@ -2989,7 +2997,8 @@
    "regex_hints": [
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity|commitments\\s+and\\s+contingencies(?:\\s+(?:see\\s+)?notes?\\s+\\d{1,2})?)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+|plus\\s+)?(?:total\\s+stockholders\\s+equity\\s+and\\s+noncontrolling\\s+interests|total\\s+stockholders\\s+equity\\s+noncontrolling\\s+interests|total\\s+equity\\s+deficit|total\\s+equity)$",
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}total\\s+equity(?:\\s+deficit)?$",
-    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}total\\s+(?:stock|share)holders\\s+equity\\s+(?:and|including)\\s+non\\s*controlling\\b.*$"
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}total\\s+(?:stock|share)holders\\s+equity\\s+(?:and|including)\\s+non\\s*controlling\\b.*$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}total\\s+permanent\\s+equity$"
    ]
   },
   {
@@ -3073,7 +3082,7 @@
     "is_pl"
    ],
    "order": 48,
-   "definition": "Revenue from the sale of goods and services, where the face prints it as a row of its own above other revenue. A face printing one revenue figure prints it as total revenues.",
+   "definition": "Revenue from the sale of goods and services, where the face prints it as a row of its own above other revenue. A face printing one revenue figure prints it as total revenues. An asset manager's base fees — investment advisory, administration or management fees — are its sales; its performance fees and other revenue are other revenues.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
@@ -3096,7 +3105,8 @@
    },
    "regex_hints": [
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+|plus\\s+)?(?:net\\s+product\\s+sales|product\\s+sales|net\\s+sales|sales)$",
-    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:net\\s+)?(?:product\\s+)?sales(?:\\s+to\\s+customers)?$"
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:net\\s+)?(?:product\\s+)?sales(?:\\s+to\\s+customers)?$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:investment\\s+|asset\\s+)?(?:advisory|management)(?:\\s+(?:and\\s+)?(?:administration|administrative|advisory|management))*\\s+fees$"
    ]
   },
   {
@@ -3113,7 +3123,7 @@
     "is_pl"
    ],
    "order": 49,
-   "definition": "Revenue the face prints beside net sales: membership fees, franchise and licence income, other operating revenue.",
+   "definition": "Revenue the face prints beside net sales: membership fees, franchise and licence income, other operating revenue; an asset manager's performance fees, securities lending, technology services and distribution fees beside its base fees.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
@@ -3138,7 +3148,12 @@
    },
    "regex_hints": [
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+|plus\\s+)?(?:membership\\s+and\\s+other\\s+income|other\\s+operating\\s+revenues|membership\\s+other\\s+income|other\\s+revenues|other\\s+revenue)$",
-    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}other\\s+(?:operating\\s+)?revenues?$"
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}other\\s+(?:operating\\s+)?revenues?$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:investment\\s+advisory\\s+)?performance\\s+fees$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}securities\\s+lending\\s+(?:revenues?|fees|income)$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}technology\\s+services(?:\\s+and\\s+subscription)?(?:\\s+revenues?)?$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}distribution\\s+fees$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:advisory|service|services)\\s+and\\s+other\\s+revenues?$"
    ]
   },
   {
@@ -3338,7 +3353,7 @@
     "is_pl"
    ],
    "order": 53,
-   "definition": "The cost of the goods and services sold, as printed, positive; where the face prints a product and a service cost and their total, the total — the two halves are the cost of products and the cost of services.",
+   "definition": "The cost of the goods and services sold, as printed, positive; where the face prints a product and a service cost and their total, the total — the two halves are the cost of products and the cost of services. An asset manager's distribution, fund and sub-advisory costs, printed together as its 'sales, asset and account expense', are the cost of earning its fees: the printed total is this line.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
@@ -3375,7 +3390,8 @@
    },
    "regex_hints": [
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+|plus\\s+)?(?:cost\\s+of\\s+goods\\s+and\\s+services\\s+sold|cost\\s+of\\s+goods\\s+services\\s+sold|total\\s+cost\\s+of\\s+revenues|cost\\s+of\\s+products\\s+sold|total\\s+cost\\s+of\\s+revenue|total\\s+cost\\s+of\\s+sales|cost\\s+of\\s+goods\\s+sold|cost\\s+of\\s+revenues|costs\\s+of\\s+revenue|cost\\s+of\\s+revenue|cost\\s+of\\s+sales)$",
-    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:total\\s+)?costs?\\s+of\\s+(?:net\\s+)?(?:sales|revenues?|goods\\s+(?:and\\s+services\\s+)?sold|products\\s+sold|merchandise\\s+sold|products\\s+and\\s+services(?:\\s+sold)?|sales\\s+and\\s+services)\\b.*$"
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:total\\s+)?costs?\\s+of\\s+(?:net\\s+)?(?:sales|revenues?|goods\\s+(?:and\\s+services\\s+)?sold|products\\s+sold|merchandise\\s+sold|products\\s+and\\s+services(?:\\s+sold)?|sales\\s+and\\s+services)\\b.*$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:total\\s+)?sales\\s+asset\\s+and\\s+account\\s+expenses?$"
    ],
    "exclude_hints": [
     "(?i)^\\W*gross",
@@ -3499,7 +3515,7 @@
     "is_pl"
    ],
    "order": 56,
-   "definition": "Selling, marketing, general and administrative expense, as printed, positive. Where the face prints sales and marketing and general and administrative on separate rows, the rows are added.",
+   "definition": "Selling, marketing, general and administrative expense, as printed, positive. Where the face prints sales and marketing and general and administrative on separate rows, the rows are added. A service company's employee compensation and benefits, printed as an operating expense row of its own (not in a cost of revenue), is part of it.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "positive_expected",
@@ -3560,7 +3576,8 @@
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+|plus\\s+)?(?:operating\\s+selling\\s+general\\s+and\\s+administrative\\s+expenses|operating\\s+selling\\s+general\\s+administrative\\s+expenses|selling\\s+general\\s+and\\s+administrative\\s+expenses|total\\s+selling\\s+and\\s+administrative\\s+expenses|total\\s+selling\\s+and\\s+administrative\\s+expense|selling\\s+general\\s+administrative\\s+expenses|total\\s+selling\\s+administrative\\s+expenses|marketing\\s+general\\s+and\\s+administrative|total\\s+selling\\s+administrative\\s+expense|general\\s+and\\s+administrative\\s+expenses|selling\\s+and\\s+administrative\\s+expenses|selling\\s+general\\s+and\\s+administrative|marketing\\s+general\\s+administrative|general\\s+administrative\\s+expenses|selling\\s+administrative\\s+expenses|selling\\s+general\\s+administrative|general\\s+and\\s+administrative|general\\s+administrative|selling\\s+and\\s+marketing|sales\\s+and\\s+marketing|selling\\s+marketing|sales\\s+marketing)$",
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:operating\\s+)?selling\\s+(?:general\\s+)?(?:and\\s+)?(?:administrative|marketing)(?:\\s+and\\s+(?:administrative|general))*(?:\\s+expenses?)?$",
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:sales|selling)\\s+and\\s+marketing(?:\\s+expenses?)?$",
-    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:marketing\\s+)?general\\s+(?:and\\s+)?administrative(?:\\s+expenses?)?$"
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:marketing\\s+)?general\\s+(?:and\\s+)?administrat(?:ive|ion)(?:\\s+expenses?)?$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:employee\\s+)?compensation\\s+and\\s+(?:employee\\s+)?benefits(?:\\s+expenses?)?$"
    ]
   },
   {
@@ -3607,7 +3624,7 @@
    "regex_hints": [
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+|plus\\s+)?(?:amortization\\s+of\\s+acquired\\s+intangible\\s+assets|depreciation\\s+depletion\\s+and\\s+amortization|depreciation\\s+depletion\\s+amortization|amortization\\s+of\\s+intangible\\s+assets|depreciation\\s+and\\s+amortization|depreciation\\s+amortization|depreciation)$",
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}depreciation(?:\\s+depletion)?(?:\\s+and)?(?:\\s+amorti[sz]ation)?(?:\\s+expense)?$",
-    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}amorti[sz]ation\\s+of\\s+(?:acquired\\s+|purchased\\s+)?(?:intangible\\s+assets|intangibles)$"
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}amorti[sz]ation(?:\\s+and\\s+impairment)?\\s+of\\s+(?:acquired\\s+|purchased\\s+)?(?:intangible\\s+assets|intangibles)$"
    ]
   },
   {
@@ -3699,7 +3716,8 @@
    },
    "regex_hints": [
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+|plus\\s+)?(?:other\\s+operating\\s+expense\\s+income\\s+net|other\\s+operating\\s+income\\s+expense\\s+net|other\\s+operating\\s+expense\\s+net|other\\s+operating\\s+expenses|other\\s+operating\\s+income)$",
-    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}other\\s+operating\\s+(?:income\\s+)?(?:expenses?|costs?|income|charges)(?:\\s+income)?(?:\\s+expenses?)?(?:\\s+net)?$"
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}other\\s+operating\\s+(?:income\\s+)?(?:expenses?|costs?|income|charges)(?:\\s+income)?(?:\\s+expenses?)?(?:\\s+net)?$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:change|changes)\\s+in\\s+(?:the\\s+)?fair\\s+value\\s+of\\s+contingent\\s+consideration(?:\\s+liabilit(?:y|ies))?$"
    ]
   },
   {
@@ -3788,7 +3806,8 @@
    "regex_hints": [
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+|plus\\s+)?(?:total\\s+costs\\s+and\\s+operating\\s+expenses|total\\s+operating\\s+costs\\s+and\\s+expenses|total\\s+costs\\s+operating\\s+expenses|total\\s+operating\\s+costs\\s+expenses|total\\s+costs\\s+and\\s+expenses|total\\s+operating\\s+costs|total\\s+costs\\s+expenses|costs\\s+and\\s+expenses|costs\\s+expenses|total\\s+expenses)$",
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:total\\s+)?(?:operating\\s+)?costs?\\s+and\\s+(?:operating\\s+)?expenses$",
-    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}total\\s+(?:operating\\s+)?(?:costs|expenses)$"
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}total\\s+(?:operating\\s+)?(?:costs|expenses)$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}total\\s+expense$"
    ]
   },
   {
@@ -3954,7 +3973,7 @@
     "is_pl"
    ],
    "order": 65,
-   "definition": "Other non-operating income and expense printed as a row of its own, with the sign the face gives it.",
+   "definition": "Other non-operating income and expense printed as a row of its own, with the sign the face gives it; an asset manager's net gain or loss on its investments among them.",
    "temporality": "duration",
    "unit_of_account": "flow",
    "sign_convention": "either",
@@ -3995,7 +4014,8 @@
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+|plus\\s+)?(?:other\\s+non\\s+operating\\s+income\\s+expense\\s+net|nonoperating\\s+income\\s+expense|other\\s+income\\s+expense\\s+net|other\\s+gains\\s+and\\s+losses|other\\s+income\\s+expense|other\\s+gains\\s+losses|other\\s+expense\\s+net|other\\s+income\\s+net|other\\s+expense|other\\s+income|other\\s+net)$",
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}other\\s+(?:non\\s*operating\\s+)?(?:income|expenses?|gains?|loss(?:es)?)(?:\\s+(?:and\\s+)?(?:income|expenses?|gains?|loss(?:es)?))*(?:\\s+net)?$",
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}non\\s*operating\\s+(?:income|expenses?)(?:\\s+(?:income|expenses?))*(?:\\s+net)?$",
-    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}other\\s+net$"
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}other\\s+net$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:net\\s+)?(?:gains?|loss(?:es)?)(?:\\s+(?:and\\s+)?(?:gains?|loss(?:es)?))?\\s+on\\s+investments(?:\\s+net)?$"
    ],
    "exclude_hints": [
     "(?i)^\\W*total",
@@ -4385,7 +4405,7 @@
    },
    "regex_hints": [
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+|plus\\s+)?(?:consolidated\\s+net\\s+income\\s+attributable\\s+to\\s+noncontrolling\\s+interest|less\\s+net\\s+income\\s+attributable\\s+to\\s+noncontrolling\\s+interests|net\\s+income\\s+loss\\s+attributable\\s+to\\s+noncontrolling\\s+interests|net\\s+income\\s+attributable\\s+to\\s+noncontrolling\\s+interests|net\\s+income\\s+attributable\\s+to\\s+noncontrolling\\s+interest)$",
-    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:less\\s+|add\\s+|plus\\s+)?(?:consolidated\\s+)?(?:net\\s+)?(?:income|earnings|loss|profit)\\s+(?:(?:loss|income|earnings|profit)\\s+)?attributable\\s+to\\s+(?:the\\s+)?(?:non\\s*controlling|minority)\\s+interests?\\b.*$"
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:less\\s+|add\\s+|plus\\s+)?(?:consolidated\\s+)?(?:net\\s+)?(?:income|earnings|loss|profit)\\s+(?:(?:loss|income|earnings|profit)\\s+)?attributable\\s+to\\s+(?:the\\s+)?(?:(?:non\\s*controlling|minority)\\s+interests?|nci)\\b.*$"
    ],
    "exclude_hints": [
     "(?i)per\\s+(?:common\\s+)?share",
@@ -4442,6 +4462,7 @@
     "(?i)\\bdiluted\\b",
     "(?i)non\\s*controlling",
     "(?i)minority",
+    "(?i)\\bnci\\b",
     "(?i)comprehensive"
    ]
   },
@@ -4456,7 +4477,8 @@
     "profit_and_loss"
    ],
    "section_scope": [
-    "is_pl"
+    "is_pl",
+    "profit_attributable_to"
    ],
    "order": 75,
    "definition": "Basic earnings or loss per share for the year (ASC 260): net income attributable to the filer's common stockholders divided by the weighted-average common shares outstanding, in dollars per share as printed. A 10-K often prints it as a bare 'Basic' row under an 'Earnings per share' or 'Net income per share' heading; the 'Basic' printed under 'Shares used in computing earnings per share' or 'Weighted-average shares outstanding' is the share count, not this line. A single 'Basic and diluted' row is this line's. Not the per-share figure of continuing or discontinued operations alone, nor dividends declared per share. A per-share amount: it is not in the statements' millions or thousands.",
@@ -4535,7 +4557,8 @@
     "profit_and_loss"
    ],
    "section_scope": [
-    "is_pl"
+    "is_pl",
+    "profit_attributable_to"
    ],
    "order": 76,
    "definition": "Diluted earnings or loss per share for the year (ASC 260): net income attributable to the filer's common stockholders divided by the weighted-average shares outstanding together with the dilutive effect of options, restricted stock units and convertible securities, in dollars per share as printed. A 10-K often prints it as a bare 'Diluted' row under an 'Earnings per share' or 'Net income per share' heading; the 'Diluted' printed under 'Shares used in computing earnings per share' or 'Weighted-average shares outstanding' is the share count, not this line. A single 'Basic and diluted' row is the basic line's, and is not repeated here. Not the per-share figure of continuing or discontinued operations alone. A per-share amount: it is not in the statements' millions or thousands.",
@@ -4606,7 +4629,8 @@
     "profit_and_loss"
    ],
    "section_scope": [
-    "is_pl"
+    "is_pl",
+    "profit_attributable_to"
    ],
    "order": 77,
    "definition": "The weighted-average number of common shares outstanding during the year used to compute basic earnings per share, as printed: a count of shares, in the scale the statement's header gives shares ('number of shares, which are reflected in thousands'), or the statements' own where the header excepts only per-share amounts — never an amount of money. A 10-K often prints it as a bare 'Basic' row under a 'Shares used in computing earnings per share' or 'Weighted-average shares outstanding' heading; the 'Basic' printed under 'Earnings per share' is the per-share amount, not this line. Not the shares issued or outstanding at the year-end that the balance sheet prints.",
@@ -4684,7 +4708,8 @@
     "profit_and_loss"
    ],
    "section_scope": [
-    "is_pl"
+    "is_pl",
+    "profit_attributable_to"
    ],
    "order": 78,
    "definition": "The weighted-average number of shares used to compute diluted earnings per share, as printed: the basic count together with the dilutive effect of options, restricted stock units and convertible securities — a count of shares, in the scale the statement's header gives shares, or the statements' own where the header excepts only per-share amounts; never an amount of money. A 10-K often prints it as a bare 'Diluted' row under a 'Shares used in computing earnings per share' or 'Weighted-average shares outstanding' heading; the 'Diluted' printed under 'Earnings per share' is the per-share amount, not this line. A single 'Basic and diluted' count is the basic line's. Not the effect of dilutive securities printed between the two counts.",
@@ -4727,7 +4752,7 @@
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+|plus\\s+)?(?:weighted\\s+average\\s+number\\s+of\\s+common\\s+shares\\s+outstanding\\s+diluted|shares\\s+used\\s+in\\s+computing\\s+diluted\\s+net\\s+income\\s+per\\s+share|weighted\\s+average\\s+number\\s+of\\s+shares\\s+outstanding\\s+diluted|shares\\s+used\\s+in\\s+computing\\s+diluted\\s+earnings\\s+per\\s+share|shares\\s+used\\s+in\\s+computing\\s+earnings\\s+per\\s+share\\s+diluted|weighted\\s+average\\s+common\\s+shares\\s+outstanding\\s+diluted|weighted\\s+average\\s+diluted\\s+shares\\s+outstanding|weighted\\s+average\\s+shares\\s+outstanding\\s+diluted|weighted\\s+average\\s+shares\\s+diluted)$",
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}diluted\\s+(?:weighted\\s+average\\s+)?(?:number\\s+of\\s+)?(?:common\\s+|ordinary\\s+)?shares\\b.*$",
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}weighted\\s+average\\s+diluted\\s+(?:common\\s+|ordinary\\s+)?shares\\b.*$",
-    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}weighted\\s+average\\s+(?:number\\s+of\\s+)?(?:common\\s+|ordinary\\s+)?(?:shares|stock)\\b.*\\bdiluted$",
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}weighted\\s+average\\s+(?:number\\s+of\\s+)?(?:common\\s+|ordinary\\s+)?(?:shares|stock)\\b.*\\bdiluted(?:\\s+including\\s+[\\w\\s]{1,40})?$",
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:common\\s+)?shares\\s+used\\s+in\\s+(?:computing|calculating|(?:the\\s+)?(?:computation|calculation)\\s+of|per\\s+share\\s+computations?)\\b.*\\bdiluted$",
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:common\\s+)?shares\\s+used\\s+in\\s+(?:computing|calculating|(?:the\\s+)?(?:computation|calculation)\\s+of|per\\s+share\\s+computations?)\\s+diluted\\b.*$"
    ],
@@ -5356,7 +5381,7 @@
    },
    "regex_hints": [
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+|plus\\s+)?(?:comprehensive\\s+income\\s+loss\\s+attributable\\s+to\\s+noncontrolling\\s+interests|less\\s+comprehensive\\s+income\\s+attributable\\s+to\\s+noncontrolling\\s+interests|comprehensive\\s+income\\s+attributable\\s+to\\s+noncontrolling\\s+interests|comprehensive\\s+income\\s+attributable\\s+to\\s+noncontrolling\\s+interest|comprehensive\\s+loss\\s+attributable\\s+to\\s+noncontrolling\\s+interests)$",
-    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:less\\s+|add\\s+|plus\\s+)?(?:total\\s+)?comprehensive\\s+(?:income|loss|earnings)(?:\\s+(?:loss|income|earnings))?\\s+attributable\\s+to\\s+(?:the\\s+)?(?:redeemable\\s+)?(?:non\\s*controlling|minority)\\s+interests?\\b.*$"
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:less\\s+|add\\s+|plus\\s+)?(?:total\\s+)?comprehensive\\s+(?:income|loss|earnings)(?:\\s+(?:loss|income|earnings))?\\s+attributable\\s+to\\s+(?:the\\s+)?(?:redeemable\\s+)?(?:(?:non\\s*controlling|minority)\\s+interests?|nci)\\b.*$"
    ],
    "exclude_hints": [
     "(?i)per\\s+(?:common\\s+)?share",
@@ -5409,7 +5434,8 @@
     "(?i)\\bbasic\\b",
     "(?i)\\bdiluted\\b",
     "(?i)non\\s*controlling",
-    "(?i)minority"
+    "(?i)minority",
+    "(?i)\\bnci\\b"
    ]
   },
   {

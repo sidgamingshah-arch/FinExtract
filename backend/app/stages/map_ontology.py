@@ -144,7 +144,11 @@ def _block_caption(li, section: str | None) -> tuple[str, str] | None:
         # "Cost of revenue:" head the statement's first two blocks and the reader keeps each as the
         # row's section, where Apple's "Net sales:" and "Cost of sales:" arrive as its sub-heading.
         banner = (getattr(li, "section_hint", "") or "").strip()
-        if not _SPLIT_HEADING.match(banner):
+        # …AND SO DOES A PER-SHARE HEADING WORDED AS AN ATTRIBUTION: BlackRock 2025 prints
+        # "Earnings per share attributable to BlackRock, Inc. common stockholders:" over its bare
+        # "Basic" / "Diluted", and "attributable to" makes it the attribution banner, not the
+        # rows' sub-heading — the per-share pair reached no line.
+        if not (_SPLIT_HEADING.match(banner) or _PER_SHARE_HEADING.search(banner)):
             return None
         heading = banner
     elif (section_of_banner(section or "") != _OCI_SECTION

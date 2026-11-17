@@ -154,6 +154,13 @@ LINE_ITEMS_KEY = "output_csv_usgaap"
 
 PL = ["is_pl"]
 ATTRIBUTION = ["profit_attributable_to", "is_pl"]
+# THE PER-SHARE BLOCK IS READ UNDER ITS HEADING, and a 10-K may word that heading as an
+# attribution: BlackRock 2025 prints "Earnings per share attributable to BlackRock, Inc. common
+# stockholders:" over its basic and diluted rows, and "attributable to" names the attribution
+# section (`services.mapping.SECTION_WORDS`) — so the per-share amounts, and the share counts
+# printed under it, were refused as "printed in another section". The banner is left as it is
+# (the HK and Ind AS faces read it); the per-share lines are admitted in both sections.
+PER_SHARE = ["is_pl", "profit_attributable_to"]
 TOP = ["bs_top_level"]
 # THE STATEMENT OF COMPREHENSIVE INCOME'S ROWS are printed under an "Other comprehensive income
 # (loss):" banner (`is_oci`, the section `mapping.SECTION_WORDS` reads it as), or under the page's own
@@ -431,6 +438,8 @@ LINES = {
           "(ASC 323), as one printed row.",
           regex=[E + r"investments?\s+in\s+(?:and\s+advances\s+to\s+)?(?:unconsolidated\s+|equity\s+|"
                  r"nonconsolidated\s+)?(?:affiliates?|affiliated\s+companies|associates|joint\s+ventures)\b.*$",
+                 # "Investments in unconsolidated entities" (Welltower 2024).
+                 E + r"investments?\s+in\s+(?:un|non)consolidated\s+(?:entities|companies|ventures)\b.*$",
                  E + r"equity\s+method\s+investments?\b.*$"]),
         L("bs_nca__property_plant_and_equipment", "Property, plant and equipment, net",
           ["Property, plant and equipment, net", "Property and equipment, net",
@@ -441,7 +450,12 @@ LINES = {
           "to the other non-current assets.",
           exclude=[r"financ", r"right\s+of\s+use", r"investment\s+property"],
           regex=[E + r"(?:net\s+)?property(?:\s+plant)?(?:\s+and)?\s+equipment(?:\s+and\s+software)?"
-                 r"(?:\s+net)?(?:\s+(?:of|less)\b.*)?$"]),
+                 r"(?:\s+net)?(?:\s+(?:of|less)\b.*)?$",
+                 # A REIT's property: Welltower 2024 prints land, buildings, lease intangibles,
+                 # held for sale and construction in progress less accumulated depreciation, and
+                 # their total "Net real property owned 40,673,242". Not "Net real estate
+                 # investments", which adds the leases and loans receivable to it.
+                 E + r"(?:net\s+)?real\s+(?:property|estate)\s+owned(?:\s+net)?$"]),
         L("bs_nca__operating_lease_right_of_use_assets", "Operating lease right-of-use assets",
           ["Operating lease right-of-use assets", "Operating lease assets", "Right-of-use assets",
            "Operating lease right-of-use assets, net", "Operating lease ROU assets"],
@@ -507,6 +521,9 @@ LINES = {
                  r"notes|term\s+debt)\b.*$",
                  E + r"(?:long\s+term\s+)?debt\s+due\s+within\s+one\s+year\b.*$",
                  E + r"commercial\s+paper\b.*$",
+                 # "Unsecured credit facility and commercial paper" (Welltower 2024).
+                 E + r"(?:(?:un)?secured\s+|revolving\s+)?(?:credit\s+facilit(?:y|ies)|line\s+of\s+credit)"
+                 r"(?:\s+and\s+commercial\s+paper)?$",
                  E + r"(?:notes|loans)\s+payable(?:\s+to\s+banks)?(?:\s+current)?$",
                  E + r"(?:current\s+(?:portion\s+of\s+)?|short\s+term\s+)finance\s+lease\s+(?:liabilities|"
                  r"obligations?)$",
@@ -599,7 +616,13 @@ LINES = {
                  E + r"term\s+debt\s+non\s*current$",
                  E + r"(?:long\s+term|non\s*current)\s+finance\s+lease\s+(?:liabilities|obligations?)$",
                  E + r"finance\s+lease\s+(?:liabilities|obligations?)\s+(?:non\s*current|long\s+term|"
-                 r"(?:less|net\s+of)\s+current\s+portion)$"]),
+                 r"(?:less|net\s+of)\s+current\s+portion)$",
+                 # A REIT's unclassified balance sheet names its debt by its security, under
+                 # "Liabilities:" with no current part: Welltower 2024 "Senior unsecured notes
+                 # 13,162,102", "Secured debt 2,338,155". Mortgages likewise.
+                 E + r"senior\s+(?:(?:un)?secured\s+)?notes(?:\s+payable)?(?:\s+net)?$",
+                 E + r"(?:un)?secured\s+(?:debt|borrowings|term\s+loans?)(?:\s+net)?$",
+                 E + r"mortgages?\s+(?:debt|notes|loans)(?:\s+payable)?(?:\s+net)?$"]),
         L("bs_ncl__operating_lease_liabilities", "Operating lease liabilities, non-current",
           ["Long-term operating lease liabilities", "Operating lease liabilities, non-current",
            "Operating lease liabilities, noncurrent", "Non-current operating lease liabilities",
@@ -678,7 +701,9 @@ LINES = {
           "It is neither a liability nor part of total equity.",
           scope=["bs_mezz", "bs_ncl", "bs_cl", "bs_equity"],
           regex=[EB + r"(?:redeemable\s+(?:non\s*controlling|convertible|preferred)|temporary\s+equity|"
-                 r"mezzanine\s+equity)\b.*$"]),
+                 r"mezzanine\s+equity)\b.*$",
+                 # "Redeemable NCI - Subco" (BlackRock 2025).
+                 EB + r"redeemable\s+nci\b.*$"]),
     ],
     "bs_equity": [
         L("bs_equity__preferred_stock", "Preferred stock",
@@ -760,14 +785,18 @@ LINES = {
           "this line.",
           sign="either", exclude=[r"(?<!non)(?<!non )redeemable", r"^\W*total"],
           regex=[E + r"(?:equity\s+attributable\s+to\s+)?(?:non\s*redeemable\s+)?(?:non\s*controlling|minority)"
-                 r"\s+interests?\b.*$"]),
+                 r"\s+interests?\b.*$",
+                 # "Nonredeemable NCI - CIPs" (BlackRock 2025): the abbreviation.
+                 E + r"non\s*redeemable\s+nci\b.*$"]),
         L("bs_equity__total_equity", "Total equity",
           ["Total equity", "Total equity (deficit)",
            "Total stockholders' equity and noncontrolling interests"],
           "Total equity as printed: the stockholders' equity and the noncontrolling interests.",
           sign="either", role="subtotal",
           regex=[E + r"total\s+equity(?:\s+deficit)?$",
-                 E + r"total\s+(?:stock|share)holders\s+equity\s+(?:and|including)\s+non\s*controlling\b.*$"],
+                 E + r"total\s+(?:stock|share)holders\s+equity\s+(?:and|including)\s+non\s*controlling\b.*$",
+                 # "Total permanent equity" (BlackRock 2025), after its temporary equity.
+                 E + r"total\s+permanent\s+equity$"],
           roll=("sum", ["bs_equity__equity_attributable_to_owners",
                         "bs_equity__non_controlling_interests"])),
         L("bs_cl__total_equity_and_liabilities", "Total liabilities and stockholders' equity",
@@ -785,15 +814,28 @@ LINES = {
     "is_pl": [
         L("is_pl__net_sales", "Net sales", ["Net sales", "Sales", "Net product sales", "Product sales"],
           "Revenue from the sale of goods and services, where the face prints it as a row of its "
-          "own above other revenue. A face printing one revenue figure prints it as total revenues.",
+          "own above other revenue. A face printing one revenue figure prints it as total revenues. "
+          "An asset manager's base fees — investment advisory, administration or management fees "
+          "— are its sales; its performance fees and other revenue are other revenues.",
           bucket="income",
-          regex=[E + r"(?:net\s+)?(?:product\s+)?sales(?:\s+to\s+customers)?$"]),
+          regex=[E + r"(?:net\s+)?(?:product\s+)?sales(?:\s+to\s+customers)?$",
+                 # BlackRock 2025: "Investment advisory and administration fees" 18,474.
+                 E + r"(?:investment\s+|asset\s+)?(?:advisory|management)(?:\s+(?:and\s+)?"
+                 r"(?:administration|administrative|advisory|management))*\s+fees$"]),
         L("is_pl__other_revenues", "Other revenues",
           ["Other revenues", "Other revenue", "Other operating revenues", "Membership and other income"],
           "Revenue the face prints beside net sales: membership fees, franchise and licence "
-          "income, other operating revenue.",
+          "income, other operating revenue; an asset manager's performance fees, securities "
+          "lending, technology services and distribution fees beside its base fees.",
           bucket="income",
-          regex=[E + r"other\s+(?:operating\s+)?revenues?$"]),
+          regex=[E + r"other\s+(?:operating\s+)?revenues?$",
+                 # BlackRock 2025 prints these beside its base fees; with them the revenue lines
+                 # add up to its total revenue, 24,216.
+                 E + r"(?:investment\s+advisory\s+)?performance\s+fees$",
+                 E + r"securities\s+lending\s+(?:revenues?|fees|income)$",
+                 E + r"technology\s+services(?:\s+and\s+subscription)?(?:\s+revenues?)?$",
+                 E + r"distribution\s+fees$",
+                 E + r"(?:advisory|service|services)\s+and\s+other\s+revenues?$"]),
         L("is_pl__sales_revenues", "Total revenues",
           ["Total revenues", "Total revenue", "Total net sales", "Total net revenue", "Total net revenues",
            "Revenues", "Revenue", "Net revenues", "Net revenue", "Total sales and revenues",
@@ -831,14 +873,18 @@ LINES = {
            "Costs of revenue", "Cost of goods and services sold"],
           "The cost of the goods and services sold, as printed, positive; where the face prints a "
           "product and a service cost and their total, the total — the two halves are the cost of "
-          "products and the cost of services.",
+          "products and the cost of services. An asset manager's distribution, fund and "
+          "sub-advisory costs, printed together as its 'sales, asset and account expense', are "
+          "the cost of earning its fees: the printed total is this line.",
           bucket="expenses",
           exclude=[r"^\W*gross",
                    # A half read with its heading ("Cost of sales: Products") is that half's.
                    r"^\W*" + _COST_HEAD + r"\s+(?:" + _PRODUCTS + r"|" + _SERVICES + r")$"],
           regex=[E + r"(?:total\s+)?costs?\s+of\s+(?:net\s+)?(?:sales|revenues?|goods\s+(?:and\s+services\s+)?"
                  r"sold|products\s+sold|merchandise\s+sold|products\s+and\s+services(?:\s+sold)?|sales\s+and"
-                 r"\s+services)\b.*$"]),
+                 r"\s+services)\b.*$",
+                 # BlackRock 2025: "Total sales, asset and account expense" 4,460.
+                 E + r"(?:total\s+)?sales\s+asset\s+and\s+account\s+expenses?$"]),
         L("is_pl__gross_profit", "Gross profit",
           ["Gross margin", "Gross profit", "Total gross margin", "Gross profit (loss)"],
           "Total revenues less cost of revenue. Where the face prints it, that figure is read and "
@@ -862,12 +908,15 @@ LINES = {
            "Total selling and administrative expense", "Total selling and administrative expenses"],
           "Selling, marketing, general and administrative expense, as printed, positive. Where the "
           "face prints sales and marketing and general and administrative on separate rows, the "
-          "rows are added.",
+          "rows are added. A service company's employee compensation and benefits, printed as an "
+          "operating expense row of its own (not in a cost of revenue), is part of it.",
           bucket="expenses",
           regex=[E + r"(?:operating\s+)?selling\s+(?:general\s+)?(?:and\s+)?(?:administrative|marketing)"
                  r"(?:\s+and\s+(?:administrative|general))*(?:\s+expenses?)?$",
                  E + r"(?:sales|selling)\s+and\s+marketing(?:\s+expenses?)?$",
-                 E + r"(?:marketing\s+)?general\s+(?:and\s+)?administrative(?:\s+expenses?)?$"]),
+                 E + r"(?:marketing\s+)?general\s+(?:and\s+)?administrat(?:ive|ion)(?:\s+expenses?)?$",
+                 # BlackRock 2025: "Employee compensation and benefits" 8,446, its largest expense.
+                 E + r"(?:employee\s+)?compensation\s+and\s+(?:employee\s+)?benefits(?:\s+expenses?)?$"]),
         L("is_pl__depreciation_and_amortization", "Depreciation and amortization",
           ["Depreciation and amortization", "Depreciation, depletion and amortization", "Depreciation",
            "Amortization of intangible assets", "Amortization of acquired intangible assets"],
@@ -876,8 +925,8 @@ LINES = {
           "includes it in cost of revenue and the other expense lines.",
           bucket="expenses",
           regex=[E + r"depreciation(?:\s+depletion)?(?:\s+and)?(?:\s+amorti[sz]ation)?(?:\s+expense)?$",
-                 E + r"amorti[sz]ation\s+of\s+(?:acquired\s+|purchased\s+)?(?:intangible\s+assets|"
-                 r"intangibles)$"]),
+                 E + r"amorti[sz]ation(?:\s+and\s+impairment)?\s+of\s+(?:acquired\s+|purchased\s+)?"
+                 r"(?:intangible\s+assets|intangibles)$"]),
         L("is_pl__restructuring_and_impairment", "Restructuring and impairment charges",
           ["Restructuring charges", "Restructuring and other charges", "Impairment charges",
            "Goodwill impairment", "Impairment of goodwill", "Asset impairments",
@@ -894,7 +943,10 @@ LINES = {
           "expenses, with the sign the face gives it.",
           sign="either", bucket="expenses",
           regex=[E + r"other\s+operating\s+(?:income\s+)?(?:expenses?|costs?|income|charges)(?:\s+income)?"
-                 r"(?:\s+expenses?)?(?:\s+net)?$"]),
+                 r"(?:\s+expenses?)?(?:\s+net)?$",
+                 # BlackRock 2025: "Change in fair value of contingent consideration" 720 / (36).
+                 E + r"(?:change|changes)\s+in\s+(?:the\s+)?fair\s+value\s+of\s+contingent\s+"
+                 r"consideration(?:\s+liabilit(?:y|ies))?$"]),
         L("is_pl__total_operating_expenses", "Total operating expenses",
           ["Total operating expenses", "Operating expenses"],
           "Total operating expenses as printed. A multi-step statement prints it below gross "
@@ -908,7 +960,9 @@ LINES = {
           "revenues, including cost of revenue; it is read as printed and not recomputed.",
           role="subtotal", bucket="expenses",
           regex=[E + r"(?:total\s+)?(?:operating\s+)?costs?\s+and\s+(?:operating\s+)?expenses$",
-                 E + r"total\s+(?:operating\s+)?(?:costs|expenses)$"]),
+                 E + r"total\s+(?:operating\s+)?(?:costs|expenses)$",
+                 # BlackRock 2025 prints it singular: "Total expense" 17,171.
+                 E + r"total\s+expense$"]),
         L("is_pl__operating_income", "Operating income (loss)",
           ["Operating income", "Operating income (loss)", "Operating loss", "Income from operations",
            "Loss from operations", "Income (loss) from operations", "Operating profit", "Operating earnings",
@@ -938,13 +992,16 @@ LINES = {
            "Other (income) expense, net", "Other income", "Other expense", "Other (gains) and losses",
            "Other non-operating income (expense), net", "Nonoperating income (expense)", "Other, net"],
           "Other non-operating income and expense printed as a row of its own, with the sign the "
-          "face gives it.",
+          "face gives it; an asset manager's net gain or loss on its investments among them.",
           sign="either", bucket="non_operating",
           exclude=[r"^\W*total", r"comprehensive", r"^\W*other\s+operating\b"],
           regex=[E + r"other\s+(?:non\s*operating\s+)?(?:income|expenses?|gains?|loss(?:es)?)(?:\s+(?:and\s+)?"
                  r"(?:income|expenses?|gains?|loss(?:es)?))*(?:\s+net)?$",
                  E + r"non\s*operating\s+(?:income|expenses?)(?:\s+(?:income|expenses?))*(?:\s+net)?$",
-                 E + r"other\s+net$"]),
+                 E + r"other\s+net$",
+                 # BlackRock 2025: "Net gain (loss) on investments" 634, in its nonoperating total.
+                 E + r"(?:net\s+)?(?:gains?|loss(?:es)?)(?:\s+(?:and\s+)?(?:gains?|loss(?:es)?))?\s+on\s+"
+                 r"investments(?:\s+net)?$"]),
         L("is_pl__total_other_income_expense", "Total other income (expense), net",
           ["Total other income (expense), net", "Total other income (expense)",
            "Total other (income) expense, net", "Total non-operating income (expense)",
@@ -1019,8 +1076,8 @@ LINES = {
           sign="either", scope=ATTRIBUTION, bucket="income",
           exclude=list(_NOT_PER_SHARE) + [r"comprehensive"],
           regex=[E + LESS + r"(?:consolidated\s+)?(?:net\s+)?(?:income|earnings|loss|profit)\s+"
-                 r"(?:(?:loss|income|earnings|profit)\s+)?attributable\s+to\s+(?:the\s+)?(?:non\s*controlling|"
-                 r"minority)\s+interests?\b.*$"]),
+                 r"(?:(?:loss|income|earnings|profit)\s+)?attributable\s+to\s+(?:the\s+)?(?:(?:non\s*controlling|"
+                 r"minority)\s+interests?|nci)\b.*$"]),
         L("is_pl__net_income_attributable_to_parent", "Net income attributable to the company",
           ["Net income attributable to common stockholders", "Net income attributable to shareholders",
            "Net income attributable to the Company", "Net income available to common stockholders",
@@ -1029,7 +1086,9 @@ LINES = {
           "prints it; empty where the filer has no noncontrolling interests and prints net income "
           "alone.",
           sign="either", scope=ATTRIBUTION, bucket="income",
-          exclude=list(_NOT_PER_SHARE) + [r"non\s*controlling", r"minority", r"comprehensive"],
+          # "NCI": BlackRock prints its two noncontrolling interests as "Net income (loss)
+          # attributable to NCI - CIPs" and "… NCI - Subco", which bound this line beside its own.
+          exclude=list(_NOT_PER_SHARE) + [r"non\s*controlling", r"minority", r"\bnci\b", r"comprehensive"],
           regex=[E + r"(?:consolidated\s+)?(?:net\s+)?(?:income|earnings|loss|profit)(?:\s+(?:loss|income|"
                  r"earnings|profit))?\s+(?:attributable|available)\s+to\s+.*$"]),
         # ── earnings per share, and the shares it is computed on ──────────────────────────────
@@ -1057,7 +1116,7 @@ LINES = {
           "the per-share figure of continuing or discontinued operations alone, nor dividends "
           "declared per share. A per-share amount: it is not in the statements' millions or "
           "thousands.",
-          sign="either", measure="per_share",
+          sign="either", measure="per_share", scope=PER_SHARE,
           exclude=[_NOT_DILUTED] + _EPS_NOT + _NOT_A_COUNT + _GLUED_HEADING,
           regex=[E + rf"basic\s+(?:and\s+diluted\s+)?{_RESULT}\s+{_PER}\b.*$",
                  E + rf"{_RESULT}\s+{_PER}\b.*\bbasic(?:\s+and\s+diluted)?$",
@@ -1077,7 +1136,7 @@ LINES = {
           "basic line's, and is not repeated here. Not the per-share figure of continuing or "
           "discontinued operations alone. A per-share amount: it is not in the statements' "
           "millions or thousands.",
-          sign="either", measure="per_share",
+          sign="either", measure="per_share", scope=PER_SHARE,
           exclude=[r"\bbasic\b"] + _EPS_NOT + _NOT_A_COUNT + _GLUED_HEADING,
           regex=[E + rf"diluted\s+{_RESULT}\s+{_PER}\b.*$",
                  E + rf"{_RESULT}\s+{_PER}\b.*\bdiluted$",
@@ -1100,7 +1159,7 @@ LINES = {
           "computing earnings per share' or 'Weighted-average shares outstanding' heading; the "
           "'Basic' printed under 'Earnings per share' is the per-share amount, not this line. Not "
           "the shares issued or outstanding at the year-end that the balance sheet prints.",
-          measure="shares",
+          measure="shares", scope=PER_SHARE,
           exclude=[_NOT_DILUTED] + _EPS_NOT + _NOT_AN_AMOUNT + _NOT_A_COUNT_ROW,
           regex=[E + r"basic\s+(?:and\s+diluted\s+)?(?:weighted\s+average\s+)?(?:number\s+of\s+)?"
                  r"(?:common\s+|ordinary\s+)?shares\b.*$",
@@ -1128,12 +1187,14 @@ LINES = {
           "outstanding' heading; the 'Diluted' printed under 'Earnings per share' is the "
           "per-share amount, not this line. A single 'Basic and diluted' count is the basic "
           "line's. Not the effect of dilutive securities printed between the two counts.",
-          measure="shares",
+          measure="shares", scope=PER_SHARE,
           exclude=[r"\bbasic\b"] + _EPS_NOT + _NOT_AN_AMOUNT + _NOT_A_COUNT_ROW,
           regex=[E + r"diluted\s+(?:weighted\s+average\s+)?(?:number\s+of\s+)?(?:common\s+|ordinary\s+)?"
                  r"shares\b.*$",
                  E + r"weighted\s+average\s+diluted\s+(?:common\s+|ordinary\s+)?shares\b.*$",
-                 E + _WEIGHTED + r"\b.*\bdiluted$",
+                 # "… Diluted (including Subco Units)" — BlackRock counts its subsidiary's
+                 # exchangeable units in the diluted shares and says so.
+                 E + _WEIGHTED + r"\b.*\bdiluted(?:\s+including\s+[\w\s]{1,40})?$",
                  E + _SHARES_USED + r"\b.*\bdiluted$",
                  E + _SHARES_USED + r"\s+diluted\b.*$"]),
     ],
@@ -1312,8 +1373,8 @@ LINES = {
           "sign the face gives it (often printed as a deduction).",
           sign="either", scope=OCI, bucket="income", exclude=list(_NOT_PER_SHARE),
           regex=[E + LESS + r"(?:total\s+)?comprehensive\s+(?:income|loss|earnings)(?:\s+(?:loss|income|"
-                 r"earnings))?\s+attributable\s+to\s+(?:the\s+)?(?:redeemable\s+)?(?:non\s*controlling|"
-                 r"minority)\s+interests?\b.*$"]),
+                 r"earnings))?\s+attributable\s+to\s+(?:the\s+)?(?:redeemable\s+)?(?:(?:non\s*controlling|"
+                 r"minority)\s+interests?|nci)\b.*$"]),
         L("is_oci__comprehensive_income_attributable_to_parent",
           "Comprehensive income attributable to the company",
           ["Comprehensive income attributable to common stockholders",
@@ -1324,7 +1385,7 @@ LINES = {
           "face prints it; empty where the filer has no noncontrolling interests and prints "
           "comprehensive income alone.",
           sign="either", scope=OCI, bucket="income",
-          exclude=list(_NOT_PER_SHARE) + [r"non\s*controlling", r"minority"],
+          exclude=list(_NOT_PER_SHARE) + [r"non\s*controlling", r"minority", r"\bnci\b"],
           regex=[E + r"(?:total\s+)?comprehensive\s+(?:income|loss|earnings)(?:\s+(?:loss|income|"
                  r"earnings))?\s+(?:attributable|available)\s+to\s+.*$"]),
     ],
