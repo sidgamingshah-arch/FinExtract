@@ -633,7 +633,7 @@ def _signed_by_convention(rel: "Relation", costs: frozenset[str]) -> bool:
 
 
 def _signed_by_their_own_rules(rel: "Relation", vals: "MappedValues", costs: frozenset[str],
-                               subtotals: frozenset[str], oriented: frozenset[str]) -> bool:
+                               oriented: frozenset[str]) -> bool:
     """Whether every part this filing prints of a sum carries its own sign, whatever the section.
 
     A CAS income statement prints its cost of sales unsigned, so no section of it is signed on the
@@ -641,24 +641,33 @@ def _signed_by_their_own_rules(rel: "Relation", vals: "MappedValues", costs: fro
     no cost at all: 五、净利润 = 四、利润总额 − 减：所得税费用, and 归属于母公司股东的净利润 = 净利润 −
     少数股东损益. Their parts carry their signs two ways the gate did not count:
 
-    * a STATEMENT SUBTOTAL OR TOTAL is printed signed by the filing itself — a CAS one says so in
-      its own caption, 利润总额（亏损总额以“－”号填列） — so it is never an unsigned cost;
-    * a line whose CONFIGURATION ORIENTS IT (`sign_rule.flip_if_label_matches`: 所得税费用, 少数股东损益,
-      税金及附加) is stored in the template's sign by `normalize` on every filing that prints it
-      unsigned, and as printed on one that signs it.
+    * the CAPTION SAYS SO: 四、利润总额（亏损总额以“－”号填列） and 五、净利润（净亏损以“－”号填列）
+      declare that a loss is printed with a minus (`prints_loss_with_minus`, the slots in
+      `MappedValues.signed`), so the figure is signed as printed;
+    * the CONFIGURATION ORIENTS IT (`sign_rule.flip_if_label_matches`: 所得税费用, 少数股东损益,
+      税金及附加): `normalize` stores it in the template's sign on every filing that prints it
+      unsigned.
 
-    So the sum is the template's arithmetic when every part THIS FILING PRINTS is one of those (or a
-    magnitude of this relation), and the target is not a cost. A part the filing does not print
+    A subtotal is NOT signed merely by being one: 财务费用 is a net cost a CAS face prints unsigned,
+    and a profit-before-tax sum over it is no more the arithmetic than one over cost of sales
+    (`tests/test_reviewer_checks.py::test_unsigned_costs_still_establish_nothing`).
+
+    So the sum is the template's arithmetic when every part THIS FILING PRINTS is one of those (or
+    a magnitude of this relation), and the target is not a cost; a part the filing does not print
     takes no part. Measured on the eight filings: net profit and the profit attributable to owners
-    pass on all eight (on the six CAS ones for the first time). Net finance costs stay unchecked:
-    interest income is a line no rule orients, and the CAS 财务费用 also holds the exchange
-    differences the template keeps apart.
+    pass on all six CAS ones, where they were skipped. Net finance costs stay unchecked: interest
+    income is a line no rule orients, and CAS 财务费用 also holds exchange differences the template
+    keeps apart.
     """
     if rel.target in costs:
         return False
     printed = [c for c in rel.components if vals.slots(c)]
-    return bool(printed) and all(c in subtotals or c in oriented or c in rel.magnitudes
-                                 for c in printed)
+
+    def carries_its_sign(key: str) -> bool:
+        return (key in oriented or key in rel.magnitudes
+                or all((key, slot) in vals.signed for slot in vals.slots(key)))
+
+    return bool(printed) and all(carries_its_sign(c) for c in printed)
 
 
 def declared_costs(template: TemplateDefinition, ontology=None) -> frozenset[str]:
@@ -1257,9 +1266,7 @@ def evaluate_structure(template: TemplateDefinition,
     # the face rows; it widens the declared set and never narrows it.
     costs = declared_costs(template, ontology)
     signed_here = _signed_on_filing(items, section_of, costs)
-    # …and which parts carry their own sign whatever the section — see `_signed_by_their_own_rules`.
-    subtotals = frozenset(n.canonical_key for n in template.all_nodes()
-                          if n.canonical_key and n.role in (LineRole.SUBTOTAL, LineRole.TOTAL))
+    # …and which parts the configuration orients — see `_signed_by_their_own_rules`.
     oriented = frozenset(
         str(getattr(m, "canonical_key", "")) for m in (getattr(ontology, "mappings", None) or ())
         if list(getattr(getattr(m, "sign_rule", None), "flip_if_label_matches", None) or ()))
@@ -1340,7 +1347,7 @@ def evaluate_structure(template: TemplateDefinition,
         # on China SCE, and 8 of 12 relations on 000709 where 4 were passing before.
         if (rel.kind == "rollup" and rel.op == "sum" and not rel.signs
                 and not _signs_established(rel, section_of, established, costs)
-                and not _signed_by_their_own_rules(rel, vals, costs, subtotals, oriented)):
+                and not _signed_by_their_own_rules(rel, vals, costs, oriented)):
             report.results.append(_skip(rel, [], "component_signs_not_established", {
                 "sections": sorted({section_of.get(k, "?") for k in keys})}))
             continue
