@@ -910,10 +910,34 @@ def section_relations(template: TemplateDefinition, ontology,
                 rank = (len(pulled & inside), -len(pulled - inside))
                 if best is None or rank >= best:
                     best, subtotal = rank, cand
+            # …AND THE BEST CANDIDATE MAY TOTAL A BLOCK OF THE SECTION, NOT THE SECTION. Coverage
+            # first picks the candidate reaching the most members, and that is the section's own
+            # total only where one exists to be found: a section whose template prints its bottom
+            # lines with no rollup has none. The Ind AS profit and loss is one section, and its
+            # total expenses, profit before tax and profit for the year carry no children; the one
+            # candidate whose rollup reaches anything is total income tax (current, deferred and
+            # earlier years — 3 of the section's 17 lines). The check then asserted total tax =
+            # every line of the statement, and on JSW Steel 2024-25 — the one filing whose costs
+            # count as signed, so the only one it ran on — it failed on both statements by the whole
+            # P&L (standalone 116,451 against a printed tax of 706). The US GAAP profit and loss has
+            # the same shape (gross profit, 3 of 22), and ICON's other-information section a
+            # candidate reaching none of its 3 lines.
+            #
+            # A section's total reaches the section: measured on the four shipped templates, every
+            # chosen total that is one reaches at least 35 of its 42 members (HK current assets,
+            # 83%), and every one that is not reaches 3 of 17, 3 of 22 or 0 of 3. Half is the line
+            # between them. Below it the section has no total the template can reconcile against —
+            # which is what a section with no subtotal node is, and it is reported the same way.
+            refused: dict = {}
+            if subtotal and best is not None and 2 * best[0] <= len(inside):
+                refused = {"no_section_total": {"nearest_subtotal": subtotal,
+                                                "covers": f"{best[0]}/{len(inside)}"}}
+                subtotal = ""
             members = tuple(m for m in members if m != subtotal)
             if not members:
                 continue
-            extra = {"section": section.node_id, "blocks_auto_approval": blocks, "emits": emits}
+            extra = {"section": section.node_id, "blocks_auto_approval": blocks, "emits": emits,
+                     **refused}
             # A PRINTED SUBTOTAL STANDS IN FOR ITS PARTS WHERE NONE OF THEM WAS FOUND. The members
             # are the section's leaves, so a line the template breaks into parts — Inventories into
             # raw materials, work in progress and finished goods — is in the sum only through those
