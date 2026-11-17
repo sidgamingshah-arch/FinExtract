@@ -791,8 +791,11 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
         spread_batches = None
         spread = (ps.evidence or {}).get("spread") if override_batches is None else None
         if spread and ps.kind == PageKind.FACE and not widened_now:
+            sideways = (None if source_kind != "native" or rot else
+                        (lambda r, _p=page, _w=w, _h=h: _native_words(_p, _w, _h, rotation=r)))
             spread_batches, late_notes = _spread_batches(
-                words, spread, ps.index, source_kind, off, notes_chapter, ctx.log)
+                words, spread, ps.index, source_kind, off, notes_chapter, ctx.log,
+                sideways=sideways)
             for seg in late_notes.pop("early", []):
                 notes_carry, notes_grid, notes_group, notes_header = _read_notes(
                     seg, ps.index, source_kind, None, notes_carry, notes_grid, notes_group,
@@ -1039,21 +1042,60 @@ def in_half_frame(words, lo: float, hi: float) -> list:
             for w in words]
 
 
+def in_sideways_half_frame(words, lo: float, hi: float, rotation: int) -> list:
+    """The words of a half of a 2-up spread printed SIDEWAYS on an upright sheet, placed as on
+    the printed page they are once it is turned upright.
+
+    `words` are the sheet's words drawn at `rotation`, in the sheet's reading space
+    (`_native_words(..., rotation=rotation)`), with the sheet box in `page_bbox`. Those whose
+    centre lies on the half's side of the fold are kept, and their reading `y` — which runs
+    across the sheet — is measured across the half, as `in_half_frame` measures an upright half's
+    `x`. The words drawn upright in the half (its running header and folio) are not among them,
+    as on a page printed sideways whole. See `classify._spread_units`."""
+    width = hi - lo
+    if width <= 0:
+        return []
+    start = lo if rotation == 90 else 1.0 - hi
+
+    def _y(y: float) -> float:
+        return min(1.0, max(0.0, (y - start) / width))
+
+    out = []
+    for w in words:
+        sheet = w.page_bbox or w.bbox
+        if not lo <= (sheet.x0 + sheet.x1) / 2 < hi:
+            continue
+        out.append(Word(text=w.text,
+                        bbox=BBox(x0=w.bbox.x0, y0=_y(w.bbox.y0), x1=w.bbox.x1, y1=_y(w.bbox.y1)),
+                        page_bbox=sheet))
+    return out
+
+
 def _spread_batches(words, spread: dict, page_index: int, source_kind: str, off,
-                    notes_chapter, log) -> tuple[list, dict]:
+                    notes_chapter, log, sideways=None) -> tuple[list, dict]:
     """The face batches of a 2-up spread page, one per face half (two where a statement ends part
     way down a half and the next begins), and the notes segments its notes halves hold: `early`
     ones (before any face half) are read before the face, `late` ones after it, as a person's
-    notes parts are."""
+    notes parts are.
+
+    `sideways(rotation)` gives the sheet's words drawn at `rotation`, in reading space; a half
+    classify recorded as printed sideways (`rotation`) is read from those (`in_sideways_half_
+    frame`), not from the upright words, which grouped by their shared height make no rows."""
     from app.services.notes_extract import notes_below_the_face
 
     batches: list = []
     notes: dict = {"early": [], "late": []}
     fold = float(spread["fold"])
     for half_words, half in zip(page_spread.halves(words, fold), spread.get("halves") or []):
+        side, kind = half.get("side"), half.get("kind")
+        rotation = int(half.get("rotation") or 0)
+        bounds = (0.0, fold) if side == "left" else (fold, 1.0)
+        if rotation in (90, 270) and sideways is not None:
+            half_words = in_sideways_half_frame(sideways(rotation), *bounds, rotation)
+            log(f"extract:page={page_index}:spread_{side}:sideways(rotation={rotation},"
+                f"{len(half_words)}_words)")
         if not half_words:
             continue
-        side, kind = half.get("side"), half.get("kind")
         ev = half.get("evidence") or {}
         if kind == PageKind.NOTES.value:
             if "notes" not in off:
@@ -1072,8 +1114,10 @@ def _spread_batches(words, spread: dict, page_index: int, source_kind: str, off,
                 half_words = [w for w in half_words if id(w) not in inside]
                 notes["late"].append(tail)
                 log(f"extract:page={page_index}:spread_{side}:notes_below_face_from_y={opens:.3f}")
-        # A HALF IS READ IN ITS OWN FRAME, as the printed page it is (`in_half_frame`).
-        half_words = in_half_frame(half_words, *((0.0, fold) if side == "left" else (fold, 1.0)))
+        # A HALF IS READ IN ITS OWN FRAME, as the printed page it is (`in_half_frame`); a
+        # sideways half is in its frame already.
+        if not rotation:
+            half_words = in_half_frame(half_words, *bounds)
         title = str(ev.get("matched_title") or "") or None
         split_y, prior = ev.get("matched_title_y"), ev.get("statement_before_title")
         before = ([w for w in half_words if (w.bbox.y0 + w.bbox.y1) / 2 < split_y]

@@ -1275,6 +1275,8 @@ def _opens_a_10k_back_part(lines: list[dict]) -> bool:
 def _page_lines(page) -> tuple[list[dict], float]:
     """Lines as (text, y, size, bold), top-down. Read from the span dict rather than plain text
     because a title's position and weight are evidence the decode uses."""
+    from app.services.pdf_extract import _dir_rotation
+
     height = float(getattr(page.rect, "height", 0.0) or 0.0)
     try:
         data = page.get_text("dict")
@@ -1291,10 +1293,13 @@ def _page_lines(page) -> tuple[list[dict], float]:
                 size = max((float(s.get("size", 0.0)) for s in spans), default=0.0)
                 bold = any("bold" in str(s.get("font", "")).lower() for s in spans)
                 box = line.get("bbox", (0, 0, 0, 0))
-                # x is kept so a 2-up spread can be read one printed page at a time
-                # (`_spread_units`); nothing else reads it.
+                # x, the line's far edge and its writing direction are kept so a 2-up spread can
+                # be read one printed page at a time (`_spread_units`), a half printed sideways
+                # in its own reading frame; nothing else reads them.
                 lines.append({"text": text, "y": float(box[1]), "size": size, "bold": bold,
-                              "x0": float(box[0]), "x1": float(box[2])})
+                              "x0": float(box[0]), "x1": float(box[2]), "y1": float(box[3]),
+                              "rot": _dir_rotation(line.get("dir")),
+                              "chars": sum(len(s.get("text", "")) for s in spans)})
         lines.sort(key=lambda l: l["y"])
     if not lines:
         raw = page.get_text("text") or ""
@@ -1421,11 +1426,54 @@ def _spread_fold(page) -> float | None:
         return None
 
 
+def _half_rotation(lines: list[dict]) -> int:
+    """The writing direction most of a half's text is drawn in (`pdf_extract.text_rotation`'s
+    sense), weighted by characters so the half's upright running header cannot outvote its body."""
+    weights: dict[int, int] = {}
+    for line in lines:
+        rot = int(line.get("rot") or 0)
+        weights[rot] = weights.get(rot, 0) + int(line.get("chars") or len(line.get("text") or ""))
+    return max(weights, key=lambda r: weights[r]) if weights else 0
+
+
+def _sideways_half(lines: list[dict], lo: float, hi: float, page_h: float,
+                   rot: int) -> tuple[list[dict], float]:
+    """A half printed sideways, in its own reading frame: `(lines, height)`.
+
+    The lines drawn at the half's angle only — its upright running header and folio are a
+    quarter-turn from the body, as on a page printed sideways whole (`pdf_extract._native_words`)
+    — with `y` measured down the printed page as it reads once turned upright, which on the sheet
+    runs across the half: from its left edge for text that runs up the sheet (90), from its right
+    edge for text that runs down it (270). The half's height is the half's width."""
+    out = []
+    for line in lines:
+        if int(line.get("rot") or 0) != rot:
+            continue
+        x0, x1 = float(line["x0"]), float(line["x1"])
+        top, bottom = float(line["y"]), float(line.get("y1", line["y"]))
+        if rot == 90:
+            y, rx0, rx1 = x0 - lo, page_h - bottom, page_h - top
+        else:
+            y, rx0, rx1 = hi - x1, top, bottom
+        out.append({**line, "y": y, "x0": rx0, "x1": rx1, "rot": 0})
+    out.sort(key=lambda line: line["y"])
+    return out, hi - lo
+
+
 def _spread_units(pdf, pages: list, cache: list, texts: list, *, log=None):
     """`(pages, cache, texts, spreads)` with every spread page replaced by its two halves.
 
-    `spreads` maps a page's index to `(fold, number_of_halves)`. A half's lines are the lines whose
-    centre lies on its side of the fold; a half holding no line is dropped."""
+    `spreads` maps a page's index to `(fold, number_of_halves, rotations)`. A half's lines are the
+    lines whose centre lies on its side of the fold; a half holding no line is dropped.
+
+    A HALF MAY BE PRINTED SIDEWAYS ON AN UPRIGHT SHEET. JSW Steel's integrated report 2024-25,
+    sheet 219: the standalone statement of changes in equity is set a quarter-turn on the left
+    page, beside the cash flow printed upright on the right. The sheet reads upright, so the half's
+    title was never a line of its title zone; the half was decoded as a face with no title and
+    took the statement before it, profit and loss, and its movements were read as P&L and OCI
+    lines (other income -190, OCI items 301 / 208 and -890). Such a half is read in its own
+    reading frame (`_sideways_half`), as a page printed sideways whole already is, and its angle
+    is recorded (`rotations`) for `pdf_extract`, which reads its words the same way."""
     out_pages, out_cache, out_texts, spreads = [], [], [], {}
     for page_src, (lines, height), text in zip(pages, cache, texts):
         fold = _spread_fold(pdf[page_src.index]) if lines and "x0" in lines[0] else None
@@ -1435,17 +1483,29 @@ def _spread_units(pdf, pages: list, cache: list, texts: list, *, log=None):
             cut = fold * width
             left = [line for line in lines if (line["x0"] + line["x1"]) / 2 < cut]
             right = [line for line in lines if (line["x0"] + line["x1"]) / 2 >= cut]
-            halves = [half for half in (left, right) if half]
+            halves = [(half, bounds) for half, bounds in ((left, (0.0, cut)),
+                                                           (right, (cut, width))) if half]
         if len(halves) < 2:
             out_pages.append(page_src)
             out_cache.append((lines, height))
             out_texts.append(text)
             continue
-        spreads[page_src.index] = (fold, len(halves))
-        for half in halves:
+        rotations = []
+        for half, (lo, hi) in halves:
+            rot = _half_rotation(half)
+            half_h = height
+            if rot in (90, 270):
+                half, half_h = _sideways_half(half, lo, hi, height, rot)
+                if log:
+                    log(f"classify:page={page_src.index}:spread_half_sideways"
+                        f"({_SIDES[len(rotations)]},rotation={rot})")
+            else:
+                rot = 0
+            rotations.append(rot)
             out_pages.append(page_src.model_copy(deep=True))
-            out_cache.append((half, height))
+            out_cache.append((half, half_h))
             out_texts.append("\n".join(line["text"] for line in half))
+        spreads[page_src.index] = (fold, len(halves), tuple(rotations))
     if spreads and log:
         log(f"classify:spread_pages={len(spreads)} (each half read as a printed page)")
     return out_pages, out_cache, out_texts, spreads
@@ -1544,6 +1604,7 @@ def _merge_spread_units(whole_pages: list, whole_cache: list, units: list, sprea
             continue
         halves = by_index.get(page.index) or []
         fold = spreads[page.index][0]
+        rotations = tuple(spreads[page.index][2]) + (0,) * len(halves)
         lead = (next((u for u in halves if u.kind is PageKind.FACE), None)
                 or next((u for u in halves if u.kind is PageKind.NOTES), None) or halves[0])
         page.kind, page.statement, page.scope = lead.kind, lead.statement, lead.scope
@@ -1556,8 +1617,9 @@ def _merge_spread_units(whole_pages: list, whole_cache: list, units: list, sprea
             "fold": round(float(fold), 4),
             "halves": [{"side": side, "kind": u.kind.value, "statement": u.statement,
                         "scope": u.scope, "scope_columns": list(u.scope_columns or []),
-                        "evidence": dict(u.evidence or {})}
-                       for side, u in zip(_SIDES, halves)]}
+                        "evidence": dict(u.evidence or {}),
+                        **({"rotation": rot} if rot else {})}
+                       for side, u, rot in zip(_SIDES, halves, rotations)]}
         if log and any(u.kind is PageKind.FACE for u in halves):
             log(f"classify:page={page.index}:spread("
                 + ",".join(f"{side}={u.kind.value}:{u.statement or '-'}:{u.scope or '-'}"
