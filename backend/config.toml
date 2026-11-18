@@ -154,6 +154,7 @@ model = "us.anthropic.claude-opus-4-7"   # the Bedrock model id, exactly as the 
 # run_analysis's 4096 (services/analysis_llm.py) — so nothing is truncated by the change.
 max_tokens = 32768
 timeout_seconds = 120   # one attempt's wait for a reply; at most 120 (the field refuses more)
+document_timeout_seconds = 300   # …a request that carries the PDF itself (extraction.whole_pdf_to_model); at most 900
 retries = 1             # attempts after the first, on a timeout, a dropped connection or a 429/5xx
 base_url = "https://llmgateway.crisil.local/api/bedrock"   # requests go to <base_url>/model/<model>/invoke
 api_key_env = "LLM_GATEWAY_TOKEN"   # env var the key is read from (the key itself is NOT stored here)
@@ -251,6 +252,19 @@ llm_document_context = "anywhere"
 ocr_scanned_pages = true        # read pages with no text layer by OCR ([ocr] engine); admin-switchable
 document_reader = "off"          # off | kensho — a hosted document engine ([document_engine]); admin-switchable
 document_reader_pages = "scanned" # scanned (in place of OCR) | all (in place of the text layer)
+# THE WHOLE PDF TO THE MODEL, IN PLACE OF THE EXTRACTION. Off: a filing is read as always (rows
+# rebuilt from the page, placed on the template's lines by the rules). On: the pages are classified,
+# then the PDF FILE itself goes to the model with the template's lines, and the model returns each
+# line's figures with the page it read them on; every figure is looked for on that page in the PDF's
+# own text and sent to review when it is not there. Row reconstruction, note tables and mapping are
+# skipped; units, signs and the checks run on the model's figures. A provider that cannot take a
+# file, or a run where no request succeeds, is read by the rules and the log says why. Admin-
+# switchable from the Settings screen, with the four limits below.
+whole_pdf_to_model = false
+whole_pdf_pages = "statements"    # statements (the classifier's statement and notes pages) | all
+whole_pdf_pages_per_request = 100 # a longer selection goes in parts; Claude: 600 a request, 100 under a 1M window
+whole_pdf_max_request_mb = 20     # the largest request, the PDF counted in base64; Claude's API takes 32, Bedrock less
+whole_pdf_lines_per_request = 60  # template lines one request asks about (the file is cached after the first)
 # HOW MANY LINE-ITEM REQUESTS ARE SENT AT ONCE, after the first (which always goes alone, so the
 # provider can cache the shared beginning of the prompt). Replies are processed in order either way.
 llm_parallel_requests = 4

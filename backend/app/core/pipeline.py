@@ -21,6 +21,12 @@ class Pipeline:
         n = len(self.stages)
         for i, stage in enumerate(self.stages):
             ctx.emit_progress(stage.name, round(i / max(n, 1), 3))
+            only = getattr(ctx, "only_stages", None)
+            if only is not None and stage.name not in only:
+                # A stage that decided the rest does not apply said which still run
+                # (`stages.whole_pdf`): the others are named, so the log shows what did not run.
+                ctx.log(f"stage:{stage.name}:skipped")
+                continue
             ctx.log(f"stage:{stage.name}:start")
             doc = stage.run(doc, ctx)
             ctx.log(f"stage:{stage.name}:done")
@@ -31,6 +37,31 @@ class Pipeline:
                 break
         ctx.emit_progress("done", 1.0)
         return doc
+
+
+def pipeline_for(settings) -> Pipeline:
+    """The pipeline a run assembles: `default_pipeline()`, or — with
+    `extraction.whole_pdf_to_model` on — the same with the whole-PDF stage after the page
+    classifier (`whole_pdf_pipeline`)."""
+    if getattr(getattr(settings, "extraction", None), "whole_pdf_to_model", False):
+        return whole_pdf_pipeline()
+    return default_pipeline()
+
+
+def whole_pdf_pipeline() -> Pipeline:
+    """`default_pipeline()` with `stages.whole_pdf` straight after the page classifier.
+
+    The stage sends the PDF itself to the model and, when the model has answered, names the
+    stages still to run (`PipelineContext.only_stages`); the others are skipped. When it cannot —
+    no provider that takes a file, or no request answered — it leaves the document as it was and
+    every stage runs: the filing is read by the rules.
+    """
+    from app.stages.whole_pdf import WholePdfStage
+
+    stages = list(default_pipeline().stages)
+    at = next(i for i, st in enumerate(stages) if st.name == "classify") + 1
+    stages.insert(at, WholePdfStage())
+    return Pipeline(stages=stages)
 
 
 def default_pipeline() -> Pipeline:

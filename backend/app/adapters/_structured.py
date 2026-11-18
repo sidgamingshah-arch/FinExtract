@@ -62,10 +62,53 @@ def messages_body(system: str, messages, *, cache: bool) -> tuple[object, list[d
     def block(text: str) -> list[dict]:
         return [{"type": "text", "text": text, "cache_control": dict(CACHE_CONTROL)}]
 
-    body_messages = [{"role": m["role"],
-                      "content": block(m["content"]) if cache and m.get("cache") else m["content"]}
-                     for m in messages]
+    def content(m) -> object:
+        if m.get("documents"):
+            return document_content(m, cache=cache)
+        return block(m["content"]) if cache and m.get("cache") else m["content"]
+
+    body_messages = [{"role": m["role"], "content": content(m)} for m in messages]
     return (block(system) if cache else system), body_messages
+
+
+def document_content(message, *, cache: bool) -> list[dict]:
+    """A message carrying files, as Anthropic Messages content: each file as a base64 `document`
+    block, then the message's text. The files come FIRST, which is where the Messages API wants a
+    PDF, and with `cache` the last of them ends in a breakpoint — the file is the large part every
+    request of a run sends again, so the requests after the first read it from the cache. A
+    message marked `cache` keeps its own breakpoint after the text as well.
+    """
+    docs = [{"type": "document",
+             "source": {"type": "base64", "media_type": d["media_type"], "data": d["data"]}}
+            for d in message.get("documents") or ()]
+    if cache and docs:
+        docs[-1]["cache_control"] = dict(CACHE_CONTROL)
+    text: dict = {"type": "text", "text": message["content"]}
+    if cache and message.get("cache"):
+        text["cache_control"] = dict(CACHE_CONTROL)
+    return [*docs, text]
+
+
+def chat_content(message) -> object:
+    """A message's content in the Chat Completions format: its text, or, when it carries files,
+    each as a `file` part (a data URL, named neutrally) followed by the text."""
+    if not message.get("documents"):
+        return message["content"]
+    parts: list[dict] = [{"type": "file",
+                          "file": {"filename": d.get("name") or f"document-{i}.pdf",
+                                   "file_data": f"data:{d['media_type']};base64,{d['data']}"}}
+                         for i, d in enumerate(message["documents"], start=1)]
+    return [*parts, {"type": "text", "text": message["content"]}]
+
+
+def request_timeout(settings, messages) -> float:
+    """Seconds one attempt may wait. A request carrying a file waits `llm.document_timeout_seconds`
+    — the model reads every page before it answers — and every other request
+    `llm.timeout_seconds`, as before."""
+    llm = settings.llm
+    if any(m.get("documents") for m in messages or ()):
+        return float(getattr(llm, "document_timeout_seconds", llm.timeout_seconds))
+    return float(llm.timeout_seconds)
 
 
 def strip_fences(text: str) -> str:

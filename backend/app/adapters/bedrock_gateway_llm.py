@@ -16,7 +16,7 @@ import httpx
 from pydantic import BaseModel
 
 from app.adapters._structured import (LlmConfigError, cache_prices, messages_body,
-                                      schema_instruction, strip_fences)
+                                      request_timeout, schema_instruction, strip_fences)
 from app.config import Settings, get_settings
 from app.ports.llm import LlmMessage, LlmMeta, anthropic_usage
 
@@ -31,6 +31,9 @@ _RETRY_PAUSE_SECONDS = 2.0
 
 class BedrockGatewayLlmProvider:
     id = "bedrock_gateway"
+    # Sends a PDF as a `document` block in the Bedrock Anthropic body
+    # (`ports.llm.LlmMessage.documents`).
+    takes_documents = True
 
     def __init__(self, settings: Settings | None = None):
         self._settings = settings or get_settings()
@@ -84,7 +87,8 @@ class BedrockGatewayLlmProvider:
         headers = {**self._auth_headers(), "Content-Type": "application/json"}
         body = self.build_body(system=system, messages=messages,
                                response_schema=response_schema, max_tokens=max_tokens)
-        response = self._post(endpoint, headers, body)
+        response = self._post(endpoint, headers, body,
+                              timeout=request_timeout(self._settings, messages))
         response.raise_for_status()
         payload = response.json()
         text = "".join(block.get("text", "") for block in payload.get("content", [])
@@ -104,7 +108,8 @@ class BedrockGatewayLlmProvider:
             **anthropic_usage(payload.get("usage") or {}),
         }
 
-    def _post(self, endpoint: str, headers: dict, body: dict) -> httpx.Response:
+    def _post(self, endpoint: str, headers: dict, body: dict,
+              timeout: float | None = None) -> httpx.Response:
         """POST the request, and once more if the first attempt failed for a reason a second may not.
 
         A TIMEOUT USED TO LOSE THE WHOLE REQUEST. This adapter made one attempt, so one slow reply
@@ -115,13 +120,14 @@ class BedrockGatewayLlmProvider:
         (`_RETRY_STATUSES`). A refusal of the request itself (400, 401, 403, 404) fails at once,
         because sending it again sends the same mistake again.
 
-        `llm.retries` attempts after the first (1), each bounded by `llm.timeout_seconds`.
+        `llm.retries` attempts after the first (1), each bounded by `timeout` — `llm.timeout_seconds`,
+        or `llm.document_timeout_seconds` for a request carrying a PDF (`request_timeout`).
         """
         cfg = self._settings.llm
         attempts = 1 + max(0, int(getattr(cfg, "retries", 1) or 0))
         for attempt in range(1, attempts + 1):
             try:
-                with httpx.Client(timeout=cfg.timeout_seconds,
+                with httpx.Client(timeout=timeout or cfg.timeout_seconds,
                                   verify=not cfg.disable_ssl_verify) as client:
                     response = client.post(endpoint, headers=headers, json=body)
             except httpx.TransportError as exc:

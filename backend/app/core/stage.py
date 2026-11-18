@@ -58,6 +58,13 @@ class PipelineContext:
     # degraded run is never mistaken for a full-capability one downstream.
     mapping_strategy: str = ""
     mapping_strategy_reason: str = ""
+    # THE STAGES STILL TO RUN, when a stage has decided the rest of the pipeline does not apply —
+    # set by `stages.whole_pdf` once the model has read the file itself, so the stages that
+    # rebuild rows from the page are skipped (`core.pipeline.Pipeline.run`). None runs every stage.
+    only_stages: frozenset[str] | None = None
+    # What the whole-PDF route sent and got back (`stages.whole_pdf`): pages, parts, requests,
+    # lines answered and how each figure checked against its page. None on every other run.
+    whole_pdf: dict | None = None
 
     def log(self, message: str) -> None:
         self.logs.append(message)

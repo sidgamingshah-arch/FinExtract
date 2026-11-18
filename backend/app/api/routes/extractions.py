@@ -63,14 +63,16 @@ _LOG_TAIL_LINES = 100
 def pipeline_stage_names() -> list[str]:
     """The stage names a run passes through, in the order the pipeline assembles them.
 
-    Read off ``default_pipeline()`` on every call, never copied into a literal here. The published
+    Read off ``pipeline_for(settings)`` on every call, never copied into a literal here. The published
     stage list has been wrong once already — a stated pipeline that was missing four of the stages
     that actually run — and a second copy of it is a second thing to go stale the next time a stage
     is added. A screen ticking stages off against a stale list mislabels every run.
     """
-    from app.core.pipeline import default_pipeline
+    from app.config import get_settings
+    from app.core.pipeline import pipeline_for
 
-    return [stage.name for stage in default_pipeline().stages]
+    # The pipeline the next run will assemble — with the whole-PDF stage when that switch is on.
+    return [stage.name for stage in pipeline_for(get_settings()).stages]
 
 
 def _log_tail(lines: list[str] | None) -> str:
@@ -1906,6 +1908,9 @@ def _run_extraction_task(run_id: str, object_key: str, filename: str, options: d
             "mapping": {
                 "strategy": ctx.mapping_strategy or "deterministic",
                 "reason": ctx.mapping_strategy_reason,
+                # What the whole-PDF route sent and how its figures checked, on a run it read
+                # (`stages.whole_pdf`); absent on every other run.
+                **({"whole_pdf": ctx.whole_pdf} if getattr(ctx, "whole_pdf", None) else {}),
                 "llm_calls": ctx.llm_calls,
                 "llm_failures": ctx.llm_failures,
                 "model": ctx.llm_model or "",

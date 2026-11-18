@@ -127,6 +127,12 @@ class LlmSettings(BaseModel):
     # current-liability lines). Capped rather than merely defaulted, so a larger value fails at
     # startup naming the field instead of silently waiting longer.
     timeout_seconds: int = Field(default=120, ge=1, le=120)
+    # …EXCEPT A REQUEST THAT CARRIES THE PDF ITSELF (`extraction.whole_pdf_to_model`): the model
+    # reads every page sent — up to a hundred, text and picture — before it writes a word, and the
+    # first request of a run also fills the prompt cache with them. Those requests wait this long;
+    # every other request still waits `timeout_seconds`. Read by the four adapters through
+    # `adapters._structured.request_timeout`.
+    document_timeout_seconds: int = Field(default=300, ge=1, le=900)
     # ATTEMPTS AFTER THE FIRST, for a timeout, a dropped connection or a busy gateway (429/5xx) —
     # read by the Bedrock gateway adapter (`adapters.bedrock_gateway_llm._post`). One retry.
     retries: int = Field(default=1, ge=0, le=3)
@@ -514,6 +520,31 @@ class ExtractionSettings(BaseModel):
     # "scanned": only pages with no text layer (in place of OCR). "all": every page read, the
     # engine's text replacing the PDF's own — for filings whose text layer is unreliable.
     document_reader_pages: Literal["scanned", "all"] = "scanned"
+    # THE WHOLE PDF TO THE MODEL, IN PLACE OF THE EXTRACTION (`stages.whole_pdf`). Off, a filing is
+    # read as always: rows rebuilt from the page, mapped to the template's lines by the rules, the
+    # model asked only where a line's figure is printed. On, the pages are classified as before
+    # (cheap, and what the Page Scope screen shows), and then the PDF itself — not text the app
+    # read out of it — is sent to the model with the template's lines, and the model returns each
+    # line's figures with the page it read them on. The row reconstruction, the note tables, the
+    # mapping and every stage that works on them are skipped; units, signs and the template's
+    # checks run on the model's figures as on the rules'. Every figure is looked for on the page
+    # it cites, in the PDF's own text, and says whether it was found. If the provider cannot take a
+    # file, or no request succeeds, the run is read by the rules and the log says why. Needs a
+    # provider that takes files (anthropic, bedrock_gateway, openai, azure_openai).
+    whole_pdf_to_model: bool = False
+    # Which pages go: "statements" — the pages the classifier found to be statements and notes
+    # (or the pages a person chose on the Page Scope screen); "all" — every page.
+    whole_pdf_pages: Literal["statements", "all"] = "statements"
+    # The most pages one request carries; a longer selection is sent in consecutive parts, each
+    # asked every line. Claude reads at most 600 pages a request, and 100 on a model whose window
+    # is under a million tokens.
+    whole_pdf_pages_per_request: int = Field(default=100, ge=1, le=600)
+    # The largest request the provider takes, in megabytes, counting the PDF in base64. A part
+    # over it is halved. Claude's own API takes 32 MB; Amazon Bedrock is lower, hence 20.
+    whole_pdf_max_request_mb: int = Field(default=20, ge=1, le=128)
+    # Template lines asked in one request. Each request sends the same file, cached after the
+    # first, so a smaller number means more requests that each write a shorter reply.
+    whole_pdf_lines_per_request: int = Field(default=60, ge=5, le=300)
     # HOW MANY LINE-ITEM REQUESTS ARE IN FLIGHT AT ONCE. The first request of a run is always
     # sent on its own (it is the one that fills the provider's prompt cache), then up to this many
     # together. Replies are processed in plan order either way, so the figures a run writes do not

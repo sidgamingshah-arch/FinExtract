@@ -70,6 +70,8 @@ def _snapshot() -> dict:
             # ports.llm's default 0.0; see config.LlmSettings.
             "max_tokens": s.llm.max_tokens,
             "timeout_seconds": s.llm.timeout_seconds,
+            # …and a request that carries the PDF itself (extraction.whole_pdf_to_model).
+            "document_timeout_seconds": s.llm.document_timeout_seconds,
             "base_url": s.llm.base_url,
             "api_key_env": s.llm.api_key_env,
             "key_configured": bool(os.environ.get(s.llm.api_key_env)),

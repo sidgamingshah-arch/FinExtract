@@ -11,7 +11,7 @@ from __future__ import annotations
 import hashlib
 
 from app.core.models import DocumentModel
-from app.core.pipeline import Pipeline, default_pipeline
+from app.core.pipeline import Pipeline, pipeline_for
 from app.core.stage import PipelineContext
 from app.stages.classify import ClassifyStage
 from app.stages.ingest import IngestStage
@@ -79,5 +79,7 @@ def run_extraction(data: bytes, filename: str = "", ontology=None,
     # which is exactly too late to report on a run in flight.
     if context_cb is not None:
         context_cb(ctx)
-    doc = default_pipeline().run(doc, ctx)
+    # `extraction.whole_pdf_to_model` chooses it: the default pipeline, or the same with the
+    # whole-PDF stage after the page classifier (`core.pipeline.pipeline_for`).
+    doc = pipeline_for(ctx.settings).run(doc, ctx)
     return doc, ctx

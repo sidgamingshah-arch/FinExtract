@@ -12,6 +12,14 @@ from typing import NotRequired, Protocol, Sequence, TypedDict, runtime_checkable
 from pydantic import BaseModel
 
 
+class LlmDocument(TypedDict):
+    """A FILE SENT TO THE MODEL AS ITSELF — a PDF, in base64 — rather than as text the app read
+    out of it. Carried by the whole-PDF route (`services.whole_pdf`) and nothing else."""
+    media_type: str          # "application/pdf"
+    data: str                # the file, base64, one line
+    name: str                # a neutral name, "document-1.pdf" — never the uploaded file's own
+
+
 class LlmMessage(TypedDict):
     role: str
     content: str
@@ -22,6 +30,22 @@ class LlmMessage(TypedDict):
     # provider caches by prefix on its own, or not at all, sends `role` and `content` only and
     # never forwards it.
     cache: NotRequired[bool]
+    # FILES SENT BEFORE THIS MESSAGE'S TEXT, in order. Only an adapter whose class says
+    # `takes_documents = True` is handed a message carrying them (`takes_documents`); it sends each
+    # as the provider's own file block — a `document` block on the Anthropic body, a `file` part
+    # on Chat Completions — and, where it caches, ends the files with a breakpoint, so the
+    # requests after the first read the file from the cache.
+    documents: NotRequired[list[LlmDocument]]
+
+
+def takes_documents(provider) -> bool:
+    """Whether this provider can be sent a file as itself (`LlmMessage.documents`)."""
+    return bool(getattr(provider, "takes_documents", False))
+
+
+def carries_documents(messages) -> bool:
+    """Whether any of these messages carries a file."""
+    return any(m.get("documents") for m in messages or ())
 
 
 class LlmMeta(TypedDict, total=False):

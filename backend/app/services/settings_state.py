@@ -129,6 +129,42 @@ EXTRACTION_KNOBS: tuple[Knob, ...] = (
          "page from the engine's answer instead of the PDF's text layer: for filings whose text "
          "layer is broken or scrambled. Only read when an engine is chosen above.",
          choices=("scanned", "all")),
+    Knob("whole_pdf_to_model", "bool", "Send the whole PDF to the model (skip extraction)",
+         "Off (the default), a filing is read as always: rows are rebuilt from each page and "
+         "placed on the template's lines by the rules, and the model is only asked where a line's "
+         "figure is printed. On, the pages are still classified (what the Page Scope screen "
+         "shows), and then the PDF FILE ITSELF is sent to the model with the template's lines — "
+         "the model sees each page as printed, tables and columns intact — and returns each "
+         "line's figures with the page it read them on. Row reconstruction, note tables and "
+         "mapping are skipped; units, signs and the template's checks run on the model's figures "
+         "exactly as on the rules'. Every figure is looked for on the page it cites, in the PDF's "
+         "own text, and is marked unconfirmed for review when it is not there. It costs more: "
+         "each request carries the pages (text and picture, roughly 1,500 to 4,800 tokens a "
+         "page), cached after the first request of the run. Needs a provider that takes files "
+         "(anthropic, bedrock_gateway, openai, azure_openai); if the provider refuses the file "
+         "or no request succeeds, the run is read by the rules and the run log says why."),
+    Knob("whole_pdf_pages", "choice", "Pages sent with the whole PDF",
+         "Only read when the switch above is on. \"statements\" sends the pages the classifier "
+         "found to be financial statements and notes — or the pages chosen on the Page Scope "
+         "screen — which is usually a third to a half of an annual report and far cheaper. "
+         "\"all\" sends every page, for a filing whose statements the classifier does not find.",
+         choices=("statements", "all")),
+    Knob("whole_pdf_pages_per_request", "number", "Pages in one request (whole PDF)",
+         "The most pages one request carries. A longer selection is sent in consecutive parts, "
+         "each asked every line, and a figure read in two parts keeps the one from a statement "
+         "page. Claude reads at most 600 pages a request, and 100 on a model whose context "
+         "window is under a million tokens.",
+         minimum=1, maximum=600, step=1),
+    Knob("whole_pdf_max_request_mb", "number", "Largest request in MB (whole PDF)",
+         "The largest request the provider accepts, counting the PDF in base64 (a third larger "
+         "than the file). A part over it is split in two until it fits; a single page over it is "
+         "not sent and the log names it. Claude's own API takes 32 MB; Amazon Bedrock less.",
+         minimum=1, maximum=128, step=1),
+    Knob("whole_pdf_lines_per_request", "number", "Template lines per request (whole PDF)",
+         "How many template lines one request asks about. Every request sends the same file, "
+         "read from the provider's cache after the first, so a smaller number means more, "
+         "shorter requests: each reply is written faster and a reply cut short loses fewer lines.",
+         minimum=5, maximum=300, step=1),
     Knob("llm_parallel_requests", "number", "Requests sent at once",
          "How many line-item requests are in flight together. The first request of a run is "
          "always sent on its own — it fills the provider's prompt cache — and the rest follow "

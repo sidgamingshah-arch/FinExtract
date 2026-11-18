@@ -21,15 +21,17 @@ from typing import Sequence
 from pydantic import BaseModel
 
 from app.adapters._structured import (LlmConfigError, cache_prices, messages_body,
-                                      schema_instruction, strip_fences)
+                                      request_timeout, schema_instruction, strip_fences)
 from app.config import Settings, get_settings
-from app.ports.llm import LlmMessage, LlmMeta, anthropic_usage
+from app.ports.llm import LlmMessage, LlmMeta, anthropic_usage, carries_documents
 
 __all__ = ["AnthropicLlmProvider", "LlmConfigError"]
 
 
 class AnthropicLlmProvider:
     id = "anthropic"
+    # Sends a PDF as a `document` block (`ports.llm.LlmMessage.documents`).
+    takes_documents = True
 
     def __init__(self, settings: Settings | None = None):
         self._settings = settings or get_settings()
@@ -98,6 +100,10 @@ class AnthropicLlmProvider:
             system=system, messages=messages,
             response_schema=response_schema, max_tokens=max_tokens,
         )
+        # A request carrying a PDF waits `llm.document_timeout_seconds` (`request_timeout`);
+        # every other request is sent exactly as before, on the client's own timeout.
+        if carries_documents(messages):
+            client = client.with_options(timeout=request_timeout(self._settings, messages))
         resp = client.messages.create(**req)
 
         text = "".join(

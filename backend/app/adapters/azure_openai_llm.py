@@ -81,7 +81,7 @@ class AzureOpenAiLlmProvider(OpenAiLlmProvider):
         """
         import httpx
 
-        from app.adapters._structured import strip_fences
+        from app.adapters._structured import request_timeout, strip_fences
 
         cfg = self._settings.llm
         headers = self._headers()
@@ -100,7 +100,7 @@ class AzureOpenAiLlmProvider(OpenAiLlmProvider):
         json_mode, renamed_cap, drop_temperature = True, False, False
         try:
             with httpx.Client(
-                timeout=cfg.timeout_seconds,
+                timeout=request_timeout(self._settings, messages),
                 verify=not cfg.disable_ssl_verify,
             ) as client:
                 for _ in range(4):                       # one attempt per adaptation, then give up

@@ -22,7 +22,13 @@ from typing import Sequence
 import httpx
 from pydantic import BaseModel
 
-from app.adapters._structured import LlmConfigError, extract_json, schema_instruction
+from app.adapters._structured import (
+    LlmConfigError,
+    chat_content,
+    extract_json,
+    request_timeout,
+    schema_instruction,
+)
 from app.config import Settings, get_settings
 from app.ports.llm import LlmMessage, LlmMeta, openai_usage
 
@@ -78,6 +84,10 @@ def _completion_limit_from_error(message: str) -> int | None:
 
 class OpenAiLlmProvider:
     id = "openai"
+    # Sends a PDF as a Chat Completions `file` part (`ports.llm.LlmMessage.documents`). An endpoint
+    # that does not take one answers 400, and the whole-PDF route then reads the filing by the
+    # rules (`stages.whole_pdf`).
+    takes_documents = True
 
     def __init__(self, settings: Settings | None = None):
         self._settings = settings or get_settings()
@@ -127,7 +137,7 @@ class OpenAiLlmProvider:
         body: dict = {
             "model": self._settings.llm.model,
             "messages": [{"role": "system", "content": full_system},
-                         *[{"role": m["role"], "content": m["content"]} for m in messages]],
+                         *[{"role": m["role"], "content": chat_content(m)} for m in messages]],
             "temperature": temperature,
             "max_tokens": max_tokens,
         }
@@ -202,7 +212,7 @@ class OpenAiLlmProvider:
 
         try:
             with httpx.Client(
-                timeout=self._settings.llm.timeout_seconds,
+                timeout=request_timeout(self._settings, messages),
                 verify=not self._settings.llm.disable_ssl_verify,
             ) as client:
                 # Retry transient gateway/transport failures with backoff; a 5xx or network blip

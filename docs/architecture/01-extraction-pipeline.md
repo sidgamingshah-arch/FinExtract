@@ -675,6 +675,63 @@ column alignment, with an ALL-CAPS/`:`-suffixed section-header guard) so heading
 swallowed into the item below them. It also has a second path for a **matrix** statement
 (changes in equity), whose columns are equity components rather than periods.
 
+## The whole PDF to the model — an admin switch, off by default
+
+`extraction.whole_pdf_to_model` (Settings screen; `config.toml [extraction]`). **Off, nothing
+above changes**: `core/pipeline.py::pipeline_for` assembles `default_pipeline()` and the stage
+below is not in it. **On**, the run assembles `whole_pdf_pipeline()` — the same list with
+`whole_pdf` straight after `classify` — and the filing is read differently:
+
+1. `ingest · integrity · language_detect · classify` run as always, so the page map and the Page
+   Scope screen are what they were.
+2. `stages/whole_pdf.py` sends the PDF **file itself** to the model, not text the app read out of
+   it: the pages the classifier found to be statements and notes (`whole_pdf_pages =
+   "statements"`), every page (`"all"`), or the pages a person chose on the Page Scope screen.
+   They go as one or more PDF parts cut from the original (`services/whole_pdf.py::build_parts`):
+   at most `whole_pdf_pages_per_request` pages and `whole_pdf_max_request_mb` a part, in even
+   parts. The model is asked for the template's lines — the `extracted` ones and the printed
+   totals of the `calculated` ones, never an internal `sub__` part — `whole_pdf_lines_per_request`
+   at a time, one statement per request, and answers each with its figures: basis, period, the
+   amount as printed, the page of the file it read it on, the caption, and the printed rows of a
+   figure that is a sum of rows.
+3. The file is sent as the provider's own file block (`ports/llm.py::LlmMessage.documents`): a
+   base64 `document` block on the Anthropic body (`anthropic`, `bedrock_gateway`), ending in a
+   cache breakpoint so every request after the first reads it from the prompt cache; a `file`
+   part on Chat Completions (`openai`, `openai_compatible`, `azure_openai`). Such a request waits
+   `llm.document_timeout_seconds`. The first request of each part goes alone (it fills the
+   cache), the rest `llm_parallel_requests` at a time.
+4. The stage writes one row per line and basis, with `printed_in` from the page's kind, and names
+   the stages still to run (`PipelineContext.only_stages`): `normalize` (the statements' units,
+   the template's sign rules), `confidence`, `structural` (the template's checks, comparing a
+   printed total with its printed parts, both read by the model), `disclosure_reading` and
+   `segment`. Every other stage works on rows rebuilt from the page or on note tables, and is
+   logged `stage:<name>:skipped`.
+
+**This route is the one exception to "the LLM references facts, it never emits values"** (next
+section): here the model writes the figure. So every figure is checked against the PDF's own text
+(`services/whole_pdf.py::check_figure`): found on the page it cites (`whole_pdf:on_page`); a sum
+whose rows are all on the page and add up (`parts_on_page`); on exactly one other page of the part
+and moved there, the common case being a model citing the printed folio (`moved`); a nil
+(`nil`); a page with no text layer (`no_text`); or not found (`not_found`). `no_text` and
+`not_found`, and a line given two different figures for one slot by two parts, raise
+`low_mapping_confidence` and go to review; a `not_found` figure's confidence is 0.3, below the
+auto-accept bar. The run result's `mapping.whole_pdf` counts each outcome.
+
+**It never leaves a run with nothing.** No line-item set, a file that is not a PDF, the `stub`
+provider, a provider that cannot be sent a file, a first request that fails (the file refused, or
+the provider not answering) or no request answered: the stage logs
+`whole_pdf:fallback(<why>)`, leaves the document as it was, and every stage runs — the rules read
+the filing.
+
+**What it costs**, measured as the request shape on ten corpus filings with the defaults (no model
+called): statement and notes pages are 28 to 180 of 97 to 383 pages; one or two parts of 0.3 to
+16 MB; 4 requests a filing on the US GAAP set (144 lines), 6 on Ind AS (111), 22 on the HK set
+(437 lines, two parts). A page costs its text and its picture — roughly 1,500 to 4,800 tokens — so
+the largest request is an estimated 75,000 to 520,000 input tokens: it needs a model with a 1M
+window at 100 pages a part, or fewer pages a part on a smaller one. The requests after the first
+of each part read the file at the cached rate. The run log prints each request's input, cached and
+output tokens.
+
 ## Progress reporting
 
 There is **no WebSocket and no push channel**. `POST /documents/{id}/extractions` returns
