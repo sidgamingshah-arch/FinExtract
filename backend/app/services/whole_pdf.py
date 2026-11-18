@@ -43,20 +43,27 @@ PDF = "application/pdf"
 #: text, the line list and the JSON envelope. Generous — the line list of 60 lines is about 20 KB.
 REQUEST_OVERHEAD_BYTES = 256 * 1024
 
-#: The line types the model is asked for. "extracted" lines are read off the page; "calculated"
-#: lines are totals the template also computes, asked for the figure the filing PRINTS, so the
-#: template's checks compare a printed total with its printed parts.
+#: The line types the model is asked for.
 #:
-#: "derived" LINES TOO. On the rules route a derived line's figure is added up by a cascade of
-#: internal parts (`note_sourced`): the HK set's Sales (Revenues) from `sub__face_principal_revenue`
-#: and the revenue note's parts, its depreciation lines from a dozen depreciation parts, its
-#: related-party lines from the related-party note. This route asks no part and runs no cascade,
-#: so leaving derived lines out left the filing with no revenue at all — 11033486's first run read
-#: 113 lines and none of them was revenue. Each derived line's definition says what the figure is
-#: ("the top line of the income statement"), and the model is asked for it as for any other line.
-#: A line whose mode is "derive" (the HK set's `periods`, a count of months) is computed, never
-#: printed, and is still not asked. "intermediate" lines are working figures and are not asked.
-ASKED_TYPES = ("extracted", "calculated", "derived")
+#: EVERY EXTRACTED LINE, WHATEVER ITS ROUTE — the rule, and the same one the rules route keeps
+#: (`line_item_requests.asked_about`): a line whose figure is read off the filing is asked about,
+#: whether its `route` says the face, the note tables, anywhere in the report or the narrative.
+#: That includes the INTERNAL PARTS (`sub__…`, `in_output: false`) a derived line's cascade adds
+#: up, and the TEXT lines (a phrase or prose: the company's name, the currency, the auditor). Both
+#: were left out at first, so the HK set's Sales (Revenues) — a derived line whose cascade reads
+#: `sub__revenue_note_principal_revenue`, else `sub__face_principal_revenue` — had nothing to add
+#: up, and 11033486's first run had no revenue.
+#:
+#: "calculated" lines are asked for the total the filing PRINTS, so the template's checks compare
+#: a printed total with its printed parts.
+#:
+#: NOT ASKED: a "derived" line — its figure is its configured cascade's, computed from the parts
+#: by `note_sourced` on this route as on the rules route (asked directly, the model gives the
+#: face's revenue where the cascade gives the revenue note's principal-business revenue); an
+#: "intermediate" working figure; and a line whose `extraction_mode` is "derive", which the app
+#: computes or a person fills (the HK set's analyst, status, target currency, periods and control
+#: totals) — there is nothing printed to read.
+ASKED_TYPES = ("extracted", "calculated")
 
 #: The order statements are asked in, the primary statements first. A statement not named here
 #: comes after them, in the order the set lists it.
@@ -205,15 +212,11 @@ def statement_of(item) -> str:
 
 
 def lines_to_ask(item_set) -> list:
-    """The template lines a model can be asked for: printed in the output, not an internal part,
-    a figure (not a phrase or prose), and read off the page or printed as a total."""
+    """Every line the model is asked for (`ASKED_TYPES`): each extracted line whatever its route,
+    internal parts and text lines included, and each printed total."""
     out = []
     for item in item_set.items:
-        if not item.in_output or item.namespace == "internal" or item.key.startswith("sub__"):
-            continue
         if item.type not in ASKED_TYPES or getattr(item, "extraction_mode", "") == "derive":
-            continue
-        if getattr(item, "output_structure", "value") != "value":
             continue
         out.append(item)
     rank = {s: i for i, s in enumerate(STATEMENT_ORDER)}
@@ -274,12 +277,40 @@ lines. A printed row that no line above describes goes into its section's "other
 whose name says other), added to it and listed in its parts. A printed subtotal or total goes on \
 its TOTAL line, never into an "other" line.
 - Leave out a line the report does not print. Never answer 0 for a line that is not there.
-- A figure printed both on a statement and in a note: cite the statement.
+- Read each line where it says: [read from the statement], [read from the notes], [read from \
+anywhere in the report] or [read from the narrative]. A line with none: a figure printed both on \
+a statement and in a note is cited on the statement.
+- A line marked PART is an input the template adds into the line it names: give the figure its \
+definition describes, from where it says to read it. A PART may read a printed row that another \
+line also reads; the one-row-one-line rule is for the statement's own lines.
+- A line marked TEXT asks for words, not a figure: give them in text, exactly as printed for a \
+name, a date or a phrase, and in text_pages the page of this PDF file that prints them. A TEXT \
+line read from the narrative is a few sentences in the report's own words: text_pages lists every \
+page it is written from, and every number in it must be printed on those pages. Give no figures \
+for a TEXT line.
 - Read figures from the financial statements and their notes, not from highlights, summaries, \
 the directors' report or the management discussion.
 - units: how the statements state their units, as printed (for example "HK$'000", "RMB", \
 "₹ in crore", "in millions of U.S. dollars").
 """
+
+
+#: WHERE A LINE IS READ, its configured route, as the question names it.
+_READ_FROM = {"face": "read from the statement", "note_tables": "read from the notes",
+              "anywhere": "read from anywhere in the report", "prose": "read from the narrative"}
+
+
+def is_text(item) -> bool:
+    """A line whose answer is words, not a figure: a phrase copied off a page, or prose — the
+    rules route's own test (`text_lines.is_text_line`)."""
+    from app.services.text_lines import is_text_line
+
+    return is_text_line(item)
+
+
+def is_part(item) -> bool:
+    """An internal part: an input a cascade adds into another line, never printed as a column."""
+    return item.namespace == "internal" or item.key.startswith("sub__") or not item.in_output
 
 
 def _definition(item, limit: int = 240) -> str:
@@ -295,9 +326,15 @@ def question(lines: list, part: Part, part_number: int, part_count: int) -> str:
     statement = statement_of(lines[0]).replace("_", " ") if lines else ""
     rows = []
     for item in lines:
-        total = " TOTAL" if item.type == "calculated" else ""
+        marks = [m for m in (
+            "TOTAL" if item.type == "calculated" else "",
+            "TEXT" if is_text(item) else "",
+            f"PART of {item.parent}" if is_part(item) and item.parent else
+            ("PART" if is_part(item) else ""),
+            _READ_FROM.get(str(getattr(item.route, "value", item.route) or ""), "")) if m]
         definition = _definition(item)
-        rows.append(f"- {item.key}: {item.label or item.key}{total}"
+        rows.append(f"- {item.key}: {item.label or item.key}"
+                    + (f" [{'; '.join(marks)}]" if marks else "")
                     + (f" — {definition}" if definition else ""))
     return (f"{where}\n\nTemplate lines ({statement}):\n" + "\n".join(rows)
             + "\n\nAnswer every line above that the report prints; leave out the rest.")
@@ -340,6 +377,10 @@ class WholePdfFigure(BaseModel):
 class WholePdfLine(BaseModel):
     key: str
     figures: list[WholePdfFigure] = Field(default_factory=list)
+    # A TEXT line's answer: the words, and the pages of the file they are on (1 = its first) —
+    # a phrase's one page; every page a narrative is written from.
+    text: str = ""
+    text_pages: list[int] = Field(default_factory=list)
 
 
 class WholePdfReply(BaseModel):
@@ -456,6 +497,7 @@ class PageText:
     numbers: set[Decimal]
     words: list[PageWord]
     upright: bool = True
+    text: str = ""            # the page's text, for a TEXT line's check (`text_lines`)
 
 
 def read_pages(raw: bytes, pages: list[int]) -> dict[int, PageText]:
@@ -484,11 +526,34 @@ def read_pages(raw: bytes, pages: list[int]) -> dict[int, PageText]:
                 upright = text_rotation(page) in (0, 360)
             except Exception:  # noqa: BLE001 - an unreadable angle is read as upright
                 upright = True
-            out[p] = PageText(numbers=printed_numbers(page.get_text("text")), words=words,
-                              upright=upright)
+            plain = page.get_text("text")
+            out[p] = PageText(numbers=printed_numbers(plain), words=words, upright=upright,
+                              text=plain)
     finally:
         doc.close()
     return out
+
+
+def locate_text(text: str, page: PageText | None) -> BBox | None:
+    """The box of the printed row that holds a phrase, or None — for its citation. Compared as
+    the rules route compares a phrase with its page (`text_lines.fold`)."""
+    from app.services.text_lines import fold
+
+    if page is None or not page.upright:
+        return None
+    want = fold(text)
+    rows: list[list[PageWord]] = []
+    for w in sorted(page.words, key=lambda w: (w.box.y0, w.box.x0)):
+        if rows and _same_row(rows[-1][0].box, w.box):
+            rows[-1].append(w)
+        else:
+            rows.append([w])
+    for row in rows:
+        joined = fold("".join(w.text for w in sorted(row, key=lambda w: w.box.x0)))
+        if want and (want in joined or (len(joined) >= 4 and joined in want)):
+            inside = [w.box for w in row if fold(w.text) and fold(w.text) in want]
+            return _union(inside) or _union([w.box for w in row])
+    return None
 
 
 def _clamp(v: float) -> float:

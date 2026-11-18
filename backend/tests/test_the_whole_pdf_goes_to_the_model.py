@@ -183,18 +183,26 @@ def test_a_part_over_the_request_size_is_halved_and_a_page_too_large_is_named():
 
 # ── which lines, in which requests ─────────────────────────────────────────────────────────────
 
-def test_the_lines_asked_are_the_printed_figures_and_totals_of_the_template():
-    hk = _set("output_csv_hk_line_items.json")
-    asked = W.lines_to_ask(hk)
-    keys = {it.key for it in asked}
-    assert not any(k.startswith("sub__") for k in keys)
-    assert {it.type for it in asked} <= {"extracted", "calculated", "derived"}
-    assert all(getattr(it, "output_structure", "value") == "value" for it in asked)
-    assert "bs_ca__cash_in_hand_and_at_banks" in keys
-    by_type = {it.type for it in hk.items if it.key in keys}
-    assert "calculated" in by_type             # the printed totals, so the checks have both sides
-    chunks = W.chunk_lines(asked, 60)
-    assert all(len(c) <= 60 for c in chunks)
+@pytest.mark.parametrize("name", ["output_csv_hk_line_items.json",
+                                  "output_csv_indas_line_items.json",
+                                  "output_csv_usgaap_line_items.json"])
+def test_every_extracted_line_is_asked_whatever_its_route(name):
+    """THE RULE: every line of type `extracted` is asked of the model, whatever its route — the
+    face, the note tables, anywhere, the narrative — internal cascade parts and text lines
+    included. Not asked: a derived line (its cascade computes it from the parts), and a line whose
+    extraction mode is `derive` (the app computes it; nothing is printed to read)."""
+    st = _set(name)
+    asked = {it.key for it in W.lines_to_ask(st)}
+    for it in st.items:
+        if it.type == "extracted" and it.extraction_mode != "derive":
+            assert it.key in asked, it.key
+        if it.type == "derived" or it.extraction_mode == "derive":
+            assert it.key not in asked, it.key
+    if name.startswith("output_csv_hk"):
+        assert {"sub__face_principal_revenue", "sub__revenue_note_principal_revenue"} <= asked
+        assert {r for r in asked if r.startswith("sub__")}, "the cascade parts are asked"
+        assert "statement_setup_controls__customer_s_name" in asked     # a TEXT line
+    chunks = W.chunk_lines(W.lines_to_ask(st), 250)
     assert all(len({W.statement_of(it) for it in c}) == 1 for c in chunks)
 
 
@@ -203,8 +211,9 @@ def test_the_question_names_each_line_and_marks_a_total():
         "bs_ca__cash_and_cash_equivalents", "bs_ca__total_current_assets")]
     text = W.question(lines, W.Part(pages=[1, 2, 3], pdf=b""), 2, 3)
     assert "holds 3 pages" in text and "part 2 of 3" in text
-    assert "- bs_ca__cash_and_cash_equivalents: Cash and cash equivalents —" in text
-    assert "- bs_ca__total_current_assets: " in text and " TOTAL" in text
+    assert ("- bs_ca__cash_and_cash_equivalents: Cash and cash equivalents "
+            "[read from the statement] —") in text
+    assert "- bs_ca__total_current_assets: " in text and "[TOTAL; " in text
 
 
 # ── reading a figure, and finding it on its page ───────────────────────────────────────────────
@@ -503,17 +512,113 @@ def test_a_statement_is_asked_in_one_request_by_default():
     assert W.max_tokens_for(len(chunks[0])) <= 32_000
 
 
-def test_revenue_and_the_other_derived_lines_are_asked():
-    """11033486's first run had no revenue: the HK set's Sales (Revenues) is a DERIVED line, added
-    up on the rules route by a cascade of internal parts this route neither asks nor runs, and the
-    route asked only extracted lines and printed totals. A derived line is asked by its
-    definition; one computed outright (`periods`, a count of months) still is not."""
-    keys = {it.key for it in W.lines_to_ask(_set("output_csv_hk_line_items.json"))}
-    for key in ("is_pl__sales_revenues", "is_pl__deprec_and_impairment_oper_exp",
-                "bs_ca__secur_and_other_fincl_assets_cp", "bs_ca__other_receivables_cp",
-                "notes__contingent_liabilities"):
-        assert key in keys, key
-    assert "statement_setup_controls__periods" not in keys
+def test_revenue_is_computed_from_the_parts_the_model_read_by_its_cascade():
+    """11033486's first run had no revenue: the HK set's Sales (Revenues) is a derived line whose
+    cascade reads the revenue note's principal-business revenue (P1), else the face's (P2), and
+    the route asked neither part. The parts are asked now, and `note_sourced` runs on this route:
+    the cascade computes the line from what the model read, with no note table of its own."""
+    from decimal import Decimal as D
+
+    from app.core.models.enums import Basis, PrintedIn
+    from app.core.models.geometry import Provenance
+    from app.core.models.line_item import ExtractedValue, LineItem
+    from app.schemas.loader import load_template
+    from app.services.working_view import build_working_view
+    from app.stages.note_sourced import NoteSourcedStage
+    from app.stages.whole_pdf import KEPT_STAGES
+
+    assert "note_sourced" in KEPT_STAGES
+    hk = _set("output_csv_hk_line_items.json")
+    doc = DocumentModel(filename="x.pdf")
+    doc.pages = [PageSource(index=0, kind=PageKind.FACE, statement="profit_and_loss"),
+                 PageSource(index=1, kind=PageKind.NOTES)]
+
+    def part(key, figures, page, printed_in):
+        li = LineItem(source_label=key, canonical_key=key, printed_in=printed_in)
+        for period, value in figures:
+            li.set_value(ExtractedValue(basis=Basis.CONSOLIDATED, period_label=period,
+                                        value=D(value), value_raw=D(value),
+                                        provenance=Provenance(page_index=page)))
+        return li
+    doc.line_items = [
+        part("sub__face_principal_revenue", [("current", "8269704348.65")], 0, PrintedIn.FACE),
+        part("sub__revenue_note_principal_revenue", [("current", "8251146794.57")], 1,
+             PrintedIn.NOTES)]
+    ctx = PipelineContext(raw_bytes=b"")
+    ctx.line_items, ctx.ontology = hk, build_working_view(hk)
+    ctx.template = load_template(json.loads((TEMPLATES / "output_csv_hk_v1_template.json")
+                                            .read_text(encoding="utf-8")))
+    doc = NoteSourcedStage().run(doc, ctx)
+    revenue = next(li for li in doc.line_items if li.canonical_key == "is_pl__sales_revenues")
+    assert [str(v.value) for v in revenue.values.values()] == ["8251146794.57"]   # rung P1
+
+
+def test_the_question_says_where_to_read_each_line_and_marks_parts_and_texts():
+    hk = _set("output_csv_hk_line_items.json")
+    by = {it.key: it for it in W.lines_to_ask(hk)}
+    text = W.question([by["sub__revenue_note_principal_revenue"],
+                       by["statement_setup_controls__customer_s_name"]],
+                      W.Part(pages=[0], pdf=b""), 1, 1)
+    assert "sub__revenue_note_principal_revenue: " in text
+    assert "PART of is_pl__sales_revenues" in text and "read from the notes" in text
+    assert "TEXT" in text
+
+
+def test_a_text_line_is_written_where_the_page_prints_it_and_refused_where_it_does_not(run):
+    class _Text(_Scripted):
+        def complete_structured(self, *, system, messages, response_schema, temperature=0.0,
+                                max_tokens=2048):
+            reply, meta = super().complete_structured(
+                system=system, messages=messages, response_schema=response_schema,
+                temperature=temperature, max_tokens=max_tokens)
+            content = messages[0]["content"]
+            for key, words in (("notes_audit__auditor", "Example Corp"),
+                               ("notes_audit__opinion_type", "Nobody & Co")):
+                if f"- {key}:" in content:
+                    reply.lines.append(W.WholePdfLine(key=key, text=words, text_pages=[1]))
+            return reply, meta
+
+    doc, ctx = run(_Text(), whole_pdf_pages="all")
+    texts = {li.canonical_key: li for li in doc.line_items
+             if any(v.value_text for v in li.values.values())}
+    name = texts.get("notes_audit__auditor")
+    assert name is not None and "llm_text:page 1" in name.confidence.flags
+    assert [v.value_text for v in name.values.values()] == ["Example Corp"]
+    assert "notes_audit__opinion_type" not in texts                 # not printed: refused
+    assert ctx.whole_pdf["texts_refused"] == 1
+
+
+
+def test_a_narrative_is_checked_as_the_rules_route_checks_one(run):
+    """A prose line's few sentences are the model's own, so they are not looked for on the page —
+    but a number in them must be printed on a page they cite (`text_lines.check_prose`), and they
+    must cite a page of the file that was sent."""
+    class _Prose(_Scripted):
+        def complete_structured(self, *, system, messages, response_schema, temperature=0.0,
+                                max_tokens=2048):
+            reply, meta = super().complete_structured(
+                system=system, messages=messages, response_schema=response_schema,
+                temperature=temperature, max_tokens=max_tokens)
+            content = messages[0]["content"]
+            for key, words, pages in (
+                    ("notes_contingencies__narrative",
+                     "The balance sheet shows total assets of 4,500.", [2]),
+                    ("notes_related__narrative",
+                     "Related parties owed the company 7,777 at year end.", [2])):
+                if f"- {key}:" in content:
+                    reply.lines.append(W.WholePdfLine(key=key, text=words, text_pages=pages))
+            return reply, meta
+
+    doc, ctx = run(_Prose(), whole_pdf_pages="all")
+    texts = {li.canonical_key: li for li in doc.line_items
+             if any(v.value_text for v in li.values.values())}
+    narrative = texts.get("notes_contingencies__narrative")
+    assert narrative is not None and "llm_prose:pages 2" in narrative.confidence.flags
+    assert [v.provenance.page_index for v in narrative.values.values()] == [1]   # the balance sheet
+    assert "notes_related__narrative" not in texts          # 7,777 is printed on no page it cites
+    assert any("notes_related__narrative: narrative REFUSED (llm_prose_number_not_on_page"
+               in line for line in ctx.logs)
+    assert ctx.whole_pdf["texts_refused"] == 1
 
 
 # ── the citation: where each figure is printed, clickable ──────────────────────────────────────
@@ -648,3 +753,49 @@ def test_one_figure_printed_for_both_years_is_placed_by_its_year():
     assert cur is not None and prior is not None and cur.x0 < prior.x0
     # A footnote marker glued on is not part of the figure (China SCE, "1,897,880*").
     assert W.locate(D(1897880), "Retained profits", page)[0] is not None
+
+
+def test_through_the_pipeline_revenue_is_its_cascades_from_the_parts_the_model_read(monkeypatch):
+    """End to end on the HK set: the model is asked revenue's two parts (and not revenue), answers
+    them, and the line published is the cascade's — the revenue note's principal-business
+    revenue, not the face's total — with the part's citation behind it."""
+    from app.schemas.loader import load_template
+    from app.services.documents import run_extraction
+    from app.services.working_view import build_working_view
+
+    face = ["CONSOLIDATED INCOME STATEMENT", "                         2024         2023",
+            "Revenue          8,269,704,348.65   6,981,909,823.14"]
+    note = ["Notes to the consolidated financial statements", "Revenue and cost of sales",
+            "Principal business revenue   8,251,146,794.57   6,975,893,763.46",
+            "Other business revenue          18,557,554.08       6,016,059.68"]
+
+    class _Parts(_Scripted):
+        TABLE: ClassVar[dict] = {
+            "sub__face_principal_revenue": [("current", "8269704348.65", 1),
+                                            ("prior", "6981909823.14", 1)],
+            "sub__revenue_note_principal_revenue": [("current", "8251146794.57", 2),
+                                                    ("prior", "6975893763.46", 2)]}
+
+    provider = _Parts()
+    s = get_settings()
+    for name, value in {"whole_pdf_to_model": True, "whole_pdf_pages": "all",
+                        "llm_disclosures": False, "llm_shared_figure_tiebreak": False}.items():
+        monkeypatch.setattr(s.extraction, name, value)
+    monkeypatch.setitem(registry._factories.setdefault("llm", {}), provider.id, lambda: provider)
+    monkeypatch.setattr(s.llm, "provider", provider.id)
+    hk = _set("output_csv_hk_line_items.json")
+    tpl = load_template(json.loads((TEMPLATES / "output_csv_hk_v1_template.json")
+                                   .read_text(encoding="utf-8")))
+    doc, ctx = run_extraction(_pdf([face, note]), filename="rev.pdf",
+                              ontology=build_working_view(hk), template=tpl, line_items=hk)
+    asked = "".join(m["content"] for m in provider.sent)
+    assert "- sub__revenue_note_principal_revenue:" in asked
+    assert "- is_pl__sales_revenues:" not in asked
+    assert "stage:note_sourced:start" in ctx.logs
+    revenue = next(li for li in doc.line_items if li.canonical_key == "is_pl__sales_revenues")
+    assert sorted(str(v.value) for v in revenue.values.values()) == [
+        "6975893763.46", "8251146794.57"]
+    part = next(li for li in doc.line_items
+                if li.canonical_key == "sub__revenue_note_principal_revenue")
+    assert all(v.provenance.bbox is not None for v in part.values.values())
+    assert part.derivation["consolidated:current"]["method"].startswith("whole_pdf:")

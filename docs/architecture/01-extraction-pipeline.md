@@ -694,26 +694,45 @@ below is not in it. **On**, the run assembles `whole_pdf_pipeline()` — the sam
    "statements"`), every page (`"all"`), or the pages a person chose on the Page Scope screen.
    They go as one or more PDF parts cut from the original (`services/whole_pdf.py::build_parts`):
    at most `whole_pdf_pages_per_request` pages and `whole_pdf_max_request_mb` a part, in even
-   parts. The model is asked for the template's lines — the `extracted` ones, the printed totals
-   of the `calculated` ones, and the `derived` ones by their definitions (Sales (Revenues),
-   depreciation, the related-party and financial-asset lines: on the rules route a cascade of
-   internal parts adds them up, and this route runs none) — never an internal `sub__` part nor a
-   line computed outright (`extraction_mode: derive`). At most `whole_pdf_lines_per_request` at a
-   time and one statement per request, and the model answers each with its figures: basis,
-   period, the amount as printed, the page of the file it read it on, the caption, and the
-   printed rows of a figure that is a sum of rows.
+   parts. **The model is asked for every `extracted` line, whatever its `route`** — the face, the
+   note tables, anywhere in the report or the narrative, as the rules route asks them
+   (`line_item_requests.asked_about`) — the internal `sub__` parts a cascade adds up and the text
+   lines (a phrase or prose) included, and for the total the filing prints of every `calculated`
+   line (`services/whole_pdf.py::lines_to_ask`). Each line in the question says where to read it
+   (`[read from the notes]`) and whether it is a TOTAL, a TEXT, or a PART of the line it feeds.
+   Not asked: a `derived` line, whose figure is its cascade's (step 4); an `intermediate`
+   working figure; and a line the app computes or a person fills (`extraction_mode: derive` —
+   the HK set's analyst, status, target currency and control totals). That is 517 lines on the
+   HK set (484 extracted, of them 78 internal parts and 11 text lines, and 33 printed totals),
+   157 on US GAAP (13 text lines) and 111 on Ind AS. At most `whole_pdf_lines_per_request` at a
+   time and one statement per request. The model answers a figure line with its figures —
+   basis, period, the amount as printed, the page of the file it read it on, the caption, and
+   the printed rows of a figure that is a sum of rows — and a text line with its words and the
+   pages they are on.
 3. The file is sent as the provider's own file block (`ports/llm.py::LlmMessage.documents`): a
    base64 `document` block on the Anthropic body (`anthropic`, `bedrock_gateway`), ending in a
    cache breakpoint so every request after the first reads it from the prompt cache; a `file`
    part on Chat Completions (`openai`, `openai_compatible`, `azure_openai`). Such a request waits
    `llm.document_timeout_seconds`. The first request of each part goes alone (it fills the
    cache), the rest `llm_parallel_requests` at a time.
-4. The stage writes one row per line and basis, with `printed_in` from the page's kind, and names
-   the stages still to run (`PipelineContext.only_stages`): `normalize` (the statements' units,
-   the template's sign rules), `confidence`, `structural` (the template's checks, comparing a
-   printed total with its printed parts, both read by the model), `disclosure_reading` and
-   `segment`. Every other stage works on rows rebuilt from the page or on note tables, and is
-   logged `stage:<name>:skipped`.
+4. The stage writes one row per line and basis, with `printed_in` from the page's kind and the
+   line's statement stamped on it (`printed_on:<statement>`, read before the page by
+   `buckets.statement_resolver`), and names the stages still to run
+   (`PipelineContext.only_stages`): `normalize` (the statements' units, the template's sign
+   rules); **`note_sourced`, the configured cascades** — each `derived` line (Sales (Revenues),
+   the depreciation lines, the related-party and financial-asset lines) is computed from the parts
+   the model read by the same rungs as on the rules route, nested parts first, so the HK set's
+   revenue is the revenue note's principal-business revenue where the note prints it and the
+   face's otherwise; `shared_figures` (one printed figure the model put on two lines);
+   `confidence`; `structural` (the template's checks, comparing a printed total with its printed
+   parts, both read by the model); `disclosure_reading`; and `segment`. Every other stage works
+   on rows rebuilt from the page or on note tables, and is logged `stage:<name>:skipped`. A text
+   line is checked as the rules route checks one, by the same functions (`text_lines.locate`,
+   `text_lines.check_prose`): a phrase is written only where the PDF's own text prints it — on the
+   page it cites, or on exactly one other page of the part — and a narrative only when every
+   number in it is printed on a page it cites; otherwise it is refused and logged
+   `whole_pdf:<key>: text REFUSED` or `narrative REFUSED`, and `mapping.whole_pdf.texts_refused`
+   counts it.
 
 **Each figure is cited like a rules-route figure.** `services/whole_pdf.py::locate` finds it in
 the page's own words — the printed word equal to it, on the row whose caption is most like the one
@@ -744,8 +763,10 @@ the filing.
 
 **What it costs**, measured as the request shape on ten corpus filings with the defaults (no model
 called): statement and notes pages are 28 to 180 of 97 to 383 pages; one or two parts of 0.3 to
-16 MB; 4 requests a filing on the US GAAP set (144 lines), 6 on Ind AS (111), 22 on the HK set
-(437 lines, two parts). A page costs its text and its picture — roughly 1,500 to 4,800 tokens — so
+16 MB. At the default 250 lines a request, a part takes one request per statement: 4 on the US
+GAAP set (157 lines), 3 on Ind AS (111), 7 on the HK set (517 lines; the balance sheet's 213 the
+largest), and a filing sent in two parts twice that. A page costs its text and its picture —
+roughly 1,500 to 4,800 tokens — so
 the largest request is an estimated 75,000 to 520,000 input tokens: it needs a model with a 1M
 window at 100 pages a part, or fewer pages a part on a smaller one. The requests after the first
 of each part read the file at the cached rate. The run log prints each request's input, cached and

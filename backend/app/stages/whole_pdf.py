@@ -48,6 +48,14 @@ from app.services.buckets import PRINTED_ON_FLAG
 KEPT_STAGES = frozenset({
     "ingest", "integrity", "language_detect", "classify", "whole_pdf",
     "normalize",            # the statements' units, and the template's sign rules
+    # THE CONFIGURED CASCADES, on the model's parts: a derived line (Sales (Revenues), the
+    # depreciation lines, the related-party lines…) is not asked — its figure is its cascade's,
+    # computed from the internal parts the model read, by the same rungs as on the rules route.
+    # With no note tables `note_sourced` reads nothing of its own; it resolves the parents.
+    "note_sourced",
+    # One printed figure the model put on two lines (two parts reading one note row), settled as
+    # on the rules route — the figures now carry the boxes it compares.
+    "shared_figures",
     "confidence",
     "structural",           # the template's checks, on the model's figures
     "disclosure_reading",   # reads page text; has its own switch
@@ -119,6 +127,9 @@ class WholePdfStage:
             readings, units, unknown, unreadable = _readings(doc, parts, chunks, replies, texts)
             merged = W.merge(readings)
             rows = _rows(doc, ctx.line_items, merged, provider.id)
+            text_rows, refused = _text_rows(doc, ctx.line_items, parts, chunks, replies, texts,
+                                            provider.id, ctx.log)
+            rows += text_rows
         except Exception as exc:  # noqa: BLE001 - replies that cannot be written are not trusted
             return _fallback(doc, ctx, f"the replies could not be written: "
                                        f"{type(exc).__name__}: {str(exc)[:120]}")
@@ -141,10 +152,12 @@ class WholePdfStage:
             "requests_answered": len(replies), "lines_asked": len(lines),
             "lines_answered": len(answered), "figures": len(merged),
             "checks": statuses, "units": units,
+            "texts": len(text_rows), "texts_refused": refused,
             "unknown_keys": sorted(unknown), "unreadable_amounts": unreadable,
         }
         ctx.only_stages = KEPT_STAGES
-        ctx.log(f"whole_pdf:read lines={len(answered)} of {len(lines)} figures={len(merged)} "
+        ctx.log(f"whole_pdf:read lines={len(answered) + len(text_rows)} of {len(lines)} "
+                f"figures={len(merged)} texts={len(text_rows)} texts_refused={refused} "
                 f"checks={','.join(f'{k}:{v}' for k, v in sorted(statuses.items()))} "
                 f"units={units or '?'} unknown_keys={len(unknown)} unreadable={unreadable}")
         ctx.log("whole_pdf:extraction_skipped — the stages that rebuild rows, read note tables "
@@ -256,12 +269,14 @@ def _readings(doc, parts, chunks, replies, texts):
     kinds = {p.index: p.kind for p in doc.pages}
     for (pi, ci), reply in sorted(replies.items()):
         units = units or (reply.units or "").strip()
-        asked = {item.key for item in chunks[ci]}
+        asked = {item.key: item for item in chunks[ci]}
         part = parts[pi]
         for line in reply.lines:
             if line.key not in asked:
                 unknown.add(line.key)
                 continue
+            if W.is_text(asked[line.key]):
+                continue                      # a TEXT line's words, written by `_text_rows`
             for fig in line.figures:
                 amount = W.parse_amount(fig.amount)
                 rows = [(r.caption, W.parse_amount(r.amount)) for r in fig.parts]
@@ -285,6 +300,113 @@ def _readings(doc, parts, chunks, replies, texts):
                     rows=[(c, a) for c, a in rows], box=box, label_box=label_box,
                     row_boxes=row_boxes))
     return readings, units, unknown, unreadable
+
+
+def _text_rows(doc, line_item_set, parts, chunks, replies, texts, provider_id: str,
+               log) -> tuple[list[LineItem], int]:
+    """A row for every TEXT line the model answered, and how many answers were refused.
+
+    CHECKED AS THE RULES ROUTE CHECKS ONE (`stages.line_item_llm`), by the same functions, the
+    part's pages standing in for the request's `text_pages`:
+
+      * a PHRASE is copied off a page, so it is written only where the PDF's own text prints it
+        (`text_lines.locate`) — on the page it cites, or on exactly one other page of the part, the
+        model having cited the printed folio — and otherwise refused (`llm_text_not_on_page`);
+      * a NARRATIVE is the model's own few sentences, so it cannot be looked for; it is refused
+        when it cites no page, cites a page the part does not carry, runs too long, or writes a
+        number none of its pages prints (`text_lines.check_prose`), and its flag says it was
+        written, not copied (`llm_prose:pages …`).
+
+    Written as `line_item_llm._put_text` writes one: a `value_text` fact, no figure, on the
+    reporting period and the basis the statements print, its provenance on the page — here with
+    the box of the printed row a phrase is on, for its citation.
+    """
+    from app.core.models.enums import Basis
+    from app.services import text_lines
+    from app.stages.line_item_llm import NARRATIVE_FLAG
+    from app.stages.note_sourced import _prose_basis
+
+    try:
+        basis = Basis(_prose_basis(doc) or "consolidated")
+    except ValueError:
+        basis = Basis.CONSOLIDATED
+    by_key = {item.key: item for item in line_item_set.items}
+    done: dict[str, LineItem] = {}
+    refused = 0
+    for (pi, ci), reply in sorted(replies.items()):
+        part = parts[pi]
+        asked = {item.key for item in chunks[ci]}
+        # The part's pages as the rules route's page blocks: 1-based report pages, with their text.
+        supplied = [{"page": p + 1, "text": texts[p].text if texts.get(p) else ""}
+                    for p in part.pages]
+        for line in reply.lines:
+            item = by_key.get(line.key)
+            words = " ".join((line.text or "").split())
+            if (line.key not in asked or item is None or not W.is_text(item) or not words
+                    or line.key in done):
+                continue
+            # The model numbers the part's pages; a page outside the part maps to none.
+            cited = [part.original_page(int(n)) for n in (line.text_pages or ())]
+            cited_pages = [c + 1 for c in cited if c is not None]
+            if text_lines.is_prose_line(item):
+                why = (text_lines.check_prose(words, cited_pages, supplied)
+                       if all(c is not None for c in cited) else
+                       "llm_prose_page_not_supplied — it cites a page this part does not carry")
+                if why is not None:
+                    refused += 1
+                    log(f"whole_pdf:{line.key}: narrative REFUSED ({why}) — {words[:120]!r}")
+                    continue
+                page = cited_pages[0]
+                flag = f"{NARRATIVE_FLAG}:pages {', '.join(map(str, dict.fromkeys(cited_pages)))}"
+                box = None
+            else:
+                first = cited_pages[0] if cited_pages else None
+                page = text_lines.locate(words, first, supplied)
+                if page is None and first is not None:
+                    others = [b["page"] for b in supplied if b["page"] != first
+                              and text_lines.locate(words, b["page"], [b]) is not None]
+                    page = others[0] if len(others) == 1 else None
+                if page is None:
+                    refused += 1
+                    log(f"whole_pdf:{line.key}: text REFUSED (llm_text_not_on_page) — page "
+                        f"{first if first is not None else '?'} does not print {words[:80]!r}")
+                    continue
+                flag = f"llm_text:page {page}"
+                box = W.locate_text(words, texts.get(page - 1))
+            row = LineItem(source_label=item.label or item.key, canonical_key=item.key,
+                           display_label=item.label or None, role=LineRole.LINE)
+            row.set_value(ExtractedValue(
+                basis=basis, period_label="current", value_text=words, derived=True,
+                provenance=Provenance(page_index=page - 1, bbox=box, value_bbox=box,
+                                      text_snippet=words[:500],
+                                      source_kind="model_pdf",
+                                      producer=f"whole_pdf:{provider_id}")))
+            row.confidence.method = MappingMethod.LLM.value
+            row.confidence.mapping = 0.6 if flag.startswith(NARRATIVE_FLAG) else 0.9
+            row.confidence.flags += [FLAG, flag]
+            _printed_on(row, item)
+            done[line.key] = row
+    return list(done.values()), refused
+
+
+def _printed_on(row: LineItem, item) -> None:
+    """Stamp the row with the statement it is on: its LINE's, for the model was asked it as that
+    statement's line.
+
+    A page is not a statement — a mainland filing ends one statement and starts the next on the
+    same page — and without this every stage that resolves a row's statement
+    (`buckets.statement_resolver`) reads the PAGE's: on 11033486 the parent company's liabilities
+    and equity, printed above the income statement's title on page 136, were read as
+    income-statement rows, failed normalize's balance/flow check and lost their line (15 rows, the
+    balance sheet's checks with them). `pdf_extract` stamps the same flag on a page it splits.
+
+    A TEXT row too. On the rules route a text line is written after `normalize`, so normalize never
+    sees one; here it is written before, and a notes narrative cited on a balance-sheet page was
+    read as a balance-sheet row whose concept is a flow, and lost its line. A line that names no
+    statement is left to its page, as a rules-route row is.
+    """
+    if item is not None and W.statement_of(item) != "other":
+        row.confidence.flags.append(f"{PRINTED_ON_FLAG}:{W.statement_of(item)}")
 
 
 def _citation(r, page: int, kind: str, producer: str, page_kind, provenance) -> dict:
@@ -376,16 +498,7 @@ def _rows(doc, line_item_set, merged: dict, provider_id: str) -> list[LineItem]:
         row.confidence.method = MappingMethod.LLM.value
         row.confidence.mapping = max(0.0, min(scores)) if scores else 0.0
         row.confidence.flags.append(FLAG)
-        # THE STATEMENT THE ROW IS ON is its line's: the model was asked it as that statement's
-        # line. A page is not a statement — a mainland filing ends one statement and starts the
-        # next on the same page — and without this every stage that resolves a row's statement
-        # (`buckets.statement_resolver`) read the PAGE's: on 11033486 the parent company's
-        # liabilities and equity, printed above the income statement's title on page 136, were
-        # read as income-statement rows, failed normalize's balance/flow check and lost their
-        # line (15 rows, the balance sheet's checks with them). `pdf_extract` stamps the same
-        # flag on a page it splits.
-        if item is not None:
-            row.confidence.flags.append(f"{PRINTED_ON_FLAG}:{W.statement_of(item)}")
+        _printed_on(row, item)
         if any(r.check.status in _REVIEWED or r.others for r in group):
             row.confidence.flags.append(REVIEW_FLAG)
         out.append(row)
