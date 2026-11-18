@@ -38,6 +38,7 @@ from app.core.models.line_item import ExtractedValue, LineItem
 from app.core.stage import PipelineContext
 from app.ports.llm import complete_with_room, takes_documents
 from app.ports.registry import registry
+from app.services import derivation
 from app.services import whole_pdf as W
 from app.services.buckets import PRINTED_ON_FLAG
 
@@ -114,7 +115,7 @@ class WholePdfStage:
             return _fallback(doc, ctx, "no request succeeded")
 
         try:
-            texts = W.page_numbers(ctx.raw_bytes, pages)
+            texts = W.read_pages(ctx.raw_bytes, pages)
             readings, units, unknown, unreadable = _readings(doc, parts, chunks, replies, texts)
             merged = W.merge(readings)
             rows = _rows(doc, ctx.line_items, merged, provider.id)
@@ -241,7 +242,13 @@ def _account(ctx, meta) -> None:
 
 
 def _readings(doc, parts, chunks, replies, texts):
-    """Every figure the replies gave, parsed and checked against its page."""
+    """Every figure the replies gave, parsed, checked against its page and placed on it.
+
+    `texts` is the PDF's own text of the pages sent (`whole_pdf.read_pages`): its numbers are
+    what a figure is checked against, its words are where the figure and its caption are drawn —
+    the citation a reviewer clicks through to.
+    """
+    numbers = {p: t.numbers for p, t in texts.items()}
     readings: list[W.Reading] = []
     unknown: set[str] = set()
     unreadable = 0
@@ -262,13 +269,54 @@ def _readings(doc, parts, chunks, replies, texts):
                     unreadable += 1
                     continue
                 page = part.original_page(int(fig.page or 0))
-                check = W.check_figure(amount, [a for _, a in rows], page, part, texts)
+                check = W.check_figure(amount, [a for _, a in rows], page, part, numbers)
+                caption = (fig.caption or "").strip()
+                on_page = texts.get(check.page) if check.page is not None else None
+                box, label_box = (W.locate(amount, caption, on_page, fig.period) if not rows
+                                  else (None, None))
+                row_boxes = [W.locate(a, c, on_page, fig.period) for c, a in rows]
+                if rows and not box:
+                    # A sum is printed nowhere as one figure: it is cited by its first row.
+                    box, label_box = next(((b, lb) for b, lb in row_boxes if b), (None, None))
                 readings.append(W.Reading(
                     key=line.key, basis=fig.basis, period=fig.period, amount=amount,
-                    caption=(fig.caption or "").strip(), period_end=(fig.period_end or "").strip(),
+                    caption=caption, period_end=(fig.period_end or "").strip(),
                     part=pi, check=check, on_face=kinds.get(check.page) == PageKind.FACE,
-                    rows=[(c, a) for c, a in rows]))
+                    rows=[(c, a) for c, a in rows], box=box, label_box=label_box,
+                    row_boxes=row_boxes))
     return readings, units, unknown, unreadable
+
+
+def _citation(r, page: int, kind: str, producer: str, page_kind, provenance) -> dict:
+    """The figure's trail, in the shape a model's citation on the rules route records
+    (`stages.line_item_llm`), so the Workspace's inspector says where it was read and lists each
+    printed row it was read from, each clickable to its page: the row itself, or the rows a sum
+    was added from, each with its own figure and box.
+
+    `printed_in` says whether the page is a statement or a note: this route reads no note tables,
+    so it has no note number to give, and without it a figure read in a note would be worded as
+    read "on the face" (`api.routes.documents._citation_reading`)."""
+    printed_in = "face" if page_kind == PageKind.FACE else "notes"
+
+    def entry(label: str, value, box, label_box) -> dict:
+        prov = Provenance(page_index=page, bbox=box, value_bbox=box, label_bbox=label_box,
+                          text_snippet=label or None, source_kind=kind, producer=producer)
+        return {"label": label or r.caption or r.key, "value": str(value), "note": None,
+                "counted": True, "printed_in": printed_in,
+                "provenance": prov.model_dump(mode="json")}
+
+    if r.rows:
+        inputs = [entry(c, a, *(r.row_boxes[i] if i < len(r.row_boxes) else (None, None)))
+                  for i, (c, a) in enumerate(r.rows)]
+    else:
+        inputs = [{**entry(r.caption, r.amount, r.box, r.label_box),
+                   "provenance": provenance.model_dump(mode="json")}]
+    counted = [i["label"] for i in inputs]
+    return derivation.build(
+        method=f"whole_pdf:{r.check.status}", formula=" + ".join(counted), inputs=inputs,
+        result=r.amount, flags=[f"{FLAG}:{r.check.status}"],
+        display={"op": "sum" if r.rows else "first",
+                 "combine": "component" if r.rows else "whole"})
 
 
 def _rows(doc, line_item_set, merged: dict, provider_id: str) -> list[LineItem]:
@@ -306,16 +354,25 @@ def _rows(doc, line_item_set, merged: dict, provider_id: str) -> list[LineItem]:
             score = _SCORE.get(r.check.status, 0.3) - (0.2 if r.others else 0.0)
             scores.append(score)
             page = r.check.page if r.check.page is not None else 0
+            kind = "model_pdf" if source.get(page) is None else f"model_pdf:{source[page]}"
+            producer = f"whole_pdf:{provider_id}"
+            # THE CITATION: the figure's own box on its page (the viewer highlights it and the
+            # grid links to it — no box, no link), its caption's box, and the caption as printed.
+            provenance = Provenance(page_index=page, bbox=r.box, value_bbox=r.box,
+                                    label_bbox=r.label_box, text_snippet=r.caption or None,
+                                    source_kind=kind, producer=producer)
+            if not r.box:
+                flags.append(f"{FLAG}:not_placed_on_page")
             row.set_value(ExtractedValue(
                 basis=Basis(r.basis), period_label=r.period, column_period=r.period,
                 period_display=r.period_end or None,
                 value_raw=Decimal(r.amount), value=Decimal(r.amount),
-                provenance=Provenance(page_index=page, text_snippet=r.caption or None,
-                                      source_kind="model_pdf" if source.get(page) is None
-                                      else f"model_pdf:{source[page]}",
-                                      producer=f"whole_pdf:{provider_id}"),
+                provenance=provenance,
                 confidence=ConfidenceVector(mapping=max(0.0, score), method="llm",
                                             flags=flags)))
+            row.derivation = derivation.record(
+                row.derivation, basis=r.basis, period_label=r.period,
+                derivation=_citation(r, page, kind, producer, kinds.get(page), provenance))
         row.confidence.method = MappingMethod.LLM.value
         row.confidence.mapping = max(0.0, min(scores)) if scores else 0.0
         row.confidence.flags.append(FLAG)

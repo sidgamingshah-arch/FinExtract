@@ -6192,7 +6192,11 @@ def _column_note_titles(note_details: list[dict]) -> dict[str, str]:
 def _is_citation(trail: dict | None) -> bool:
     """Whether a trail is a model's citation of printed rows (`stages.line_item_llm`), as against a
     rule's assembly of them (note_sourced, a cascade, the alternatives rule)."""
-    return isinstance(trail, dict) and str(trail.get("method") or "").startswith("line_item_llm:")
+    # …or the whole-PDF route's (`stages.whole_pdf`): the model read the figure off the file and
+    # named the printed row, which is the same claim, made against the page rather than a row
+    # the rules rebuilt.
+    return isinstance(trail, dict) and str(trail.get("method") or "").startswith(
+        ("line_item_llm:", "whole_pdf:"))
 
 
 def _reads_one_printed_figure(trail: dict | None) -> bool:
@@ -6222,7 +6226,12 @@ def _citation_reading(store: dict, basis: str) -> dict | None:
             if n and n not in notes:
                 notes.append(n)
     lead = slots[0]
-    return {"notes": notes,
+    # A ROW CITED IN THE NOTES WITH NO NOTE NUMBER — the whole-PDF route reads no note tables, so
+    # it can say a figure was read on a notes page but not in which note. Without this it would be
+    # worded as read "on the face".
+    in_notes = not notes and any((i or {}).get("printed_in") == "notes"
+                                 for t in slots for i in (t.get("inputs") or ()))
+    return {"notes": notes, "in_notes": in_notes,
             "combine": "whole" if _reads_one_printed_figure(lead) else "component",
             "rows": len([i for i in (lead.get("inputs") or ()) if (i or {}).get("counted", True)])}
 
@@ -6230,16 +6239,20 @@ def _citation_reading(store: dict, basis: str) -> dict | None:
 def _citation_wording(reading: dict, locale: str = "en") -> tuple[str, str]:
     """The inspector's tag and sentence for a figure a model's citation located."""
     notes = reading.get("notes") or []
+    in_notes = bool(reading.get("in_notes")) and not notes
     rows = int(reading.get("rows") or 0)
     where = (_t("in note {n}", locale).replace("{n}", ", ".join(notes)) if notes
+             else _t("in the notes", locale) if in_notes
              else _t("on the face of the statement", locale))
     if reading.get("combine") == "component" and rows > 1:
-        tag = (_t("added from notes", locale) if notes else _t("added on the face", locale))
+        tag = (_t("added from notes", locale) if notes or in_notes
+               else _t("added on the face", locale))
         note = (_t("The sum of the {k} printed rows the model cited, {where}. Each keeps its own "
                    "figure and page — click one to jump to it in the document.", locale)
                 .replace("{k}", str(rows)).replace("{where}", where))
         return tag, note
     tag = (_t("read from note {n}", locale).replace("{n}", notes[0]) if notes
+           else _t("read from the notes", locale) if in_notes
            else _t("read from the face", locale))
     note = (_t("Read from the printed row the model cited, {where} — the figure as printed, not "
                "computed. Click it to jump to it in the document.", locale)

@@ -694,11 +694,14 @@ below is not in it. **On**, the run assembles `whole_pdf_pipeline()` — the sam
    "statements"`), every page (`"all"`), or the pages a person chose on the Page Scope screen.
    They go as one or more PDF parts cut from the original (`services/whole_pdf.py::build_parts`):
    at most `whole_pdf_pages_per_request` pages and `whole_pdf_max_request_mb` a part, in even
-   parts. The model is asked for the template's lines — the `extracted` ones and the printed
-   totals of the `calculated` ones, never an internal `sub__` part — `whole_pdf_lines_per_request`
-   at a time, one statement per request, and answers each with its figures: basis, period, the
-   amount as printed, the page of the file it read it on, the caption, and the printed rows of a
-   figure that is a sum of rows.
+   parts. The model is asked for the template's lines — the `extracted` ones, the printed totals
+   of the `calculated` ones, and the `derived` ones by their definitions (Sales (Revenues),
+   depreciation, the related-party and financial-asset lines: on the rules route a cascade of
+   internal parts adds them up, and this route runs none) — never an internal `sub__` part nor a
+   line computed outright (`extraction_mode: derive`). At most `whole_pdf_lines_per_request` at a
+   time and one statement per request, and the model answers each with its figures: basis,
+   period, the amount as printed, the page of the file it read it on, the caption, and the
+   printed rows of a figure that is a sum of rows.
 3. The file is sent as the provider's own file block (`ports/llm.py::LlmMessage.documents`): a
    base64 `document` block on the Anthropic body (`anthropic`, `bedrock_gateway`), ending in a
    cache breakpoint so every request after the first reads it from the prompt cache; a `file`
@@ -711,6 +714,17 @@ below is not in it. **On**, the run assembles `whole_pdf_pipeline()` — the sam
    printed total with its printed parts, both read by the model), `disclosure_reading` and
    `segment`. Every other stage works on rows rebuilt from the page or on note tables, and is
    logged `stage:<name>:skipped`.
+
+**Each figure is cited like a rules-route figure.** `services/whole_pdf.py::locate` finds it in
+the page's own words — the printed word equal to it, on the row whose caption is most like the one
+the model gave — and its provenance carries that box (`bbox`, `value_bbox`) and the caption's
+(`label_bbox`), in the page space `pdf_extract` uses, so the grid links it and the viewer
+highlights it. A nil is placed by its caption. Each figure also records a trail in the shape a
+model's citation records on the rules route (`method: whole_pdf:<check>`, one input per printed
+row, each with its own figure and box), so the Workspace's inspector says "read from the face" or
+"read from the notes" and lists the rows a sum was added from. A figure the text layer cannot
+place (a scanned page, a figure not printed as one word) keeps its page and is flagged
+`whole_pdf:not_placed_on_page`.
 
 **This route is the one exception to "the LLM references facts, it never emits values"** (next
 section): here the model writes the figure. So every figure is checked against the PDF's own text

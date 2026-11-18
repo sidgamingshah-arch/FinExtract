@@ -35,6 +35,7 @@ from typing import ClassVar, Literal
 from pydantic import BaseModel, Field, field_validator
 
 from app.core.models.enums import PageKind
+from app.core.models.geometry import BBox
 
 PDF = "application/pdf"
 
@@ -44,9 +45,18 @@ REQUEST_OVERHEAD_BYTES = 256 * 1024
 
 #: The line types the model is asked for. "extracted" lines are read off the page; "calculated"
 #: lines are totals the template also computes, asked for the figure the filing PRINTS, so the
-#: template's checks compare a printed total with its printed parts. "derived" and "intermediate"
-#: lines are computed from other lines and are not printed as such.
-ASKED_TYPES = ("extracted", "calculated")
+#: template's checks compare a printed total with its printed parts.
+#:
+#: "derived" LINES TOO. On the rules route a derived line's figure is added up by a cascade of
+#: internal parts (`note_sourced`): the HK set's Sales (Revenues) from `sub__face_principal_revenue`
+#: and the revenue note's parts, its depreciation lines from a dozen depreciation parts, its
+#: related-party lines from the related-party note. This route asks no part and runs no cascade,
+#: so leaving derived lines out left the filing with no revenue at all — 11033486's first run read
+#: 113 lines and none of them was revenue. Each derived line's definition says what the figure is
+#: ("the top line of the income statement"), and the model is asked for it as for any other line.
+#: A line whose mode is "derive" (the HK set's `periods`, a count of months) is computed, never
+#: printed, and is still not asked. "intermediate" lines are working figures and are not asked.
+ASKED_TYPES = ("extracted", "calculated", "derived")
 
 #: The order statements are asked in, the primary statements first. A statement not named here
 #: comes after them, in the order the set lists it.
@@ -201,7 +211,7 @@ def lines_to_ask(item_set) -> list:
     for item in item_set.items:
         if not item.in_output or item.namespace == "internal" or item.key.startswith("sub__"):
             continue
-        if item.type not in ASKED_TYPES:
+        if item.type not in ASKED_TYPES or getattr(item, "extraction_mode", "") == "derive":
             continue
         if getattr(item, "output_structure", "value") != "value":
             continue
@@ -430,17 +440,170 @@ def _folio(page: int | None) -> str:
 
 def page_numbers(raw: bytes, pages: list[int]) -> dict[int, set[Decimal]]:
     """The numbers printed on each page, from the PDF's own text layer (none on a scanned page)."""
+    return {p: text.numbers for p, text in read_pages(raw, pages).items()}
+
+
+@dataclass
+class PageWord:
+    text: str
+    box: BBox                 # page space, 0..1 — where the viewer draws the highlight
+
+
+@dataclass
+class PageText:
+    """One page of the PDF's own text: its numbers (the check) and its words with their boxes
+    (the citation)."""
+    numbers: set[Decimal]
+    words: list[PageWord]
+    upright: bool = True
+
+
+def read_pages(raw: bytes, pages: list[int]) -> dict[int, PageText]:
+    """Each page's numbers and words, from the PDF's own text layer — nothing on a scanned page.
+
+    THE BOXES ARE THE RULES ROUTE'S: each word's box divided by the page's size and clamped, as
+    `pdf_extract._native_words` keeps a figure's provenance, so a whole-PDF figure is highlighted
+    where a rules-route figure on the same page would be.
+    """
     import fitz
 
-    out: dict[int, set[Decimal]] = {}
+    from app.services.pdf_extract import text_rotation
+
+    out: dict[int, PageText] = {}
     doc = fitz.open(stream=raw, filetype="pdf")
     try:
         for p in pages:
-            if 0 <= p < doc.page_count:
-                out[p] = printed_numbers(doc.load_page(p).get_text("text"))
+            if not 0 <= p < doc.page_count:
+                continue
+            page = doc.load_page(p)
+            w, h = max(page.rect.width, 1.0), max(page.rect.height, 1.0)
+            words = [PageWord(text=t, box=BBox(x0=_clamp(x0 / w), y0=_clamp(y0 / h),
+                                               x1=_clamp(x1 / w), y1=_clamp(y1 / h)))
+                     for x0, y0, x1, y1, t, *_ in page.get_text("words") if t.strip()]
+            try:
+                upright = text_rotation(page) in (0, 360)
+            except Exception:  # noqa: BLE001 - an unreadable angle is read as upright
+                upright = True
+            out[p] = PageText(numbers=printed_numbers(page.get_text("text")), words=words,
+                              upright=upright)
     finally:
         doc.close()
     return out
+
+
+def _clamp(v: float) -> float:
+    return max(0.0, min(1.0, v))
+
+
+# A footnote marker glued on is part of the printed word ("1,897,880*", "(3,596,236)*" on China
+# SCE's statement of changes in equity) and not of the figure.
+_WORD_NUMBER = re.compile(
+    r"^[(（]?[-−–]?[$¥€£₹]?(\d{1,3}(?:,\d{3})+|\d+)(\.\d+)?[)）]?[*#^†‡]*$")
+
+
+def _word_value(text: str) -> Decimal | None:
+    """The unsigned number one printed word is, or None: "1,234.5", "(1,234.5)", "-300"."""
+    m = _WORD_NUMBER.match(text.strip())
+    if not m:
+        return None
+    try:
+        return Decimal(m.group(1).replace(",", "") + (m.group(2) or ""))
+    except InvalidOperation:
+        return None
+
+
+def _same_row(a: BBox, b: BBox) -> bool:
+    """Whether two words sit on one printed row: their heights overlap by half the smaller."""
+    overlap = min(a.y1, b.y1) - max(a.y0, b.y0)
+    return overlap > 0.5 * max(1e-6, min(a.y1 - a.y0, b.y1 - b.y0))
+
+
+def _union(boxes: list[BBox]) -> BBox | None:
+    if not boxes:
+        return None
+    return BBox(x0=min(b.x0 for b in boxes), y0=min(b.y0 for b in boxes),
+                x1=max(b.x1 for b in boxes), y1=max(b.y1 for b in boxes))
+
+
+def _row_caption(hit: PageWord, words: list[PageWord]) -> list[PageWord]:
+    """The caption of the row a figure is printed on: the words left of it on its row, up to the
+    first figure (a note reference or another column)."""
+    left = sorted((w for w in words if w is not hit and w.box.x1 <= hit.box.x0 + 1e-6
+                   and _same_row(w.box, hit.box)), key=lambda w: w.box.x0)
+    caption: list[PageWord] = []
+    for w in left:
+        if _word_value(w.text) is not None:
+            break
+        caption.append(w)
+    return caption
+
+
+_LOOSE = re.compile(r"[\s:：,，.。()（）\[\]【】\-—–_/、*#^$]+")
+
+
+def _likeness(caption: str, printed: str) -> float:
+    """How nearly the caption the model gave is the caption printed on a row, 0..1."""
+    import difflib
+
+    a, b = _LOOSE.sub("", caption or "").lower(), _LOOSE.sub("", printed or "").lower()
+    if not a or not b:
+        return 0.0
+    if a in b or b in a:
+        return min(len(a), len(b)) / max(len(a), len(b)) * 0.5 + 0.5
+    return difflib.SequenceMatcher(None, a, b).ratio()
+
+
+def locate(amount: Decimal, caption: str, page: PageText | None,
+           period: str = "current") -> tuple[BBox | None, BBox | None]:
+    """`(the figure's box, its caption's box)` on its page, or Nones when it cannot be placed.
+
+    The figure is a printed word equal to it, unsigned; where it is printed more than once (a
+    total and the same total on the other side of a balance sheet), the one whose row's caption is
+    most like the caption the model gave. Where one row prints it twice — share capital unchanged
+    from one year to the next — the current year is the left of the two and the prior year the
+    one after it, the order every statement in the corpus prints its years in. A nil, or a figure
+    not printed as one word, is placed by its caption alone, if a row prints a caption like it. On
+    a page printed sideways the figure's own box is given and no caption box: its row does not run
+    across the page.
+    """
+    if page is None:
+        return None, None
+    want = abs(amount) if amount is not None else None
+    hits = ([w for w in page.words if _word_value(w.text) == want]
+            if want is not None and want != 0 else [])
+    if hits:
+        if not page.upright:
+            return hits[0].box, None
+        scored = [(_likeness(caption, " ".join(c.text for c in cap)), i, h, cap)
+                  for i, h in enumerate(hits) for cap in [_row_caption(h, page.words)]]
+        top = max(t[0] for t in scored)
+        best = min((t for t in scored if t[0] >= top - 1e-9), key=lambda t: t[1])
+        # The same figure again on the best row, left to right: the year is its position.
+        on_row = sorted((t for t in scored if t[0] >= top - 1e-9
+                         and _same_row(t[2].box, best[2].box)), key=lambda t: t[2].box.x0)
+        if len(on_row) > 1:
+            best = on_row[min(1, len(on_row) - 1)] if period == "prior" else on_row[0]
+        return best[2].box, _union([c.box for c in best[3]])
+    if not page.upright or not caption:
+        return None, None
+    # BY CAPTION ALONE: the row whose leading words read most like the caption, when one is close.
+    best_score, best_box = 0.0, None
+    rows: list[list[PageWord]] = []
+    for w in sorted(page.words, key=lambda w: (w.box.y0, w.box.x0)):
+        if rows and _same_row(rows[-1][0].box, w.box):
+            rows[-1].append(w)
+        else:
+            rows.append([w])
+    for row in rows:
+        lead: list[PageWord] = []
+        for w in sorted(row, key=lambda w: w.box.x0):
+            if _word_value(w.text) is not None:
+                break
+            lead.append(w)
+        score = _likeness(caption, " ".join(w.text for w in lead))
+        if score > best_score:
+            best_score, best_box = score, _union([w.box for w in lead])
+    return (best_box, best_box) if best_score >= 0.8 else (None, None)
 
 
 # ── putting the answers together ───────────────────────────────────────────────────────────────
@@ -459,6 +622,11 @@ class Reading:
     on_face: bool
     rows: list[tuple[str, Decimal]] = field(default_factory=list)
     others: list[str] = field(default_factory=list)   # different figures read for the same slot
+    # WHERE IT IS PRINTED, for the citation: the figure's box and its caption's on its page, and
+    # for a sum of rows each row's (`locate`). None where the text layer cannot place it.
+    box: BBox | None = None
+    label_box: BBox | None = None
+    row_boxes: list[tuple[BBox | None, BBox | None]] = field(default_factory=list)
 
 
 def merge(readings: list[Reading]) -> dict[tuple[str, str, str], Reading]:

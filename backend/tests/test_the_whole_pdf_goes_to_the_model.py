@@ -188,7 +188,7 @@ def test_the_lines_asked_are_the_printed_figures_and_totals_of_the_template():
     asked = W.lines_to_ask(hk)
     keys = {it.key for it in asked}
     assert not any(k.startswith("sub__") for k in keys)
-    assert {it.type for it in asked} <= {"extracted", "calculated"}
+    assert {it.type for it in asked} <= {"extracted", "calculated", "derived"}
     assert all(getattr(it, "output_structure", "value") == "value" for it in asked)
     assert "bs_ca__cash_in_hand_and_at_banks" in keys
     by_type = {it.type for it in hk.items if it.key in keys}
@@ -501,3 +501,150 @@ def test_a_statement_is_asked_in_one_request_by_default():
     assert len(chunks) == len({W.statement_of(it) for it in hk})
     assert max(len(c) for c in chunks) > 60
     assert W.max_tokens_for(len(chunks[0])) <= 32_000
+
+
+def test_revenue_and_the_other_derived_lines_are_asked():
+    """11033486's first run had no revenue: the HK set's Sales (Revenues) is a DERIVED line, added
+    up on the rules route by a cascade of internal parts this route neither asks nor runs, and the
+    route asked only extracted lines and printed totals. A derived line is asked by its
+    definition; one computed outright (`periods`, a count of months) still is not."""
+    keys = {it.key for it in W.lines_to_ask(_set("output_csv_hk_line_items.json"))}
+    for key in ("is_pl__sales_revenues", "is_pl__deprec_and_impairment_oper_exp",
+                "bs_ca__secur_and_other_fincl_assets_cp", "bs_ca__other_receivables_cp",
+                "notes__contingent_liabilities"):
+        assert key in keys, key
+    assert "statement_setup_controls__periods" not in keys
+
+
+# ── the citation: where each figure is printed, clickable ──────────────────────────────────────
+
+def _page(lines: list[str]):
+    raw = _pdf([lines])
+    return raw, W.read_pages(raw, [0])[0]
+
+
+def test_a_figure_is_placed_on_its_row_and_its_caption_beside_it():
+    _raw, page = _page(_BALANCE_SHEET)
+    from decimal import Decimal as D
+
+    box, label = W.locate(D(1200), "Cash and cash equivalents", page)
+    assert box is not None and label is not None
+    assert label.x1 <= box.x0 and abs((label.y0 + label.y1) - (box.y0 + box.y1)) < 0.01
+
+
+def test_a_figure_printed_twice_is_placed_by_its_caption():
+    """4,500 is printed as total assets and as total liabilities and equity."""
+    _raw, page = _page(_BALANCE_SHEET)
+    from decimal import Decimal as D
+
+    assets, _ = W.locate(D(4500), "Total assets", page)
+    both, _ = W.locate(D(4500), "Total liabilities and stockholders' equity", page)
+    assert assets is not None and both is not None and both.y0 > assets.y0
+
+
+def test_a_nil_is_placed_by_its_caption_alone():
+    _raw, page = _page(["Goodwill                              -           -",
+                        "Total assets                      4,500       4,250"])
+    from decimal import Decimal as D
+
+    box, label = W.locate(D(0), "Goodwill", page)
+    assert box is not None and box == label
+
+
+def test_every_figure_the_model_read_links_to_where_it_is_printed(run):
+    """The defect: a whole-PDF figure carried a page and no box, and the screen links a figure to
+    the document only by its box (`SourceViewer.toPicked`) — so nothing could be clicked, and the
+    inspector named no row it was read from."""
+    from app.api.routes.extractions import _serialize_rows
+
+    doc, _ctx = run(_Scripted())
+    rows = {r["canonical_key"]: r for r in _serialize_rows(doc)}
+    cash = rows["bs_ca__cash_and_cash_equivalents"]
+    for v in cash["values"]:
+        assert v["provenance"]["bbox"] is not None and v["provenance"]["label_bbox"] is not None
+        assert v["provenance"]["page_index"] == 1
+    trail = cash["derivation"]["consolidated:current"]
+    assert trail["method"] == "whole_pdf:on_page" and trail["combine"] == "whole"
+    assert trail["inputs"][0]["provenance"]["bbox"] is not None
+    assert trail["inputs"][0]["value"] == "1200"
+
+
+def test_a_sum_of_rows_cites_each_row_with_its_own_figure_and_box(run):
+    class _Sum(_Scripted):
+        def complete_structured(self, *, system, messages, response_schema, temperature=0.0,
+                                max_tokens=2048):
+            reply, meta = super().complete_structured(
+                system=system, messages=messages, response_schema=response_schema,
+                temperature=temperature, max_tokens=max_tokens)
+            if "- bs_ca__other_current_assets:" in messages[0]["content"]:
+                reply.lines.append(W.WholePdfLine(key="bs_ca__other_current_assets", figures=[
+                    W.WholePdfFigure(basis="consolidated", period="current", amount="1500",
+                                     page=1, caption="Cash and receivables", parts=[
+                                         W.WholePdfRow(caption="Cash and cash equivalents",
+                                                       amount="1200"),
+                                         W.WholePdfRow(caption="Accounts receivable",
+                                                       amount="300")])]))
+            return reply, meta
+
+    doc, _ctx = run(_Sum())
+    row = next(li for li in doc.line_items if li.canonical_key == "bs_ca__other_current_assets")
+    trail = row.derivation["consolidated:current"]
+    assert trail["combine"] == "component" and [i["value"] for i in trail["inputs"]] == [
+        "1200", "300"]
+    boxes = [i["provenance"]["bbox"] for i in trail["inputs"]]
+    assert all(boxes) and boxes[0]["y0"] < boxes[1]["y0"]
+
+
+def test_the_inspector_says_where_the_model_read_it():
+    from app.api.routes.documents import _citation_reading, _citation_wording
+
+    face = {"consolidated:current": {"method": "whole_pdf:on_page", "combine": "whole",
+                                     "inputs": [{"label": "Revenue", "printed_in": "face"}]}}
+    notes = {"consolidated:current": {"method": "whole_pdf:on_page", "combine": "whole",
+                                      "inputs": [{"label": "Revenue", "printed_in": "notes"}]}}
+    assert _citation_wording(_citation_reading(face, "consolidated"))[0] == "read from the face"
+    assert _citation_wording(_citation_reading(notes, "consolidated"))[0] == "read from the notes"
+
+
+def test_the_workspace_shows_the_citation_and_links_it(run):
+    """Through the statement the Workspace renders: the figure says it was read from the face,
+    its source carries the box the viewer links by, and the row it was read from is listed."""
+    from app.api.routes.documents import _build_statement
+    from app.api.routes.extractions import _serialize_rows
+    from app.services.working_view import build_working_view
+
+    doc, _ctx = run(_Scripted())
+    tpl = json.loads((TEMPLATES / "output_csv_usgaap_v1_template.json").read_text(encoding="utf-8"))
+    out = _build_statement(_serialize_rows(doc, build_working_view(_set())), tpl,
+                           "balance_sheet", "example.pdf", line_item_set=_set())
+    found = {}
+
+    def walk(o):
+        if isinstance(o, dict):
+            if o.get("id") and o.get("kind") in ("item", "subtotal", "total"):
+                found.setdefault(o["id"], o)
+            for v in o.values():
+                walk(v)
+        elif isinstance(o, list):
+            for v in o:
+                walk(v)
+    walk(out)
+    cash = found["bs_ca__cash_and_cash_equivalents"]
+    assert cash["inspector"]["tag"] == "read from the face"
+    assert cash["source"]["bbox"] is not None and cash["source2"]["bbox"] is not None
+    assert cash["contributions"] and cash["contributions"][0]["source"]["bbox"] is not None
+
+
+def test_one_figure_printed_for_both_years_is_placed_by_its_year():
+    """Share capital unchanged from one year to the next prints the same figure twice on its row;
+    the current year is the left one. Measured on the five reference filings, this was most of
+    the figures placed on the wrong column (000709: 8 of 8)."""
+    _raw, page = _page(["Share capital                      14,202      14,202",
+                        "Retained profits                    1,897,880*   1,500,000"])
+    from decimal import Decimal as D
+
+    cur, _ = W.locate(D(14202), "Share capital", page, "current")
+    prior, _ = W.locate(D(14202), "Share capital", page, "prior")
+    assert cur is not None and prior is not None and cur.x0 < prior.x0
+    # A footnote marker glued on is not part of the figure (China SCE, "1,897,880*").
+    assert W.locate(D(1897880), "Retained profits", page)[0] is not None
