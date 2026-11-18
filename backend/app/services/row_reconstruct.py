@@ -3571,6 +3571,14 @@ def _completes_the_caption_above(prev_label: list[Word], label_words: list[Word]
         return False
     if _is_known_caption(label_words, steps, known):
         return False                     # a complete caption is a line of its own, never a tail
+    # …NOR IS A LATIN HEADING, a line ending in a colon, as `_english_tail_of_the_row_above` already
+    # holds: it heads the rows under it. Madrigal's 10-K prints "Total liabilities  656,900" over
+    # "Stockholders' equity:", and the two read as the known "Total liabilities [and] stockholders'
+    # equity": the total liabilities bound total liabilities and equity beside the printed one, the
+    # balance sheet put out by 656,900, and every equity row lost its banner.
+    fragment = _join_words(label_words).strip()
+    if fragment.endswith((":", "：")) and _LATIN.search(fragment) and not _HAN.search(fragment):
+        return False
     joined = _join_words(list(prev_label) + list(label_words))
     for text in (normalize_label(apply_pipeline(joined, steps)),
                  # …and the caption as PRINTED, for the same reason `_is_known_caption` tries it:
@@ -6472,6 +6480,20 @@ def _column_support(col_xs: list[list[tuple[float, str]]], value_bands: list[flo
     return out
 
 
+def _columns_printed_together(col_xs: list[list[tuple[float, str]]], value_bands: list[float],
+                              fmt=None) -> set[frozenset[int]]:
+    """Every pair of value columns some row prints a figure in both of. A date's fragments are no
+    figures: the header's "31 March 2024", centred over two columns, puts its day over one and its
+    year over the other (`_is_date_ish`, as `_bands_with_a_figure` reads them)."""
+    out: set[frozenset[int]] = set()
+    for row in col_xs:
+        cols = sorted({c for c, value in ((_column_index(x, value_bands), _num(t, fmt))
+                                          for x, t in row)
+                       if c is not None and value is not None and not _is_date_ish(value)})
+        out.update(frozenset((a, b)) for i, a in enumerate(cols) for b in cols[i + 1:])
+    return out
+
+
 def _column_periods(basis_cols: dict[Basis, list[int]], value_bands: list[float],
                     period_bands: list[tuple[str, float]], *,
                     restated: tuple[str, ...] = (), restated_cols: set[int] | None = None,
@@ -6479,6 +6501,7 @@ def _column_periods(basis_cols: dict[Basis, list[int]], value_bands: list[float]
                     log=None, page_index: int | None = None,
                     meta_out: dict[tuple[Basis, int], ColumnPeriod] | None = None,
                     support: dict[int, int] | None = None,
+                    together: set[frozenset[int]] | None = None,
                     ) -> dict[tuple[Basis, int], str]:
     """The period label for every (basis, value column).
 
@@ -6549,13 +6572,39 @@ def _column_periods(basis_cols: dict[Basis, list[int]], value_bands: list[float]
                 log(f"extract:page={page_index}:period_selection=by_position"
                     f"({basis.value}:{len(cols)}_columns,no_heading_date_or_period_caption)")
         used: set[str] = set()
+        # The column each label went to first.
+        owner: dict[str, int] = {}
         # The labels a restated column took, so the original printed beside it is named as such.
         restated_took: set[str] = set()
+        counts = support or {}
         for c in order:
             i = slot_of[c]
             base = "current" if i == 0 else "prior" if i == 1 else f"col{i}"
             label = f"{base}:{suffix[c]}" if suffix[c] else base
             col_flags: list[str] = [RESTATED_FLAG] if flags[c] else []
+            held_by = owner.get(label)
+            if (label in used and by_date and together is not None and held_by is not None
+                    and abs(c - held_by) == 1 and not flags[c] and not flags[held_by]
+                    and frozenset((c, held_by)) not in together
+                    and min(counts.get(c, 0), counts.get(held_by, 0)) >= _COL_MIN_ROWS):
+                # TWO COLUMNS OF ONE PERIOD, side by side under its heading: an Ind AS cash flow
+                # prints each year's adjustments in an inner column and its subtotals in an outer
+                # one. JSW Steel 2024-25 sets depreciation, inventories and the other adjustments
+                # under "31 March 2025" at the inner column and profit before tax, taxes paid and
+                # the net cash from operations at the outer; the inner was kept as `current_col0`,
+                # a period nothing reads, and every operating check saw profit before tax and the
+                # tax paid alone. No row prints a figure in both, and each holds a column's worth
+                # of rows, so both are the period. Columns a row prints in both (a gross and a net
+                # amount) or a stray beside the heading (a note number, a DIN) keep their own.
+                if log:
+                    log(f"extract:page={page_index}:period_selection=one_period_two_columns"
+                        f"({basis.value}/{label}:{held_by}+{c})")
+                used.add(label)
+                out[(basis, c)] = label
+                if meta_out is not None:
+                    meta_out[(basis, c)] = ColumnPeriod(period_end=_printed_date(dates[c]),
+                                                        flags=tuple(col_flags))
+                continue
             if label in used:
                 held = label
                 if flags[c]:
@@ -6580,6 +6629,7 @@ def _column_periods(basis_cols: dict[Basis, list[int]], value_bands: list[float]
             if by_position:
                 col_flags.append(BY_POSITION_FLAG)
             used.add(label)
+            owner.setdefault(label, c)
             out[(basis, c)] = label
             if meta_out is not None:
                 meta_out[(basis, c)] = ColumnPeriod(period_end=_printed_date(dates[c]),
@@ -8442,7 +8492,11 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
         basis_cols, value_bands, period_bands, restated=restated,
         restated_cols=_restated_columns(raw_rows, value_bands, restated, number_format),
         grid=grid, log=log, page_index=page_index, meta_out=col_meta,
-        support=_column_support(col_xs, value_bands))
+        support=_column_support(col_xs, value_bands),
+        # A STATEMENT FACE ONLY: a note prints a year's non-current and current amounts, or its
+        # gross and net, side by side under one date, and those are two measures of one period.
+        together=(_columns_printed_together(col_xs, value_bands, number_format)
+                  if on_face and statement else None))
     # Where the value columns stand, for telling a nil cell from the caption beside it. None on a
     # page without columns, where there is nothing to stand over.
     value_area = _value_area(value_bands, col_xs) if value_bands else None

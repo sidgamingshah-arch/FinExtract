@@ -2104,7 +2104,8 @@
     "Non-controlling interest",
     "Non controlling interests",
     "Minority interests",
-    "Minority interest"
+    "Minority interest",
+    "Non-controlling interests (NCI)"
    ],
    "aliases_i18n": {
     "en": [
@@ -2112,11 +2113,12 @@
      "Non-controlling interest",
      "Non controlling interests",
      "Minority interests",
-     "Minority interest"
+     "Minority interest",
+     "Non-controlling interests (NCI)"
     ]
    },
    "regex_hints": [
-    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+)?(?:non\\s+controlling\\s+interests|non\\s+controlling\\s+interest|minority\\s+interests|minority\\s+interest)(?:\\s+(?:[ivxl]{1,5}|\\d{1,2}|[a-h]))*(?:\\s+(?:liabilities))?$"
+    "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:financial\\s+liabilities|financial\\s+assets|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+)?(?:non\\s+controlling\\s+interests\\s+nci|non\\s+controlling\\s+interests|non\\s+controlling\\s+interest|minority\\s+interests|minority\\s+interest)(?:\\s+(?:[ivxl]{1,5}|\\d{1,2}|[a-h]))*(?:\\s+(?:liabilities))?$"
    ],
    "exclude_hints": [
     "(?i)share\\s+of",
@@ -5913,7 +5915,7 @@
     "cash\\s+and\\s+cash\\s+equivalents\\s*(?:\\(refer|in\\s+(?:the\\s+)?(?:standalone\\s+|consolidated\\s+)?statement|as\\s+per)",
     "liquid\\s+mutual\\s+funds?",
     "loans?\\s+repayable\\s+on\\s+demand",
-    "^\\W*(?:borrowings|lease\\s+liabilities|other\\s+liabilities)\\s*\\(refer\\s+note"
+    "^\\W*(?:non[\\s-]?current\\s+|current\\s+)?(?:borrowings?|lease\\s+liabilities|other\\s+liabilities)\\s*(?:\\(refer\\s+note|\\(\\s*(?:non[\\s-]?)?current\\s*\\)|[*$^#]|$)"
    ]
   },
   {
@@ -6129,7 +6131,8 @@
    },
    "regex_hints": [
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:adjustments\\s+for\\s+changes\\s+in\\s+working\\s+capital|cash\\s+flows\\s+used\\s+in\\s+financing\\s+activities|cash\\s+flows\\s+used\\s+in\\s+investing\\s+activities|cash\\s+flow\\s+used\\s+in\\s+financing\\s+activities|cash\\s+flow\\s+used\\s+in\\s+investing\\s+activities|cash\\s+flows\\s+from\\s+financing\\s+activities|cash\\s+flows\\s+from\\s+investing\\s+activities|cash\\s+flows\\s+from\\s+operating\\s+activities|cash\\s+flow\\s+from\\s+financing\\s+activities|cash\\s+flow\\s+from\\s+investing\\s+activities|cash\\s+flow\\s+from\\s+operating\\s+activities|working\\s+capital\\s+adjustments|changes\\s+in\\s+working\\s+capital|working\\s+capital\\s+changes|financial\\s+liabilities|financial\\s+assets|adjustments\\s+for|adjustment\\s+for|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+)?(?:add\\s+cash\\s+and\\s+cash\\s+equivalents\\s+at\\s+the\\s+beginning\\s+of\\s+the\\s+year|cash\\s+and\\s+cash\\s+equivalents\\s+as\\s+at\\s+the\\s+beginning\\s+of\\s+the\\s+year|cash\\s+and\\s+cash\\s+equivalents\\s+at\\s+the\\s+beginning\\s+of\\s+the\\s+period|add\\s+cash\\s+cash\\s+equivalents\\s+at\\s+the\\s+beginning\\s+of\\s+the\\s+year|cash\\s+and\\s+cash\\s+equivalents\\s+at\\s+the\\s+beginning\\s+of\\s+the\\s+year|cash\\s+cash\\s+equivalents\\s+as\\s+at\\s+the\\s+beginning\\s+of\\s+the\\s+year|cash\\s+cash\\s+equivalents\\s+at\\s+the\\s+beginning\\s+of\\s+the\\s+period|cash\\s+cash\\s+equivalents\\s+at\\s+the\\s+beginning\\s+of\\s+the\\s+year|cash\\s+and\\s+cash\\s+equivalents\\s+opening\\s+balance|cash\\s+cash\\s+equivalents\\s+opening\\s+balance|opening\\s+cash\\s+and\\s+cash\\s+equivalents|opening\\s+cash\\s+cash\\s+equivalents)(?:\\s+(?:[ivxl]{1,5}|\\d{1,2}|[a-h]))*(?:\\s+(?:liabilities))?$",
-    "^(?:add\\s+)?cash\\s+and\\s+cash\\s+equivalents\\s+(?:as\\s+)?(?:at|on)\\s+(?:the\\s+)?(?:beginning|start|commencement|1st\\s+april|1\\s+april)\\b.*$"
+    "^(?:add\\s+)?cash\\s+and\\s+cash\\s+equivalents\\s+(?:as\\s+)?(?:at|on)\\s+(?:the\\s+)?(?:beginning|start|commencement|1st\\s+april|1\\s+april)\\b.*$",
+    "^(?:add\\s+)?cash\\s+and\\s+cash\\s+equivalents\\s+opening\\s+balances?\\b.*$"
    ]
   },
   {
@@ -6251,7 +6254,8 @@
    },
    "regex_hints": [
     "^(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2}(?:(?:adjustments\\s+for\\s+changes\\s+in\\s+working\\s+capital|cash\\s+flows\\s+used\\s+in\\s+financing\\s+activities|cash\\s+flows\\s+used\\s+in\\s+investing\\s+activities|cash\\s+flow\\s+used\\s+in\\s+financing\\s+activities|cash\\s+flow\\s+used\\s+in\\s+investing\\s+activities|cash\\s+flows\\s+from\\s+financing\\s+activities|cash\\s+flows\\s+from\\s+investing\\s+activities|cash\\s+flows\\s+from\\s+operating\\s+activities|cash\\s+flow\\s+from\\s+financing\\s+activities|cash\\s+flow\\s+from\\s+investing\\s+activities|cash\\s+flow\\s+from\\s+operating\\s+activities|working\\s+capital\\s+adjustments|changes\\s+in\\s+working\\s+capital|working\\s+capital\\s+changes|financial\\s+liabilities|financial\\s+assets|adjustments\\s+for|adjustment\\s+for|tax\\s+expenses|liabilities|tax\\s+expense|expenses|equity)\\s+(?:(?:[ivxl]{1,6}[a-h]?|[a-h]|\\d{1,2}[a-h]?)\\s+){0,2})?(?:less\\s+|add\\s+)?(?:cash\\s+and\\s+cash\\s+equivalents\\s+as\\s+at\\s+the\\s+end\\s+of\\s+the\\s+year|cash\\s+and\\s+cash\\s+equivalents\\s+at\\s+the\\s+end\\s+of\\s+the\\s+period|cash\\s+and\\s+cash\\s+equivalents\\s+at\\s+the\\s+end\\s+of\\s+the\\s+year|cash\\s+cash\\s+equivalents\\s+as\\s+at\\s+the\\s+end\\s+of\\s+the\\s+year|cash\\s+cash\\s+equivalents\\s+at\\s+the\\s+end\\s+of\\s+the\\s+period|cash\\s+cash\\s+equivalents\\s+at\\s+the\\s+end\\s+of\\s+the\\s+year|cash\\s+and\\s+cash\\s+equivalents\\s+closing\\s+balance|cash\\s+cash\\s+equivalents\\s+closing\\s+balance|closing\\s+cash\\s+and\\s+cash\\s+equivalents|closing\\s+cash\\s+cash\\s+equivalents)(?:\\s+(?:[ivxl]{1,5}|\\d{1,2}|[a-h]))*(?:\\s+(?:liabilities))?$",
-    "^cash\\s+and\\s+cash\\s+equivalents\\s+(?:as\\s+)?(?:at|on)\\s+(?:the\\s+)?(?:end|close|year\\s+end|31st\\s+march|31\\s+march)\\b.*$"
+    "^cash\\s+and\\s+cash\\s+equivalents\\s+(?:as\\s+)?(?:at|on)\\s+(?:the\\s+)?(?:end|close|year\\s+end|31st\\s+march|31\\s+march)\\b.*$",
+    "^cash\\s+and\\s+cash\\s+equivalents\\s+closing\\s+balances?\\b.*$"
    ]
   }
  ],

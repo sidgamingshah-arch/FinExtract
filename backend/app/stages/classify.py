@@ -1361,7 +1361,7 @@ def _features(index: int, lines: list[dict], page_h: float, text: str, *,
             # running-header test: the folio, the report year and the period caption all carry
             # digits and none of them carries a figure.
             f.amounts_above_title = any(
-                line["y"] < hit["y"] and _AMOUNT_LINE.search(line["text"])
+                _printed_before(line, hit) and _AMOUNT_LINE.search(line["text"])
                 for line in lines)
             # …and whether the page ENDS in another one. Asked of every titled page, top-zone or
             # mid-page alike, because both can be followed by a second statement's title.
@@ -1424,6 +1424,27 @@ def _spread_fold(page) -> float | None:
         return page_spread.page_fold(_native_words(page, w, h, rotation=rot), w, h, rot)
     except Exception:  # noqa: BLE001 — a page that cannot be measured is read whole
         return None
+
+
+def _printed_before(line: dict, title: dict) -> bool:
+    """Whether ``line`` is printed above ``title`` as the page reads.
+
+    ON A PAGE PRINTED SIDEWAYS, "above" is not a smaller y. The sheet's y runs across the printed
+    page, so the lines with a smaller y stand beside the title, not over it. Chemplast Sanmar's
+    statements of changes in equity are printed sideways whole, title at the top as they read; on
+    the sheet the title stood at 44% of the height with the share-capital table's figures to one
+    side, so the cash flow on the page before was recorded as running above it. `pdf_extract`
+    split the page there, and "Balance at March 31" (158,109,574 shares, 79.06) was read as a
+    cash-flow row and swept into other financing, which the financing check then put out by twice
+    each. Read as `_sideways_half` reads a half: down the page once it is turned upright, from the
+    sheet's left edge for text that runs up it (90), from its right edge for text that runs down
+    it (270), and among the lines drawn at the title's angle only."""
+    rot = int(title.get("rot") or 0)
+    if rot == 90:
+        return int(line.get("rot") or 0) == rot and float(line["x0"]) < float(title["x0"])
+    if rot == 270:
+        return int(line.get("rot") or 0) == rot and float(line["x1"]) > float(title["x1"])
+    return line["y"] < title["y"]
 
 
 def _half_rotation(lines: list[dict]) -> int:

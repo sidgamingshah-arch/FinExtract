@@ -355,7 +355,9 @@ LINES = {
           roll=("sum", ["bs_equity__common_share_capital", "bs_equity__other_equity"])),
         L("bs_equity__non_controlling_interests", "Non-controlling interests",
           ["Non-controlling interests", "Non-controlling interest", "Non controlling interests",
-           "Minority interests", "Minority interest"],
+           "Minority interests", "Minority interest",
+           # JSW Steel 2024-25's consolidated balance sheet: 2,170 / 2,107.
+           "Non-controlling interests (NCI)"],
           "The equity of non-controlling shareholders in subsidiaries, as a consolidated balance "
           "sheet prints it.",
           sign="either", exclude=[r"share\s+of", r"attributable", r"profit", r"loss",
@@ -1011,7 +1013,11 @@ LINES = {
                    (r"cash\s+and\s+cash\s+equivalents\s*(?:\(refer|in\s+(?:the\s+)?(?:standalone\s+|consolidated\s+)?"
                    r"statement|as\s+per)"),
                    r"liquid\s+mutual\s+funds?", r"loans?\s+repayable\s+on\s+demand",
-                   r"^\W*(?:borrowings|lease\s+liabilities|other\s+liabilities)\s*\(refer\s+note"]),
+                   # …and the same rows as JSW Steel 2024-25 prints them under its standalone
+                   # statement, marked for a footnote: "Borrowings *", "Lease liabilities $",
+                   # "Borrowings (Current)^" — 58,823 and 2,357 of opening balances swept in.
+                   (r"^\W*(?:non[\s-]?current\s+|current\s+)?(?:borrowings?|lease\s+liabilities"
+                    r"|other\s+liabilities)\s*(?:\(refer\s+note|\(\s*(?:non[\s-]?)?current\s*\)|[*$^#]|$)")]),
         L("cf_financing__cash_flows_from_finance_activities", "Net cash used in financing activities",
           ["Net cash used in financing activities", "Net cash from financing activities",
            "Net cash flow from financing activities", "Net cash flows from financing activities",
@@ -1116,10 +1122,14 @@ CF_REGEX = {
     "cf_financing__dividends_paid_fin": [_PCF + r"dividends?\s+paid\b.*$"],
     "cf_financing__beg_of_period_cash_and_cash_equiv": [
         (r"^(?:add\s+)?cash\s+and\s+cash\s+equivalents\s+(?:as\s+)?(?:at|on)\s+(?:the\s+)?"
-        r"(?:beginning|start|commencement|1st\s+april|1\s+april)\b.*$")],
+        r"(?:beginning|start|commencement|1st\s+april|1\s+april)\b.*$"),
+        # JSW Steel 2024-25: "Cash and cash equivalents - opening balances".
+        r"^(?:add\s+)?cash\s+and\s+cash\s+equivalents\s+opening\s+balances?\b.*$"],
     "cf_financing__end_of_period_cash_and_cash_equiv": [
         (r"^cash\s+and\s+cash\s+equivalents\s+(?:as\s+)?(?:at|on)\s+(?:the\s+)?"
-        r"(?:end|close|year\s+end|31st\s+march|31\s+march)\b.*$")],
+        r"(?:end|close|year\s+end|31st\s+march|31\s+march)\b.*$"),
+        # JSW Steel 2024-25: "Cash and cash equivalents - closing balances (note 15)".
+        r"^cash\s+and\s+cash\s+equivalents\s+closing\s+balances?\b.*$"],
     "cf_financing__net_foreign_exchange_difference": [
         (r"^(?:add\s+|less\s+)?(?:net\s+)?(?:effect|impact)\s+of\s+(?:foreign\s+)?(?:currency\s+)?"
         r"exchange\b.*$"),

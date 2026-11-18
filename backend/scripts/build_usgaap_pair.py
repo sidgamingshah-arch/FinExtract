@@ -1679,7 +1679,12 @@ LINES = {
                  r"options\b.*$",
                  PCF + r"proceeds\s+from\s+(?:employee\s+)?(?:stock|share)\s+(?:plans|option\s+exercises|purchase"
                  r"\s+plans?)\b.*$",
-                 PCF + r"(?:common\s+)?stock\s+issued\b.*$"]),
+                 PCF + r"(?:common\s+)?stock\s+issued\b.*$",
+                 # Madrigal's 10-K: "Proceeds from related parties - warrants, exercise of common
+                 # stock options, net of transaction costs" (38,055 / 337,575 / 270,292), printed
+                 # beside "Proceeds from issuances of stock, excluding related parties, …".
+                 PCF + r"proceeds\s+from\s+related\s+part(?:y|ies)\b.*\b(?:warrants|exercises?\s+of\s+"
+                 r"(?:common\s+)?(?:stock|share)\s+options|issuances?\s+of\s+(?:common\s+)?(?:stock|shares))\b.*$"]),
         R("cf_financing__other_financing_cash_flows", "Other financing activities",
           "Every financing-activities row the face prints that no line above claims, itemised: "
           "taxes paid for the net share settlement of equity awards, finance lease payments, "
