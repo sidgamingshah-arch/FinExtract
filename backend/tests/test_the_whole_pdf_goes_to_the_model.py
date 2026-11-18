@@ -459,3 +459,45 @@ def test_the_switch_and_its_limits_are_admin_settings(monkeypatch):
         S.set_extraction_config(persist=False, whole_pdf_pages="some")
     with pytest.raises(ValueError):
         S.set_extraction_config(persist=False, whole_pdf_pages_per_request=601)
+
+
+# ── what the first real run (11033486, 323 pages, CAS) showed ──────────────────────────────────
+
+def test_a_model_row_is_on_its_lines_statement_not_its_pages():
+    """Page 136 of 11033486 ends the parent company's balance sheet and starts the income
+    statement; the classifier names the page `profit_and_loss`. Fifteen balance-sheet lines read
+    there were resolved by the PAGE, failed normalize's balance/flow check and lost their line."""
+    from decimal import Decimal as D
+
+    from app.services.buckets import statement_resolver
+    from app.stages.whole_pdf import _rows
+
+    hk = _set("output_csv_hk_line_items.json")
+    doc = DocumentModel(filename="x.pdf")
+    doc.pages = [PageSource(index=0, kind=PageKind.FACE, statement="profit_and_loss")]
+    reading = W.Reading(key="bs_cl__total_liabilities", basis="standalone", period="current",
+                        amount=D("7824458227.57"), caption="负债合计", period_end="", part=0,
+                        check=W.Check("on_page", 0), on_face=True)
+    rows = _rows(doc, hk, {("bs_cl__total_liabilities", "standalone", "current"): reading},
+                 "scripted")
+    assert statement_resolver(doc)(rows[0]) == "balance_sheet"
+
+
+def test_the_question_carries_the_rules_the_rules_route_applies_by_layout():
+    # CAS prints outflows unsigned under 现金流出小计; the rules negate the block, the model is told.
+    assert "现金流出小计" in W.SYSTEM and "negative even where" in W.SYSTEM
+    # The residual sweep: a row no line describes goes into its section's other line, once.
+    assert "exactly one line" in W.SYSTEM and '"other" line' in W.SYSTEM
+
+
+def test_a_statement_is_asked_in_one_request_by_default():
+    """At 60 lines a request the HK balance sheet went in four requests, none seeing the lines the
+    others would claim, so none could fill an "other" line."""
+    from app.config import ExtractionSettings
+
+    per = ExtractionSettings().whole_pdf_lines_per_request
+    hk = W.lines_to_ask(_set("output_csv_hk_line_items.json"))
+    chunks = W.chunk_lines(hk, per)
+    assert len(chunks) == len({W.statement_of(it) for it in hk})
+    assert max(len(c) for c in chunks) > 60
+    assert W.max_tokens_for(len(chunks[0])) <= 32_000

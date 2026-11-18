@@ -545,9 +545,13 @@ class ExtractionSettings(BaseModel):
     # The largest request the provider takes, in megabytes, counting the PDF in base64. A part
     # over it is halved. Claude's own API takes 32 MB; Amazon Bedrock is lower, hence 20.
     whole_pdf_max_request_mb: int = Field(default=20, ge=1, le=128)
-    # Template lines asked in one request. Each request sends the same file, cached after the
-    # first, so a smaller number means more requests that each write a shorter reply.
-    whole_pdf_lines_per_request: int = Field(default=60, ge=5, le=300)
+    # Template lines asked in one request — at most; a request never mixes two statements. 250 so a
+    # statement's whole line list goes in one request (202 on the HK balance sheet): the model can
+    # only put each printed row on exactly one line, and the rows no line describes into the
+    # section's "other" line, when it sees every line of the statement. At 60 the balance sheet
+    # went in four requests, none of which knew what the others' lines would claim. Each request
+    # sends the same file, cached after the first.
+    whole_pdf_lines_per_request: int = Field(default=250, ge=5, le=300)
     # HOW MANY LINE-ITEM REQUESTS ARE IN FLIGHT AT ONCE. The first request of a run is always
     # sent on its own (it is the one that fills the provider's prompt cache), then up to this many
     # together. Replies are processed in plan order either way, so the figures a run writes do not

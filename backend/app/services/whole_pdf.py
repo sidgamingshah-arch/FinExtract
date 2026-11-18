@@ -58,6 +58,10 @@ STATEMENT_ORDER = ("balance_sheet", "profit_and_loss", "cash_flow", "notes",
 #: (`ports.llm.complete_with_room`).
 _TOKENS_PER_LINE = 220
 _TOKENS_RESERVE = 1_024
+#: …at most this: a statement's whole line list is asked in one request (202 lines on the HK
+#: balance sheet), and most of its lines are not printed and cost nothing. The longest reply
+#: measured, a balance sheet asked 60 lines at a time, was 3,878 tokens.
+_TOKENS_CEILING = 32_000
 
 
 # ── which pages, in which parts ────────────────────────────────────────────────────────────────
@@ -224,7 +228,7 @@ def chunk_lines(lines: list, per_request: int) -> list[list]:
 
 
 def max_tokens_for(n_lines: int) -> int:
-    return _TOKENS_RESERVE + max(1, n_lines) * _TOKENS_PER_LINE
+    return min(_TOKENS_CEILING, _TOKENS_RESERVE + max(1, n_lines) * _TOKENS_PER_LINE)
 
 
 # ── the question and the reply ─────────────────────────────────────────────────────────────────
@@ -240,7 +244,10 @@ before it. Leave out older columns.
 - amount: the figure exactly as printed, in the statement's own units (do not scale it), written \
 as a plain number: digits, "." for decimals, and a leading "-" where the report prints it negative \
 (in brackets or with a minus sign). No thousands separators, currency or unit words. A row printed \
-as nil ("-", "—") is 0.
+as nil ("-", "—") is 0. One exception, in the cash flow statement: a payment or outflow \
+(支付…, 购建…, 偿还…, 分配股利…, purchases, repayments, dividends paid) is negative even where \
+the statement prints it unsigned under an outflow subtotal (…现金流出小计); every other figure \
+keeps the sign it is printed with.
 - page: the page OF THIS PDF FILE the figure is printed on, counting the file's first page as 1. \
 Not the page number printed on the page.
 - caption: the row's caption exactly as printed.
@@ -252,8 +259,11 @@ splits into rows) is their sum: give the sum as amount and list each row in part
 caption and amount as printed.
 - A line marked TOTAL is a total the template also adds up: give the total the report PRINTS for \
 it, if it prints one. Do not add it up yourself.
-- Leave out a line the report does not print. Never answer 0 for a line that is not there, and \
-never put one printed row on two lines.
+- Every printed row of the statement goes to exactly one line: never put one printed row on two \
+lines. A printed row that no line above describes goes into its section's "other" line (the line \
+whose name says other), added to it and listed in its parts. A printed subtotal or total goes on \
+its TOTAL line, never into an "other" line.
+- Leave out a line the report does not print. Never answer 0 for a line that is not there.
 - A figure printed both on a statement and in a note: cite the statement.
 - Read figures from the financial statements and their notes, not from highlights, summaries, \
 the directors' report or the management discussion.

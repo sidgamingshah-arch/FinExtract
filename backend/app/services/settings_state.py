@@ -161,9 +161,11 @@ EXTRACTION_KNOBS: tuple[Knob, ...] = (
          "not sent and the log names it. Claude's own API takes 32 MB; Amazon Bedrock less.",
          minimum=1, maximum=128, step=1),
     Knob("whole_pdf_lines_per_request", "number", "Template lines per request (whole PDF)",
-         "How many template lines one request asks about. Every request sends the same file, "
-         "read from the provider's cache after the first, so a smaller number means more, "
-         "shorter requests: each reply is written faster and a reply cut short loses fewer lines.",
+         "How many template lines one request asks about, at most; a request never mixes two "
+         "statements. The default sends a statement's whole line list in one request, which is "
+         "what lets the model put each printed row on exactly one line and the rows no line "
+         "describes into the section's \"other\" line. Lower it only if replies are cut short; "
+         "every request sends the same file, read from the provider's cache after the first.",
          minimum=5, maximum=300, step=1),
     Knob("llm_parallel_requests", "number", "Requests sent at once",
          "How many line-item requests are in flight together. The first request of a run is "

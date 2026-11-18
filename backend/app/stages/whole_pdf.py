@@ -39,6 +39,7 @@ from app.core.stage import PipelineContext
 from app.ports.llm import complete_with_room, takes_documents
 from app.ports.registry import registry
 from app.services import whole_pdf as W
+from app.services.buckets import PRINTED_ON_FLAG
 
 #: What still runs once the model has read the file. Every other stage works on rows the rules
 #: rebuilt from the page or on note tables, and there are none: they are skipped, and the run log
@@ -318,6 +319,16 @@ def _rows(doc, line_item_set, merged: dict, provider_id: str) -> list[LineItem]:
         row.confidence.method = MappingMethod.LLM.value
         row.confidence.mapping = max(0.0, min(scores)) if scores else 0.0
         row.confidence.flags.append(FLAG)
+        # THE STATEMENT THE ROW IS ON is its line's: the model was asked it as that statement's
+        # line. A page is not a statement — a mainland filing ends one statement and starts the
+        # next on the same page — and without this every stage that resolves a row's statement
+        # (`buckets.statement_resolver`) read the PAGE's: on 11033486 the parent company's
+        # liabilities and equity, printed above the income statement's title on page 136, were
+        # read as income-statement rows, failed normalize's balance/flow check and lost their
+        # line (15 rows, the balance sheet's checks with them). `pdf_extract` stamps the same
+        # flag on a page it splits.
+        if item is not None:
+            row.confidence.flags.append(f"{PRINTED_ON_FLAG}:{W.statement_of(item)}")
         if any(r.check.status in _REVIEWED or r.others for r in group):
             row.confidence.flags.append(REVIEW_FLAG)
         out.append(row)
