@@ -260,7 +260,14 @@ document_reader_pages = "scanned" # scanned (in place of OCR) | all (in place of
 # skipped; units, signs and the checks run on the model's figures. A provider that cannot take a
 # file, or a run where no request succeeds, is read by the rules and the log says why. Admin-
 # switchable from the Settings screen, with the four limits below.
-whole_pdf_to_model = false
+#
+# ON HERE, so that it TRAVELS: an admin's switch is stored in the database, which is not in git, and
+# this file is the value a fresh clone starts with ("restore defaults" on the Settings screen
+# returns to it). The code's own default stays off (app/config.py), as `llm_focus_only`'s does.
+# With the shipped gateway and its key, every PDF run now sends the file to the model; without a key,
+# with the stub provider (the test suite, `run_filing.py --no-llm`) or for a spreadsheet, the stage
+# falls back and the rules read the filing exactly as with this off.
+whole_pdf_to_model = true
 whole_pdf_pages = "statements"    # statements (the classifier's statement and notes pages) | all
 whole_pdf_pages_per_request = 100 # a longer selection goes in parts; Claude: 600 a request, 100 under a 1M window
 whole_pdf_max_request_mb = 20     # the largest request, the PDF counted in base64; Claude's API takes 32, Bedrock less

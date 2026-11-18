@@ -531,6 +531,9 @@ class ExtractionSettings(BaseModel):
     # it cites, in the PDF's own text, and says whether it was found. If the provider cannot take a
     # file, or no request succeeds, the run is read by the rules and the log says why. Needs a
     # provider that takes files (anthropic, bedrock_gateway, openai, azure_openai).
+    #
+    # OFF IN CODE, ON IN THE SHIPPED config.toml — the value a fresh clone and "restore defaults"
+    # get. A Settings built without that file (or with a file that does not set it) stays off.
     whole_pdf_to_model: bool = False
     # Which pages go: "statements" — the pages the classifier found to be statements and notes
     # (or the pages a person chose on the Page Scope screen); "all" — every page.

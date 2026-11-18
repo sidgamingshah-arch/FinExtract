@@ -59,8 +59,12 @@ def whole_pdf_pipeline() -> Pipeline:
     from app.stages.whole_pdf import WholePdfStage
 
     stages = list(default_pipeline().stages)
-    at = next(i for i, st in enumerate(stages) if st.name == "classify") + 1
-    stages.insert(at, WholePdfStage())
+    at = next((i for i, st in enumerate(stages) if st.name == "classify"), None)
+    if at is None:
+        # The stage chooses its pages from the classifier's page map; a pipeline without one is
+        # not given it.
+        return Pipeline(stages=stages)
+    stages.insert(at + 1, WholePdfStage())
     return Pipeline(stages=stages)
 
 

@@ -31,7 +31,7 @@ import re
 
 import pytest
 
-from app.core.pipeline import default_pipeline
+from app.core.pipeline import whole_pdf_pipeline
 
 I18N = (pathlib.Path(__file__).resolve().parent.parent.parent
         / "frontend" / "src" / "i18n" / "screens" / "extraction.ts")
@@ -48,7 +48,9 @@ def source() -> str:
 
 @pytest.fixture(scope="module")
 def stages() -> list[str]:
-    return [stage.name for stage in default_pipeline().stages]
+    # EVERY stage a run can pass through: the default pipeline's, and the whole-PDF stage the
+    # switch adds after the classifier (`whole_pdf_pipeline`, a superset of the default list).
+    return [stage.name for stage in whole_pdf_pipeline().stages]
 
 
 def _blocks(source: str) -> dict[str, str]:
@@ -91,7 +93,8 @@ def test_every_pipeline_stage_has_a_label_in_every_locale(source, stages):
     assert not missing, (
         f"stages with no label on the extraction screen: {missing}. Add "
         f'"ex.stage.<name>" to frontend/src/i18n/screens/extraction.ts — the pipeline owns the '
-        f"list (app/core/pipeline.py::default_pipeline), this is a copy of it.")
+        f"list (app/core/pipeline.py::default_pipeline and whole_pdf_pipeline), this is a "
+        f"copy of it.")
 
 
 def test_no_label_names_a_stage_the_pipeline_dropped(source, stages):

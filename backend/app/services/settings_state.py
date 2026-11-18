@@ -130,9 +130,9 @@ EXTRACTION_KNOBS: tuple[Knob, ...] = (
          "layer is broken or scrambled. Only read when an engine is chosen above.",
          choices=("scanned", "all")),
     Knob("whole_pdf_to_model", "bool", "Send the whole PDF to the model (skip extraction)",
-         "Off (the default), a filing is read as always: rows are rebuilt from each page and "
-         "placed on the template's lines by the rules, and the model is only asked where a line's "
-         "figure is printed. On, the pages are still classified (what the Page Scope screen "
+         "On in the shipped config.toml. Off, a filing is read as always: rows are rebuilt from "
+         "each page and placed on the template's lines by the rules, and the model is only asked "
+         "where a line's figure is printed. On, the pages are still classified (what the Page Scope screen "
          "shows), and then the PDF FILE ITSELF is sent to the model with the template's lines — "
          "the model sees each page as printed, tables and columns intact — and returns each "
          "line's figures with the page it read them on. Row reconstruction, note tables and "

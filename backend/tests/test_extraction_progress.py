@@ -32,10 +32,13 @@ from tests.fixtures.generate import make_native_pdf
 
 def _stage_names() -> list[str]:
     """The pipeline's own ordered stage names — the answer every assertion here is measured
-    against, never a literal list copied into this file."""
-    from app.core.pipeline import default_pipeline
+    against, never a literal list copied into this file. The pipeline a run ASSEMBLES
+    (`pipeline_for`): `default_pipeline()`, with the whole-PDF stage after the classifier while
+    `extraction.whole_pdf_to_model` is on, as the shipped config.toml has it."""
+    from app.config import get_settings
+    from app.core.pipeline import pipeline_for
 
-    return [stage.name for stage in default_pipeline().stages]
+    return [stage.name for stage in pipeline_for(get_settings()).stages]
 
 
 @contextlib.contextmanager

@@ -389,17 +389,31 @@ def test_a_run_the_model_cannot_read_is_read_by_the_rules(run, case):
     assert not any(line.startswith("stage:") and line.endswith(":skipped") for line in ctx.logs)
 
 
-def test_switched_off_the_stage_is_not_in_the_pipeline():
+def test_switched_off_the_stage_is_not_in_the_pipeline(monkeypatch):
     from app.core.pipeline import default_pipeline, pipeline_for, whole_pdf_pipeline
     from app.stages.whole_pdf import KEPT_STAGES
 
     s = get_settings()
-    assert s.extraction.whole_pdf_to_model is False
+    monkeypatch.setattr(s.extraction, "whole_pdf_to_model", False)
     names = [st.name for st in pipeline_for(s).stages]
     assert names == [st.name for st in default_pipeline().stages] and "whole_pdf" not in names
-    on = [st.name for st in whole_pdf_pipeline().stages]
+    monkeypatch.setattr(s.extraction, "whole_pdf_to_model", True)
+    on = [st.name for st in pipeline_for(s).stages]
+    assert on == [st.name for st in whole_pdf_pipeline().stages]
     assert on.index("whole_pdf") == on.index("classify") + 1
     assert KEPT_STAGES <= set(on)             # every stage it keeps is a stage that exists
+
+
+def test_the_shipped_config_turns_it_on_and_the_code_default_is_off():
+    """On by default VIA CONFIG: config.toml is what a fresh clone and "restore defaults" get; a
+    Settings built without that file stays off."""
+    import tomllib
+
+    from app.config import BACKEND_DIR, ExtractionSettings
+
+    shipped = tomllib.loads((BACKEND_DIR / "config.toml").read_text(encoding="utf-8"))
+    assert shipped["extraction"]["whole_pdf_to_model"] is True
+    assert ExtractionSettings().whole_pdf_to_model is False
 
 
 def test_a_stage_can_name_the_stages_still_to_run():
@@ -432,13 +446,15 @@ def test_the_switch_and_its_limits_are_admin_settings(monkeypatch):
     assert fields["whole_pdf_pages"]["choices"] == ["statements", "all"]
     assert (fields["whole_pdf_pages_per_request"]["min"],
             fields["whole_pdf_pages_per_request"]["max"]) == (1, 600)
-    assert S.extraction_config()["defaults"]["whole_pdf_to_model"] is False
     ex = get_settings().extraction
     for key in ("whole_pdf_to_model", "whole_pdf_pages", "whole_pdf_lines_per_request"):
         monkeypatch.setattr(ex, key, getattr(ex, key))
-    S.set_extraction_config(persist=False, whole_pdf_to_model=True, whole_pdf_pages="all",
+    # An admin can switch it off, and back on, from the Settings screen.
+    S.set_extraction_config(persist=False, whole_pdf_to_model=False, whole_pdf_pages="all",
                             whole_pdf_lines_per_request=40)
-    assert ex.whole_pdf_to_model is True and ex.whole_pdf_pages == "all"
+    assert ex.whole_pdf_to_model is False and ex.whole_pdf_pages == "all"
+    S.set_extraction_config(persist=False, whole_pdf_to_model=True)
+    assert ex.whole_pdf_to_model is True
     with pytest.raises(ValueError):
         S.set_extraction_config(persist=False, whole_pdf_pages="some")
     with pytest.raises(ValueError):

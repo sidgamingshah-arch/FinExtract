@@ -675,10 +675,15 @@ column alignment, with an ALL-CAPS/`:`-suffixed section-header guard) so heading
 swallowed into the item below them. It also has a second path for a **matrix** statement
 (changes in equity), whose columns are equity components rather than periods.
 
-## The whole PDF to the model — an admin switch, off by default
+## The whole PDF to the model — an admin switch, on in the shipped config
 
-`extraction.whole_pdf_to_model` (Settings screen; `config.toml [extraction]`). **Off, nothing
-above changes**: `core/pipeline.py::pipeline_for` assembles `default_pipeline()` and the stage
+`extraction.whole_pdf_to_model` (Settings screen; `config.toml [extraction]`). **On in the shipped
+`config.toml`**, the value a fresh clone and the Settings screen's "restore defaults" get; the code's
+own default (`app/config.py`) is off, so a Settings built without that file stays off. With the
+shipped gateway and its key, every PDF run sends the file to the model; with no key, the `stub`
+provider (the test suite, `scripts/run_filing.py --no-llm`) or a spreadsheet, the stage falls back
+(below) and the rules read the filing exactly as with the switch off. **Off, nothing above
+changes**: `core/pipeline.py::pipeline_for` assembles `default_pipeline()` and the stage
 below is not in it. **On**, the run assembles `whole_pdf_pipeline()` — the same list with
 `whole_pdf` straight after `classify` — and the filing is read differently:
 
