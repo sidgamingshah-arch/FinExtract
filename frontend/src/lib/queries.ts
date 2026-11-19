@@ -5,7 +5,7 @@ import {
 } from "@tanstack/react-query";
 
 import type {
-  Basis, FxRateInput, LineItemEdit, LineItemVersionRef, Locale, PagesResponse, ScopeSectionEdit,
+  Basis, FocusLineItemInput, FxRateInput, LineItemEdit, LineItemVersionRef, Locale, PagesResponse, ScopeSectionEdit,
   SettingsPatch, StatementKey, RequestGroup, TemplateRef } from "../types";
 import { useUI } from "../store";
 import { api } from "./api";
@@ -81,6 +81,39 @@ export function usePatchSettings() {
       // Role gating (/me) depends on review_required; refresh it.
       qc.invalidateQueries({ queryKey: ["me"] });
     },
+  });
+}
+
+// --- Focus line items master ---
+/** The Focus line items master (Settings). Readable by any authenticated user. */
+export const useFocusLineItems = () => {
+  const token = useUI((s) => s.token);
+  return useQuery({ queryKey: ["focus-line-items"], queryFn: api.focusLineItems, enabled: !!token });
+};
+
+/** Add a line (and a computed line's parts) to the master (admin). */
+export function useAddFocusLineItem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: FocusLineItemInput) => api.addFocusLineItem(body),
+    onSuccess: (res) => qc.setQueryData(["focus-line-items"], res),
+  });
+}
+
+export function useDeleteFocusLineItem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.deleteFocusLineItem(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["focus-line-items"] }),
+  });
+}
+
+/** Replace the master with config.toml's shipped list (admin). */
+export function useRestoreFocusLineItems() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.restoreFocusLineItems(),
+    onSuccess: (res) => qc.setQueryData(["focus-line-items"], res),
   });
 }
 

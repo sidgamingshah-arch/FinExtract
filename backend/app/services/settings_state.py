@@ -77,10 +77,12 @@ EXTRACTION_KNOBS: tuple[Knob, ...] = (
          "they name: which printed row inside a claimed note holds the figure. Off, or with no "
          "provider, the note-sourced tiers decide that too."),
     Knob("llm_focus_only", "bool", "Ask the model only about focus line items",
-         "Restrict the run's requests to the line items named by extraction.llm_focus_keys; every "
-         "other line keeps what the deterministic tiers gave it. Use it to spend a small provider "
-         "budget on the lines under review instead of on the whole filing. With no focus keys "
-         "configured this does nothing and says so in the run log."),
+         "Off (as shipped): the model is asked about every line item. On: a run's requests are "
+         "restricted to the lines on the Focus line items master below, and every other line keeps "
+         "what the deterministic tiers gave it — a way to spend a small provider budget on the "
+         "lines under review instead of on the whole filing. With the master empty this does "
+         "nothing and says so in the run log. The whole-PDF route asks every extracted line either "
+         "way."),
     Knob("llm_request_grouping", "choice", "How line items share a request",
          "Each request carries the NOTES its line items asked for, and that note block is almost "
          "all of what a request costs — measured at 95,188 of a ~196,000-character request, going "
@@ -353,6 +355,12 @@ def load_persisted() -> None:
             # A stored value that is no longer valid (a knob's range tightened between
             # releases) must not stop the app from starting; the config default stands.
             pass
+
+    # THE FOCUS LINE ITEMS MASTER, onto the list a run reads (`services.focus_master`). Best effort,
+    # as above: a database without the table yet leaves config.toml's list in place.
+    from app.services.focus_master import apply as apply_focus_master
+
+    apply_focus_master()
 
 
 # A VALUE SAVED BEFORE ITS SETTING'S MEANING MOVED IS READ AS WHAT IT MEANT WHEN IT WAS SAVED.

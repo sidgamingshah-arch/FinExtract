@@ -92,6 +92,37 @@ snapshot: the read-only parts (OCR, access flags, locales) alongside the
 editable ones above. Non-admins do not see the screen; the server enforces the
 `config:settings` permission regardless.
 
+### The Focus line items master
+
+`extraction.llm_focus_only` ("Ask the model only about focus line items", an extraction knob)
+restricts a run's model requests to the **focus line items**; every other line keeps what the
+rules gave it. It is **off as shipped** — a run asks the model about every line item
+`line_item_requests.asked_about` admits — and an admin switches it on from the Settings screen.
+It governs the rules route's questions (`stages.line_item_llm`); the whole-PDF route asks every
+extracted line either way.
+
+**Which** lines are in focus is a master on the same screen, kept like the FX rate master: one row
+per entry in `focus_line_items` (`db.models.FocusLineItem`), read by any signed-in caller
+(`GET /focus-line-items`) and changed only under `config:settings` (`POST` to add,
+`DELETE /{id}`, `POST /restore`). `services/focus_master.py`:
+
+- **An entry** is a line-item key of a set in force, or a prefix ending in `*` (`bs_icon__*`,
+  every ICON balance-sheet line). Anything else is a **422 saying why**, so a typo cannot sit in
+  the master naming a line no run returns.
+- **A line computed from its parts** (`type: derived`) is never asked itself — its figure is its
+  cascade's — so adding one adds the asked-about parts its cascade reads, nested parts expanded
+  (`with_parts`, on by default). The screen marks each entry *asked*, *computed from its parts*,
+  *a prefix* naming N lines, *asked or computed, by set* (a key several sets hold and treat
+  differently), or *names no line in force*.
+- **Seeded once from `config.toml`.** `extraction.llm_focus_keys` there is the **shipped list**: the
+  table is filled from it when it is created (`db.base.init_db`), and from then on the table *is*
+  the list — an emptied master means no line is in focus, not "use the file". "Restore the shipped
+  list" (`POST /focus-line-items/restore`) replaces it with the file's.
+- **Applied onto the list a run reads.** The master is put onto `Settings.extraction.llm_focus_keys`
+  at startup (`settings_state.load_persisted`) and after every change, as the other knobs are: the
+  next run reads it, a run that already happened is never rewritten, and a second process picks a
+  change up on its next restart.
+
 ## Session authentication
 
 `app/security/session.py` provides a self-contained session layer so login/logout works

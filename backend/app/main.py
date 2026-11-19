@@ -16,6 +16,7 @@ from app.api.routes import (
     auth,
     documents,
     extractions,
+    focus_line_items,
     fx_rates,
     languages,
     projects,
@@ -150,6 +151,7 @@ def create_app() -> FastAPI:
     # second surface to mount and nothing to reinstate.
     application.include_router(line_items.router, prefix=prefix)
     application.include_router(fx_rates.router, prefix=prefix)
+    application.include_router(focus_line_items.router, prefix=prefix)
     application.include_router(languages.router, prefix=prefix)
     application.include_router(projects.router, prefix=prefix)
     application.include_router(auth.router, prefix=prefix)

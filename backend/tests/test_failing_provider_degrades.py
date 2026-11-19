@@ -97,12 +97,23 @@ def _keys(doc):
     return {li.canonical_key for li in doc.line_items if li.canonical_key}
 
 
-def test_the_configuration_really_does_route_by_focus_keys():
-    """The premise. With focus routing off, no row is forwarded to confirm-or-correct and the
-    discard this file is about cannot happen."""
-    settings = get_settings()
-    assert getattr(settings.extraction, "llm_focus_only", False) is True
-    assert len(settings.extraction.llm_focus_keys or ()) >= 1
+def _shipped_extraction() -> dict:
+    """config.toml's [extraction] as SHIPPED — read off the file rather than the settings object,
+    which other tests reconfigure and the Focus line items master overwrites at startup."""
+    import tomllib
+
+    return tomllib.loads((SEED.parents[3] / "config.toml").read_text(encoding="utf-8"))["extraction"]
+
+
+def test_focus_routing_ships_off_and_its_list_still_ships():
+    """THE PREMISE, as it ships now. Focus-only is OFF in config.toml, at the user's instruction: a
+    run asks the model about every line `asked_about` admits, not only the focus list. The list
+    still ships — it seeds the Focus line items master (`services.focus_master`), which an admin
+    keeps on the Settings screen — and the test below pins what it names, which is what a run
+    restricted to it can return once an admin switches focus-only on."""
+    shipped = _shipped_extraction()
+    assert shipped["llm_focus_only"] is False
+    assert len(shipped["llm_focus_keys"]) >= 1
 
 
 def test_the_focus_list_names_the_parts_and_not_only_the_wholes(shipped):
@@ -135,7 +146,7 @@ def test_the_focus_list_names_the_parts_and_not_only_the_wholes(shipped):
     # THE NAMED KEYS ONLY. A trailing "*" puts a whole set in focus by prefix — ICON's three
     # patterns, and the seven groups of the 10-K set's additional items — so it names no line of
     # this set and is not part of the count this test pins.
-    named = list(get_settings().extraction.llm_focus_keys or ())
+    named = list(_shipped_extraction()["llm_focus_keys"])
     focus = {k for k in named if not k.endswith("*")}
     patterns = {k for k in named if k.endswith("*")}
     assert patterns == {"pl_icon__*", "bs_icon__*", "cov_icon__*", "notes_cash__*", "notes_debt__*",
@@ -156,7 +167,7 @@ def test_the_focus_list_names_the_parts_and_not_only_the_wholes(shipped):
     # 关联方应收应付款项 table, and none had been asked about: on a CAS filing the model never saw
     # the note that tabulates a related party's balance by line item. All seven are parts, so the
     # nameable count moves with them and the withheld count does not.
-    assert len(focus) == 72, len(focus)   # 72: sub__expense_notes_depreciation joined the depreciation parts in the focus list  # 71 before; 71: Other Receivables (CP): the grid gross/allowance readings and six carve-outs went; the related-party carve-out reads the note by meaning  # 79 before; 79: Contingent liabilities: nine parts folded into one line-item sum over the contingencies note  # 87 before; 87: the four Securities (LTP) Find 2 and non-current-split parts left the set;   # 91: the three Securities (CP) Find 2 and non-current parts left the set and the focus list
+    assert len(focus) == 55, len(focus)   # 55: the seventeen retired parts the list still named left it with the Focus line items master — keys no shipped set holds  # 72 before; 72: sub__expense_notes_depreciation joined the depreciation parts in the focus list  # 71 before; 71: Other Receivables (CP): the grid gross/allowance readings and six carve-outs went; the related-party carve-out reads the note by meaning  # 79 before; 79: Contingent liabilities: nine parts folded into one line-item sum over the contingencies note  # 87 before; 87: the four Securities (LTP) Find 2 and non-current-split parts left the set;   # 91: the three Securities (CP) Find 2 and non-current parts left the set and the focus list
     # 69 nameable parts — see the item census in `test_retired_derivations`.
     assert len(nameable) == 47, len(nameable)   # 47: sub__expense_notes_depreciation joined the depreciation parts in the focus list  # 46 before; 46: Other Receivables (CP): the grid gross/allowance readings and six carve-outs went; the related-party carve-out reads the note by meaning  # 54 before; 54: Contingent liabilities: nine parts folded into one line-item sum over the contingencies note  # 62 before; 62: the four Securities (LTP) Find 2 and non-current-split parts left the set;   # 66: the three Securities (CP) Find 2 and non-current parts left the set
     # THE UNREACHABLE ONES ARE THE WHOLES, every one of them — a part that turned up in this list

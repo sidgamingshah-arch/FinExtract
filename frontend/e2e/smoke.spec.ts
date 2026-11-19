@@ -1299,6 +1299,57 @@ test("a saved threshold is still in force for a browser that never saw the edit"
   }
 });
 
+test("the Focus line items master: add a line with its parts, remove one, restore the shipped list",
+     async ({ page }) => {
+  // The master is PERSISTED (one row per entry), so the test starts and ends on the shipped list
+  // rather than trusting what an earlier run left behind.
+  await loginAs(page, "admin");
+  await page.goto("/settings", DCL);
+  const restore = page.getByTestId("focus-restore");
+  await expect(restore).toBeVisible({ timeout: 15_000 });
+  page.once("dialog", (d) => d.accept());
+  await restore.click();
+  const rows = page.getByTestId("focus-row");
+  await expect(rows.first()).toBeVisible({ timeout: 15_000 });
+  const shipped = await rows.count();
+  // Off as shipped: the card says the list is not used until the switch above is on.
+  await expect(page.getByTestId("focus-state")).toHaveAttribute("data-on", "false");
+
+  try {
+    // A line computed from its parts is never asked itself, so it goes in WITH its parts.
+    await page.getByTestId("focus-search").fill("Related Party Transactions");
+    const addRpt = page.getByTestId("focus-add-notes__related_party_transactions");
+    await expect(addRpt).toContainText(/with its \d+ parts/);
+    await addRpt.click();
+    await expect(page.getByTestId("focus-message")).toContainText(/Added \d+/, { timeout: 15_000 });
+    const parent = page.locator('[data-testid="focus-row"][data-key="notes__related_party_transactions"]');
+    await expect(parent).toBeVisible();
+    await expect(parent).toContainText("Computed from its parts");
+    const withParts = await rows.count();
+    expect(withParts).toBeGreaterThan(shipped + 1);
+
+    // Removed: gone from the list (and from the list the next run reads).
+    await page.getByTestId("focus-remove-notes__related_party_transactions").click();
+    await expect(parent).toHaveCount(0, { timeout: 15_000 });
+    await expect(rows).toHaveCount(withParts - 1);
+
+    // A prefix that names no line of a set in force cannot be added.
+    await page.getByTestId("focus-search").fill("zz_nothing__*");
+    await expect(page.getByTestId("focus-results")).toContainText("0 lines");
+  } finally {
+    page.once("dialog", (d) => d.accept());
+    await restore.click();
+    await expect(rows).toHaveCount(shipped, { timeout: 15_000 });
+  }
+});
+
+test("an analyst sees no Focus line items controls", async ({ page }) => {
+  await loginAs(page, "analyst");
+  await page.goto("/settings", DCL);
+  await expect(page.getByTestId("focus-restore")).toHaveCount(0);
+  await expect(page.getByTestId("focus-search")).toHaveCount(0);
+});
+
 test("an analyst cannot reach the extraction thresholds at all", async ({ page }) => {
   // Settings is an admin-only SCREEN (see SCREENS_BY_ROLE): these knobs change how every
   // future extraction behaves, so an analyst gets neither the controls nor the screen.

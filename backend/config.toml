@@ -223,25 +223,26 @@ recon_abs_tolerance = 1.0       # absolute tolerance (in base units) for reconci
 recon_rel_tolerance = 0.005     # relative tolerance (fraction of the face value)
 
 # FOCUS RUN — spend the provider budget on the lines under review instead of the whole filing.
-# `llm_focus_keys` names WHICH concepts (a deployment decision, and a list, so it cannot travel
-# through the admin Settings patch); `llm_focus_only` is the switch, which an admin can also flip
-# from the Settings screen at run time.
+# `llm_focus_only` is the switch, which an admin can flip from the Settings screen; WHICH line
+# items are in focus is the Focus line items master on the same screen (`services.focus_master`,
+# table `focus_line_items`). `llm_focus_keys` below is the SHIPPED list: the master is seeded from
+# it once, when its table is created, and "Restore the shipped list" puts it back.
 #
-# ON HERE, so that it TRAVELS. The switch an admin flips is stored in the database
-# (`setting_overrides`), and the database is deliberately not in git — so a second machine used to
-# start with focus routing off and quietly spend the whole provider budget on its first run. This
-# file is the value a fresh clone gets.
+# OFF HERE, at the user's instruction: a run asks the model about every line item it asks about at
+# all (`line_item_requests.asked_about`), not only the focus list. It was on, so that a fresh clone
+# would not spend a whole provider budget on its first run; the cost of off is more requests per
+# filing, one group of lines a request. Switch it on from the Settings screen to restrict a run to
+# the master's list. This file is the value a fresh clone starts with and what "restore defaults"
+# returns to; an admin's switch is stored in the database and outranks it.
 #
-# It was previously false to keep a checked-in value from reconfiguring the test suite, and one
-# test did depend on the old default: test_binding_order.py::
-# test_a_page_the_classifier_could_not_place_is_routed_per_line asserts UNFOCUSED per-line routing.
-# It now pins `llm_focus_only = False` itself, which is where that precondition belongs — a test
-# about unfocused routing should say so rather than inherit whichever way a deployment points.
+# test_binding_order.py::test_a_page_the_classifier_could_not_place_is_routed_per_line pins
+# `llm_focus_only = False` itself, and the focus tests pin True: a test about either routing says
+# so rather than inherit whichever way a deployment points.
 #
 # WHAT IT MEANS NOW: which LINE ITEMS the run asks about. It used to name concepts whose printed
 # ROWS were forwarded to the model; rows are no longer offered to a model, so there is nothing to
-# route. The list below needs no change — a key names a line item either way.
-llm_focus_only = true
+# route. A key names a line item either way.
+llm_focus_only = false
 # WHAT THE MODEL READS WITH EACH LINE-ITEM QUESTION — "selected" (only the notes and statements
 # the request's lines selected; no line is sent the whole annual report), "anywhere" (the same,
 # and every line whose route is `anywhere` is asked with the whole annual report) or "full" (the
@@ -263,7 +264,7 @@ document_reader_pages = "scanned" # scanned (in place of OCR) | all (in place of
 #
 # ON HERE, so that it TRAVELS: an admin's switch is stored in the database, which is not in git, and
 # this file is the value a fresh clone starts with ("restore defaults" on the Settings screen
-# returns to it). The code's own default stays off (app/config.py), as `llm_focus_only`'s does.
+# returns to it). The code's own default stays off (app/config.py).
 # With the shipped gateway and its key, every PDF run now sends the file to the model; without a key,
 # with the stub provider (the test suite, `run_filing.py --no-llm`) or for a spreadsheet, the stage
 # falls back and the rules read the filing exactly as with this off.
@@ -303,7 +304,6 @@ llm_focus_keys = [
 
   "is_pl__deprec_and_impairment_cos",
   "sub__cos_depreciation",
-  "sub__pbt_cos_depreciation",
 
   "bs_ca__secur_and_other_fincl_assets_cp",
   "sub__fa_cp_afs_htm_note_total",
@@ -330,16 +330,11 @@ llm_focus_keys = [
   "sub__cl_related_party_guarantee_balance",
 
   "bs_nca__due_from_related_parties_ltp",
-  "sub__rp_bs_face_receivables",
-  "sub__rp_current_portion_ltr_note",
-  "sub__rp_due_from_note_noncurrent",
-  "sub__rp_loans_and_advances_note",
-  "sub__rp_lt_receivables_note",
-  "sub__rp_note_by_counterparty",
-  "sub__rp_note_by_receivable_class",
-  "sub__rp_note_entrusted_loans",
-  "sub__rp_note_umbrella_total",
-  "sub__rp_other_receivables_note",
+  # SEVENTEEN RETIRED PARTS LEFT THIS LIST with the Focus line items master, which is seeded from
+  # it: the nine related-party feeders that became the three Find items, the cost-of-sales PBT
+  # depreciation callout, and six revenue sub-items were retired from the HK set
+  # (tests/test_retired_derivations.py), and this list kept naming them — keys no shipped set
+  # holds, which no run could return.
   # THE PARTS THAT READ A MAINLAND 关联方应收应付款项 TABLE, which the list above did not name —
   # so on a CAS filing the model was never asked about the one note that tabulates a related
   # party's balance by line item (应收账款, 其他应收款, 应付账款, 长期应付款), and every one of these
@@ -369,13 +364,7 @@ llm_focus_keys = [
   "sub__cp_other_receivables_rp_rows",
 
   "is_pl__sales_revenues",
-  "sub__contract_revenue_note_revenue",
   "sub__face_principal_revenue",
-  "sub__principal_operations_note_revenue",
-  "sub__principal_revenue_by_geography",
-  "sub__principal_revenue_by_industry_segment",
-  "sub__principal_revenue_by_product",
-  "sub__principal_revenue_by_sales_channel",
   "sub__revenue_note_principal_revenue",
 
   # ICON (output_csv_icon) — EVERY line the model is asked about, by prefix (a trailing "*").

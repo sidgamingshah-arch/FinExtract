@@ -181,6 +181,33 @@ class FxRate(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
 
 
+class FocusLineItem(Base):
+    """One entry of the FOCUS LINE ITEMS MASTER: a line item a focus run asks the model about.
+
+    ``extraction.llm_focus_only`` (the Settings screen's switch, off as shipped) restricts a run's
+    model requests to the line items named here; every other line is read by the rules. ``key``
+    is a line-item key of a set in force, or a prefix pattern ending in ``*`` ("bs_icon__*") that
+    puts every line starting with it in focus — `stages.line_item_llm` reads both.
+
+    One row per key rather than one list in a settings row, as the FX rate master is one row per
+    rate: two admins adding different lines cannot clobber each other's edit, and each entry can
+    say why it is there. SEEDED ONCE, when the table is created, from config.toml's
+    ``llm_focus_keys`` (``source = "shipped"``); after that the table is the list, and "Restore the
+    shipped list" replaces it with the file's (``services.focus_master``).
+    """
+
+    __tablename__ = "focus_line_items"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    key: Mapped[str] = mapped_column(String(160), unique=True, index=True)
+    # Why it is in focus, free text ("under review with the credit team").
+    note: Mapped[str] = mapped_column(String(256), default="")
+    # "shipped" — seeded from config.toml; "admin" — added from the Settings screen.
+    source: Mapped[str] = mapped_column(String(16), default="admin")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
+
+
 class ExtractionRun(Base):
     __tablename__ = "extraction_runs"
 

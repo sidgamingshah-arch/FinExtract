@@ -201,6 +201,54 @@ export interface FxRate {
   created_at: string | null;
   updated_at: string | null;
 }
+/** How a line answers a focus run: asked about; computed from its parts (never asked itself —
+ *  its parts are); or never asked (filled by the app, a person, or the leftover rows). */
+export type FocusLineKind = "asked" | "computed" | "not_asked";
+/** A line of a line-item set in force that a focus key may name. */
+export interface FocusLine {
+  set: string;
+  key: string;
+  label: string;
+  statement: string;
+  kind: FocusLineKind;
+  parent: string;
+  /** For a computed line: the asked-about lines its cascade reads, nested parts expanded. */
+  parts: string[];
+}
+/** One entry of the Focus line items master: a line-item key, or a prefix ending in `*`. */
+export interface FocusLineItem {
+  id: string;
+  key: string;
+  note: string;
+  /** "shipped" — seeded from config.toml; "admin" — added from this screen. */
+  source: "shipped" | "admin";
+  pattern: boolean;
+  label: string;
+  /** "mixed": the sets holding the key treat it differently (asked in one, computed in another). */
+  kind: FocusLineKind | "mixed" | "";
+  /** How many lines of the sets in force it names (0: it names none any more). */
+  matched: number;
+  sets: string[];
+  created_at: string | null;
+  updated_at: string | null;
+}
+export interface FocusMaster {
+  /** extraction.llm_focus_only — whether a run is restricted to this list at all. */
+  focus_only: boolean;
+  items: FocusLineItem[];
+  /** config.toml's list, which "Restore the shipped list" puts back. */
+  shipped: string[];
+  /** Every line a key may name, across the sets in force. */
+  candidates: FocusLine[];
+  /** On an add: the keys added (a computed line's parts with it). */
+  added?: string[];
+}
+export interface FocusLineItemInput {
+  key: string;
+  note?: string;
+  /** For a computed line: add the parts its cascade reads too (default true). */
+  with_parts?: boolean;
+}
 /** A rate submitted by the admin editor. `as_of` omitted means "as of today" (server-side). */
 export interface FxRateInput {
   base: string;

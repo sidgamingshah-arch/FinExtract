@@ -149,9 +149,10 @@ ALIAS_DENIALS: dict[str, tuple[str, ...]] = {
 # got a confident wrong answer where an English filing got an honest refusal.
 #
 # Nothing downstream repairs it. Neither concept is in extraction.llm_focus_keys (config.toml
-# ships eight, and these are not among them) and extraction.llm_focus_only = true, so a row the
-# deterministic tiers place here is never forwarded to the model — the mis-map ships uncorrected
-# with the LLM on. Refusing the alias is the only tier that can act.
+# shipped eight, and these were not among them) and extraction.llm_focus_only was on when this was
+# written, so a row the deterministic tiers place here was never forwarded to the model — the
+# mis-map shipped uncorrected with the LLM on. Refusing the alias is the only tier that can act.
+# (No row is forwarded to a model at all any more, and focus-only now ships off.)
 #
 # The fix is REFUSE-AND-REDIRECT, not re-ranking: 折旧 and its family stay on
 # cf_oper_indirect__depreciation, which legitimately owns them (its English list is headed by
@@ -201,10 +202,11 @@ _FOREIGN_CAPTION_DENIALS: dict[str, tuple[str, ...]] = {
 # words and `_exact_tie` cannot catch here: `output_csv_hk_ontology.json` declares
 # `confusable_with` on 0 of its 462 concepts (see `mapping._exact_tie`).
 #
-# None of these concepts is in `extraction.llm_focus_keys` (config.toml ships eight) and
-# `extraction.llm_focus_only = true`, so a row the deterministic tiers place here is never
-# forwarded to the model and the mis-map ships uncorrected with the LLM on. Refusing the alias is
-# the only tier that can act.
+# None of these concepts is in `extraction.llm_focus_keys` (config.toml shipped eight) and
+# `extraction.llm_focus_only` was on when this was written, so a row the deterministic tiers place
+# here was never forwarded to the model and the mis-map shipped uncorrected with the LLM on.
+# Refusing the alias is the only tier that can act. (No row is forwarded to a model at all any
+# more, and focus-only now ships off.)
 #
 # REFUSE-ONLY for three of the four families — the caption goes to UNMATCHED/review, which is the
 # honest answer for a figure the rulebook has no line for. "Intangible assets" is a REDIRECT: with
@@ -401,9 +403,10 @@ _NOT_THE_FIXED_ASSET_REVALUATION = (
 # pins that home, so denying it on all seven is a test failure and not a silent regression.
 #
 # WHAT IS LOST, said plainly: the other six have no caption route left, `route: face` with no
-# `note_source`, and `config.toml` ships `llm_focus_only` with 85 focus keys that do not include
-# them — so the model is not asked either and only a reviewer's remap fills them. The money is NOT
-# lost: a carve-out's amount stays inside the printed parent it is carved out of.
+# `note_source`, and when this was written `config.toml` shipped `llm_focus_only` on with 85 focus
+# keys that did not include them — so the model was not asked either and only a reviewer's remap
+# filled them. (Focus-only now ships off; the focus list is the Focus line items master.) The money
+# is NOT lost: a carve-out's amount stays inside the printed parent it is carved out of.
 _A_CARVE_OUTS_SOURCE_LINE_IS_NOT_IN_ITS_CAPTION = (
     r"^Wealth management products$", r"^Bank wealth management products$",
     r"^理财产品$", r"^银行理财产品$",

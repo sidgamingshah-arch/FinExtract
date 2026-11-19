@@ -350,30 +350,28 @@ class ExtractionSettings(BaseModel):
     #
     # What the setting means now is the thing a focus run was always trying to say — ASK ABOUT
     # THESE LINE ITEMS AND NOT THE OTHERS — and it is read at that level, beside
-    # `llm_request_grouping`, by `services.line_item_requests`. The shipped list in config.toml
-    # carries the 8 focus concepts and needs no change: a key names a line item either way.
+    # `llm_request_grouping`, by `services.line_item_requests`. A key names a line item either way.
+    #
+    # THE LIVE VALUE IS THE FOCUS LINE ITEMS MASTER'S (`services.focus_master`): an admin keeps the
+    # list on the Settings screen, it is stored in the `focus_line_items` table, and it is applied
+    # onto this field at startup and on every change, which is what `stages.line_item_llm` reads per
+    # run. config.toml's value is the SHIPPED list: the master is seeded from it once, when its table
+    # is created, and "Restore the shipped list" puts it back.
     llm_focus_keys: list[str] = Field(default_factory=list)
     # …and the switch that turns the above on, separated from it because the two answer different
-    # questions and belong to different people. WHICH concepts are in focus is a deployment
-    # decision (a list, so it cannot travel through the admin Settings patch, which carries only
-    # float/bool/str); WHETHER to restrict this run to them is an operational one an admin flips
-    # from the Settings screen.
+    # questions. WHICH lines are in focus is the master's list; WHETHER to restrict this run to them
+    # is an operational choice an admin flips from the Settings screen.
     #
-    # THE FALSE BELOW IS NOT WHAT SHIPS. config.toml sets `llm_focus_only = true` next to the 8
-    # `llm_focus_keys` (config.toml:152-183), and config.toml is read for every `Settings()`
-    # (`settings_customise_sources`, from the absolute `_CONFIG_TOML` path), so a fresh clone — and
-    # the test suite — runs focus-routed unless something overrides it. It is on there so that it
-    # TRAVELS: the switch an admin flips is stored in `setting_overrides` in the database, the
-    # database is deliberately not in git, so a second machine used to start with routing off and
-    # spend the whole provider budget on its first run. This built-in False is therefore the value
-    # for a deployment with NO config.toml, not the value the product ships.
+    # OFF, IN CODE AND IN THE SHIPPED config.toml ALIKE, at the user's instruction: a run asks the
+    # model about every line item `line_item_requests.asked_about` admits, not only the focus list.
+    # It shipped ON for a while, so that a second machine — whose database, where an admin's switch
+    # is stored, is not in git — would not spend a whole provider budget on its first run; off, a
+    # run sends more requests, one group of lines a request. An admin turns it on from the Settings
+    # screen, and WHICH lines are in focus is the Focus line items master beside it
+    # (`services.focus_master`), seeded from `llm_focus_keys` above, which is the shipped list.
     #
-    # It was previously argued here that keeping the switch off by default is what lets the key
-    # list be checked in — "present but inert, so it cannot silently reconfigure the test suite".
-    # Shipping the switch ON falsified that inference. The one test that leaned on the old default
-    # now pins the precondition itself (tests/test_binding_order.py:501-506), which is where a
-    # test's precondition belongs: a test about UNFOCUSED routing should say so rather than
-    # inherit whichever way a deployment happens to point.
+    # A test about focus routing pins the value it needs (tests/test_binding_order.py pins False,
+    # the focus tests pin True) rather than inheriting whichever way a deployment points.
     llm_focus_only: bool = False
 
     # Refuse to ask the model about a note row whose caption is PROSE rather than a line-item name.

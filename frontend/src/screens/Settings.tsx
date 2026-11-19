@@ -1,7 +1,8 @@
 /** Settings (admin) — surfaces backend configuration on the frontend and lets an admin
  * edit the runtime-mutable pieces: interface localization, the reviewer sign-off step,
  * the FX rate master
- * used for presentation currency conversion, and the extraction thresholds. The LLM is NOT
+ * used for presentation currency conversion, the extraction thresholds, and the Focus line items
+ * master — the lines a focus run asks the model about. The LLM is NOT
  * here: it is defined only in backend/config.toml [llm]. Everything else is config.toml / env
  * driven and shown read-only.
  *
@@ -14,15 +15,21 @@ import { useT } from "../i18n";
 import { ApiError } from "../lib/api";
 import { useCan } from "../lib/rbac";
 import {
+  useAddFocusLineItem,
+  useDeleteFocusLineItem,
   useDeleteFxRate,
+  useFocusLineItems,
   useFxRates,
   usePatchSettings,
+  useRestoreFocusLineItems,
   useSettings,
   useUpdateFxRate,
   useUpsertFxRate,
 } from "../lib/queries";
 import { color, font, radius } from "../theme";
-import type { AppSettings, ExtractionField, FxRate, FxRateInput } from "../types";
+import type {
+  AppSettings, ExtractionField, FocusLine, FocusLineItem, FxRate, FxRateInput,
+} from "../types";
 
 /** Read-only key/value row. */
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
@@ -507,6 +514,278 @@ function FxRatesCard({ canEdit }: { canEdit: boolean }) {
   );
 }
 
+/* ------------------------- Focus line items master (admin) ------------------------- */
+
+/** One line per key: a key held by several sets (a shared total) is offered once, naming them. */
+function byKey(lines: FocusLine[]): (FocusLine & { sets: string[] })[] {
+  const out = new Map<string, FocusLine & { sets: string[] }>();
+  for (const ln of lines) {
+    const had = out.get(ln.key);
+    if (had) {
+      if (!had.sets.includes(ln.set)) had.sets.push(ln.set);
+      for (const p of ln.parts) if (!had.parts.includes(p)) had.parts.push(p);
+    } else {
+      out.set(ln.key, { ...ln, parts: [...ln.parts], sets: [ln.set] });
+    }
+  }
+  return [...out.values()];
+}
+
+const pill = (bg: string, fg: string): React.CSSProperties => ({
+  fontSize: 9.5, fontWeight: 600, padding: "1px 7px", borderRadius: radius.pill,
+  background: bg, color: fg, whiteSpace: "nowrap", fontFamily: font.sans,
+});
+
+/** How an entry is read by a focus run, as a badge. */
+function FocusKind({ item }: { item: FocusLineItem }) {
+  const t = useT();
+  if (item.matched === 0) return <span style={pill(color.redBg, color.redFg)}>{t("st.focus.dead")}</span>;
+  if (item.pattern) {
+    return <span style={pill(color.indigoTint2, color.indigo)}>
+      {t("st.focus.pattern").replace("{n}", String(item.matched))}</span>;
+  }
+  if (item.kind === "computed") {
+    return <span style={pill(color.amberBg, color.amberFg)}>{t("st.focus.computed")}</span>;
+  }
+  if (item.kind === "mixed") {
+    return <span style={pill(color.indigoTint2, color.indigo)}>{t("st.focus.mixed")}</span>;
+  }
+  return <span style={pill(color.greenBg, color.greenFg)}>{t("st.focus.asked")}</span>;
+}
+
+/** The Focus line items master: which line items a focus run asks the model about.
+ *
+ *  Kept here, beside the switch that decides whether a run is restricted to it at all
+ *  (`llm_focus_only`, Extraction settings above). Search the line-item sets in force, add a line —
+ *  a line computed from its parts goes in with the parts its cascade reads, since it is never asked
+ *  itself — or a prefix ending in *. Non-admins see the list read-only. */
+function FocusLineItemsCard({ canEdit, focusOnly }: { canEdit: boolean; focusOnly: boolean }) {
+  const t = useT();
+  const { data, isPending } = useFocusLineItems();
+  const add = useAddFocusLineItem();
+  const remove = useDeleteFocusLineItem();
+  const restore = useRestoreFocusLineItems();
+  const [query, setQuery] = useState("");
+  const [note, setNote] = useState("");
+  const [filter, setFilter] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const items = data?.items ?? [];
+  const shipped = data?.shipped ?? [];
+  const inFocus = new Set(items.map((i) => i.key));
+  const lines = byKey(data?.candidates ?? []);
+  const q = query.trim().toLowerCase();
+  const isPattern = q.endsWith("*") && q.length > 2;
+  const prefix = isPattern ? q.slice(0, -1) : "";
+  const patternCount = isPattern ? lines.filter((ln) => ln.key.startsWith(prefix)).length : 0;
+  const results = q.length < 2 || isPattern ? [] : lines
+    .filter((ln) => !inFocus.has(ln.key)
+      && (ln.key.includes(q) || ln.label.toLowerCase().includes(q)))
+    .slice(0, 12);
+  const f = filter.trim().toLowerCase();
+  const shown = f ? items.filter((i) => i.key.includes(f) || i.label.toLowerCase().includes(f)
+    || i.note.toLowerCase().includes(f)) : items;
+
+  const onError = (e: unknown) =>
+    setError(e instanceof ApiError ? (e.detail ?? e.message) : String(e));
+  const addKey = (key: string) => {
+    setError(null);
+    setMessage(null);
+    add.mutate({ key, note: note.trim() || undefined }, {
+      onSuccess: (res) => {
+        setMessage(t("st.focus.added").replace("{n}", String(res.added?.length ?? 0)));
+        setQuery("");
+        setNote("");
+      },
+      onError,
+    });
+  };
+  const restoreShipped = () => {
+    if (!window.confirm(t("st.focus.restoreConfirm").replace("{n}", String(shipped.length)))) return;
+    setError(null);
+    setMessage(null);
+    restore.mutate(undefined, { onError });
+  };
+  const busy = add.isPending || remove.isPending || restore.isPending;
+
+  return (
+    <SectionCard title={t("st.focus")} note={canEdit ? t("st.editable") : t("st.readOnly")}>
+      <div style={{ fontSize: 11.5, color: color.sec2, lineHeight: 1.55, marginBottom: 10 }}>
+        {t("st.focusHelp")}
+      </div>
+      <div data-testid="focus-state" data-on={focusOnly ? "true" : "false"}
+           style={{ fontSize: 11.5, lineHeight: 1.5, padding: "8px 10px", borderRadius: 7,
+                    marginBottom: 12,
+                    color: focusOnly ? color.greenFg : color.amberFg,
+                    background: focusOnly ? color.greenBg : color.amberBg }}>
+        {focusOnly ? t("st.focus.on").replace("{n}", String(items.length)) : t("st.focus.off")}
+      </div>
+
+      {canEdit && (
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>{t("st.focus.add")}</div>
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(0,2fr) minmax(0,1fr)", gap: 10 }}>
+            <input data-testid="focus-search" value={query} spellCheck={false}
+                   placeholder={t("st.focus.search")}
+                   onChange={(e) => { setQuery(e.target.value); setError(null); setMessage(null); }}
+                   style={inputStyle} />
+            <input data-testid="focus-note" value={note} placeholder={t("st.focus.why")}
+                   onChange={(e) => setNote(e.target.value)}
+                   style={{ ...inputStyle, fontFamily: font.sans }} />
+          </div>
+          {(results.length > 0 || isPattern || (q.length >= 2 && !isPattern)) && (
+            <div data-testid="focus-results"
+                 style={{ marginTop: 8, border: `1px solid ${color.cardBorder}`, borderRadius: 8,
+                          maxHeight: 300, overflowY: "auto" }}>
+              {isPattern && (
+                <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px" }}>
+                  <span style={{ fontSize: 12, flex: 1, minWidth: 0 }}>
+                    {t("st.focus.addPattern").replace("{p}", q).replace("{n}", String(patternCount))}
+                  </span>
+                  <button disabled={busy || patternCount === 0} onClick={() => addKey(q)}
+                          style={addButton(busy || patternCount === 0)}>{t("st.focus.addOne")}</button>
+                </div>
+              )}
+              {!isPattern && results.length === 0 && (
+                <div style={{ fontSize: 11.5, color: color.muted, padding: "8px 10px" }}>
+                  {t("st.focus.noMatch")}
+                </div>
+              )}
+              {results.map((ln) => (
+                <div key={ln.key} data-testid="focus-result"
+                     style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 10px",
+                              borderTop: `1px solid ${color.hairline}` }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: color.ink }}>{ln.label}</div>
+                    <div style={{ fontSize: 10.5, fontFamily: font.mono, color: color.sec2 }}>
+                      {ln.key} · {ln.sets.join(", ")}{ln.statement ? ` · ${ln.statement}` : ""}
+                    </div>
+                  </div>
+                  {ln.kind === "computed" && (
+                    <span style={pill(color.amberBg, color.amberFg)}>{t("st.focus.computed")}</span>
+                  )}
+                  <button data-testid={`focus-add-${ln.key}`} disabled={busy} onClick={() => addKey(ln.key)}
+                          style={addButton(busy)}>
+                    {ln.kind === "computed" && ln.parts.length > 0
+                      ? t("st.focus.addWithParts").replace("{n}", String(ln.parts.length))
+                      : t("st.focus.addOne")}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          {(error || message) && (
+            <div data-testid="focus-message"
+                 style={{ fontSize: 11.5, fontWeight: 600, marginTop: 8,
+                          color: error ? color.redFg : color.greenFg }}>
+              {error ?? `✓ ${message}`}
+            </div>
+          )}
+        </div>
+      )}
+
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
+                    marginBottom: 6 }}>
+        <span data-testid="focus-count" style={{ fontSize: 11, color: color.muted }}>
+          {t("st.focus.count").replace("{n}", String(items.length))}
+        </span>
+        {items.length > 8 && (
+          <input value={filter} placeholder={t("st.focus.filter")} spellCheck={false}
+                 onChange={(e) => setFilter(e.target.value)}
+                 style={{ ...inputStyle, width: 220, fontFamily: font.sans }} />
+        )}
+      </div>
+
+      {isPending ? (
+        <div style={{ fontSize: 11.5, color: color.muted }}>{t("st.saving")}</div>
+      ) : items.length === 0 ? (
+        <div style={{ fontSize: 11.5, color: color.amberFg, background: color.amberBg,
+                      padding: "8px 10px", borderRadius: 7, lineHeight: 1.5 }}>
+          {t("st.focus.empty")}
+        </div>
+      ) : (
+        <div style={{ overflowX: "auto", maxHeight: 420, overflowY: "auto" }}>
+          <table data-testid="focus-table"
+                 style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+            <colgroup>
+              <col style={{ width: canEdit ? "34%" : "38%" }} />
+              <col style={{ width: "17%" }} />
+              <col style={{ width: "19%" }} />
+              <col />
+              <col style={{ width: "9%" }} />
+              {canEdit && <col style={{ width: 82 }} />}
+            </colgroup>
+            <thead>
+              <tr>
+                <th style={fxHead}>{t("st.focus.line")}</th>
+                <th style={fxHead}>{t("st.focus.set")}</th>
+                <th style={fxHead}>{t("st.focus.kind")}</th>
+                <th style={fxHead}>{t("st.focus.note")}</th>
+                <th style={fxHead}>{t("st.focus.source")}</th>
+                {canEdit && <th style={{ ...fxHead, textAlign: "right" }} />}
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((i) => (
+                <tr key={i.id} data-testid="focus-row" data-key={i.key}>
+                  <td style={{ ...fxCell, fontFamily: font.sans, overflowWrap: "anywhere" }}>
+                    {i.label && <div style={{ fontWeight: 600 }}>{i.label}</div>}
+                    <div style={{ fontFamily: font.mono, fontSize: 10.5, color: color.sec2 }}>{i.key}</div>
+                  </td>
+                  <td style={{ ...fxCell, fontSize: 10.5, color: color.sec2, overflowWrap: "anywhere" }}>
+                    {i.sets.join(", ") || "—"}
+                  </td>
+                  <td style={fxCell}><FocusKind item={i} /></td>
+                  <td style={{ ...fxCell, fontFamily: font.sans, color: color.sec2, overflowWrap: "anywhere" }}>
+                    {i.note || "—"}
+                  </td>
+                  <td style={{ ...fxCell, fontFamily: font.sans, color: color.muted }}>
+                    {i.source === "shipped" ? t("st.focus.shipped") : t("st.focus.admin")}
+                  </td>
+                  {canEdit && (
+                    <td style={{ ...fxCell, textAlign: "right" }}>
+                      <button data-testid={`focus-remove-${i.key}`} disabled={busy}
+                              onClick={() => { setError(null); setMessage(null);
+                                               remove.mutate(i.id, { onError }); }}
+                              style={{ fontSize: 11, fontWeight: 600, color: color.redFg, background: "#fff",
+                                       border: `1px solid ${color.controlBorder}`,
+                                       borderRadius: radius.controlSm, padding: "4px 9px",
+                                       cursor: busy ? "default" : "pointer" }}>
+                        {t("st.focus.remove")}
+                      </button>
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {!canEdit && (
+        <div style={{ fontSize: 11, color: color.muted, marginTop: 10 }}>{t("st.adminOnly")}</div>
+      )}
+      {canEdit && (
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
+          <button data-testid="focus-restore" onClick={restoreShipped} disabled={busy}
+                  style={{ fontSize: 12, fontWeight: 600, color: color.sec2, background: "#fff",
+                           border: `1px solid ${color.controlBorder}`, borderRadius: 8,
+                           padding: "8px 14px", cursor: busy ? "default" : "pointer" }}>
+            {t("st.focus.restore").replace("{n}", String(shipped.length))}
+          </button>
+        </div>
+      )}
+    </SectionCard>
+  );
+}
+
+const addButton = (disabled: boolean): React.CSSProperties => ({
+  fontSize: 11, fontWeight: 600, color: "#fff", whiteSpace: "nowrap",
+  background: disabled ? color.faint : color.indigo, border: "none",
+  borderRadius: radius.controlSm, padding: "5px 11px", cursor: disabled ? "default" : "pointer",
+});
+
 export default function SettingsScreen() {
   const t = useT();
   const { data, isPending } = useSettings();
@@ -586,6 +865,11 @@ export default function SettingsScreen() {
 
       {/* Extraction & reconciliation */}
       <ExtractionConfigCard s={s} canEdit={canEdit} />
+
+      {/* Focus line items master — the lines a focus run asks the model about. Whether a run is
+          restricted to them is the llm_focus_only switch in the card above, read from the same
+          settings snapshot so the two never disagree. */}
+      <FocusLineItemsCard canEdit={canEdit} focusOnly={Boolean(s.extraction?.llm_focus_only)} />
 
       {/* Access & session */}
       <SectionCard title={t("st.access")} note={readOnlyNote}>
