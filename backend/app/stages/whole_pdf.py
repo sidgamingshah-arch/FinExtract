@@ -19,6 +19,7 @@ starting `whole_pdf:fallback`.
 """
 from __future__ import annotations
 
+import re
 from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal
 
@@ -389,24 +390,81 @@ def _text_rows(doc, line_item_set, parts, chunks, replies, texts, provider_id: s
     return list(done.values()), refused
 
 
-def _printed_on(row: LineItem, item) -> None:
-    """Stamp the row with the statement it is on: its LINE's, for the model was asked it as that
-    statement's line.
+def _printed_on(row: LineItem, item, *, on_face: bool = False) -> None:
+    """Stamp the row with the statement it is on, read before the page by every stage that asks
+    (`buckets.statement_resolver`).
 
+    A STATEMENT'S LINE IS ON ITS LINE'S STATEMENT: the model was asked it as that statement's line.
     A page is not a statement — a mainland filing ends one statement and starts the next on the
-    same page — and without this every stage that resolves a row's statement
-    (`buckets.statement_resolver`) reads the PAGE's: on 11033486 the parent company's liabilities
-    and equity, printed above the income statement's title on page 136, were read as
-    income-statement rows, failed normalize's balance/flow check and lost their line (15 rows, the
-    balance sheet's checks with them). `pdf_extract` stamps the same flag on a page it splits.
+    same page — and resolved by page, on 11033486 the parent company's liabilities and equity,
+    printed above the income statement's title on page 136, were read as income-statement rows,
+    failed normalize's balance/flow check and lost their line (15 rows, the balance sheet's checks
+    with them). `pdf_extract` stamps the same flag on a page it splits. An internal part read off a
+    statement page is that statement's, as a face part mapped from a face row is on the rules route.
 
-    A TEXT row too. On the rules route a text line is written after `normalize`, so normalize never
-    sees one; here it is written before, and a notes narrative cited on a balance-sheet page was
-    read as a balance-sheet row whose concept is a flow, and lost its line. A line that names no
-    statement is left to its page, as a rules-route row is.
+    EVERY OTHER ROW IS ON NO STATEMENT (an empty stamp, which the resolver reads as None): a part
+    read in the notes, a note's or a covenant's or the setup block's line, a text. On the rules
+    route `note_sourced`, the model's stage and the export write those after normalize, so no
+    statement check ever sees them; resolved by page or by their line's statement, normalize's
+    balance/flow check took them off their lines (a notes narrative cited on a balance-sheet page;
+    four note parts on 688411).
     """
-    if item is not None and W.statement_of(item) != "other":
-        row.confidence.flags.append(f"{PRINTED_ON_FLAG}:{W.statement_of(item)}")
+    if item is None:
+        return
+    statement = W.statement_of(item)
+    if statement in _NORMALISED_STATEMENTS and (on_face or not W.is_part(item)):
+        row.confidence.flags.append(f"{PRINTED_ON_FLAG}:{statement}")
+    else:
+        row.confidence.flags.append(f"{PRINTED_ON_FLAG}:")
+
+
+#: The statements whose face rows `normalize` orients and checks, on this route as on the rules
+#: route. Every other line — a note, a covenant, the setup block, a part read in the notes — is
+#: filled on the rules route AFTER normalize, so normalize never sees it; here it is written as read.
+_NORMALISED_STATEMENTS = frozenset({"balance_sheet", "profit_and_loss", "cash_flow"})
+
+#: THE PAYMENT WORDS OF A CAS CASH-FLOW CAPTION, the ones the prompt lists: a row captioned with one
+#: is an outflow, and a CSRC statement prints its outflows unsigned under 现金流出小计.
+_CAS_OUTFLOW = re.compile(r"支付|购建|購建|偿还|償還|分配股利")
+
+
+def _as_read(item, r: W.Reading, flags: list) -> tuple[Decimal, bool]:
+    """The figure to write, and whether its sign is SETTLED — `ExtractedValue.sign_normalised`,
+    which every sign rule in `normalize` honours and leaves alone.
+
+    TWO KINDS OF FIGURE ARE SETTLED:
+
+      * A CASH-FLOW FIGURE carries the model's own sign: the prompt asks for a payment as a
+        negative even where a CSRC statement prints it unsigned. normalize's caption flips were
+        written for the unsigned figure the page prints — on the rules route the outflow block
+        (现金流入小计 … 现金流出小计) negates those — so they turned the model's negative back
+        positive. MEASURED on 688411 (海博思创, the filing of run 11033486), answers given as the
+        prompt asks: 购买商品、接受劳务支付的现金 came out +4,096,524,862.28 against the rules
+        route's -4,096,524,862.28. The block rule needs the printed subtotal rows, which this route
+        does not keep, so the caption takes its place: a printed row captioned with a payment word
+        (`_CAS_OUTFLOW`) is an outflow, negative whether or not the model remembered to say so —
+        each row of a sum by its own caption, so an "other" line netting a receipt and a payment
+        keeps the receipt.
+      * A FIGURE NO STATEMENT'S RULES APPLY TO (see `_printed_on`): a part read in the notes, a
+        note's, covenant's or setup line. Written as the page prints it; a cascade applies its own
+        signs to a part, as it does to the note figure `note_sourced` reads on the rules route.
+    """
+    amount = Decimal(r.amount)
+    if item is None:
+        return amount, False
+    statement = W.statement_of(item)
+    if statement not in _NORMALISED_STATEMENTS or (W.is_part(item) and not r.on_face):
+        flags.append(f"{FLAG}:as_read")
+        return amount, True
+    if statement != "cash_flow":
+        return amount, False
+    if r.rows and sum((a for _c, a in r.rows), Decimal(0)) == amount:
+        value = sum(((-a if a > 0 and _CAS_OUTFLOW.search(c or "") else a) for c, a in r.rows),
+                    Decimal(0))
+    else:
+        value = -amount if amount > 0 and _CAS_OUTFLOW.search(r.caption or "") else amount
+    flags.append(f"{FLAG}:cas_outflow_negated" if value != amount else f"{FLAG}:sign_as_read")
+    return value, True
 
 
 def _citation(r, page: int, kind: str, producer: str, page_kind, provenance) -> dict:
@@ -485,10 +543,11 @@ def _rows(doc, line_item_set, merged: dict, provider_id: str) -> list[LineItem]:
                                     source_kind=kind, producer=producer)
             if not r.box:
                 flags.append(f"{FLAG}:not_placed_on_page")
+            value, settled = _as_read(item, r, flags)
             row.set_value(ExtractedValue(
                 basis=Basis(r.basis), period_label=r.period, column_period=r.period,
                 period_display=r.period_end or None,
-                value_raw=Decimal(r.amount), value=Decimal(r.amount),
+                value_raw=Decimal(r.amount), value=value, sign_normalised=settled,
                 provenance=provenance,
                 confidence=ConfidenceVector(mapping=max(0.0, score), method="llm",
                                             flags=flags)))
@@ -498,7 +557,7 @@ def _rows(doc, line_item_set, merged: dict, provider_id: str) -> list[LineItem]:
         row.confidence.method = MappingMethod.LLM.value
         row.confidence.mapping = max(0.0, min(scores)) if scores else 0.0
         row.confidence.flags.append(FLAG)
-        _printed_on(row, item)
+        _printed_on(row, item, on_face=face)
         if any(r.check.status in _REVIEWED or r.others for r in group):
             row.confidence.flags.append(REVIEW_FLAG)
         out.append(row)

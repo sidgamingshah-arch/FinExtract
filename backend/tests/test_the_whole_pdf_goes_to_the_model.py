@@ -799,3 +799,135 @@ def test_through_the_pipeline_revenue_is_its_cascades_from_the_parts_the_model_r
                 if li.canonical_key == "sub__revenue_note_principal_revenue")
     assert all(v.provenance.bbox is not None for v in part.values.values())
     assert part.derivation["consolidated:current"]["method"].startswith("whole_pdf:")
+
+
+# ── the signs: what normalize may re-derive, and what it must leave as the model read it ──────
+
+def _reading(key: str, amount: str, caption: str, *, on_face: bool = True, rows=()):
+    from decimal import Decimal as D
+
+    return W.Reading(key=key, basis="consolidated", period="current", amount=D(amount),
+                     caption=caption, period_end="", part=0,
+                     check=W.Check("on_page", 0), on_face=on_face,
+                     rows=[(c, D(a)) for c, a in rows])
+
+
+def test_a_cash_flow_figure_keeps_the_sign_the_model_gave_and_an_unsigned_payment_is_negated():
+    """MEASURED on 688411 (the filing of run 11033486): the prompt asks for a payment as a
+    negative, and normalize's caption flip — written for the unsigned figure a CSRC statement
+    prints — turned 购买商品、接受劳务支付的现金 back to +4,096,524,862.28. A cash-flow figure's
+    sign is now settled; and a row captioned with a payment word is an outflow whether or not the
+    model remembered, each row of a sum by its own caption."""
+    from decimal import Decimal as D
+
+    from app.stages.whole_pdf import _as_read
+
+    hk = {i.key: i for i in _set("output_csv_hk_line_items.json").items}
+    paid, other = hk["cf_oper_direct__cash_paid_to_suppliers"], hk["cf_financing__other_financing_cash_flows"]
+    flags: list = []
+    assert _as_read(paid, _reading(paid.key, "-4096524862.28", "购买商品、接受劳务支付的现金"),
+                    flags) == (D("-4096524862.28"), True)
+    assert "whole_pdf:sign_as_read" in flags
+    flags = []
+    assert _as_read(paid, _reading(paid.key, "4096524862.28", "购买商品、接受劳务支付的现金"),
+                    flags) == (D("-4096524862.28"), True)
+    assert "whole_pdf:cas_outflow_negated" in flags
+    # A receipt is left as it is; an "other" line netting a receipt and a payment keeps the receipt.
+    net = _reading(other.key, "1300000", "收到其他与筹资活动有关的现金 + 支付其他与筹资活动有关的现金",
+                   rows=[("收到其他与筹资活动有关的现金", "1000000"),
+                         ("支付其他与筹资活动有关的现金", "300000")])
+    assert _as_read(other, net, []) == (D(700000), True)
+    receipts = hk["cf_oper_direct__cash_receipts_from_customers"]
+    assert _as_read(receipts, _reading(receipts.key, "5590092584.18", "销售商品、提供劳务收到的现金"),
+                    []) == (D("5590092584.18"), True)
+
+
+def test_a_part_read_in_the_notes_is_written_as_read_and_on_no_statement():
+    """On the rules route `note_sourced` writes a note part after normalize; here it is written
+    before, and normalize's balance/flow check took four of them off their lines on 688411 (the
+    FVTOCI note totals and the other-receivables net). A face line, and a part read off a statement
+    page, are normalized as a face row is."""
+    from decimal import Decimal as D
+
+    from app.core.models.enums import LineRole
+    from app.core.models.line_item import LineItem
+    from app.stages.whole_pdf import _as_read, _printed_on
+
+    hk = {i.key: i for i in _set("output_csv_hk_line_items.json").items}
+    part = hk["sub__fa_cp_fvtoci_note_total"]
+    face_part = hk["sub__cp_face_other_receivables"]
+    line = hk["bs_ca__cash_in_hand_and_at_banks"]
+    flags: list = []
+    assert _as_read(part, _reading(part.key, "1500", "其他权益工具投资", on_face=False),
+                    flags) == (D(1500), True)
+    assert "whole_pdf:as_read" in flags
+    assert _as_read(face_part, _reading(face_part.key, "-80", "其他应收款"), []) == (D(-80), False)
+    assert _as_read(line, _reading(line.key, "3034523627.56", "货币资金"), []) == (
+        D("3034523627.56"), False)
+
+    def stamp(item, on_face):
+        row = LineItem(source_label="x", canonical_key=item.key, role=LineRole.LINE)
+        _printed_on(row, item, on_face=on_face)
+        return [f for f in row.confidence.flags if f.startswith("printed_on:")]
+
+    assert stamp(part, False) == ["printed_on:"]                     # on no statement
+    assert stamp(face_part, True) == ["printed_on:balance_sheet"]
+    assert stamp(line, False) == ["printed_on:balance_sheet"]        # a face line, wherever cited
+    assert stamp(hk["notes__auditor_s_opinion"], False) == ["printed_on:"]
+
+
+def test_through_the_pipeline_a_note_part_keeps_its_line_and_a_payment_its_sign(monkeypatch):
+    """End to end on the HK set with the captions a CSRC filing prints: the payment the model gives
+    negative stays negative (the caption flip does not turn it back), the one it gives unsigned is
+    negated by its payment caption, and a part read in the notes is not taken off its line."""
+    from app.core.models.enums import Basis
+    from app.schemas.loader import load_template
+    from app.services.documents import run_extraction
+    from app.services.working_view import build_working_view
+
+    face = ["CONSOLIDATED CASH FLOW STATEMENT", "                         2024         2023",
+            "Cash received from customers   5,590,092,584.18   5,313,062,352.40",
+            "Cash paid to suppliers         4,096,524,862.28   4,789,822,198.38",
+            "Cash paid to employees           305,704,606.29     181,551,856.61"]
+    note = ["Notes to the consolidated financial statements", "Financial assets at FVTOCI",
+            "Current FVTOCI financial assets   1,500   1,200"]
+    answers = {
+        "cf_oper_direct__cash_receipts_from_customers": ("5590092584.18", 1, "销售商品、提供劳务收到的现金"),
+        "cf_oper_direct__cash_paid_to_suppliers": ("-4096524862.28", 1, "购买商品、接受劳务支付的现金"),
+        "cf_oper_direct__cash_paid_to_employees": ("305704606.29", 1, "支付给职工及为职工支付的现金"),
+        "sub__fa_cp_fvtoci_note_total": ("1500", 2, "其他权益工具投资"),
+    }
+
+    class _CF(_Scripted):
+        def complete_structured(self, *, system, messages, response_schema, temperature=0.0,
+                                max_tokens=2048):
+            self.sent.append(messages[0])
+            lines = [{"key": k, "figures": [{"basis": "consolidated", "period": "current",
+                                             "amount": a, "page": pg, "caption": c}]}
+                     for k, (a, pg, c) in answers.items() if f"- {k}:" in messages[0]["content"]]
+            return response_schema.model_validate({"units": "元", "lines": lines}), {
+                "input_tokens": 1, "output_tokens": 1, "model": "scripted"}
+
+    provider = _CF()
+    s = get_settings()
+    for name, value in {"whole_pdf_to_model": True, "whole_pdf_pages": "all",
+                        "llm_disclosures": False, "llm_shared_figure_tiebreak": False}.items():
+        monkeypatch.setattr(s.extraction, name, value)
+    monkeypatch.setitem(registry._factories.setdefault("llm", {}), provider.id, lambda: provider)
+    monkeypatch.setattr(s.llm, "provider", provider.id)
+    hk = _set("output_csv_hk_line_items.json")
+    tpl = load_template(json.loads((TEMPLATES / "output_csv_hk_v1_template.json")
+                                   .read_text(encoding="utf-8")))
+    doc, ctx = run_extraction(_pdf([face, note]), filename="cf.pdf",
+                              ontology=build_working_view(hk), template=tpl, line_items=hk)
+
+    def value(key):
+        row = next(li for li in doc.line_items if li.canonical_key == key)
+        return next(str(v.value) for v in row.values.values()
+                    if v.basis == Basis.CONSOLIDATED and v.period_label == "current")
+
+    assert value("cf_oper_direct__cash_receipts_from_customers") == "5590092584.18"
+    assert value("cf_oper_direct__cash_paid_to_suppliers") == "-4096524862.28"
+    assert value("cf_oper_direct__cash_paid_to_employees") == "-305704606.29"
+    assert value("sub__fa_cp_fvtoci_note_total") == "1500"
+    assert not any("balance_flow_confusion" in line for line in ctx.logs)

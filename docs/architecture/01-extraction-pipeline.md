@@ -716,8 +716,10 @@ below is not in it. **On**, the run assembles `whole_pdf_pipeline()` — the sam
    `llm.document_timeout_seconds`. The first request of each part goes alone (it fills the
    cache), the rest `llm_parallel_requests` at a time.
 4. The stage writes one row per line and basis, with `printed_in` from the page's kind and the
-   line's statement stamped on it (`printed_on:<statement>`, read before the page by
-   `buckets.statement_resolver`), and names the stages still to run
+   statement it is on stamped on it (`printed_on:<statement>`, read before the page by
+   `buckets.statement_resolver`: a face line's statement; none for a part read in the notes or a
+   note's, covenant's or setup line, which the rules route fills after `normalize`), and names the
+   stages still to run
    (`PipelineContext.only_stages`): `normalize` (the statements' units, the template's sign
    rules); **`note_sourced`, the configured cascades** — each `derived` line (Sales (Revenues),
    the depreciation lines, the related-party and financial-asset lines) is computed from the parts
@@ -744,6 +746,23 @@ row, each with its own figure and box), so the Workspace's inspector says "read 
 "read from the notes" and lists the rows a sum was added from. A figure the text layer cannot
 place (a scanned page, a figure not printed as one word) keeps its page and is flagged
 `whole_pdf:not_placed_on_page`.
+
+**Signs, as the rules route sets them.** A balance-sheet or income-statement figure is given as
+printed and `normalize` orients it by its caption, as it does a face row. A **cash-flow** figure
+keeps the model's own sign — the prompt asks for a payment as a negative, and a caption flip
+written for the unsigned figure a CSRC statement prints would turn it back — and a printed row
+captioned with a payment word (支付, 购建, 偿还, 分配股利) is an outflow, negative whether or not the
+model said so; each row of a sum by its own caption (`stages/whole_pdf.py::_as_read`). A part read
+in the notes, and a note's, covenant's or setup line, are written as read: no statement's rules or
+checks apply to them, as on the rules route, where `note_sourced` writes them after `normalize`.
+**Measured** on 688411 (the filing of run 11033486) with a stand-in that answers every question
+from the rules route's own figures, as the prompt asks: the template's checks came out as the rules
+route's, 58 passing of 93 and none failing, on the statement pages (2 parts, 14 requests) and on
+every page (4 parts, 28 requests). Before these two rules the checks passed too, and the figures
+did not: 购买商品、接受劳务支付的现金 came out positive and four note parts lost their lines, so
+Securities & Other Financial Assets (CP) was empty — no check covers either. Lines whose parts
+the rules route adds up from note cells (no single printed figure) stay empty for a stand-in that
+can only cite a printed figure; a real model has to add those rows itself.
 
 **This route is the one exception to "the LLM references facts, it never emits values"** (next
 section): here the model writes the figure. So every figure is checked against the PDF's own text
