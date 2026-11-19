@@ -116,7 +116,16 @@ def report(pdf: pathlib.Path, focus_only: bool) -> None:
           f"   focus_only={focus_only}")
     print("=" * 100)
 
-    focus = set(settings.extraction.llm_focus_keys or ()) if focus_only else set()
+    # THE FOCUS LIST AND THE CAP AS THE STAGE APPLIES THEM (`stages.line_item_llm`): each plan
+    # asked with its focus lines only, the "*" patterns expanded, and a grouped plan cut at
+    # `llm_lines_per_request` — so what is priced here is what a run sends.
+    focus = (line_item_requests.focus_keys(settings.extraction.llm_focus_keys, cfg)
+             if focus_only else set())
+    cap = line_item_requests.lines_per_request(settings)
+
+    def _as_sent(plans, mode):
+        plans = line_item_requests.focused(plans, focus) if focus else plans
+        return line_item_requests.capped(plans, cap) if mode in ("identical", "similar") else plans
 
     print(f"\n  {'mode':>10s} {'requests':>9s} {'lines':>6s} {'chars':>12s} {'~tokens':>9s}"
           f" {'largest req':>12s} {'notes/req':>10s} {'by pattern':>11s}")
@@ -124,8 +133,7 @@ def report(pdf: pathlib.Path, focus_only: bool) -> None:
         settings.extraction.llm_request_grouping = mode
         plans, by_key, notes_of, identified = line_item_llm.plan_and_notes(
             cfg, doc.notes, settings)
-        if focus:
-            plans = [p for p in plans if any(k in focus for k in p.keys)]
+        plans = _as_sent(plans, mode)
 
         sizes, note_counts, pattern_counts, answers = [], [], [], []
         for plan in plans:
@@ -148,8 +156,7 @@ def report(pdf: pathlib.Path, focus_only: bool) -> None:
     # ── the response budget, against the biggest group ─────────────────────────────────────────
     settings.extraction.llm_request_grouping = "identical"
     plans, by_key, notes_of, identified = line_item_llm.plan_and_notes(cfg, doc.notes, settings)
-    if focus:
-        plans = [p for p in plans if any(k in focus for k in focus and p.keys)]
+    plans = _as_sent(plans, "identical")
     widest = max(plans, key=lambda p: len(p.keys)) if plans else None
     if widest is not None:
         n = len(widest.keys)
@@ -173,7 +180,7 @@ def report(pdf: pathlib.Path, focus_only: bool) -> None:
     # ── where the notes came from ──────────────────────────────────────────────────────────────
     settings.extraction.llm_request_grouping = "none"
     plans, by_key, notes_of, identified = line_item_llm.plan_and_notes(cfg, doc.notes, settings)
-    asked = [p for p in plans if not focus or any(k in focus for k in p.keys)]
+    asked = _as_sent(plans, "none")
     pat_only, both = 0, 0
     for plan in asked:
         for key in plan.keys:

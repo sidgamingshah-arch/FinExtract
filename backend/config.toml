@@ -278,22 +278,24 @@ whole_pdf_pages = "statements"    # statements (the classifier's statement and n
 whole_pdf_pages_per_request = 100 # a longer selection goes in parts; Claude: 600 a request, 100 under a 1M window
 whole_pdf_max_request_mb = 20     # the largest request, the PDF counted in base64; Claude's API takes 32, Bedrock less
 whole_pdf_lines_per_request = 250 # template lines one request asks about, at most: a statement's whole list in one request
-# HOW MANY REQUESTS ARE SENT AT ONCE, after the first (which always goes alone, so the provider
-# can cache the shared beginning of the prompt): the line-item requests, the whole-PDF requests and
-# the disclosure readings alike. Replies are processed in order either way, so this changes how long
-# a run takes and not what it finds. Lower it if the gateway refuses requests for rate limits (429).
+# HOW MANY REQUESTS ARE SENT AT ONCE: the line-item figure requests and the whole-PDF requests
+# (after the first of each prompt prefix, which goes alone so the provider can cache the shared
+# beginning), and the disclosure readings (this many at once from the start). The few text-line
+# requests go one at a time. Replies are processed in order either way, so this changes how long a
+# run takes and not what it finds. Lower it if the gateway refuses requests for rate limits (429).
 llm_parallel_requests = 4
 # HOW LINE ITEMS SHARE A REQUEST on the normal route (whole_pdf_to_model off) — "none" (one request
 # per line), "identical" (lines needing the same notes, or the same section of a statement, share one
 # request), "similar" or "manual". "identical" HERE, at the user's instruction ("why would you want
 # to have over 500 calls"): measured on the six reference filings, a run made 431-433 model calls
 # under "none", 349 of them one face line each sent its whole statement; under "identical", capped
-# below, it makes 63-77. Lines sharing a request can influence each other's answers; "none" is the
+# below, it makes 60-75. Lines sharing a request can influence each other's answers; "none" is the
 # per-line baseline to compare against, an admin can pick it on the Settings screen, and
 # app/config.py says what the default gives up.
 llm_request_grouping = "identical"
-# …at most this many line items in one grouped request; a larger group is asked in even parts. 20 so
-# the reply (about 125 tokens a line at the median) arrives inside one 120-second wait.
+# …at most this many line items in one grouped request; a larger group is asked in even parts, each
+# sent the group's notes. 20 so the reply (about 125 tokens a line at the median) arrives inside one
+# 120-second wait.
 llm_lines_per_request = 20
 # THE PARTS ARE NAMED TOO, NOT ONLY THE EIGHT WHOLES, and that is the whole point of this list
 # being longer than it looks. Seven of the eight are `derived` or `extract_or_derive`, so the model

@@ -83,14 +83,20 @@ def audit(path: pathlib.Path, cfg, tpl, settings, grade_all: bool) -> dict:
         settings.extraction.llm_focus_only = was_focus
         settings.extraction.llm_mapping = was_llm
 
-    # THE FOCUS FILTER, APPLIED THE WAY THE STAGE APPLIES IT. `plan_and_notes` plans a request for
-    # every asked-about line; `stages.line_item_llm` then keeps only the plans naming a focus key
-    # (:109-116) and logs the rest as `requests_skipped_by_focus`. Grading the unfiltered 521 would
-    # score a population the run never sends — on 688008 the real number is 22.
-    focus = (set(settings.extraction.llm_focus_keys or ())
+    # THE FOCUS FILTER AND THE CAP, APPLIED THE WAY THE STAGE APPLIES THEM, by the same functions.
+    # `plan_and_notes` plans a request for every asked-about line; `stages.line_item_llm` then asks
+    # each plan with its focus lines only (`line_item_requests.focused`, the "*" patterns expanded
+    # by `focus_keys`) and logs the rest as `requests_skipped_by_focus`, and cuts a grouped plan at
+    # `llm_lines_per_request` (`capped`). Grading the unfiltered 521 would score a population the
+    # run never sends — on 688008 the real number is 22.
+    from app.services import line_item_requests
+
+    focus = (line_item_requests.focus_keys(settings.extraction.llm_focus_keys, cfg)
              if settings.extraction.llm_focus_only and not grade_all else set())
     if focus:
-        plans = [p for p in plans if any(k in focus for k in p.keys)]
+        plans = line_item_requests.focused(plans, focus)
+    if settings.extraction.llm_request_grouping in ("identical", "similar"):
+        plans = line_item_requests.capped(plans, line_item_requests.lines_per_request(settings))
     asked = {k for p in plans for k in p.keys}
     # NAMED, AND SEPARATELY CARRIED. `notes_supplied` is the note NUMBERS a line selected;
     # `build_request` fills the shared "notes" block from `identified_notes`, which scores only

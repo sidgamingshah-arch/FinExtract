@@ -22,7 +22,7 @@ requests carry ~125,000 characters, one request carrying all twelve carries ~22,
 WHY "identical" IS NOW THE DEFAULT, and what it costs. Under "none" a run with the focus list off
 made one request per line — 418 figure requests on each of the six reference filings, 349 of them
 a single face line sent its whole statement. "identical" asks lines needing the same context
-together, at most `extraction.llm_lines_per_request` to a request (`_capped`). The hazard has not
+together, at most `extraction.llm_lines_per_request` to a request (`capped`). The hazard has not
 gone away: line items sharing a call can influence each other's answers — sometimes that helps (a
 subtotal seen beside the lines it is made of), sometimes it bleeds (one figure reused for two
 questions). "none" stays available as the per-line baseline a grouped run can be compared against;
@@ -178,11 +178,11 @@ def plan_requests(line_item_set, notes, settings, *, cited=None, routed=None,
     # section, 51 on non-current assets, 50 on current liabilities — and only two groups hold a
     # single line. So the face context costs 14 copies instead of 377.
     #
-    # THE MODE STILL GOVERNS, and `"none"` still means one request per line. That is not timidity
-    # about the default: the reason `config` gives for it is that lines sharing a call can
-    # influence each other's answers, and without the per-line baseline there is no way to tell
-    # help from bleed. A section block is a bigger shared context than a note block, so it makes
-    # that hazard bigger rather than smaller, and the cheap mode stays something a run opts into.
+    # THE MODE STILL GOVERNS, and `"none"` still means one request per line — the per-line
+    # baseline an admin picks to compare a grouped run against. "identical" ships as the default
+    # (`app.config` says why, and what it gives up): lines sharing a call can influence each
+    # other's answers, and a section block is a bigger shared context than a note block, so it
+    # makes that hazard bigger rather than smaller.
     unplanned = [k for k in by_key if not any(k in plan.keys for plan in plans)]
     if mode in ("identical", "similar"):
         for pairs, keys in _by_section(unplanned, by_key).items():
@@ -191,10 +191,13 @@ def plan_requests(line_item_set, notes, settings, *, cited=None, routed=None,
             plans.append(RequestPlan(
                 name=keys[0] if len(keys) == 1 else f"{statement}/{section}+{len(keys) - 1}",
                 keys=tuple(keys), notes=(), sections=pairs))
-        # AT MOST `llm_lines_per_request` LINES A REQUEST, the larger groups asked in parts — see
-        # `_capped`. Only the modes that group by score: "none" asks one line, and an authored
-        # group is asked as its author wrote it.
-        return _capped(plans, lines_per_request(settings), by_key, notes_of)
+        # WHOLE GROUPS, NOT CUT HERE. A group of more than `llm_lines_per_request` lines is asked
+        # in parts (`capped`), but the stage cuts them — after the focus list, the note-tag gate,
+        # the text lines and the `anywhere` lines have taken out what they take — so a group is cut
+        # by the lines it SENDS. Cut here, the P&L's 89 planned lines were cut into five parts and
+        # then lost their 12 `anywhere` lines to the report: 77 lines in five requests, each with
+        # the whole statement, where four hold them.
+        return plans
     for key in unplanned:
         plans.append(RequestPlan(name=key, keys=(key,), notes=notes_of.get(key, ()),
                                  sections=_sections_of_item(by_key[key])))
@@ -216,22 +219,30 @@ def lines_per_request(settings) -> int:
     return max(1, cap)
 
 
-def _capped(plans: list[RequestPlan], cap: int, by_key: dict,
-            notes_of: dict) -> list[RequestPlan]:
+def capped(plans: list[RequestPlan], cap: int) -> list[RequestPlan]:
     """Every plan of more than `cap` lines, asked in consecutive parts of even size.
 
     WHY A GROUP IS CUT AT ALL. Grouping is decided by the context lines share, and nothing about a
-    shared context bounds how many lines share it: on 688411 one `(statement, section)` group held
+    shared context bounds how many lines share it: on 688411 one `(statement, section)` group sent
     77 income-statement lines, a reply budget of 31,824 tokens (`stages.line_item_llm._max_tokens`)
     that has to arrive inside one `llm.timeout_seconds` wait, and a request that times out loses
     every line in it to the rules. Cut into parts, each part is a reply of the measured size.
 
-    EVEN PARTS, IN THE GROUP'S OWN ORDER — 77 at 20 is 20, 19, 19, 19, not 20, 20, 20, 17 — so a
-    section's lines stay beside their neighbours, as `report_plans` batches its lines. Each part
-    carries the notes ITS lines selected and the sections they may be claimed under: under
-    "identical" that is the group's own block, under "similar" it can be less than the group's
-    union, never more.
+    EVEN PARTS, IN THE GROUP'S OWN ORDER — 77 at 20 is 20, 19, 19, 19, not 20, 20, 20, 17; 50 at 7
+    is eight parts of 6 or 7, not seven of 7 and one of 1 — so a section's lines stay beside their
+    neighbours and no part is a statement block sent for one line.
+
+    EACH PART IS SENT WHAT ITS GROUP WAS SENT: the group's notes (so a line's `notes_supplied`,
+    which `plan_and_notes` takes from its group, is the note block its request carries) and the
+    group's sections — of which `face_statements` supplies the statements the part's own lines may
+    read on the face, so a part holding only note lines carries no statement block, as such a
+    group would not.
+
+    CALLED BY THE STAGE on the plans it is about to send (`stages.line_item_llm`), under the modes
+    that group by score, and by the scripts that mirror it. "none" asks one line a request, and an
+    authored "manual" group is asked as its author wrote it.
     """
+    cap = max(1, int(cap))
     out: list[RequestPlan] = []
     for plan in plans:
         n = len(plan.keys)
@@ -239,18 +250,78 @@ def _capped(plans: list[RequestPlan], cap: int, by_key: dict,
             out.append(plan)
             continue
         parts = -(-n // cap)
-        size = -(-n // parts)
-        base = plan.name.rsplit("+", 1)[0]
-        for i in range(parts):
-            keys = tuple(plan.keys[i * size:(i + 1) * size])
-            if not keys:
-                continue
-            notes: list[str] = []
-            for key in keys:
-                notes += [num for num in notes_of.get(key, ()) if num not in notes]
-            out.append(replace(plan, name=f"{base}#{i + 1}", keys=keys, notes=tuple(notes),
-                               sections=_sections_of_keys(keys, by_key) or plan.sections))
+        small, extra = divmod(n, parts)
+        start = 0
+        for number in range(1, parts + 1):
+            size = small + (1 if number <= extra else 0)
+            keys = tuple(plan.keys[start:start + size])
+            start += size
+            out.append(replace(plan, name=_part_name(plan, keys, number), keys=keys))
     return out
+
+
+def focus_keys(named, line_item_set) -> set[str]:
+    """The line items a focus list names: each key as written, and for a key ending in "*" every
+    asked-about line of this set whose key starts with what precedes it (`bs_icon__*`). A pattern
+    only ever adds keys of this set, so a list serving every shipped set focuses each run on its
+    own. Read by the stage and by the scripts that mirror it."""
+    named = [str(k) for k in (named or ())]
+    prefixes = tuple(k[:-1] for k in named if k.endswith("*") and len(k) > 1)
+    keys = {k for k in named if not k.endswith("*")}
+    keys |= {i.key for i in (getattr(line_item_set, "items", None) or ())
+             if prefixes and i.key.startswith(prefixes) and asked_about(i)}
+    return keys
+
+
+def focused(plans: list[RequestPlan], focus) -> list[RequestPlan]:
+    """Each plan asked with its focus lines only, in the one request it was planned as and with the
+    notes and sections it was planned with; a plan with none is not asked.
+
+    So a focus run answers exactly the focus lines and every other line keeps what the rules gave
+    it. It used to keep a group WHOLE when one of its lines was in focus — no difference at one line
+    a request, and, with grouping shipped, a focus line's whole section asked and answered.
+    """
+    out: list[RequestPlan] = []
+    for plan in plans:
+        mine = tuple(k for k in plan.keys if k in focus)
+        if mine:
+            out.append(plan if mine == tuple(plan.keys) else relabel(plan, mine))
+    return out
+
+
+def relabel(plan: RequestPlan, keys) -> RequestPlan:
+    """`plan` asked with `keys` (some of its lines, in its order), named after the lines it holds.
+
+    THE RUN LOG NAMES A REQUEST BY ITS PLAN — `request(<name>) FAILED`, `unanswered(<name>)`,
+    `usage request=<name>` — and a failed request's name is the only record of which lines it lost
+    to the rules. A plan named after its first line (`bs_cl__cpltd_bank+6`) keeps that name only
+    while it holds that line; one named after its section keeps its section and counts its lines
+    again; an authored name is the author's and is kept.
+    """
+    return replace(plan, keys=tuple(keys), name=_label(plan, tuple(keys)))
+
+
+def _label(plan: RequestPlan, keys: tuple[str, ...]) -> str:
+    old = tuple(plan.keys)
+    if not keys:
+        return plan.name
+    if old and plan.name in (old[0], f"{old[0]}+{len(old) - 1}"):
+        return keys[0] if len(keys) == 1 else f"{keys[0]}+{len(keys) - 1}"
+    head, plus, count = plan.name.rpartition("+")
+    if plus and count.isdigit() and "/" in head:
+        return keys[0] if len(keys) == 1 else f"{head}+{len(keys) - 1}"
+    return plan.name
+
+
+def _part_name(plan: RequestPlan, keys: tuple[str, ...], number: int) -> str:
+    """A part of a group cut by `capped`: named after its own lines where its group was named after
+    its first line, else the group's name without its line count, numbered — `balance_sheet/bs_cl#2`.
+    """
+    own = _label(plan, keys)
+    if own != plan.name and "/" not in own:
+        return own
+    head, plus, count = plan.name.rpartition("+")
+    return f"{head if plus and count.isdigit() else plan.name}#{number}"
 
 
 #: At most this many `anywhere` lines share one report request. A request carrying the whole
@@ -418,7 +489,7 @@ def _by_section(keys, by_key: dict) -> dict[tuple[tuple[str, str], ...], list[st
             # neither a statement nor a section, and bundling them together was the first thing
             # this function did: one request for 39 lines that share NO context, which saves
             # nothing (there is no block to amortise) and buys the whole cross-influence hazard
-            # the `"none"` default exists to avoid. They are asked about one at a time.
+            # grouping carries. They are asked about one at a time.
             out[(("", key),)] = [key]
             continue
         out.setdefault(pairs, []).append(key)

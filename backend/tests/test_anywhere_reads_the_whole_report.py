@@ -93,6 +93,21 @@ def _doc() -> DocumentModel:
     return doc
 
 
+def _doc_with_rows_on_another_page() -> DocumentModel:
+    """`_doc()`, and a row captioned with each `anywhere` line's name on page 3 — a page the
+    answers do not cite (they cite page 2). Asked with the selected context, those lines then have
+    something to read, so their requests are sent and the page-2 sentence each cites is refused
+    for want of the report, rather than never asked about."""
+    doc = _doc()
+    for caption, amount in (("Num Employees", "2431"), ("Min Tangible Net Worth", "1100000")):
+        row = LineItem(source_label=caption)
+        row.values["v"] = ExtractedValue(basis=Basis.CONSOLIDATED, period_label="current",
+                                         value=Decimal(amount), value_raw=Decimal(amount),
+                                         provenance=Provenance(page_index=2))
+        doc.line_items.append(row)
+    return doc
+
+
 def _set(extra_face: int = 0, second_batch: bool = False):
     """A face line, two `anywhere` figure lines and an `anywhere` text line — and `extra_face`
     more face lines, each a request of its own; with `second_batch`, an `anywhere` line on the
@@ -404,18 +419,15 @@ def test_one_at_a_time_the_report_batches_go_straight_after_their_first():
 def test_a_report_too_large_to_send_leaves_the_lines_to_the_selected_context(monkeypatch):
     monkeypatch.setattr(line_item_llm, "REPORT_TOKEN_BUDGET", 10)
     provider = _Recorder(_answers())
-    doc, ctx = _run(provider)
+    doc, ctx = _run(provider, doc=_doc_with_rows_on_another_page(), llm_request_grouping="none")
     assert any(line.startswith("line_item_llm:report_too_large") for line in ctx.logs)
     figure_calls = [c for c in provider.calls if c["schema"] == "LineItemReply"]
     assert all(len(c["messages"]) == 1 for c in figure_calls)
-    asked = {json.loads(c["messages"][0]["content"])["line_items"][0]["key"]
-             for c in figure_calls}
-    # AS PLANNED, WITH THE SELECTED CONTEXT — which for these two lines is empty here: no note, no
-    # statement row and no other page of this document is theirs, so their requests are named and
-    # not sent (`line_item_llm:nothing_to_read`) rather than asking a model with nothing to read.
-    idle = " ".join(line for line in ctx.logs if line.startswith("line_item_llm:nothing_to_read"))
-    for key in ("sup__employees", "sup__tnw"):
-        assert (key in asked) != (key in idle), f"{key}: asked as planned, or named as idle"
+    asked = {e["key"] for c in figure_calls
+             for e in json.loads(c["messages"][0]["content"])["line_items"]}
+    # AS PLANNED, ONE AT A TIME, WITH THE SELECTED CONTEXT: the page that prints each line's name.
+    assert {"sup__employees", "sup__tnw"} <= asked, "asked one at a time, as planned"
+    assert not any(line.startswith("line_item_llm:nothing_to_read") for line in ctx.logs)
     # Without the report no sentence is accepted by its page.
     assert _figure(doc, "sup__employees") is None
 

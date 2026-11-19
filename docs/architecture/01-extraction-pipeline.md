@@ -278,30 +278,38 @@ The face and its cited notes are processed in this order:
     run on the HK set made 421 line-item requests, 349 of them one face line each sent its whole
     statement (the balance sheet's rows went out 186 times on 688411). `identical` asks together
     the lines that select the same notes, and the face lines claimable under the same statement
-    sections, at most `extraction.llm_lines_per_request` (20) to a request: a larger group is asked
-    in even parts in its own order (`line_item_requests._capped`), because a line-item request
-    waits `llm.timeout_seconds` (120) and its reply — about 125 tokens a line at the median — has
-    to arrive inside it. An authored `manual` group is asked whole. Lines sharing a request can
-    influence each other's answers; the per-line fences (a line cites only its own notes, an answer
-    about a line not asked is refused, two lines citing one printed row are settled after the run)
-    are the same in every mode.
+    sections, at most `extraction.llm_lines_per_request` (20) to a request, because a line-item
+    request waits `llm.timeout_seconds` (120) and its reply — about 125 tokens a line at the
+    median — has to arrive inside it. A larger group is asked in even parts in its own order
+    (`line_item_requests.capped`: 77 at 20 is 20, 19, 19, 19), each sent the group's notes and the
+    statement rows its own lines may read. The stage cuts what it SENDS: after the focus list, the
+    note-tag gate, the text lines and the `anywhere` lines have taken theirs, so the P&L's 89
+    planned lines, 77 once its 12 `anywhere` lines go to the report, go in four requests, not
+    five. The cap does not cut an authored `manual` group. Lines sharing a request can influence
+    each other's answers; the per-line fences (a line cites only its own notes, an answer about a
+    line not asked is refused, two lines citing one printed row are settled after the run) are the
+    same in every mode. A "none" saved by an older Settings screen — which saves every setting
+    whenever one is changed, and so stored the old default — is read as the shipped default once,
+    logged, and saved with a marker (`settings_state._grouping_as_saved`); a "none" chosen now is
+    kept.
 
     Measured on the six reference filings with a stand-in that records every call and answers
     nothing (no model): all model calls of a run, every stage —
 
     | filing | `none` (before) | `identical`, 20 a request (now) |
     | --- | --- | --- |
-    | 688411 海博思创 | 432 | 73 |
-    | 688008 澜起科技 | 433 | 77 |
-    | 000709 河钢股份 | 431 | 71 |
-    | 300319 麦捷科技 | 432 | 74 |
-    | hkex_1966 China SCE | 433 | 70 |
-    | hkex_kaming 佳明 | 431 | 63 |
+    | 688411 海博思创 | 432 | 71 |
+    | 688008 澜起科技 | 433 | 75 |
+    | 000709 河钢股份 | 431 | 69 |
+    | 300319 麦捷科技 | 432 | 72 |
+    | hkex_1966 China SCE | 433 | 67 |
+    | hkex_kaming 佳明 | 431 | 60 |
 
-    Of those, the line-item stage's: 421 before, 53-65 now (the largest request 19 lines, a reply
-    budget of 8,624 tokens); the rest are the note router (1), the disclosure readings (8), the
-    unmapped-row suggestions (1), the credit narrative (1) and, on some filings, the contingent
-    liabilities narrative and a shared-figure tie-break.
+    Of those, the line-item stage's: 421 before, 50-63 now (the largest request 20 lines, a reply
+    budget of 9,024 tokens); the text it sends outside a cached first message falls 6 to 8 times
+    (688411: 11.1M to 1.4M characters). The rest are the note router (1), the disclosure readings
+    (8), the unmapped-row suggestions (1), the credit narrative (1) and, on some filings, the
+    contingent liabilities narrative and a shared-figure tie-break.
 
     *A request with nothing to read is not sent.* One that would carry no note, no statement row
     and no other page — a note part whose notes this filing does not print (`sub__ppe_depreciation`,
@@ -310,9 +318,9 @@ The face and its cited notes are processed in this order:
     requests a filing under `none`, 5-8 under `identical`.
 
     *A focus run asks its focus lines and no other.* With `llm_focus_only` on, each planned
-    request keeps only its focus lines (with the notes and statement block it was planned with),
-    and a request with none is not made, so every line outside the Focus line items master keeps
-    the rules' answer.
+    request keeps only its focus lines (`line_item_requests.focused`, with the notes and sections
+    it was planned with, and named after the lines it holds), and a request with none is not made,
+    so every line outside the Focus line items master keeps the rules' answer.
 
     *An `anywhere` line is asked with the whole annual report.* Its plan is set aside
     (`line_item_requests.report_plans`): the line goes into a batch of at most 12, grouped by the
@@ -359,10 +367,12 @@ The face and its cited notes are processed in this order:
     `cache_control` breakpoint (`adapters._structured.messages_body`; off with
     `llm.prompt_cache = false`). The first request of each prefix is sent on its own and waited
     for, so the requests after it read the prefix from the provider's cache; the rest go
-    `extraction.llm_parallel_requests` at a time (4 as shipped, 16 at most — the one setting the
-    whole-PDF requests and the disclosure readings follow too). Replies are processed in plan order
-    whatever it is, so it changes how long a run takes and not what it finds. The run log gives
-    every request's input, cached and cache-write tokens.
+    `extraction.llm_parallel_requests` at a time (4 as shipped, 16 at most). The whole-PDF requests
+    follow the same setting, the first of each part alone; the disclosure readings follow it too,
+    this many at once from the start (they share no prompt beginning); the few text-line requests
+    go one at a time. Replies are processed in plan order whatever it is, so it changes how long a
+    run takes and not what it finds. The run log gives every request's input, cached and
+    cache-write tokens.
 
     *Notes many requests share are sent once, cached* (`extraction.llm_shared_notes`, on). A
     request's question carries the notes its lines selected, and no provider caches a question,

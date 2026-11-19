@@ -95,12 +95,13 @@ EXTRACTION_KNOBS: tuple[Knob, ...] = (
          "bleed: lines sharing a call can influence each other's answers. \"manual\" uses the "
          "groups authored on the line-item set and asks about everything else one line at a time. "
          "Shipped: \"identical\" — lines needing the same notes, or the same section of a "
-         "statement, share one request, at most the number below: about 60 line-item requests a "
+         "statement, share one request, at most the number below: 50-63 line-item requests a "
          "filing where \"none\" made 421. Choose \"none\" for the per-line baseline.",
          choices=("none", "identical", "similar", "manual")),
     Knob("llm_lines_per_request", "number", "Line items in one request",
          "Read when grouping is \"identical\" or \"similar\": the most line items one request asks "
-         "about. A larger group is asked in even parts, each with the same notes and statement. "
+         "about. A larger group is asked in even parts, each sent the group's notes and the "
+         "statement rows its own lines may read. "
          "The reply has to arrive inside one wait (two minutes), and a line's answer is about 125 "
          "tokens at the median, so 20 is a reply of about 2,500. Lower it if requests time out; a "
          "request that fails loses all its lines to the rules.",
@@ -180,10 +181,11 @@ EXTRACTION_KNOBS: tuple[Knob, ...] = (
          "every request sends the same file, read from the provider's cache after the first.",
          minimum=5, maximum=300, step=1),
     Knob("llm_parallel_requests", "number", "Requests sent at once",
-         "How many requests are in flight together: the line-item requests, the whole-PDF "
-         "requests and the disclosure readings. The first request of a run is "
-         "always sent on its own — it fills the provider's prompt cache — and the rest follow "
-         "this many at a time. Replies are processed in the same order whatever this is, so it "
+         "How many requests are in flight together: the line-item figure requests, the whole-PDF "
+         "requests and the disclosure readings (the few text-line requests go one at a time). For "
+         "the first two, the first request of each prompt prefix is sent on its own — it fills "
+         "the provider's prompt cache — and the rest follow this many at a time; the disclosure "
+         "readings share no prefix and start this many at once. Replies are processed in the same order whatever this is, so it "
          "changes how long a run takes and not what it finds. Lower it if the provider starts "
          "refusing requests for rate limits; 1 sends one request at a time.",
          minimum=1, maximum=16, step=1),
@@ -383,11 +385,46 @@ def load_persisted() -> None:
 # chosen — read as written, it would switch the whole report off for those lines without anyone
 # asking. A value saved by this release is saved with this marker beside it and read as it is.
 _DOCUMENT_CONTEXT_MARKER = "_llm_document_context_v2"
+# THE SAME HAZARD FOR `llm_request_grouping`, whose DEFAULT moved from "none" to "identical" (at the
+# user's instruction: about 430 model calls a filing became about 70). The every-knob save stored
+# the old default "none" for anyone who saved ANY knob — switching the whole-PDF route off on the
+# Settings screen among them, which is how a deployment reaches the normal route — and re-applied
+# as written it would keep those deployments on one request per line without anyone choosing it.
+# A pre-marker "none" is read as the default this release ships, said in the log, and saved with
+# the marker; a "none" chosen from now on is saved with the marker and read as it is.
+_REQUEST_GROUPING_MARKER = "_llm_request_grouping_v2"
+#: The marker each setting is saved beside — see `set_extraction_config`.
+_MARKERS = {"llm_document_context": _DOCUMENT_CONTEXT_MARKER,
+            "llm_request_grouping": _REQUEST_GROUPING_MARKER}
 
 
 def _read_as_saved(stored: dict) -> dict:
-    """The stored extraction overrides, with a pre-marker "selected" read as "anywhere" — and
-    that reading saved, with the marker, so it is made once and the table says what applies."""
+    """The stored extraction overrides, each value saved before its setting moved read as what it
+    meant when it was saved — and that reading saved, with its marker, so it is made once and the
+    table says what applies."""
+    return _grouping_as_saved(_context_as_saved(stored))
+
+
+def _grouping_as_saved(stored: dict) -> dict:
+    """A pre-marker "none" read as the grouping this release ships (unless that is "none" too)."""
+    if stored.get("llm_request_grouping") != "none" or stored.get(_REQUEST_GROUPING_MARKER):
+        return stored
+    shipped = str((_EXTRACTION_DEFAULTS or {}).get("llm_request_grouping") or "none")
+    if shipped == "none":
+        return stored
+    import logging
+    logging.getLogger(__name__).warning(
+        "extraction.llm_request_grouping: the stored value 'none' was saved when 'none' was the "
+        "default (the Settings screen saves every setting whenever one is changed), so it is read, "
+        "and saved, as the shipped default %r: line items needing the same notes or the same "
+        "section of a statement share a request. Choose 'none' again on the Settings screen for one "
+        "request per line.", shipped)
+    _persist(SCOPE_EXTRACTION, {"llm_request_grouping": shipped, _REQUEST_GROUPING_MARKER: True})
+    return {**stored, "llm_request_grouping": shipped, _REQUEST_GROUPING_MARKER: True}
+
+
+def _context_as_saved(stored: dict) -> dict:
+    """A pre-marker "selected" read as "anywhere"."""
     if stored.get("llm_document_context") != "selected" or stored.get(_DOCUMENT_CONTEXT_MARKER):
         return stored
     import logging
@@ -522,8 +559,8 @@ def set_extraction_config(*, persist: bool = True, **fields) -> dict:
     if persist and cleaned:
         # Saved with the marker that says this value has the setting's present meaning — see
         # `_read_as_saved`.
-        _persist(SCOPE_EXTRACTION, {**cleaned, _DOCUMENT_CONTEXT_MARKER: True}
-                 if "llm_document_context" in cleaned else cleaned)
+        _persist(SCOPE_EXTRACTION, {**cleaned, **{marker: True for key, marker in _MARKERS.items()
+                                                  if key in cleaned}})
     return extraction_config()
 
 

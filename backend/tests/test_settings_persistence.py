@@ -45,18 +45,22 @@ def _rows(scope: str) -> dict:
 
 
 def test_an_extraction_threshold_survives_a_restart(client):
+    # A GROUPING THAT IS NOT THE DEFAULT, or the check below holds whether or not it was saved:
+    # "identical" ships, so a restart restores it with nothing stored.
+    defaults = client.get("/api/v1/settings", headers=_admin(client)).json()["extraction_defaults"]
+    chosen = next(m for m in ("similar", "none", "identical")
+                  if m != defaults["llm_request_grouping"])
     client.patch("/api/v1/settings", headers=_admin(client),
-                 json={"extraction": {"evidence_floor": 0.62,
-                                      "llm_request_grouping": "identical"}})
+                 json={"extraction": {"evidence_floor": 0.62, "llm_request_grouping": chosen}})
     assert get_settings().extraction.evidence_floor == 0.62
 
     _restart()
 
     assert get_settings().extraction.evidence_floor == 0.62
-    assert get_settings().extraction.llm_request_grouping == "identical"
+    assert get_settings().extraction.llm_request_grouping == chosen
     # …and the API reports the same thing a fresh client would read.
     live = client.get("/api/v1/settings", headers=_admin(client)).json()["extraction"]
-    assert live["evidence_floor"] == 0.62 and live["llm_request_grouping"] == "identical"
+    assert live["evidence_floor"] == 0.62 and live["llm_request_grouping"] == chosen
 
 
 def test_the_feature_flags_survive_a_restart(client):

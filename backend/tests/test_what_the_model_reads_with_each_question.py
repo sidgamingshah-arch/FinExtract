@@ -43,7 +43,9 @@ from app.services import line_item_llm, settings_state
 from app.services.line_item_config import load_shipped_set
 from app.services.settings_state import EXTRACTION_KNOBS
 from app.stages.line_item_llm import _document_context
-from tests.test_anywhere_reads_the_whole_report import AUDITOR, _answers, _figure, _Recorder, _run
+from tests.test_anywhere_reads_the_whole_report import (AUDITOR, _answers,
+                                                        _doc_with_rows_on_another_page, _figure,
+                                                        _Recorder, _run)
 
 
 @pytest.fixture(autouse=True)
@@ -90,20 +92,18 @@ def test_a_value_this_build_does_not_know_is_read_as_the_default():
 
 def test_selected_sends_no_line_the_report():
     provider = _Recorder(_answers(), _texts())
-    doc, ctx = _run(provider, llm_document_context="selected", llm_request_grouping="none")
+    doc, ctx = _run(provider, doc=_doc_with_rows_on_another_page(),
+                    llm_document_context="selected", llm_request_grouping="none")
     assert provider.calls and all(len(c["messages"]) == 1 for c in provider.calls), \
         "no request carries a document"
     assert not any(line_item_llm.REPORT_GUIDE in c["system"] for c in provider.calls)
     assert not any(line_item_llm.TEXT_REPORT_GUIDE in c["system"] for c in provider.calls)
     assert not any(line.startswith("line_item_llm:report") for line in ctx.logs)
-    # THE `anywhere` LINES ARE PLANNED AS THE FACE LINE IS — one request each, with what they
-    # selected. Here that is nothing: no note, statement row or other page of this document is
-    # theirs, so their requests are named and not sent (`line_item_llm:nothing_to_read`).
+    # THE `anywhere` LINES ARE ASKED AS THEY WERE PLANNED — one request each, with what they
+    # selected (the page that prints each one's name) — as the face line is.
     asked = sorted(tuple(e["key"] for e in json.loads(c["messages"][0]["content"])["line_items"])
                    for c in provider.calls if c["schema"] == "LineItemReply")
-    assert asked == [("bs_nca__buildings",)]
-    (idle,) = [line for line in ctx.logs if line.startswith("line_item_llm:nothing_to_read")]
-    assert "'sup__employees'" in idle and "'sup__tnw'" in idle, idle
+    assert asked == [("bs_nca__buildings",), ("sup__employees",), ("sup__tnw",)]
     # …so no sentence on a page is accepted by its page number: that needs the report's text.
     assert _figure(doc, "sup__employees") is None
     assert any("line_item_llm:tokens document_context=selected" in line for line in ctx.logs)
@@ -177,7 +177,7 @@ def test_full_with_a_report_too_large_asks_every_line_with_the_selected_context(
     provider = _Recorder(_answers(), _texts())
     _doc, ctx = _run(provider, llm_document_context="full")
     assert any(line.startswith("line_item_llm:report_too_large")
-               and "the 4 line(s) are asked with the selected context" in line
+               and "the 4 line(s) are planned with the selected context" in line
                for line in ctx.logs), ctx.logs
     assert all(len(c["messages"]) == 1 for c in provider.calls)
     assert not any(line_item_llm.FULL_REPORT_GUIDE in c["system"] for c in provider.calls)

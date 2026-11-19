@@ -15,10 +15,10 @@ one copy. Measured on the shipped set those 377 lines occupy FOURTEEN `(statemen
 groups, and only two hold a single line.
 
 WHAT THESE TESTS HOLD. That the pairs come off the line's own gate and carry statement TOKENS
-rather than enum reprs; that the default mode is untouched; that grouping never loses or duplicates
-a line; and that a line sharing no context is never grouped — 39 of the shipped lines name neither
-a statement nor a section, and one request for all 39 would save nothing while buying the whole
-cross-influence hazard the `"none"` default exists to avoid.
+rather than enum reprs; that "none" still asks one line a request; that grouping never loses or
+duplicates a line; and that a line sharing no context is never grouped — 39 of the shipped lines
+name neither a statement nor a section, and one request for all 39 would save nothing while buying
+the whole cross-influence hazard grouping carries.
 """
 from __future__ import annotations
 
@@ -82,7 +82,7 @@ def test_none_still_asks_one_line_a_request(shipped):
     against. It is no longer the default ("identical" ships, at the user's instruction; `config`
     says why), and it is still what an admin gets by choosing it."""
     plans = _plans(shipped, "none")
-    assert all(len(p.keys) == 1 for p in plans), "the default grouped something"
+    assert all(len(p.keys) == 1 for p in plans), "\"none\" grouped something"
     assert len(plans) == len({i.key for i in shipped.items if asked_about(i)})
 
 
@@ -94,8 +94,10 @@ def test_face_lines_collapse_onto_their_sections(shipped):
     assert len(grouped) >= 10, f"only {len(grouped)} shared section groups"
     biggest = max(grouped, key=lambda p: len(p.keys))
     assert len(biggest.keys) > 50, f"largest section group is only {len(biggest.keys)} lines"
-    # …and with the shipped cap no request asks more than 20 lines.
-    assert max(len(p.keys) for p in _plans(shipped, "identical", cap=20)) <= 20
+    # …and cut at the shipped cap (the stage cuts what it sends, `capped`), no request asks more
+    # than 20 lines.
+    from app.services.line_item_requests import capped
+    assert max(len(p.keys) for p in capped(_plans(shipped, "identical"), 20)) <= 20
     # A SHARED GROUP SUPPLIES EXACTLY EACH OF ITS LINES' OWN CONTEXT: every line in it is
     # claimable under exactly the group's pairs — one pair for most, several for a line whose gate
     # names several (`_by_section`), never a mix of lines needing different ones.

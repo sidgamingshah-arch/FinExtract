@@ -31,7 +31,6 @@ untouched. A run with no provider is a fully deterministic run, which is a defin
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, wait
-from dataclasses import replace
 from decimal import Decimal
 
 import app.adapters  # noqa: F401 - registers configured LLM adapters
@@ -138,10 +137,7 @@ class LineItemLlmStage(Stage):
         # is every ICON balance-sheet line the model is asked about, and stays so as ICON changes.
         # A pattern only ever ADDS keys of this run's own set, so a run of another set is focused
         # exactly as before.
-        prefixes = tuple(k[:-1] for k in named if k.endswith("*") and len(k) > 1)
-        focus = {k for k in named if not k.endswith("*")}
-        focus |= {i.key for i in (getattr(line_item_set, "items", None) or ())
-                  if prefixes and i.key.startswith(prefixes) and line_item_requests.asked_about(i)}
+        focus = line_item_requests.focus_keys(named, line_item_set)
 
         # THE NOTE ROUTER — ONE CALL THAT READS EVERY NOTE HEADING FOR THE LINES ASKED ABOUT
         # (`services.note_router`). Its picks are added to each line's note set after every other
@@ -181,11 +177,7 @@ class LineItemLlmStage(Stage):
             ctx.log("line_item_llm:focus_only_requested_but_no_focus_keys_configured")
         skipped_by_focus = 0
         if focus:
-            kept = []
-            for plan in plans:
-                mine = tuple(k for k in plan.keys if k in focus)
-                if mine:
-                    kept.append(plan if mine == plan.keys else replace(plan, keys=mine))
+            kept = line_item_requests.focused(plans, focus)
             skipped_by_focus = len(plans) - len(kept)
             # NAMED, not only counted: a focus key that names no asked-about line is a key whose
             # figure this run cannot return, and the log said nothing about that for the whole
@@ -237,10 +229,11 @@ class LineItemLlmStage(Stage):
             for plan in plans:
                 keys = tuple(k for k in plan.keys if k not in untagged)
                 if keys:
-                    # `replace`, NOT A NEW PLAN: the plan's sections are what `face_statements`
-                    # builds its statement block from, and a plan rebuilt from its name, keys and
-                    # notes alone sent the rest of a grouped request no statement.
-                    trimmed.append(plan if keys == plan.keys else replace(plan, keys=keys))
+                    # THE SAME PLAN WITH FEWER LINES, NOT A NEW ONE: the plan's sections are what
+                    # `face_statements` builds its statement block from, and a plan rebuilt from its
+                    # name, keys and notes alone sent the rest of a grouped request no statement.
+                    trimmed.append(plan if keys == plan.keys
+                                   else line_item_requests.relabel(plan, keys))
             ctx.log(f"line_item_llm:note_tag_gate_skipped_lines={len(untagged)} "
                     f"(each declares llm_only_if_note_tagged and no face row cites a note it "
                     f"selected, so no request is spent on it — `stages.note_tag_gate` writes the "
@@ -267,6 +260,17 @@ class LineItemLlmStage(Stage):
         # The report is built once for the run. One too large to send is not cut down: every line
         # is asked as it was planned, with the selected context, and the log says so.
         doc_context = _document_context(ctx)
+        # AT MOST `llm_lines_per_request` LINES A REQUEST, under the modes that group by score —
+        # see `line_item_requests.capped`. Cut on the plans this run SENDS, below: after the focus
+        # list, the note-tag gate, the text lines and (under "anywhere") the `anywhere` lines have
+        # taken out what they take, so a group is cut by what is left of it.
+        mode = str(getattr(ctx.settings.extraction, "llm_request_grouping", "none") or "none")
+        cap = line_item_requests.lines_per_request(ctx.settings)
+
+        def _cut(found):
+            return line_item_requests.capped(found, cap) if mode in ("identical", "similar") \
+                else found
+
         planned, planned_text = plans, text_plans
         report_plans, report_text_plans = [], []
         if doc_context != "selected":
@@ -286,8 +290,8 @@ class LineItemLlmStage(Stage):
             if tokens > line_item_llm.REPORT_TOKEN_BUDGET:
                 ctx.log(f"line_item_llm:report_too_large est_tokens={tokens} "
                         f"budget={line_item_llm.REPORT_TOKEN_BUDGET} — the {lines} "
-                        f"{'' if everything else 'anywhere '}line(s) are asked with the selected "
-                        f"context instead")
+                        f"{'' if everything else 'anywhere '}line(s) are planned with the selected "
+                        f"context instead (a request that then has nothing to read is not sent)")
                 plans, text_plans = planned, planned_text
                 report_plans, report_text_plans = [], []
                 report = report_text = None
@@ -298,14 +302,15 @@ class LineItemLlmStage(Stage):
                     # A TEXT LINE IS ASKED WITH THE REPORT TOO, every page of it a page its text
                     # may be copied from — ahead of the `anywhere` text batches, as the figure
                     # plans go ahead of the figure batches.
-                    report_text_plans = [*text_plans, *report_text_plans]
+                    report_text_plans = [*_cut(text_plans), *report_text_plans]
                     text_plans = []
                 ctx.log(f"line_item_llm:report pages={len(report['pages'])} "
                         f"notes={len(report['notes'])} chars={len(report_text)} "
                         f"est_tokens={tokens} lines={lines} "
                         f"requests={len(report_plans) + len(report_text_plans)}"
-                        + (f" other_requests={len(plans)}" if everything else "")
+                        + (f" other_requests={len(_cut(plans))}" if everything else "")
                         + f" context={doc_context}")
+        plans, text_plans = _cut(plans), _cut(text_plans)
 
         # The rulebook's judgement wording plus the master prompt, once for the run. The reply
         # contract goes FIRST and is not configurable — see `line_item_llm.REPLY_CONTRACT`. A
@@ -329,14 +334,12 @@ class LineItemLlmStage(Stage):
         tok = {"input": 0, "cached": 0, "write": 0, "output": 0}
 
         shared = sum(1 for p in plans if p.shared)
-        mode = str(getattr(ctx.settings.extraction, "llm_request_grouping", "none") or "none")
         ctx.log(f"line_item_llm:planned requests={len(plans)} grouping={mode} shared={shared} "
                 f"lines={sum(len(p.keys) for p in plans)} notes_identified={len(identified)}"
+                + (f" lines_per_request={cap}" if mode in ("identical", "similar") else "")
                 + (f" report_requests={len(report_plans)} "
                    f"report_lines={sum(len(p.keys) for p in report_plans)}" if report_plans else "")
                 + (f" requests_skipped_by_focus={skipped_by_focus}" if skipped_by_focus else ""))
-        total = len(plans) + len(report_plans)
-        ctx.emit_step(0, total, "line-item request")
 
         by_concept = {li.canonical_key: li for li in doc.line_items if li.canonical_key}
         filled = answered = unresolved_total = 0
@@ -447,9 +450,11 @@ class LineItemLlmStage(Stage):
                          plan, by_key, notes_of, [], None, None)["line_items"]}]
                      if request["line_items"]]
         workers = max(1, int(getattr(ctx.settings.extraction, "llm_parallel_requests", 1) or 1))
-        # THE PROGRESS PANEL COUNTS WHAT IS SENT: a request with nothing to read, or none of whose
-        # lines survived the build, is not one of them.
+        # THE PROGRESS PANEL COUNTS WHAT IS SENT, from its first step: a request with nothing to
+        # read, or none of whose lines survived the build, is not one of them. Nothing sent is a
+        # total of 0, which the panel does not show as a count.
         total = len(prepared)
+        ctx.emit_step(0, total, "line-item request")
 
         def _send(entry):
             _plan, request, system_text, document_text_, whole = entry
