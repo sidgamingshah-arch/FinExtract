@@ -93,8 +93,18 @@ EXTRACTION_KNOBS: tuple[Knob, ...] = (
          "construction, since no line receives a note it did not ask for. \"similar\" groups "
          "lines whose note sets overlap by at least the threshold below, which saves more and can "
          "bleed: lines sharing a call can influence each other's answers. \"manual\" uses the "
-         "groups authored on the line-item set and asks about everything else one line at a time.",
+         "groups authored on the line-item set and asks about everything else one line at a time. "
+         "Shipped: \"identical\" — lines needing the same notes, or the same section of a "
+         "statement, share one request, at most the number below: about 60 line-item requests a "
+         "filing where \"none\" made 421. Choose \"none\" for the per-line baseline.",
          choices=("none", "identical", "similar", "manual")),
+    Knob("llm_lines_per_request", "number", "Line items in one request",
+         "Read when grouping is \"identical\" or \"similar\": the most line items one request asks "
+         "about. A larger group is asked in even parts, each with the same notes and statement. "
+         "The reply has to arrive inside one wait (two minutes), and a line's answer is about 125 "
+         "tokens at the median, so 20 is a reply of about 2,500. Lower it if requests time out; a "
+         "request that fails loses all its lines to the rules.",
+         minimum=1, maximum=100, step=1),
     Knob("llm_document_context", "choice", "What the model reads with each question",
          "\"selected\" sends each request only the notes and statements its line items selected: "
          "the smallest requests, and no line is sent the whole annual report — a line that may be "
@@ -170,7 +180,8 @@ EXTRACTION_KNOBS: tuple[Knob, ...] = (
          "every request sends the same file, read from the provider's cache after the first.",
          minimum=5, maximum=300, step=1),
     Knob("llm_parallel_requests", "number", "Requests sent at once",
-         "How many line-item requests are in flight together. The first request of a run is "
+         "How many requests are in flight together: the line-item requests, the whole-PDF "
+         "requests and the disclosure readings. The first request of a run is "
          "always sent on its own — it fills the provider's prompt cache — and the rest follow "
          "this many at a time. Replies are processed in the same order whatever this is, so it "
          "changes how long a run takes and not what it finds. Lower it if the provider starts "

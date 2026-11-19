@@ -33,6 +33,22 @@ def shipped():
     return load_line_item_set(json.loads(SEED.read_text(encoding="utf-8")), resolve=True)
 
 
+@pytest.fixture(autouse=True)
+def _restore_grouping():
+    """`get_settings` is `lru_cache`d, so `_settings` below writes to the whole suite's object.
+
+    It wrote and never put back: every test here left its mode behind, and the default test in
+    `test_row_terms_gate.py` passed only because the last one here happened to leave "none" —
+    the shipped value, until "identical" shipped and the leaked "none" made it fail in the suite
+    and pass alone."""
+    ex = get_settings().extraction
+    was = (ex.llm_request_grouping, ex.llm_group_similarity)
+    try:
+        yield
+    finally:
+        ex.llm_request_grouping, ex.llm_group_similarity = was
+
+
 def _settings(mode: str, similarity: float = 0.8):
     s = get_settings()
     s.extraction.llm_request_grouping = mode

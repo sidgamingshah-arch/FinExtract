@@ -1291,10 +1291,12 @@ def _row_identity(ev) -> tuple | None:
     terms that read one row adds it once (`services.line_items._apply_terms`).
 
     WHY IT MATTERS MOST ON THE MODEL'S ROUTE. `stages.line_item_llm` asks, per line item, which row
-    of the notes holds its figure, and `llm_request_grouping` ships as "none" — one request per
-    line. So two sibling parts competing for one note are asked in SEPARATE calls, neither request
-    naming the other line, and the prompt's own rule ("citing it for one line is also saying it is
-    not another's") cannot fire because the model is never shown the conflict. Measured with a spy
+    of the notes holds its figure, and under `llm_request_grouping = "none"` — one request per line,
+    the shipped mode when this was written ("identical" ships now) — two sibling parts competing
+    for one note are asked in SEPARATE calls, neither request naming the other line, and the
+    prompt's own rule ("citing it for one line is also saying it is not another's") cannot fire
+    because the model is never shown the conflict. Siblings whose note sets differ are still asked
+    apart under "identical", so the rule is still needed. Measured with a spy
     provider on 澜起科技 688008: note 七、19's 合计 was cited by both
     `sub__ltp_other_fincl_assets_note_total` and `sub__ltp_fincl_assets_note_total`, and one note
     row of 575,243,925.97 reached the LTP column as 1,150,487,851.94. Four rows of that filing were

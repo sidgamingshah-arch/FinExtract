@@ -52,16 +52,18 @@ def _restore_grouping():
     the worst way for a test to be wrong.
     """
     st = get_settings()
-    was = st.extraction.llm_request_grouping
+    was = (st.extraction.llm_request_grouping, st.extraction.llm_lines_per_request)
     try:
         yield
     finally:
-        st.extraction.llm_request_grouping = was
+        st.extraction.llm_request_grouping, st.extraction.llm_lines_per_request = was
 
 
-def _plans(shipped, mode):
+def _plans(shipped, mode, cap=None):
     st = get_settings()
     st.extraction.llm_request_grouping = mode
+    if cap is not None:
+        st.extraction.llm_lines_per_request = cap
     return plan_requests(shipped, [], st)
 
 
@@ -75,20 +77,25 @@ def test_every_asked_about_line_is_still_in_exactly_one_plan(shipped, mode):
     assert set(keys) == want, "a line is in no plan"
 
 
-def test_the_default_mode_is_untouched(shipped):
-    """`"none"` means one request per line and the reason is in `config`: without the per-line
-    baseline there is no telling help from bleed. Grouping is opted into, never inherited."""
+def test_none_still_asks_one_line_a_request(shipped):
+    """`"none"` means one request per line — the per-line baseline a grouped run is compared
+    against. It is no longer the default ("identical" ships, at the user's instruction; `config`
+    says why), and it is still what an admin gets by choosing it."""
     plans = _plans(shipped, "none")
     assert all(len(p.keys) == 1 for p in plans), "the default grouped something"
     assert len(plans) == len({i.key for i in shipped.items if asked_about(i)})
 
 
 def test_face_lines_collapse_onto_their_sections(shipped):
-    """The saving, stated as a number so a regression reads as one."""
-    grouped = [p for p in _plans(shipped, "identical") if len(p.keys) > 1 and p.sections]
+    """The saving, stated as a number so a regression reads as one. Measured with the cap lifted
+    (`llm_lines_per_request`, 100 its most): the cap cuts a group into parts, it does not change
+    which lines share a context."""
+    grouped = [p for p in _plans(shipped, "identical", cap=100) if len(p.keys) > 1 and p.sections]
     assert len(grouped) >= 10, f"only {len(grouped)} shared section groups"
     biggest = max(grouped, key=lambda p: len(p.keys))
     assert len(biggest.keys) > 50, f"largest section group is only {len(biggest.keys)} lines"
+    # …and with the shipped cap no request asks more than 20 lines.
+    assert max(len(p.keys) for p in _plans(shipped, "identical", cap=20)) <= 20
     # A SHARED GROUP SUPPLIES EXACTLY EACH OF ITS LINES' OWN CONTEXT: every line in it is
     # claimable under exactly the group's pairs — one pair for most, several for a line whose gate
     # names several (`_by_section`), never a mix of lines needing different ones.

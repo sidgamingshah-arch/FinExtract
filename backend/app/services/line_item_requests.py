@@ -19,15 +19,18 @@ calls. Line items needing the same notes can amortise one copy of that block ins
 it each. Measured on the twelve depreciation parts, which all resolve to one note: twelve separate
 requests carry ~125,000 characters, one request carrying all twelve carries ~22,000.
 
-WHY "none" IS STILL THE DEFAULT. Grouping has a hazard that has nothing to do with cost: line items
-sharing a call can influence each other's answers. Sometimes that helps (a subtotal seen beside the
-lines it is made of) and sometimes it bleeds (one figure reused for two questions). Without the
-per-line-item baseline there is nothing to compare a grouped run against, so the cheap mode does not
-become the default until someone has measured the difference.
+WHY "identical" IS NOW THE DEFAULT, and what it costs. Under "none" a run with the focus list off
+made one request per line — 418 figure requests on each of the six reference filings, 349 of them
+a single face line sent its whole statement. "identical" asks lines needing the same context
+together, at most `extraction.llm_lines_per_request` to a request (`_capped`). The hazard has not
+gone away: line items sharing a call can influence each other's answers — sometimes that helps (a
+subtotal seen beside the lines it is made of), sometimes it bleeds (one figure reused for two
+questions). "none" stays available as the per-line baseline a grouped run can be compared against;
+`app.config.ExtractionSettings.llm_request_grouping` says why the default moved.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from app.services import heading_synonyms, line_item_notes, line_item_routes
 
@@ -188,11 +191,66 @@ def plan_requests(line_item_set, notes, settings, *, cited=None, routed=None,
             plans.append(RequestPlan(
                 name=keys[0] if len(keys) == 1 else f"{statement}/{section}+{len(keys) - 1}",
                 keys=tuple(keys), notes=(), sections=pairs))
-        return plans
+        # AT MOST `llm_lines_per_request` LINES A REQUEST, the larger groups asked in parts — see
+        # `_capped`. Only the modes that group by score: "none" asks one line, and an authored
+        # group is asked as its author wrote it.
+        return _capped(plans, lines_per_request(settings), by_key, notes_of)
     for key in unplanned:
         plans.append(RequestPlan(name=key, keys=(key,), notes=notes_of.get(key, ()),
                                  sections=_sections_of_item(by_key[key])))
     return plans
+
+
+#: The most line items one grouped request asks about when the settings name no number — the
+#: shipped `extraction.llm_lines_per_request`, where `app.config` says why 20.
+LINES_PER_REQUEST = 20
+
+
+def lines_per_request(settings) -> int:
+    """`extraction.llm_lines_per_request`, at least 1."""
+    try:
+        cap = int(getattr(getattr(settings, "extraction", None), "llm_lines_per_request",
+                          LINES_PER_REQUEST) or LINES_PER_REQUEST)
+    except (TypeError, ValueError):
+        cap = LINES_PER_REQUEST
+    return max(1, cap)
+
+
+def _capped(plans: list[RequestPlan], cap: int, by_key: dict,
+            notes_of: dict) -> list[RequestPlan]:
+    """Every plan of more than `cap` lines, asked in consecutive parts of even size.
+
+    WHY A GROUP IS CUT AT ALL. Grouping is decided by the context lines share, and nothing about a
+    shared context bounds how many lines share it: on 688411 one `(statement, section)` group held
+    77 income-statement lines, a reply budget of 31,824 tokens (`stages.line_item_llm._max_tokens`)
+    that has to arrive inside one `llm.timeout_seconds` wait, and a request that times out loses
+    every line in it to the rules. Cut into parts, each part is a reply of the measured size.
+
+    EVEN PARTS, IN THE GROUP'S OWN ORDER — 77 at 20 is 20, 19, 19, 19, not 20, 20, 20, 17 — so a
+    section's lines stay beside their neighbours, as `report_plans` batches its lines. Each part
+    carries the notes ITS lines selected and the sections they may be claimed under: under
+    "identical" that is the group's own block, under "similar" it can be less than the group's
+    union, never more.
+    """
+    out: list[RequestPlan] = []
+    for plan in plans:
+        n = len(plan.keys)
+        if n <= cap:
+            out.append(plan)
+            continue
+        parts = -(-n // cap)
+        size = -(-n // parts)
+        base = plan.name.rsplit("+", 1)[0]
+        for i in range(parts):
+            keys = tuple(plan.keys[i * size:(i + 1) * size])
+            if not keys:
+                continue
+            notes: list[str] = []
+            for key in keys:
+                notes += [num for num in notes_of.get(key, ()) if num not in notes]
+            out.append(replace(plan, name=f"{base}#{i + 1}", keys=keys, notes=tuple(notes),
+                               sections=_sections_of_keys(keys, by_key) or plan.sections))
+    return out
 
 
 #: At most this many `anywhere` lines share one report request. A request carrying the whole
@@ -221,8 +279,6 @@ def report_plans(plans, by_key: dict) -> tuple[list[RequestPlan], list[RequestPl
     asked under a contract and a reply schema of its own, so it shares no batch with the phrases
     printed beside it, and adding one leaves every phrase batch as it was.
     """
-    from dataclasses import replace
-
     from app.services.text_lines import is_prose_line
 
     def anywhere(key: str) -> bool:

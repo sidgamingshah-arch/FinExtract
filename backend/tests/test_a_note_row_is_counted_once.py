@@ -10,9 +10,11 @@ of the notes holds its figure, and its answer OUTRANKS the declared `note_source
 (`stages.note_sourced._llm_holds`: "where the model has answered, this fills nothing and the figure
 it gave feeds the cascade below exactly as a note-sourced one would"). The prompt does state the
 exclusivity rule — "a printed row states one line's figure, so citing it for one line is also
-saying it is not another's" — but `llm_request_grouping` ships as "none", ONE REQUEST PER LINE
-ITEM, so two competing siblings are asked in separate calls and neither request names the other
-line. The model is never shown the conflict, so the rule it was given cannot fire.
+saying it is not another's" — but under `llm_request_grouping = "none"`, ONE REQUEST PER LINE
+ITEM, two competing siblings are asked in separate calls and neither request names the other
+line. The model is never shown the conflict, so the rule it was given cannot fire. ("identical",
+shipped since, asks two lines that select the same note in one request, where the rule can fire;
+these tests pin "none", the case in which only the settlement after the run can catch it.)
 
 MEASURED with `tests.spy_line_item_llm` on 澜起科技 688008: note 七、19's 合计 was cited for both
 `sub__ltp_other_fincl_assets_note_total` and `sub__ltp_fincl_assets_note_total`, and one row of
@@ -77,11 +79,13 @@ def _restore_settings():
     """`get_settings` is `lru_cache`d, so the settings object is shared with the whole suite."""
     st = get_settings()
     ex = st.extraction
-    was = (ex.llm_mapping, ex.llm_focus_only, list(ex.llm_focus_keys or ()), st.llm.provider)
+    was = (ex.llm_mapping, ex.llm_focus_only, list(ex.llm_focus_keys or ()),
+           ex.llm_request_grouping, st.llm.provider)
     try:
         yield
     finally:
-        (ex.llm_mapping, ex.llm_focus_only, ex.llm_focus_keys, st.llm.provider) = was
+        (ex.llm_mapping, ex.llm_focus_only, ex.llm_focus_keys, ex.llm_request_grouping,
+         st.llm.provider) = was
 
 
 # --- the identity ------------------------------------------------------------------------------
@@ -243,6 +247,8 @@ def _run_both_stages(shipped, spy) -> DocumentModel:
     ctx.settings.extraction.llm_mapping = True
     ctx.settings.extraction.llm_focus_only = True
     ctx.settings.extraction.llm_focus_keys = [OTHER, BARE]
+    # ONE REQUEST PER LINE, the premise of every test here (see the module docstring).
+    ctx.settings.extraction.llm_request_grouping = "none"
     ctx.registry.register("llm", "spy", lambda: spy)
     ctx.settings.llm.provider = "spy"
     LineItemLlmStage().run(doc, ctx)

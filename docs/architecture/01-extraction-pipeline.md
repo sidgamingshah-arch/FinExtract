@@ -271,10 +271,48 @@ The face and its cited notes are processed in this order:
     text added to the request (`plan_and_notes`).
 
     *Which lines share a request.* `extraction.llm_request_grouping` — `none` (one per line, the
-    baseline and the only mode whose answer is attributable to one line), `identical`, `similar`
-    (`llm_group_similarity`) or `manual` (the groups authored on the set). What grouping buys is
-    the NOTE BLOCK: measured at 95,188 of a ~196,000-character request, byte-identical in every
-    call of a run, so lines needing the same notes can amortise one copy.
+    per-line baseline and the only mode whose answer is attributable to one line), `identical`
+    (shipped), `similar` (`llm_group_similarity`) or `manual` (the groups authored on the set).
+    What grouping buys is the CONTEXT BLOCK a request carries — a note set, or a statement's
+    printed rows — paid once for the lines that need it. Under `none`, with the focus list off, a
+    run on the HK set made 421 line-item requests, 349 of them one face line each sent its whole
+    statement (the balance sheet's rows went out 186 times on 688411). `identical` asks together
+    the lines that select the same notes, and the face lines claimable under the same statement
+    sections, at most `extraction.llm_lines_per_request` (20) to a request: a larger group is asked
+    in even parts in its own order (`line_item_requests._capped`), because a line-item request
+    waits `llm.timeout_seconds` (120) and its reply — about 125 tokens a line at the median — has
+    to arrive inside it. An authored `manual` group is asked whole. Lines sharing a request can
+    influence each other's answers; the per-line fences (a line cites only its own notes, an answer
+    about a line not asked is refused, two lines citing one printed row are settled after the run)
+    are the same in every mode.
+
+    Measured on the six reference filings with a stand-in that records every call and answers
+    nothing (no model): all model calls of a run, every stage —
+
+    | filing | `none` (before) | `identical`, 20 a request (now) |
+    | --- | --- | --- |
+    | 688411 海博思创 | 432 | 73 |
+    | 688008 澜起科技 | 433 | 77 |
+    | 000709 河钢股份 | 431 | 71 |
+    | 300319 麦捷科技 | 432 | 74 |
+    | hkex_1966 China SCE | 433 | 70 |
+    | hkex_kaming 佳明 | 431 | 63 |
+
+    Of those, the line-item stage's: 421 before, 53-65 now (the largest request 19 lines, a reply
+    budget of 8,624 tokens); the rest are the note router (1), the disclosure readings (8), the
+    unmapped-row suggestions (1), the credit narrative (1) and, on some filings, the contingent
+    liabilities narrative and a shared-figure tie-break.
+
+    *A request with nothing to read is not sent.* One that would carry no note, no statement row
+    and no other page — a note part whose notes this filing does not print (`sub__ppe_depreciation`,
+    `sub__st_borrowings_current_portion_of_ltd` …) — can only be answered "not found". The stage
+    names its lines (`line_item_llm:nothing_to_read`) and the rules' reading stands: 13-22 such
+    requests a filing under `none`, 5-8 under `identical`.
+
+    *A focus run asks its focus lines and no other.* With `llm_focus_only` on, each planned
+    request keeps only its focus lines (with the notes and statement block it was planned with),
+    and a request with none is not made, so every line outside the Focus line items master keeps
+    the rules' answer.
 
     *An `anywhere` line is asked with the whole annual report.* Its plan is set aside
     (`line_item_requests.report_plans`): the line goes into a batch of at most 12, grouped by the
@@ -320,7 +358,10 @@ The face and its cited notes are processed in this order:
     system text, and a message marked `cache` (the report), as text blocks ending in a
     `cache_control` breakpoint (`adapters._structured.messages_body`; off with
     `llm.prompt_cache = false`). The first request of each prefix is sent on its own and waited
-    for, so the requests after it read the prefix from the provider's cache. The run log gives
+    for, so the requests after it read the prefix from the provider's cache; the rest go
+    `extraction.llm_parallel_requests` at a time (4 as shipped, 16 at most — the one setting the
+    whole-PDF requests and the disclosure readings follow too). Replies are processed in plan order
+    whatever it is, so it changes how long a run takes and not what it finds. The run log gives
     every request's input, cached and cache-write tokens.
 
     *Notes many requests share are sent once, cached* (`extraction.llm_shared_notes`, on). A

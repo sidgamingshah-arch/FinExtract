@@ -50,12 +50,12 @@ def _restore_settings():
     st = get_settings()
     ex = st.extraction
     was = (ex.llm_mapping, ex.llm_focus_only, list(ex.llm_focus_keys or ()),
-           ex.llm_parallel_requests, st.llm.provider)
+           ex.llm_parallel_requests, ex.llm_request_grouping, st.llm.provider)
     try:
         yield
     finally:
         (ex.llm_mapping, ex.llm_focus_only, ex.llm_focus_keys, ex.llm_parallel_requests,
-         st.llm.provider) = was
+         ex.llm_request_grouping, st.llm.provider) = was
 
 
 def _pdf(pages: list[str]) -> bytes:
@@ -370,7 +370,9 @@ def test_the_first_request_of_each_prefix_goes_alone():
                         self.events.append(("end", len(kw["messages"])))
 
     provider = _Overlap()
-    _run(provider, extra_face=3, llm_parallel_requests=4)
+    # ONE REQUEST PER FACE LINE, so the selected-context prefix has several requests to order:
+    # under the shipped "identical" the four face lines of one section share one.
+    _run(provider, extra_face=3, llm_parallel_requests=4, llm_request_grouping="none")
     events = provider.events
     assert len([e for e in events if e[0] == "start"]) == 5, events   # four face lines, one batch
     assert [e[0] for e in events[:4]] == ["start", "start", "end", "end"], events
@@ -393,7 +395,8 @@ def test_one_at_a_time_the_report_batches_go_straight_after_their_first():
             return super().complete_structured(**kw)
 
     provider = _Order()
-    _run(provider, extra_face=3, second_batch=True, llm_parallel_requests=1)
+    _run(provider, extra_face=3, second_batch=True, llm_parallel_requests=1,
+         llm_request_grouping="none")
     # the first of each prefix, then the second report batch, then the other face lines
     assert provider.sent == [1, 2, 2, 1, 1, 1], provider.sent
 
@@ -407,7 +410,12 @@ def test_a_report_too_large_to_send_leaves_the_lines_to_the_selected_context(mon
     assert all(len(c["messages"]) == 1 for c in figure_calls)
     asked = {json.loads(c["messages"][0]["content"])["line_items"][0]["key"]
              for c in figure_calls}
-    assert {"sup__employees", "sup__tnw"} <= asked, "asked one at a time, as planned"
+    # AS PLANNED, WITH THE SELECTED CONTEXT — which for these two lines is empty here: no note, no
+    # statement row and no other page of this document is theirs, so their requests are named and
+    # not sent (`line_item_llm:nothing_to_read`) rather than asking a model with nothing to read.
+    idle = " ".join(line for line in ctx.logs if line.startswith("line_item_llm:nothing_to_read"))
+    for key in ("sup__employees", "sup__tnw"):
+        assert (key in asked) != (key in idle), f"{key}: asked as planned, or named as idle"
     # Without the report no sentence is accepted by its page.
     assert _figure(doc, "sup__employees") is None
 

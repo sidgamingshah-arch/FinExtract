@@ -31,6 +31,7 @@ untouched. A run with no provider is a fully deterministic run, which is a defin
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, wait
+from dataclasses import replace
 from decimal import Decimal
 
 import app.adapters  # noqa: F401 - registers configured LLM adapters
@@ -89,6 +90,13 @@ _PROSE_RESPONSE_TOKENS_PER_ANSWER = 800
 #: The flag a narrative the model WROTE carries on its line (`_write_narrative`), beside the cited
 #: pages: `llm_prose:pages 41, 42`. A phrase copied off a page carries `llm_text:page 41`.
 NARRATIVE_FLAG = "llm_prose"
+
+
+def _carries_context(request: dict) -> bool:
+    """Whether a line-item request gives the model anything to read: a note, a statement row or
+    another page. `build_request` omits each block when it is empty, and sends `notes` as `[]`."""
+    return bool(request.get("notes") or request.get("statement_rows")
+                or request.get("other_pages"))
 
 
 def _max_tokens(n_answers: int, *, report: bool = False, prose: bool = False) -> int:
@@ -158,15 +166,26 @@ class LineItemLlmStage(Stage):
         # WHICH LINE ITEMS THIS RUN ASKS ABOUT. `llm_focus_keys` used to name concepts whose
         # printed ROWS were forwarded to the model; rows are not forwarded any more, and the
         # setting now says what a focus run was always trying to say — spend the provider budget on
-        # the lines under review rather than on the whole filing. Applied to the PLANS so a group
-        # containing one focus line is still asked whole: the group exists because its members
-        # share notes, and splitting it would pay for that note block twice.
+        # the lines under review rather than on the whole filing.
+        #
+        # APPLIED TO EACH PLAN'S LINES: a group is asked with its focus lines only, in the one
+        # request it was planned as and with the notes and statement block it was planned with, and
+        # a group with none is not asked. So a focus run answers exactly the master's lines and
+        # every other line keeps what the rules gave it — what the Settings screen says it does. It
+        # used to keep a group WHOLE when one of its lines was in focus, which made no difference
+        # while one line a request was the default; with "identical" shipped it would have asked a
+        # focus line's whole section of a statement, up to `llm_lines_per_request` lines, and
+        # written the model's answer on every one of them.
         # (`named`, `prefixes` and `focus` are read above, before the plans.)
         if getattr(ctx.settings.extraction, "llm_focus_only", False) and not focus:
             ctx.log("line_item_llm:focus_only_requested_but_no_focus_keys_configured")
         skipped_by_focus = 0
         if focus:
-            kept = [p for p in plans if any(k in focus for k in p.keys)]
+            kept = []
+            for plan in plans:
+                mine = tuple(k for k in plan.keys if k in focus)
+                if mine:
+                    kept.append(plan if mine == plan.keys else replace(plan, keys=mine))
             skipped_by_focus = len(plans) - len(kept)
             # NAMED, not only counted: a focus key that names no asked-about line is a key whose
             # figure this run cannot return, and the log said nothing about that for the whole
@@ -218,9 +237,10 @@ class LineItemLlmStage(Stage):
             for plan in plans:
                 keys = tuple(k for k in plan.keys if k not in untagged)
                 if keys:
-                    trimmed.append(plan if keys == plan.keys
-                                   else line_item_requests.RequestPlan(
-                                       name=plan.name, keys=keys, notes=plan.notes))
+                    # `replace`, NOT A NEW PLAN: the plan's sections are what `face_statements`
+                    # builds its statement block from, and a plan rebuilt from its name, keys and
+                    # notes alone sent the rest of a grouped request no statement.
+                    trimmed.append(plan if keys == plan.keys else replace(plan, keys=keys))
             ctx.log(f"line_item_llm:note_tag_gate_skipped_lines={len(untagged)} "
                     f"(each declares llm_only_if_note_tagged and no face row cites a note it "
                     f"selected, so no request is spent on it — `stages.note_tag_gate` writes the "
@@ -378,6 +398,23 @@ class LineItemLlmStage(Stage):
         # (plan, request, system text, document message, asked with the whole report)
         prepared = [(plan, request, system, document, everything) for plan in plans
                     for request in [_build(plan)] if request["line_items"]]
+        # NOTHING TO READ, NO REQUEST. A request that carries no note, no statement row and no
+        # other page gives the model nothing to cite, and the contract's answer in that position
+        # is an empty `sources` — measured on the six reference filings, 13-22 requests a filing
+        # under "none" (a note part whose notes this filing does not print: `sub__ppe_depreciation`,
+        # `sub__st_borrowings_current_portion_of_ltd` …), each paid for and each answered with
+        # nothing. Not sent; the rules' reading of those lines stands, as it does for an empty
+        # answer. A request sent the report (or, under "full", the whole document) always has
+        # something to read, so this only ever looks at the selected context.
+        if document is None:
+            idle = [entry for entry in prepared if not _carries_context(entry[1])]
+            if idle:
+                prepared = [entry for entry in prepared if _carries_context(entry[1])]
+                lines = sorted(e["key"] for entry in idle for e in entry[1]["line_items"])
+                ctx.log(f"line_item_llm:nothing_to_read requests_not_sent={len(idle)} "
+                        f"lines={len(lines)} {lines} — no note, statement row or other page of "
+                        f"this filing was theirs to read, so no request is spent on them and the "
+                        f"rules' reading stands")
         # NOTES SENT ONCE, CACHED, for the requests that share them (`line_item_llm.shared_note_ids`
         # says which, and why not all). Only where the provider caches — `prompt_cache_prices` is
         # declared by the adapters whose bodies carry breakpoints, so a provider that caches
@@ -410,6 +447,9 @@ class LineItemLlmStage(Stage):
                          plan, by_key, notes_of, [], None, None)["line_items"]}]
                      if request["line_items"]]
         workers = max(1, int(getattr(ctx.settings.extraction, "llm_parallel_requests", 1) or 1))
+        # THE PROGRESS PANEL COUNTS WHAT IS SENT: a request with nothing to read, or none of whose
+        # lines survived the build, is not one of them.
+        total = len(prepared)
 
         def _send(entry):
             _plan, request, system_text, document_text_, whole = entry

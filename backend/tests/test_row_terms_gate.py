@@ -445,8 +445,27 @@ def test_an_unknown_mode_is_refused_rather_than_silently_ungrouped():
         group_by_note_set(_SETS, mode="idnetical")
 
 
-def test_the_config_default_is_the_attributable_mode():
-    """`none` until there is a per-line-item baseline to compare a grouped run against."""
-    settings = get_settings()
-    assert settings.extraction.llm_request_grouping == "none"
-    assert 0.0 < settings.extraction.llm_group_similarity <= 1.0
+def test_the_config_default_groups_lines_that_share_a_context():
+    """"identical", capped at 20 lines a request — in the shipped config.toml and in the code's own
+    default alike — at the user's instruction: under "none" a run made about 430 model calls a
+    filing, one per line. "none" is still a mode, the per-line baseline (`app.config` says what
+    grouping gives up)."""
+    import tomllib
+
+    from app.config import ExtractionSettings
+
+    shipped = tomllib.loads((pathlib.Path(__file__).resolve().parents[1] / "config.toml")
+                            .read_text(encoding="utf-8"))["extraction"]
+    assert shipped["llm_request_grouping"] == "identical"
+    assert shipped["llm_lines_per_request"] == 20
+    fields = ExtractionSettings.model_fields
+    assert fields["llm_request_grouping"].default == "identical"
+    assert fields["llm_lines_per_request"].default == 20
+    # A FRESH Settings, not `get_settings()`: that one is the suite's shared object, and another
+    # test's write to it is not what this test is about.
+    from app.config import Settings
+
+    loaded = Settings().extraction
+    assert loaded.llm_request_grouping == "identical"
+    assert loaded.llm_lines_per_request == 20
+    assert 0.0 < get_settings().extraction.llm_group_similarity <= 1.0

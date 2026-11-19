@@ -444,17 +444,43 @@ class ExtractionSettings(BaseModel):
     # depreciation parts that all resolve to one note: 12 separate calls carry ~125,000 characters,
     # one batch of 12 carries ~22,000 — about 5.7x.
     #
-    # DEFAULT "none", DELIBERATELY. Grouping has a real hazard beyond cost: line items sharing a
-    # call can influence each other's answers, which sometimes helps (a subtotal and its components
-    # seen together) and sometimes bleeds (one figure reused for two questions). Without the
-    # per-line-item baseline there is no way to tell which happened, so the cheap mode is not the
-    # default until there is something to compare it against.
+    # DEFAULT "identical", IN CODE AND IN THE SHIPPED config.toml ALIKE, at the user's instruction
+    # ("why would you want to have over 500 calls, is there a way to be smart about it"). It was
+    # "none", and with the focus list off (`llm_focus_only`) that was one request per line: measured
+    # on the six reference filings, 431-433 model calls a filing, 349 of them a single face line
+    # each sent its whole statement (the balance sheet's rows went out 186 times on 688411). Under
+    # "identical", capped at `llm_lines_per_request`, the same lines go in 53-65 line-item requests,
+    # and a run makes 63-77 model calls in all.
+    #
+    # WHAT IT GIVES UP, and why that is now accepted: lines sharing a call can influence each
+    # other's answers — sometimes it helps (a subtotal seen beside its components), sometimes it
+    # bleeds (one figure reused for two questions) — and a shared answer is not attributable to one
+    # line the way a lone one is. The whole-PDF route (`whole_pdf_lines_per_request`) already asks a
+    # statement's whole line list in one request, because a model that sees every line of a
+    # section can put each printed row on exactly one of them; "identical" asks less together than
+    # that (one section, or one note set, at most `llm_lines_per_request` lines). Every per-line
+    # fence is unchanged: a line may cite only the notes ITS configuration selected, an answer
+    # about a line the request did not ask about is refused, and two lines citing one printed row
+    # are settled after the run (`stages.line_item_llm._settle_shared_printed_rows`). "none" is
+    # still there, on the Settings screen, as the per-line baseline to compare a run against.
     #   "manual"    the groups the line-item set declares in `request_groups`, and one
     #               request each for every asked-about line the master does not name. For
     #               the cases a score cannot see: a subtotal better judged beside its
     #               components, or two lines whose DISTINCTION is what the model keeps
     #               getting wrong. Read by `services.line_item_requests.plan_requests`.
-    llm_request_grouping: Literal["none", "identical", "similar", "manual"] = "none"
+    llm_request_grouping: Literal["none", "identical", "similar", "manual"] = "identical"
+    # THE MOST LINE ITEMS ONE GROUPED REQUEST ASKS ABOUT ("identical" and "similar"; "none" asks
+    # one, and an authored "manual" group is asked as its author wrote it). A larger group is asked
+    # in consecutive parts of even size, each with the same notes and statement block.
+    #
+    # 20, BECAUSE THE REPLY HAS TO ARRIVE INSIDE ONE WAIT. A line-item request carries no file, so
+    # it waits `llm.timeout_seconds` (120, the field's most), and a reply is written at the model's
+    # speed: the recorded answers of the HK filings run 125 tokens at the median and 379 at the
+    # 99th percentile, so 20 lines is a reply of about 2,500 tokens, and its budget
+    # (`stages.line_item_llm._max_tokens`, 9,024) leaves room for twenty long ones. Uncapped, one
+    # group on 688411 asked 77 income-statement lines, a budget of 31,824 tokens. A smaller cap is
+    # more requests and less lost when one fails (its lines fall to the rules); a larger one fewer.
+    llm_lines_per_request: int = Field(default=20, ge=1, le=100)
     # WHAT THE MODEL READS BESIDE EACH LINE-ITEM QUESTION, cheapest first.
     #   "selected"  each request's own notes and statements — only what its lines selected. No
     #               line is sent the whole annual report, an `anywhere` line included.
@@ -556,7 +582,10 @@ class ExtractionSettings(BaseModel):
     # HOW MANY LINE-ITEM REQUESTS ARE IN FLIGHT AT ONCE. The first request of a run is always
     # sent on its own (it is the one that fills the provider's prompt cache), then up to this many
     # together. Replies are processed in plan order either way, so the figures a run writes do not
-    # depend on it — only how long the run takes. 1 is one request at a time.
+    # depend on it — only how long the run takes. 1 is one request at a time. The shipped
+    # config.toml sends 4 at once. ONE SWITCH FOR EVERY BATCH OF CALLS A RUN MAKES: the line-item
+    # requests (`stages.line_item_llm`), the whole-PDF requests (`stages.whole_pdf`) and the
+    # disclosure readings (`stages.disclosure_reading`, which had a fixed 4 of its own).
     llm_parallel_requests: int = Field(default=1, ge=1, le=16)
     # MAY AN AUTHORED EXCLUSION REFUSE A MODEL'S CITATION?
     #

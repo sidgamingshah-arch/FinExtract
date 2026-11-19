@@ -365,19 +365,32 @@ def test_the_notes_travel_once_beside_the_lines_not_inside_each_one(shipped):
 
 
 def test_focus_keys_restrict_which_lines_are_asked_about(shipped):
-    doc = _doc(_note("7", "PROFIT BEFORE TAX",
-                     [("Depreciation of property, plant and equipment", "5170")]))
-    _ctx, focused = _run(shipped, doc, [], llm_focus_only=True, llm_focus_keys=[SUB])
-    _ctx2, wide = _run(shipped, _doc(), [], llm_focus_only=False)
+    def doc():
+        return _doc(_note("7", "PROFIT BEFORE TAX",
+                          [("Depreciation of property, plant and equipment", "5170")]))
+
+    # ONE LINE A REQUEST, so the lines asked are the lines the focus let through and nothing a
+    # group carried along with them.
+    _ctx, focused = _run(shipped, doc(), [], llm_focus_only=True, llm_focus_keys=[SUB],
+                         llm_request_grouping="none")
+    ctx2, wide = _run(shipped, doc(), [], llm_focus_only=False, llm_request_grouping="none")
 
     offered = {e["key"] for request in focused.requests for e in request["line_items"]}
     everything = {e["key"] for request in wide.requests for e in request["line_items"]}
     assert SUB in offered and SUB in everything
     assert len(offered) < len(everything)
-    # A TEXT LINE IS NOT IN A FIGURE REQUEST: it is asked with the pages that print it
-    # (`services.text_lines`), and this document has no page text to send.
-    assert everything == {i.key for i in shipped.items
-                          if line_item_requests.asked_about(i) and not text_lines.is_text_line(i)}
+    # EVERY LINE IS ACCOUNTED FOR: asked, or named as having nothing in this filing to read — a
+    # line whose request would carry no note, statement row or page is not sent
+    # (`line_item_llm:nothing_to_read`). A TEXT LINE IS NOT IN A FIGURE REQUEST: it is asked with
+    # the pages that print it (`services.text_lines`), and this document has no page text to send.
+    idle = [line for line in ctx2.logs if line.startswith("line_item_llm:nothing_to_read")]
+    assert len(idle) == 1, idle
+    named = {k for k in idle[0].split("[", 1)[1].split("]", 1)[0].replace("'", "").split(", ")
+             if k}
+    assert not named & everything
+    assert everything | named == {i.key for i in shipped.items
+                                  if line_item_requests.asked_about(i)
+                                  and not text_lines.is_text_line(i)}
 
 
 def test_the_reply_contract_goes_first_and_the_master_prompt_after_it(shipped):

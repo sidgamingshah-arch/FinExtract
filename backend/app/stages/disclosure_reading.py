@@ -54,9 +54,13 @@ class DisclosureReadingStage:
             entity = None
         folios = {p.index: p.printed_page for p in doc.pages if getattr(p, "printed_page", None)}
         kinds = {p.index: getattr(p.kind, "value", p.kind) for p in doc.pages}
+        # AS MANY AT ONCE AS EVERY OTHER BATCH OF CALLS (`extraction.llm_parallel_requests`), so
+        # the one switch an admin lowers when the provider refuses for rate limits lowers this too.
+        parallel = max(1, int(getattr(ctx.settings.extraction, "llm_parallel_requests", 0)
+                              or disclosure_reading.PARALLEL))
         results = disclosure_reading.read_disclosures(
             provider, pages, folio_of=folios.get if folios else None, kind_of=kinds.get,
-            entity=entity)
+            entity=entity, parallel=parallel)
         if not results:
             ctx.log("disclosure_reading:no passage on any topic")
             return doc

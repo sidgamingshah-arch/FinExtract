@@ -51,12 +51,13 @@ def _restore_settings():
     st = get_settings()
     ex = st.extraction
     was = (ex.llm_mapping, ex.llm_focus_only, list(ex.llm_focus_keys or ()),
-           ex.llm_parallel_requests, ex.llm_document_context, st.llm.provider)
+           ex.llm_parallel_requests, ex.llm_document_context, ex.llm_request_grouping,
+           st.llm.provider)
     try:
         yield
     finally:
         (ex.llm_mapping, ex.llm_focus_only, ex.llm_focus_keys, ex.llm_parallel_requests,
-         ex.llm_document_context, st.llm.provider) = was
+         ex.llm_document_context, ex.llm_request_grouping, st.llm.provider) = was
 
 
 def _texts():
@@ -89,17 +90,20 @@ def test_a_value_this_build_does_not_know_is_read_as_the_default():
 
 def test_selected_sends_no_line_the_report():
     provider = _Recorder(_answers(), _texts())
-    doc, ctx = _run(provider, llm_document_context="selected")
+    doc, ctx = _run(provider, llm_document_context="selected", llm_request_grouping="none")
     assert provider.calls and all(len(c["messages"]) == 1 for c in provider.calls), \
         "no request carries a document"
     assert not any(line_item_llm.REPORT_GUIDE in c["system"] for c in provider.calls)
     assert not any(line_item_llm.TEXT_REPORT_GUIDE in c["system"] for c in provider.calls)
     assert not any(line.startswith("line_item_llm:report") for line in ctx.logs)
-    # THE `anywhere` LINES ARE ASKED AS THEY WERE PLANNED — one request each, with what they
-    # selected — as the face line is.
+    # THE `anywhere` LINES ARE PLANNED AS THE FACE LINE IS — one request each, with what they
+    # selected. Here that is nothing: no note, statement row or other page of this document is
+    # theirs, so their requests are named and not sent (`line_item_llm:nothing_to_read`).
     asked = sorted(tuple(e["key"] for e in json.loads(c["messages"][0]["content"])["line_items"])
                    for c in provider.calls if c["schema"] == "LineItemReply")
-    assert asked == [("bs_nca__buildings",), ("sup__employees",), ("sup__tnw",)]
+    assert asked == [("bs_nca__buildings",)]
+    (idle,) = [line for line in ctx.logs if line.startswith("line_item_llm:nothing_to_read")]
+    assert "'sup__employees'" in idle and "'sup__tnw'" in idle, idle
     # …so no sentence on a page is accepted by its page number: that needs the report's text.
     assert _figure(doc, "sup__employees") is None
     assert any("line_item_llm:tokens document_context=selected" in line for line in ctx.logs)
@@ -107,7 +111,10 @@ def test_selected_sends_no_line_the_report():
 
 def test_full_sends_the_report_with_every_question_under_one_system_text():
     provider = _Recorder(_answers(), _texts())
-    doc, ctx = _run(provider, extra_face=2, llm_document_context="full")
+    # ONE REQUEST PER FACE LINE ("none"), so there are several requests to share the one prefix:
+    # under the shipped "identical" the three face lines of one section go in one.
+    doc, ctx = _run(provider, extra_face=2, llm_document_context="full",
+                    llm_request_grouping="none")
     figure_calls = [c for c in provider.calls if c["schema"] == "LineItemReply"]
     assert len(figure_calls) == 4, "three face lines one by one, the two anywhere lines together"
     # EVERY LINE-ITEM REQUEST — the note router's one call reads the note headings, not the report.
@@ -159,7 +166,8 @@ def test_full_sends_its_first_request_alone_and_then_the_rest():
                         self.events.append("end")
 
     provider = _Overlap()
-    _run(provider, extra_face=3, llm_parallel_requests=4, llm_document_context="full")
+    _run(provider, extra_face=3, llm_parallel_requests=4, llm_document_context="full",
+         llm_request_grouping="none")
     assert provider.events.count("start") == 5, provider.events
     assert provider.events[:3] == ["start", "end", "start"], provider.events
 
