@@ -362,7 +362,7 @@ def report_plans(plans, by_key: dict) -> tuple[list[RequestPlan], list[RequestPl
         mine = tuple(k for k in plan.keys if anywhere(k))
         rest = tuple(k for k in plan.keys if k not in mine)
         if rest:
-            kept.append(plan if not mine else replace(plan, keys=rest))
+            kept.append(plan if not mine else relabel(plan, rest))
         for key in mine:
             if key not in notes_of:
                 moved.append(key)

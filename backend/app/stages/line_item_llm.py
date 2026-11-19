@@ -1710,7 +1710,7 @@ def _split_text_plans(plans, by_key: dict) -> tuple[list, list]:
         text = tuple(k for k in plan.keys if k in by_key and text_lines.is_text_line(by_key[k]))
         rest = tuple(k for k in plan.keys if k not in text)
         if rest:
-            figures.append(plan if not text else replace(plan, keys=rest))
+            figures.append(plan if not text else line_item_requests.relabel(plan, rest))
         if text:
             texts.append(replace(plan, name=f"{plan.name}:text", keys=text, notes=(),
                                  sections=()))
