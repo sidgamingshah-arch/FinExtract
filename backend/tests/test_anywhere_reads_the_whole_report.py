@@ -423,10 +423,11 @@ def test_a_report_too_large_to_send_leaves_the_lines_to_the_selected_context(mon
     assert any(line.startswith("line_item_llm:report_too_large") for line in ctx.logs)
     figure_calls = [c for c in provider.calls if c["schema"] == "LineItemReply"]
     assert all(len(c["messages"]) == 1 for c in figure_calls)
-    asked = {e["key"] for c in figure_calls
-             for e in json.loads(c["messages"][0]["content"])["line_items"]}
+    asked = sorted(tuple(e["key"] for e in json.loads(c["messages"][0]["content"])["line_items"])
+                   for c in figure_calls)
     # AS PLANNED, ONE AT A TIME, WITH THE SELECTED CONTEXT: the page that prints each line's name.
-    assert {"sup__employees", "sup__tnw"} <= asked, "asked one at a time, as planned"
+    assert asked == [("bs_nca__buildings",), ("sup__employees",), ("sup__tnw",)], \
+        "asked one at a time, as planned"
     assert not any(line.startswith("line_item_llm:nothing_to_read") for line in ctx.logs)
     # Without the report no sentence is accepted by its page.
     assert _figure(doc, "sup__employees") is None

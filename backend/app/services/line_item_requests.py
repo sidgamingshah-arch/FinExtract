@@ -238,9 +238,10 @@ def capped(plans: list[RequestPlan], cap: int) -> list[RequestPlan]:
     read on the face, so a part holding only note lines carries no statement block, as such a
     group would not.
 
-    CALLED BY THE STAGE on the plans it is about to send (`stages.line_item_llm`), under the modes
-    that group by score, and by the scripts that mirror it. "none" asks one line a request, and an
-    authored "manual" group is asked as its author wrote it.
+    CALLED BY THE STAGE on the plans it is about to send (`stages.line_item_llm`) — the report
+    batches of the `anywhere` lines among them, which are at most `REPORT_LINES_PER_REQUEST` (12)
+    and so cut only by a cap below that — under the modes that group by score, and by `as_sent`.
+    "none" asks one line a request, and an authored "manual" group is asked as its author wrote it.
     """
     cap = max(1, int(cap))
     out: list[RequestPlan] = []
@@ -274,8 +275,9 @@ def focus_keys(named, line_item_set) -> set[str]:
 
 
 def focused(plans: list[RequestPlan], focus) -> list[RequestPlan]:
-    """Each plan asked with its focus lines only, in the one request it was planned as and with the
-    notes and sections it was planned with; a plan with none is not asked.
+    """Each plan kept with its focus lines only, and with the notes and sections it was planned
+    with; a plan with none is not asked. A kept plan is then cut by `capped` like any other, so a
+    group with more focus lines than `llm_lines_per_request` still goes in more than one request.
 
     So a focus run answers exactly the focus lines and every other line keeps what the rules gave
     it. It used to keep a group WHOLE when one of its lines was in focus — no difference at one line
@@ -338,7 +340,7 @@ def report_plans(plans, by_key: dict) -> tuple[list[RequestPlan], list[RequestPl
     planned its request — its note set, its statement — no longer decides what it is sent, and
     nothing is left to keep it in a request of its own. Its `notes` still travel, as the line's
     `notes_supplied` ("look there first"). The plan's other lines stay as they were planned, the
-    way `stages.line_item_llm._split_text_plans` leaves a plan's figure lines.
+    way `split_text_plans` leaves a plan's figure lines.
 
     BATCHED BY WHERE THE LINE IS PRINTED: its statement, then its section, in the set's own order,
     at most `REPORT_LINES_PER_REQUEST` to a batch and the batches of a statement even — so the
@@ -399,6 +401,87 @@ def report_plans(plans, by_key: dict) -> tuple[list[RequestPlan], list[RequestPl
                       + (f"#{n + 1}" if batches > 1 else "")),
                 keys=chunk, notes=tuple(notes), sections=_sections_of_keys(chunk, by_key)))
     return kept, report
+
+
+def split_text_plans(plans, by_key: dict) -> tuple[list[RequestPlan], list[RequestPlan]]:
+    """``(figure plans, text plans)``: every text line (`text_lines.is_text_line`) moved out of the
+    plan it was in, into a text plan of that plan's name with ``:text`` after it, the plan's figure
+    lines left as planned (named after the lines they hold, `relabel`).
+
+    AND EACH TEXT PLAN BY KIND: its phrase lines and its narrative lines (`text_lines.is_prose_line`)
+    in plans of their own (the narrative half named ``<plan>:prose``), because the two are asked
+    under different contracts with different reply schemas (`stages.line_item_llm._ask_text`). Split
+    here, before the cap cuts: a mixed text group cut first went out cut by lines that are never
+    sent together — on the US GAAP set at a cap of 12, 11 phrase lines and 2 narrative ones in three
+    requests where two hold them.
+    """
+    from app.services import text_lines
+
+    figures: list[RequestPlan] = []
+    texts: list[RequestPlan] = []
+    for plan in plans:
+        text = tuple(k for k in plan.keys if k in by_key and text_lines.is_text_line(by_key[k]))
+        rest = tuple(k for k in plan.keys if k not in text)
+        if rest:
+            figures.append(plan if not text else relabel(plan, rest))
+        if not text:
+            continue
+        whole = replace(plan, name=f"{plan.name}:text", keys=text, notes=(), sections=())
+        prose = tuple(k for k in text if text_lines.is_prose_line(by_key[k]))
+        phrase = tuple(k for k in text if k not in prose)
+        if phrase:
+            texts.append(whole if not prose else replace(whole, keys=phrase))
+        if prose:
+            texts.append(whole if not phrase else replace(whole, name=f"{whole.name}:prose",
+                                                           keys=prose))
+    return figures, texts
+
+
+@dataclass(frozen=True)
+class SentPlans:
+    """The requests a run makes, as plans: see `as_sent`."""
+
+    figures: list[RequestPlan]          # figure requests with what their lines selected
+    texts: list[RequestPlan]            # text-line requests with the pages that print their lines
+    report_figures: list[RequestPlan]   # `anywhere` lines asked with the whole annual report
+    report_texts: list[RequestPlan]     # …and its text lines
+
+
+def as_sent(plans: list[RequestPlan], by_key: dict, settings, *, focus=()) -> SentPlans:
+    """The plans `plan_requests` made, taken through the line-item stage's own steps to the requests
+    a run sends — for the scripts that price, sweep or grade them, so that what they count is what a
+    run makes rather than the groups it starts from.
+
+    THE STAGE'S STEPS, IN ITS ORDER (`stages.line_item_llm`): the focus list (`focused`, the "*"
+    patterns already expanded by `focus_keys`); the text lines out of the figure requests and by
+    kind (`split_text_plans`); unless `llm_document_context` is "selected", the `anywhere` lines
+    into the report batches (`report_plans`), and under "full" every text line with the report; then
+    the cap (`capped`, under the modes that group by score), on all four.
+
+    NOT MODELLED, because each needs the document: the note-tag gate (which face rows print a note
+    tag), a report too large to send (the stage then plans every line with the selected context),
+    and a request with nothing to read (the stage names it and does not send it).
+    `tests/test_requests_share_their_context.py` holds this to what the stage sends.
+    """
+    mode = str(getattr(settings.extraction, "llm_request_grouping", "none") or "none")
+    context = str(getattr(settings.extraction, "llm_document_context", "anywhere") or "anywhere")
+    cap = lines_per_request(settings)
+
+    def cut(found):
+        return capped(found, cap) if mode in ("identical", "similar") else found
+
+    if focus:
+        plans = focused(plans, focus)
+    figures, texts = split_text_plans(plans, by_key)
+    report_figures: list[RequestPlan] = []
+    report_texts: list[RequestPlan] = []
+    if context != "selected":
+        figures, report_figures = report_plans(figures, by_key)
+        texts, report_texts = report_plans(texts, by_key)
+        if context == "full":
+            report_texts, texts = [*texts, *report_texts], []
+    return SentPlans(figures=cut(figures), texts=cut(texts), report_figures=cut(report_figures),
+                     report_texts=cut(report_texts))
 
 
 def face_statements(plan, by_key: dict) -> set[str]:

@@ -469,12 +469,13 @@ class ExtractionSettings(BaseModel):
     #               components, or two lines whose DISTINCTION is what the model keeps
     #               getting wrong. Read by `services.line_item_requests.plan_requests`.
     llm_request_grouping: Literal["none", "identical", "similar", "manual"] = "identical"
-    # THE MOST LINE ITEMS ONE GROUPED REQUEST ASKS ABOUT ("identical" and "similar"; "none" asks
-    # one, and the cap does not cut an authored "manual" group). A larger group is asked in
+    # THE MOST LINE ITEMS ONE LINE-ITEM REQUEST ASKS ABOUT, under "identical" and "similar" ("none"
+    # asks one, and the cap does not cut an authored "manual" group). A larger group is asked in
     # consecutive parts of even size (`services.line_item_requests.capped`), cut by the stage after
     # the focus list, the text lines and the `anywhere` lines have taken theirs. Each part is sent
     # the group's notes, and the statement rows its own lines may read on the face — so a part of
-    # note lines only carries no statement block.
+    # note lines only carries no statement block. The `anywhere` lines' report batches are at most
+    # 12 of their own (`REPORT_LINES_PER_REQUEST`) and are cut too when this is below 12.
     #
     # 20, BECAUSE THE REPLY HAS TO ARRIVE INSIDE ONE WAIT. A line-item request carries no file, so
     # it waits `llm.timeout_seconds` (120, the field's most), and a reply is written at the model's
@@ -582,16 +583,16 @@ class ExtractionSettings(BaseModel):
     # went in four requests, none of which knew what the others' lines would claim. Each request
     # sends the same file, cached after the first.
     whole_pdf_lines_per_request: int = Field(default=250, ge=5, le=300)
-    # HOW MANY LINE-ITEM REQUESTS ARE IN FLIGHT AT ONCE. The first request of a run is always
-    # sent on its own (it is the one that fills the provider's prompt cache), then up to this many
-    # together. Replies are processed in plan order either way, so the figures a run writes do not
-    # depend on it — only how long the run takes. 1 is one request at a time. The shipped
-    # config.toml sends 4 at once. READ BY THREE STAGES: the line-item figure requests
-    # (`stages.line_item_llm`, the first of each prompt prefix alone) and the whole-PDF requests
-    # (`stages.whole_pdf`, the first of each part alone), and the disclosure readings
-    # (`stages.disclosure_reading`, which had a fixed 4 of its own; they share no prompt beginning,
-    # so they go this many at once from the start). The line-item stage's text and narrative
-    # requests — two or so a filing — still go one at a time.
+    # HOW MANY REQUESTS ARE IN FLIGHT AT ONCE, in the three stages that read it. The line-item
+    # figure requests (`stages.line_item_llm`) send the first request of EACH prompt prefix — the
+    # system text alone, the shared-notes block, the report — together and wait for them (each
+    # fills the provider's prompt cache for the requests that share its prefix), then the rest up
+    # to this many at a time; the whole-PDF requests (`stages.whole_pdf`) send the first of each
+    # part before the rest; the disclosure readings (`stages.disclosure_reading`, which had a fixed
+    # 4 of their own) share no prompt beginning and start this many at once. The line-item stage's
+    # text and narrative requests — two or so a filing — go one at a time. Replies are processed in
+    # plan order either way, so the figures a run writes do not depend on it — only how long the
+    # run takes. 1 is one request at a time; the shipped config.toml sends 4 at once.
     llm_parallel_requests: int = Field(default=1, ge=1, le=16)
     # MAY AN AUTHORED EXCLUSION REFUSE A MODEL'S CITATION?
     #

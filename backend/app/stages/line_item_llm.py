@@ -164,14 +164,19 @@ class LineItemLlmStage(Stage):
         # setting now says what a focus run was always trying to say — spend the provider budget on
         # the lines under review rather than on the whole filing.
         #
-        # APPLIED TO EACH PLAN'S LINES: a group is asked with its focus lines only, in the one
-        # request it was planned as and with the notes and statement block it was planned with, and
-        # a group with none is not asked. So a focus run answers exactly the master's lines and
-        # every other line keeps what the rules gave it — what the Settings screen says it does. It
-        # used to keep a group WHOLE when one of its lines was in focus, which made no difference
-        # while one line a request was the default; with "identical" shipped it would have asked a
-        # focus line's whole section of a statement, up to `llm_lines_per_request` lines, and
-        # written the model's answer on every one of them.
+        # APPLIED TO EACH PLAN'S LINES: a group is kept with its focus lines only, with the notes
+        # and sections it was planned with, and a group with none is not asked; a kept group is then
+        # cut by `llm_lines_per_request` like any other (below). So a focus run answers exactly the
+        # master's lines and every other line keeps what the rules gave it — what the Settings
+        # screen says it does. It used to keep a group WHOLE when one of its lines was in focus,
+        # which made no difference while one line a request was the default; with "identical"
+        # shipped it would have asked a focus line's whole section of a statement and written the
+        # model's answer on every line of it.
+        #
+        # COUNTED IN GROUPS, and the log says so: the plans here are whole groups, cut into
+        # requests only after the text lines and the `anywhere` lines have left them, so a count of
+        # requests here would be a count of something not yet decided. `planned requests=` below
+        # counts the requests.
         # (`named`, `prefixes` and `focus` are read above, before the plans.)
         if getattr(ctx.settings.extraction, "llm_focus_only", False) and not focus:
             ctx.log("line_item_llm:focus_only_requested_but_no_focus_keys_configured")
@@ -187,7 +192,7 @@ class LineItemLlmStage(Stage):
             spaces = {k.split("__", 1)[0] for k in by_key}
             unanswerable = sorted(k for k in focus
                                   if k not in by_key and k.split("__", 1)[0] in spaces)
-            ctx.log(f"line_item_llm:focus keys={len(focus)} requests={len(kept)}/{len(plans)}"
+            ctx.log(f"line_item_llm:focus keys={len(focus)} groups={len(kept)}/{len(plans)}"
                     + (f" keys_that_name_no_asked_about_line={unanswerable}"
                        if unanswerable else ""))
             plans = kept
@@ -244,8 +249,9 @@ class LineItemLlmStage(Stage):
         # is words a page prints, so it is sent the pages that print it under a contract whose reply
         # can hold a text, and it is taken out of every figure request: a figure request sends no
         # page text and its reply has no field for one. A plan that mixed the two is split, its
-        # figure lines kept exactly as they were planned.
-        plans, text_plans = _split_text_plans(plans, by_key)
+        # figure lines kept exactly as they were planned — and the text lines by kind, phrase and
+        # narrative apart, before the cap below cuts them (`line_item_requests.split_text_plans`).
+        plans, text_plans = line_item_requests.split_text_plans(plans, by_key)
 
         # WHAT THE MODEL READS WITH EACH QUESTION — `extraction.llm_document_context`, one switch
         # (`_document_context`):
@@ -258,12 +264,16 @@ class LineItemLlmStage(Stage):
         #               (`line_item_requests.report_plans`). The default.
         #   "full"      the whole report with EVERY question, figure and text alike.
         # The report is built once for the run. One too large to send is not cut down: every line
-        # is asked as it was planned, with the selected context, and the log says so.
+        # is planned as it was, with the selected context, and the log says so — and a request that
+        # then has nothing to read is not sent (`nothing_to_read`, below).
         doc_context = _document_context(ctx)
         # AT MOST `llm_lines_per_request` LINES A REQUEST, under the modes that group by score —
         # see `line_item_requests.capped`. Cut on the plans this run SENDS, below: after the focus
         # list, the note-tag gate, the text lines and (under "anywhere") the `anywhere` lines have
-        # taken out what they take, so a group is cut by what is left of it.
+        # taken out what they take, so a group is cut by what is left of it. The report batches
+        # are cut too: they are at most 12 lines (`REPORT_LINES_PER_REQUEST`), so only a cap below
+        # 12 cuts them, and an admin lowering it because requests time out lowers those as well.
+        # `line_item_requests.as_sent` takes plans through these same steps for the scripts.
         mode = str(getattr(ctx.settings.extraction, "llm_request_grouping", "none") or "none")
         cap = line_item_requests.lines_per_request(ctx.settings)
 
@@ -302,8 +312,9 @@ class LineItemLlmStage(Stage):
                     # A TEXT LINE IS ASKED WITH THE REPORT TOO, every page of it a page its text
                     # may be copied from — ahead of the `anywhere` text batches, as the figure
                     # plans go ahead of the figure batches.
-                    report_text_plans = [*_cut(text_plans), *report_text_plans]
+                    report_text_plans = [*text_plans, *report_text_plans]
                     text_plans = []
+                report_plans, report_text_plans = _cut(report_plans), _cut(report_text_plans)
                 ctx.log(f"line_item_llm:report pages={len(report['pages'])} "
                         f"notes={len(report['notes'])} chars={len(report_text)} "
                         f"est_tokens={tokens} lines={lines} "
@@ -339,7 +350,7 @@ class LineItemLlmStage(Stage):
                 + (f" lines_per_request={cap}" if mode in ("identical", "similar") else "")
                 + (f" report_requests={len(report_plans)} "
                    f"report_lines={sum(len(p.keys) for p in report_plans)}" if report_plans else "")
-                + (f" requests_skipped_by_focus={skipped_by_focus}" if skipped_by_focus else ""))
+                + (f" groups_skipped_by_focus={skipped_by_focus}" if skipped_by_focus else ""))
 
         by_concept = {li.canonical_key: li for li in doc.line_items if li.canonical_key}
         filled = answered = unresolved_total = 0
@@ -1701,20 +1712,8 @@ def _prose_in_statement_units(amount: Decimal, scale, entries: list[dict]) -> De
     return amount / doc_scale if doc_scale != 1 else amount
 
 
-def _split_text_plans(plans, by_key: dict) -> tuple[list, list]:
-    """``(figure plans, text plans)``: every text line (`text_lines.is_text_line`) moved out of the
-    plan it was in into a text plan of its own name, the plan's other lines left as planned."""
-    from dataclasses import replace
-    figures, texts = [], []
-    for plan in plans:
-        text = tuple(k for k in plan.keys if k in by_key and text_lines.is_text_line(by_key[k]))
-        rest = tuple(k for k in plan.keys if k not in text)
-        if rest:
-            figures.append(plan if not text else line_item_requests.relabel(plan, rest))
-        if text:
-            texts.append(replace(plan, name=f"{plan.name}:text", keys=text, notes=(),
-                                 sections=()))
-    return figures, texts
+#: The text split is the planner's (`line_item_requests.split_text_plans`), which the scripts share.
+_split_text_plans = line_item_requests.split_text_plans
 
 
 def _by_text_kind(todo, by_key: dict) -> list[tuple]:

@@ -175,12 +175,19 @@ def test_full_sends_its_first_request_alone_and_then_the_rest():
 def test_full_with_a_report_too_large_asks_every_line_with_the_selected_context(monkeypatch):
     monkeypatch.setattr(line_item_llm, "REPORT_TOKEN_BUDGET", 10)
     provider = _Recorder(_answers(), _texts())
-    _doc, ctx = _run(provider, llm_document_context="full")
+    # THE `anywhere` LINES HAVE SOMETHING TO READ in the selected context (a row on another page
+    # prints each one's name), so every line is really asked — not planned and then not sent.
+    _doc, ctx = _run(provider, doc=_doc_with_rows_on_another_page(), llm_document_context="full")
     assert any(line.startswith("line_item_llm:report_too_large")
                and "the 4 line(s) are planned with the selected context" in line
                for line in ctx.logs), ctx.logs
     assert all(len(c["messages"]) == 1 for c in provider.calls)
     assert not any(line_item_llm.FULL_REPORT_GUIDE in c["system"] for c in provider.calls)
+    asked = {e["key"] for c in provider.calls if c["schema"] == "LineItemReply"
+             for e in json.loads(c["messages"][0]["content"])["line_items"]}
+    assert asked == {"bs_nca__buildings", "sup__employees", "sup__tnw"}, asked
+    assert len([c for c in provider.calls if c["schema"] == "LineItemTextReply"]) == 1
+    assert not any(line.startswith("line_item_llm:nothing_to_read") for line in ctx.logs)
 
 
 def test_the_report_carries_every_note_whether_a_line_claims_it_or_not():

@@ -59,11 +59,9 @@ def _restore_grouping():
         st.extraction.llm_request_grouping, st.extraction.llm_lines_per_request = was
 
 
-def _plans(shipped, mode, cap=None):
+def _plans(shipped, mode):
     st = get_settings()
     st.extraction.llm_request_grouping = mode
-    if cap is not None:
-        st.extraction.llm_lines_per_request = cap
     return plan_requests(shipped, [], st)
 
 
@@ -87,10 +85,16 @@ def test_none_still_asks_one_line_a_request(shipped):
 
 
 def test_face_lines_collapse_onto_their_sections(shipped):
-    """The saving, stated as a number so a regression reads as one. Measured with the cap lifted
-    (`llm_lines_per_request`, 100 its most): the cap cuts a group into parts, it does not change
-    which lines share a context."""
-    grouped = [p for p in _plans(shipped, "identical", cap=100) if len(p.keys) > 1 and p.sections]
+    """The saving, stated as a number so a regression reads as one. `plan_requests` returns WHOLE
+    groups — the stage cuts them into requests (`capped`, in `stages.line_item_llm._cut`) — so
+    the planner must not read `llm_lines_per_request` at all: at a cap of 1 it plans exactly what it
+    plans at 20."""
+    st = get_settings()
+    st.extraction.llm_lines_per_request = 1
+    at_one = _plans(shipped, "identical")
+    st.extraction.llm_lines_per_request = 20
+    assert _plans(shipped, "identical") == at_one, "the planner read the cap"
+    grouped = [p for p in at_one if len(p.keys) > 1 and p.sections]
     assert len(grouped) >= 10, f"only {len(grouped)} shared section groups"
     biggest = max(grouped, key=lambda p: len(p.keys))
     assert len(biggest.keys) > 50, f"largest section group is only {len(biggest.keys)} lines"

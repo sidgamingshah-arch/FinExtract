@@ -285,7 +285,12 @@ The face and its cited notes are processed in this order:
     statement rows its own lines may read. The stage cuts what it SENDS: after the focus list, the
     note-tag gate, the text lines and the `anywhere` lines have taken theirs, so the P&L's 89
     planned lines, 77 once its 12 `anywhere` lines go to the report, go in four requests, not
-    five. The cap does not cut an authored `manual` group. Lines sharing a request can influence
+    five. The text lines are split by kind (phrase and narrative) before the cut
+    (`line_item_requests.split_text_plans`), so they too are cut by what is sent together; the
+    `anywhere` lines' report batches, at most 12 of their own, are cut only by a cap below 12.
+    `line_item_requests.as_sent` takes plans through the same steps for the scripts that price and
+    sweep them, and a test holds it to what the stage sends. The cap does not cut an authored
+    `manual` group. Lines sharing a request can influence
     each other's answers; the per-line fences (a line cites only its own notes, an answer about a
     line not asked is refused, two lines citing one printed row are settled after the run) are the
     same in every mode. A "none" saved by an older Settings screen — which saves every setting
@@ -305,11 +310,12 @@ The face and its cited notes are processed in this order:
     | hkex_1966 China SCE | 433 | 67 |
     | hkex_kaming 佳明 | 431 | 60 |
 
-    Of those, the line-item stage's: 421 before, 50-63 now (the largest request 20 lines, a reply
-    budget of 9,024 tokens); the text it sends outside a cached first message falls 6 to 8 times
-    (688411: 11.1M to 1.4M characters). The rest are the note router (1), the disclosure readings
-    (8), the unmapped-row suggestions (1), the credit narrative (1) and, on some filings, the
-    contingent liabilities narrative and a shared-figure tie-break.
+    Of those, the line-item stage's: 421 before (418 figure requests, 2 text requests and the note
+    router's one call), 50-63 now (47-60 figure, 2 text, the router); the largest request is 20
+    lines, a reply budget of 9,024 tokens, and the text the stage sends outside a cached first
+    message falls 6 to 8 times (688411: 11.1M to 1.4M characters). The rest are the disclosure
+    readings (8), the unmapped-row suggestions (1), the credit narrative (1) and, on some filings,
+    the contingent liabilities narrative and a shared-figure tie-break.
 
     *A request with nothing to read is not sent.* One that would carry no note, no statement row
     and no other page — a note part whose notes this filing does not print (`sub__ppe_depreciation`,
@@ -317,10 +323,12 @@ The face and its cited notes are processed in this order:
     names its lines (`line_item_llm:nothing_to_read`) and the rules' reading stands: 13-22 such
     requests a filing under `none`, 5-8 under `identical`.
 
-    *A focus run asks its focus lines and no other.* With `llm_focus_only` on, each planned
-    request keeps only its focus lines (`line_item_requests.focused`, with the notes and sections
-    it was planned with, and named after the lines it holds), and a request with none is not made,
-    so every line outside the Focus line items master keeps the rules' answer.
+    *A focus run asks its focus lines and no other.* With `llm_focus_only` on, each planned group
+    keeps only its focus lines (`line_item_requests.focused`, with the notes and sections it was
+    planned with, and named after the lines it holds), a group with none is not asked, and a kept
+    group is then cut by the cap like any other — so every line outside the Focus line items master
+    keeps the rules' answer. The log counts these in groups (`focus keys=… groups=kept/all`,
+    `groups_skipped_by_focus=`), because the plans are cut into requests later.
 
     *An `anywhere` line is asked with the whole annual report.* Its plan is set aside
     (`line_item_requests.report_plans`): the line goes into a batch of at most 12, grouped by the

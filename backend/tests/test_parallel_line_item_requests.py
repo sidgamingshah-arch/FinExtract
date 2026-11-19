@@ -1,8 +1,9 @@
 """`extraction.llm_parallel_requests`: the first request alone, then several at once, same result.
 
-The first request of a run fills the provider's prompt cache, so it is sent on its own; the rest
-are then in flight together, up to the setting. Replies are processed in plan order, so what a run
-writes is the same whatever the setting.
+The first request of each prompt prefix fills the provider's prompt cache, so it is sent ahead of
+the requests that share its prefix (here there is one prefix); the rest are then in flight
+together, up to the setting. Replies are processed in plan order, so what a run writes is the same
+whatever the setting.
 """
 from __future__ import annotations
 

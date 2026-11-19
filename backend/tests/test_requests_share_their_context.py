@@ -26,10 +26,11 @@ from app.core.models.enums import Basis, PageKind
 from app.core.models.geometry import Provenance
 from app.core.models.line_item import ExtractedValue, LineItem, NoteItem, NotesTable
 from app.schemas.line_items import RequestGroup, load_line_item_set
-from app.services import line_item_routes, text_lines
+from app.services import line_item_llm, line_item_routes, text_lines
 from app.services.line_item_requests import (
     RequestPlan,
     _sections_of_item,
+    as_sent,
     asked_about,
     capped,
     focus_keys,
@@ -56,7 +57,7 @@ def _restore():
     ex = st.extraction
     names = ("llm_mapping", "llm_focus_only", "llm_focus_keys", "llm_request_grouping",
              "llm_lines_per_request", "llm_parallel_requests", "llm_note_router",
-             "llm_document_context")
+             "llm_document_context", "llm_group_similarity")
     was = {n: getattr(ex, n) for n in names}
     provider = st.llm.provider
     try:
@@ -159,6 +160,26 @@ def test_a_cut_note_group_sends_every_part_the_groups_notes(shipped):
             assert part.sections == group.sections, (group.name, part.name)
             assert part.name in (part.keys[0], f"{part.keys[0]}+{len(part.keys) - 1}"), part.name
         assert len({p.name for p in parts}) == len(parts)
+
+
+def test_under_similar_every_part_sends_the_notes_its_lines_are_told_of(shipped):
+    """THE CASE THE GROUP'S NOTES ARE KEPT FOR. Under "similar" a group joins lines whose note sets
+    differ, and every line's `notes_supplied` — what the request tells the model to read — is its
+    group's union (`plan_and_notes` takes it from the uncut group). A part that carried only its
+    own lines' notes would point a line at a note it was not sent. So: build each part's request as
+    the stage does, and every note any of its lines is told of must be in the block it carries."""
+    st = get_settings()
+    own = {k: set(p.notes) for p in _groups(shipped, "identical", NOTES) for k in p.keys}
+    st.extraction.llm_request_grouping = "similar"
+    st.extraction.llm_group_similarity = 0.3
+    plans, by_key, notes_of, identified = line_item_llm.plan_and_notes(shipped, list(NOTES), st)
+    mixed = [p for p in plans if len(p.keys) > 1 and any(own.get(k) != set(p.notes) for k in p.keys)]
+    assert mixed, "no group joins lines with different note sets; the fixture no longer tests this"
+    for part in capped(mixed, 1):
+        request = line_item_llm.build_request(part, by_key, notes_of, identified)
+        carried = {str(n.get("note")) for n in request["notes"]}
+        for entry in request["line_items"]:
+            assert set(map(str, entry["notes_supplied"])) <= carried, (part.name, entry["key"])
 
 
 def test_a_trimmed_plan_is_named_after_the_lines_it_holds():
@@ -361,7 +382,119 @@ def test_a_focus_run_asks_its_focus_lines_and_no_other_line_of_their_group(shipp
     _doc, ctx, provider, _steps = _run(shipped, ["bs_nca__land"], mode="identical")
     assert [[e["key"] for e in r["line_items"]] for r in provider.requests] == [["bs_nca__land"]]
     assert provider.requests[0].get("statement_rows")
-    assert any(line.startswith("line_item_llm:focus keys=1 requests=1/") for line in ctx.logs)
+    assert any(line.startswith("line_item_llm:focus keys=1 groups=1/") for line in ctx.logs)
+
+
+def test_a_focus_run_counts_groups_and_cuts_a_kept_group_like_any_other(shipped):
+    """The focus block works on whole groups — the cut comes after the text and `anywhere` lines
+    have left — so it counts GROUPS and says so, and a kept group with more focus lines than the cap
+    still goes in parts. The planned line counts the requests."""
+    pl = [k for k in focus_keys(["is_pl__*"], shipped)]
+    groups = _groups(shipped, "identical")
+    kept = focused(groups, set(pl))
+    _doc, ctx, provider, _steps = _run(shipped, ["is_pl__*"], mode="identical", pl=True)
+    (focus_line,) = [x for x in ctx.logs if x.startswith("line_item_llm:focus keys=")]
+    assert f"groups={len(kept)}/{len(groups)}" in focus_line, focus_line
+    (planned,) = [x for x in ctx.logs if x.startswith("line_item_llm:planned requests=")]
+    assert f"groups_skipped_by_focus={len(groups) - len(kept)}" in planned, planned
+    asked = [k for r in provider.requests for k in (e["key"] for e in r["line_items"])]
+    assert set(asked) <= set(pl) and max(len(r["line_items"]) for r in provider.requests) <= 20
+    assert len(provider.requests) > len([g for g in kept if any(k.startswith("is_pl__") for k in g.keys)
+                                         and len(g.keys) > 20]), "no kept group was cut"
+
+
+# ── the scripts count what the stage sends ──────────────────────────────────────────────────
+
+def test_as_sent_is_what_the_stage_sends(shipped):
+    """`as_sent` is how the scripts that price, sweep and grade requests count them; it is held
+    here to the stage. Every figure request the stage made is one `as_sent` names, with the same
+    lines and of the same kind (asked with the report or not), and every one `as_sent` names that
+    the stage did not send is one the stage named as having nothing to read."""
+    _doc, ctx, provider, _steps = _run(shipped, None, mode="identical", context="anywhere", pl=True)
+    st = get_settings()           # as the stage read it; the fixture puts it back afterwards
+    by_key = {i.key: i for i in shipped.items if asked_about(i)}
+    sent = as_sent(plan_requests(shipped, [], st), by_key, st)
+    expected = ({(tuple(p.keys), False) for p in sent.figures}
+                | {(tuple(p.keys), True) for p in sent.report_figures})
+    got = {(tuple(e["key"] for e in r["line_items"]), report)
+           for r, report in zip(provider.requests, provider.with_report)}
+    assert got and got <= expected, sorted(got - expected)[:3]
+    idle_lines = [x for x in ctx.logs if x.startswith("line_item_llm:nothing_to_read")]
+    idle = ({k.strip(" '") for k in idle_lines[0].split("[", 1)[1].split("]", 1)[0].split(",")}
+            if idle_lines else set())
+    missing = expected - got
+    assert not [keys for keys, report in missing if report], "a report batch was not sent"
+    assert {k for keys, _report in missing for k in keys} == idle
+
+
+# ── text lines are cut by what is sent together ─────────────────────────────────────────────
+
+USGAAP = (pathlib.Path(__file__).resolve().parent.parent
+          / "app" / "sample" / "templates" / "output_csv_usgaap_line_items.json")
+PAGES_10K = [
+    (0, "Bluegate Retail Inc.\nAnnual Report on Form 10-K for the fiscal year ended December 31, 2024"),
+    (1, ("REPORT OF INDEPENDENT REGISTERED PUBLIC ACCOUNTING FIRM\nOpinion on the Financial "
+         "Statements\nIn our opinion, the consolidated financial statements present fairly ... "
+         "Critical Audit Matters Uncertain Tax Positions. Internal Control over Financial "
+         "Reporting. /s/ Hartwell & Rowe LLP")),
+    (2, "NOTE 9 — INCOME TAXES\nThe effective tax rate was 16.0%. Provision for income taxes."),
+    (3, ("NOTE 14 — COMMITMENTS AND CONTINGENCIES\nLegal proceedings. Litigation. Guarantees. "
+         "Letters of credit. Purchase obligations. The Company accrued $410 million.")),
+    (4, ("NOTE 15 — RELATED PARTY TRANSACTIONS\nRelated parties. Transactions with affiliates. "
+         "The Company leases its headquarters from an entity controlled by its chairman.")),
+]
+
+
+def _text_requests(monkeypatch, cap):
+    """The text and narrative requests the stage sends on a 10-K with no notes, under "selected"."""
+    from app.core.models.enums import DocFormat
+    from app.core.stage import PipelineContext
+    from app.services import derived
+    from app.services.working_view import build_working_view
+
+    cfg = load_line_item_set(json.loads(USGAAP.read_text(encoding="utf-8")), resolve=True)
+    monkeypatch.setattr(derived, "document_text", lambda data, fmt: PAGES_10K)
+    calls = []
+
+    class _Texts:
+        id = "texts"
+
+        def complete_structured(self, *, system, messages, response_schema, **_):
+            body = json.loads(messages[-1]["content"])
+            calls.append((response_schema.__name__, [e["key"] for e in body.get("line_items", [])]))
+            return response_schema(), {"input_tokens": 1, "output_tokens": 1}
+
+    st = get_settings()
+    ex = st.extraction
+    ex.llm_mapping, ex.llm_focus_only, ex.llm_focus_keys = True, False, []
+    ex.llm_request_grouping, ex.llm_parallel_requests, ex.llm_note_router = "identical", 1, False
+    ex.llm_lines_per_request, ex.llm_document_context = cap, "selected"
+    doc = DocumentModel(fmt=DocFormat.PDF, filename="10k.pdf",
+                        pages=[PageSource(index=i) for i, _ in PAGES_10K])
+    ctx = PipelineContext(raw_bytes=b"%PDF", settings=st)
+    ctx.line_items, ctx.ontology = cfg, build_working_view(cfg)
+    provider = _Texts()
+    ctx.registry.register("llm", "texts", lambda: provider)
+    st.llm.provider = "texts"
+    LineItemLlmStage().run(doc, ctx)
+    return [(schema, keys) for schema, keys in calls
+            if schema in ("LineItemTextReply", "LineItemProseReply")], cfg
+
+
+def test_text_lines_are_split_by_kind_before_the_cap_cuts_them(monkeypatch):
+    """A text group holding phrase lines and narrative lines is asked as two kinds of request, each
+    under its own contract. Split by kind before the cut, lowering the cap below the group's size
+    but not below either kind's adds no request: on the US GAAP set 11 phrase lines and 2 narrative
+    ones go in two requests at 12 as at 20 (cut first, 12 made three: 7, 4 and 2)."""
+    at20, cfg = _text_requests(monkeypatch, 20)
+    at12, _cfg = _text_requests(monkeypatch, 12)
+    at6, _cfg = _text_requests(monkeypatch, 6)
+    by_key = {i.key: i for i in cfg.items}
+    for schema, keys in [*at20, *at12, *at6]:
+        prose = {text_lines.is_prose_line(by_key[k]) for k in keys}
+        assert prose == {schema == "LineItemProseReply"}, (schema, keys)
+    assert len(at12) == len(at20) == 2, (at20, at12)
+    assert len(at6) == 3 and max(len(k) for _s, k in at6) <= 6, at6
 
 
 # ── a value saved before the default moved ──────────────────────────────────────────────────

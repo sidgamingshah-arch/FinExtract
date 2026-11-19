@@ -293,9 +293,9 @@ llm_parallel_requests = 4
 # per-line baseline to compare against, an admin can pick it on the Settings screen, and
 # app/config.py says what the default gives up.
 llm_request_grouping = "identical"
-# …at most this many line items in one grouped request; a larger group is asked in even parts, each
-# sent the group's notes. 20 so the reply (about 125 tokens a line at the median) arrives inside one
-# 120-second wait.
+# …at most this many line items in one request (the report batches, at most 12, are cut too below
+# 12); a larger group is asked in even parts, each sent the group's notes. 20 so the reply (about 125
+# tokens a line at the median) arrives inside one 120-second wait.
 llm_lines_per_request = 20
 # THE PARTS ARE NAMED TOO, NOT ONLY THE EIGHT WHOLES, and that is the whole point of this list
 # being longer than it looks. Seven of the eight are `derived` or `extract_or_derive`, so the model

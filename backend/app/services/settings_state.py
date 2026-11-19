@@ -101,7 +101,8 @@ EXTRACTION_KNOBS: tuple[Knob, ...] = (
     Knob("llm_lines_per_request", "number", "Line items in one request",
          "Read when grouping is \"identical\" or \"similar\": the most line items one request asks "
          "about. A larger group is asked in even parts, each sent the group's notes and the "
-         "statement rows its own lines may read. "
+         "statement rows its own lines may read. The lines asked with the whole annual report go "
+         "in batches of at most 12, and a value below 12 cuts those too. "
          "The reply has to arrive inside one wait (two minutes), and a line's answer is about 125 "
          "tokens at the median, so 20 is a reply of about 2,500. Lower it if requests time out; a "
          "request that fails loses all its lines to the rules.",

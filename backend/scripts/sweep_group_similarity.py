@@ -15,7 +15,7 @@ the real note sets decide whether any pair ever clears it:
     0.50, {7,12} vs {7,19} scores 0.33. There is no value near 0.8 that such a pair reaches, so at
     0.8 only IDENTICAL sets merge — which is the other mode.
   * SO THE INTERESTING RANGE IS LOW, and it is bounded below by the point where everything merges
-    into one request, which is not grouping either.
+    into one group (which the cap then cuts into parts), which is not grouping either.
 
 WHAT THIS PRINTS, per threshold: requests, lines per request, the largest request, total tokens, and
 whether the answer differs from `identical`. The value to adopt — if any — is the one that merges
@@ -72,8 +72,17 @@ def plan_for(cfg, doc, settings, mode, similarity=None):
     if similarity is not None:
         settings.extraction.llm_group_similarity = similarity
     plans, by_key, notes_of, identified = line_item_llm.plan_and_notes(cfg, doc.notes, settings)
+    # THE FIGURE REQUESTS A RUN SENDS, by the stage's own steps (`line_item_requests.as_sent`: the
+    # text lines out, the `anywhere` lines into the report batches, the cap at
+    # `llm_lines_per_request`) — the cap is the stage's since `plan_requests` returns whole groups,
+    # and the LARGEST column, which `llm_group_similarity`'s choice rests on, has to be a request a
+    # run makes. `shape` is still the grouping itself. Report batches are counted as their
+    # questions alone; the statement block is not priced (it needs the face rows).
+    from app.services import line_item_requests
+
+    sent = line_item_requests.as_sent(plans, by_key, settings)
     sizes, lines = [], []
-    for plan in plans:
+    for plan in [*sent.figures, *sent.report_figures]:
         request = line_item_llm.build_request(plan, by_key, notes_of, identified)
         if not request["line_items"]:
             continue
@@ -110,7 +119,7 @@ def report(pdf: pathlib.Path) -> None:
         differs = got["shape"] != ident["shape"]
         if differs and first_diff is None:
             first_diff = thr
-        if got["requests"] <= 1 and collapsed is None:
+        if len(got["shape"]) <= 1 and collapsed is None:
             collapsed = thr
         note = "DIFFERS" if differs else "same as identical"
         print(f"  {('similar ' + format(thr, '.2f')):>18s} {got['requests']:>9d} "
@@ -123,7 +132,7 @@ def report(pdf: pathlib.Path) -> None:
     else:
         print(f"  FIRST THRESHOLD THAT CHANGES ANYTHING: {first_diff:.2f}")
         if collapsed:
-            print(f"  everything collapses into one request at: {collapsed:.2f}")
+            print(f"  every line collapses into one group at: {collapsed:.2f}")
         print(f"  so the usable band is below {first_diff:.2f} and above "
               f"{collapsed if collapsed else 0.0:.2f}")
 

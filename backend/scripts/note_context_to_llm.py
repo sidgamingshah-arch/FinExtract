@@ -83,20 +83,20 @@ def audit(path: pathlib.Path, cfg, tpl, settings, grade_all: bool) -> dict:
         settings.extraction.llm_focus_only = was_focus
         settings.extraction.llm_mapping = was_llm
 
-    # THE FOCUS FILTER AND THE CAP, APPLIED THE WAY THE STAGE APPLIES THEM, by the same functions.
-    # `plan_and_notes` plans a request for every asked-about line; `stages.line_item_llm` then asks
-    # each plan with its focus lines only (`line_item_requests.focused`, the "*" patterns expanded
-    # by `focus_keys`) and logs the rest as `requests_skipped_by_focus`, and cuts a grouped plan at
-    # `llm_lines_per_request` (`capped`). Grading the unfiltered 521 would score a population the
-    # run never sends — on 688008 the real number is 22.
+    # THE FIGURE REQUESTS A RUN SENDS, by the stage's own steps (`line_item_requests.as_sent`):
+    # `plan_and_notes` plans a group for every asked-about line; the stage keeps each with its
+    # focus lines only (the "*" patterns expanded) and logs the rest as `groups_skipped_by_focus`,
+    # takes the text lines out, moves the `anywhere` lines into the report batches and cuts at
+    # `llm_lines_per_request`. Grading the unfiltered 521 would score a population the run never
+    # sends — on 688008 the real number is 22. (A report batch is graded here on the notes its lines
+    # selected, although it is sent the whole report; the cut changes no verdict, since every part
+    # keeps its group's notes.)
     from app.services import line_item_requests
 
     focus = (line_item_requests.focus_keys(settings.extraction.llm_focus_keys, cfg)
              if settings.extraction.llm_focus_only and not grade_all else set())
-    if focus:
-        plans = line_item_requests.focused(plans, focus)
-    if settings.extraction.llm_request_grouping in ("identical", "similar"):
-        plans = line_item_requests.capped(plans, line_item_requests.lines_per_request(settings))
+    sent = line_item_requests.as_sent(plans, by_key, settings, focus=focus)
+    plans = [*sent.figures, *sent.report_figures]
     asked = {k for p in plans for k in p.keys}
     # NAMED, AND SEPARATELY CARRIED. `notes_supplied` is the note NUMBERS a line selected;
     # `build_request` fills the shared "notes" block from `identified_notes`, which scores only
