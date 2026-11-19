@@ -713,7 +713,8 @@ below is not in it. **On**, the run assembles `whole_pdf_pipeline()` — the sam
    base64 `document` block on the Anthropic body (`anthropic`, `bedrock_gateway`), ending in a
    cache breakpoint so every request after the first reads it from the prompt cache; a `file`
    part on Chat Completions (`openai`, `openai_compatible`, `azure_openai`). Such a request waits
-   `llm.document_timeout_seconds`. The first request of each part goes alone (it fills the
+   `llm.document_timeout_seconds` (600 as shipped; `llm.retries` applies too, so a stalled request
+   holds its lines for up to twice that). The first request of each part goes alone (it fills the
    cache), the rest `llm_parallel_requests` at a time.
 4. The stage writes one row per line and basis, with `printed_in` from the page's kind and the
    statement it is on stamped on it (`printed_on:<statement>`, read before the page by

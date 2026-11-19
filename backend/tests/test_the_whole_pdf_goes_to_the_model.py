@@ -122,6 +122,21 @@ def test_a_request_carrying_a_pdf_waits_the_document_timeout():
     assert request_timeout(s, _messages(False)) == s.llm.timeout_seconds
 
 
+def test_a_request_carrying_a_pdf_waits_600_seconds_as_shipped():
+    """600, not 300: a statement's lines go in one request, and the balance sheet of 688411 (the
+    filing of run 11033486) — 212 lines — drew a reply of about 8,000 output tokens. In the shipped
+    file and in the code's own default alike."""
+    import tomllib
+
+    from app.config import LlmSettings
+
+    shipped = tomllib.loads((pathlib.Path(__file__).resolve().parents[1] / "config.toml")
+                            .read_text(encoding="utf-8"))
+    assert shipped["llm"]["document_timeout_seconds"] == 600
+    assert LlmSettings.model_fields["document_timeout_seconds"].default == 600
+    assert get_settings().llm.document_timeout_seconds == 600
+
+
 def test_which_providers_take_a_file():
     from app.adapters.stubs import StubLlmProvider
     from app.ports.llm import takes_documents

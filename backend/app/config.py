@@ -131,8 +131,11 @@ class LlmSettings(BaseModel):
     # reads every page sent — up to a hundred, text and picture — before it writes a word, and the
     # first request of a run also fills the prompt cache with them. Those requests wait this long;
     # every other request still waits `timeout_seconds`. Read by the four adapters through
-    # `adapters._structured.request_timeout`.
-    document_timeout_seconds: int = Field(default=300, ge=1, le=900)
+    # `adapters._structured.request_timeout`. 600 (it was 300): a statement's lines go in one
+    # request, and the largest reply measured — the balance sheet of 688411, 212 lines — is about
+    # 8,000 output tokens. `retries` applies to these too, so a request that truly stalls holds its
+    # lines for up to twice this.
+    document_timeout_seconds: int = Field(default=600, ge=1, le=900)
     # ATTEMPTS AFTER THE FIRST, for a timeout, a dropped connection or a busy gateway (429/5xx) —
     # read by the Bedrock gateway adapter (`adapters.bedrock_gateway_llm._post`). One retry.
     retries: int = Field(default=1, ge=0, le=3)
