@@ -162,15 +162,6 @@ _SETTLED_STATUSES = frozenset({"succeeded", "failed", "canceled"})
 _SUPPLEMENTAL_STATEMENTS = frozenset({"statement_setup", "covenants_supplemental", "notes"})
 
 
-def _safe_decimal(value) -> Decimal | None:
-    if value is None:
-        return None
-    try:
-        return Decimal(str(value))
-    except (InvalidOperation, ValueError, TypeError):
-        return None
-
-
 _SCALE_NAMES = {Decimal(1): "units", Decimal(1000): "thousands", Decimal(100000): "lakhs",
                 Decimal(1000000): "millions", Decimal(10000000): "crores",
                 Decimal(1000000000): "billions"}
@@ -185,16 +176,6 @@ def _scale_name(scale) -> str | None:
     except (InvalidOperation, ValueError):
         return None
     return _SCALE_NAMES.get(value, f"x{value.normalize()}")
-
-
-def _pick_row_value(rows: list[dict], key: str, period: str = "current") -> str | None:
-    for row in rows:
-        if row.get("canonical_key") != key:
-            continue
-        for v in row.get("values", []) or []:
-            if (v.get("period_label") or "") == period and v.get("value") is not None:
-                return str(v.get("value"))
-    return None
 
 
 def _period_display(rows: list[dict], period: str) -> str | None:
@@ -380,7 +361,6 @@ def _build_supplemental_rows(*, template_def: dict | None, base_rows: list[dict]
 
     from app.services.derived import compute_ratios
     from app.services.face_bases import printed_bases
-    from app.services.rollups import evaluate_rows
 
     current_display = _period_display(base_rows, "current")
     prior_display = _period_display(base_rows, "prior")
@@ -392,23 +372,17 @@ def _build_supplemental_rows(*, template_def: dict | None, base_rows: list[dict]
     # controls were computed from derived lines that had nothing to do with the statements.
     basis = printed_bases(doc_model).sole or "consolidated"
 
-    computed = evaluate_rows(template_def, base_rows, basis, "current", "en") if template_def else {}
+    # THE CONTROLS CHECK THE SPREAD, NOT THE FILING: each total is the figure the exported grid
+    # shows for it on this basis (the sum of the lines read, where the template says what it is
+    # made of), and Unexplained Adj to Ret Profits is a retained-profits roll-forward
+    # (`services.control_totals`).
+    from app.services import control_totals
 
-    def _control(*keys: str) -> Decimal | None:
-        # THE TEMPLATE'S OWN KEY FOR THE TOTAL, whichever template this is. These controls named
-        # only the HKFRS template's keys (bs_total_assets, …), so on the output_csv templates —
-        # whose totals are bs_ca__total_assets, bs_cl__total_equity_and_liabilities and
-        # is_pl__profit_for_the_year — all four control rows were blank on every export.
-        for k in keys:
-            got = _safe_decimal(computed.get(k)) or _safe_decimal(_pick_row_value(base_rows, k, "current"))
-            if got is not None:
-                return got
-        return None
-
-    assets = _control("bs_total_assets", "bs_ca__total_assets")
-    erl = _control("bs_total_equity_and_liabilities", "bs_cl__total_equity_and_liabilities")
-    total_income = _control("pl_profit_for_the_year", "is_pl__profit_for_the_year")
-    diff = (assets - erl) if (assets is not None and erl is not None) else None
+    controls = control_totals.compute(template_def, base_rows, basis)
+    assets = controls.total_assets
+    erl = controls.total_equity_and_liabilities
+    total_income = controls.total_income
+    diff = controls.difference
 
     # Ratios keyed by their standard derived identifiers for covenant/supplemental fields.
     ratio_map: dict[str, dict] = {}
@@ -456,7 +430,9 @@ def _build_supplemental_rows(*, template_def: dict | None, base_rows: list[dict]
         "statement_setup_controls__total_income_expenses": (
             str(total_income) if total_income is not None else None),
         "statement_setup_controls__difference": (str(diff) if diff is not None else None),
-        "statement_setup_controls__unexplained_adj_to_ret_profits": ("0" if diff == 0 else None),
+        "statement_setup_controls__unexplained_adj_to_ret_profits": (
+            str(controls.unexplained_retained) if controls.unexplained_retained is not None
+            else None),
         "statement_setup_controls__audit_opinion_stmt_source": (
             "Qualified" if "auditor_qualification" in hit_disclosures else "No qualification detected"),
         "statement_setup_controls__accounting_standard": None,
@@ -505,6 +481,14 @@ def _build_supplemental_rows(*, template_def: dict | None, base_rows: list[dict]
                 # as its evidence and its page.
                 evidence = {"provenance": fact["provenance"],
                             "flags": [f"printed_as:{fact['text'][:120]}"]}
+            if key in control_totals.SETUP_KEYS.values():
+                # WHAT A CONTROL WAS MADE OF: the sum of the spread's lines or the figure as shown,
+                # which retained-profits movements the roll-forward counted and which it did not,
+                # and — when the cell is blank — what it could not find.
+                said = controls.flags.get(key) or []
+                if said:
+                    evidence["flags"] = [*evidence.get("flags", []), *said]
+                not_determined = value is None
         elif key.startswith("notes__") \
                 and key.removeprefix("notes__") in _NOT_DETERMINED_UNLESS_EVIDENCE:
             nkey = key.removeprefix("notes__")

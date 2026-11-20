@@ -402,6 +402,14 @@ def figures_as_shown(template_def: dict | None, rows: list[dict], basis: str, pe
     return out
 
 
+def swept_lines(rows: list[dict], basis: str, period: str) -> set[str]:
+    """The concepts whose figure in this (basis, period) is the residual sweep's alone: every row
+    giving it there was put on the line because no other line claimed it, and no analyst has
+    answered for it — the `swept` reader `evaluate` is given (see `_readers`)."""
+    groups, _reported, _overridden, _carved, swept, _signed = _readers(rows, basis, period, None)
+    return {key for key in groups if swept(key)}
+
+
 def _order(nodes: dict[str, dict]) -> tuple[list[str], set[str]]:
     """Calculated keys in dependency order, plus the keys caught in a cycle.
 
