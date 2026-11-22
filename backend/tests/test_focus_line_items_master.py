@@ -71,7 +71,7 @@ def test_each_template_has_its_shipped_list_and_it_is_the_list_its_runs_read(mas
         got = master.get(BASE, params={"template": template}).json()
         assert got["template"] == template
         assert [i["key"] for i in got["items"]] == sorted(keys)
-        assert {i["source"] for i in got["items"]} == {"shipped"}
+        assert {i["source"] for i in got["items"]} <= {"shipped"}
         assert got["shipped"] == keys
         # Every entry names a line of the template's own set — no shipped list has a dead key.
         assert all(i["matched"] >= 1 for i in got["items"]), [
@@ -79,6 +79,15 @@ def test_each_template_has_its_shipped_list_and_it_is_the_list_its_runs_read(mas
         assert sorted(_live(template)) == sorted(keys)
     # Off as shipped: the lists are kept, and used once an admin switches focus-only on.
     assert body["focus_only"] is get_settings().extraction.llm_focus_only
+
+
+def test_the_hk_lists_sales_revenues_is_not_shipped_for_the_ind_as_or_us_gaap_template():
+    """It was in focus for both only because the single list named it for HK and the key is
+    shared."""
+    assert "is_pl__sales_revenues" in SHIPPED[HK]
+    assert "is_pl__sales_revenues" not in SHIPPED[INDAS]
+    assert "is_pl__sales_revenues" not in SHIPPED[USGAAP]
+    assert SHIPPED[INDAS] == []
 
 
 def test_a_line_put_in_focus_for_one_template_is_not_in_focus_for_another(master):
@@ -275,9 +284,10 @@ def test_a_run_reads_its_own_templates_list():
 
 
 def test_a_database_that_kept_the_single_list_has_it_carried_over_per_template(master):
-    """Each entry of the single list goes under every template whose set names it — the runs that
-    read it until now — with its note; one naming no line of any set is dropped; the single list's
-    table goes."""
+    """An entry an admin added goes under every template whose set names it — the runs that read it
+    until now — with its note. A shipped entry goes where config.toml's per-template lists put it,
+    so the HK list's "Sales revenues" does not follow its key onto the Ind AS and US GAAP lists. One
+    that lands nowhere is dropped; the single list's table goes."""
     from sqlalchemy import inspect, text
 
     from app.db.base import SessionLocal, engine, init_db
@@ -290,6 +300,7 @@ def test_a_database_that_kept_the_single_list_has_it_carried_over_per_template(m
         for i, (key, note, source) in enumerate([
                 ("bs_ca__inventories", "credit review", "admin"),
                 ("bs_icon__*", "", "shipped"),
+                ("is_pl__sales_revenues", "", "shipped"),
                 ("zz_retired__line", "", "admin")]):
             conn.execute(text('INSERT INTO focus_line_items (id, "key", note, source) '
                               "VALUES (:i, :k, :n, :s)"), {"i": str(i), "k": key, "n": note,
@@ -298,7 +309,8 @@ def test_a_database_that_kept_the_single_list_has_it_carried_over_per_template(m
     assert "focus_line_items" not in inspect(engine).get_table_names()
     with SessionLocal() as s:
         lists = focus_master.lists(s)
-    assert lists == {HK: ["bs_ca__inventories"], INDAS: ["bs_ca__inventories"],
-                     USGAAP: ["bs_ca__inventories"], ICON: ["bs_icon__*"]}
+    assert lists == {HK: ["bs_ca__inventories", "is_pl__sales_revenues"],
+                     INDAS: ["bs_ca__inventories"], USGAAP: ["bs_ca__inventories"],
+                     ICON: ["bs_icon__*"]}
     assert _items(master, INDAS)["bs_ca__inventories"]["note"] == "credit review"
     assert _items(master, ICON)["bs_icon__*"]["source"] == "shipped"

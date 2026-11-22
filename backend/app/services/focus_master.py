@@ -323,11 +323,14 @@ def seed_shipped(session, template_key: str, *, replace: bool = False) -> int:
 def seed_new_master(*, single_list_table: bool) -> None:
     """Fill the per-template master when its table is first created (``db.base.init_db``).
 
-    From the SINGLE LIST an older database kept, when there is one: each entry goes under every
-    template whose set in force it names — exactly the runs that read it until now, so no run asks
-    anything different — with its note and its source; an entry naming no line of any set is
-    dropped (no run could return it) and logged. The single list's table is then dropped. Without
-    one, each template's list is config.toml's.
+    From the SINGLE LIST an older database kept, when there is one. An entry an ADMIN added goes
+    under every template whose set in force it names — the runs that read it until now — with its
+    note. A SHIPPED entry goes under the templates whose shipped list in config.toml names it: it
+    was the file's, and the file now says which template each is for, so a shipped key another set
+    happens to share does not follow it there ("Sales revenues", the HK list's, is not put on the
+    Ind AS or US GAAP list). An entry that lands nowhere is dropped — no run of a template could
+    return it — and logged. The single list's table is then dropped. Without one, each template's
+    list is config.toml's.
     """
     import logging
 
@@ -347,8 +350,11 @@ def seed_new_master(*, single_list_table: bool) -> None:
             if by_template or not old:
                 dropped: list[str] = []
                 placed = 0
+                per_template = _shipped() if isinstance(_shipped(), dict) else None
                 for key, note, source in old:
                     homes = [t for t, ls in sorted(by_template.items()) if matches(key, ls)]
+                    if source == SHIPPED and per_template is not None:
+                        homes = [t for t in homes if key in per_template.get(t, ())]
                     if not homes:
                         dropped.append(key)
                     for t in homes:
@@ -362,7 +368,8 @@ def seed_new_master(*, single_list_table: bool) -> None:
                     "Focus line items are kept per template now: the single list's %d entries "
                     "became %d, each under every template whose line-item set names it%s.",
                     len(old), placed,
-                    f"; {len(dropped)} named no line of any set and were dropped: "
+                    f"; {len(dropped)} named no line of a template they belong to and were "
+                    f"dropped: "
                     f"{', '.join(sorted(dropped))}" if dropped else "")
                 return
             log.warning(

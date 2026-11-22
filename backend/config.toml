@@ -410,12 +410,10 @@ llm_focus_keys.output_csv_icon_v1 = ["pl_icon__*", "bs_icon__*", "cov_icon__*"]
 # other set's run asks anything new. Its statement lines are not named: their captions are read
 # by the deterministic tiers, as every other set's face lines are.
 #
-# "Sales revenues" is listed for the US GAAP and Ind AS templates because the single list it came
-# from named it for the HK set, and the key is the same in all three: until now a focus run of
-# either asked about it. Kept so that no run asks anything different; remove it on the Settings
-# screen if it was never meant for them.
+# NOT "Sales revenues": the single list this came from named it for the HK set, and because the key
+# is the same in the US GAAP and Ind AS sets a focus run of either asked about it too. It was never
+# meant for them and is taken out (at the user's instruction); it stays on the HK list.
 llm_focus_keys.output_csv_usgaap_v1 = [
-  "is_pl__sales_revenues",
   "notes_cash__*",
   "notes_debt__*",
   "notes_tax__*",
@@ -424,8 +422,9 @@ llm_focus_keys.output_csv_usgaap_v1 = [
   "notes_contingencies__*",
   "notes_related__*",
 ]
-# output_csv_indas_v1 — the Ind AS face-only set: nothing of its own in focus.
-llm_focus_keys.output_csv_indas_v1 = ["is_pl__sales_revenues"]
+# output_csv_indas_v1 — the Ind AS face-only set: nothing in focus. An empty list is an answer: with
+# focus-only on, a run of this template asks about every line and says so in its log.
+llm_focus_keys.output_csv_indas_v1 = []
 # THE ROW-LEVEL LLM SETTINGS THAT STOOD HERE ARE RETIRED.
 #
 # `llm_max_concurrency` (10) sized the thread pool a statement's row chunks were dispatched on;

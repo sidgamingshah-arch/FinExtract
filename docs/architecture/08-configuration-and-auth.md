@@ -133,9 +133,11 @@ read by any signed-in caller (`GET /focus-line-items?template=…`) and changed 
 - **Seeded once.** `extraction.llm_focus_keys` in `config.toml` holds the **shipped list of each
   template**, keyed by template key (`llm_focus_keys.output_csv_hk_v1 = [...]`). The table is filled
   when it is created (`db.base.init_db`): on a database that kept the older single list
-  (`focus_line_items`), from that list, each entry under every template whose set names it — exactly
-  the runs that read it until then, so no run asks anything different — with an entry naming no
-  line of any set dropped and logged, and the old table dropped; otherwise from `config.toml`. From
+  (`focus_line_items`), from that list — an entry an admin added under every template whose set
+  names it, the runs that read it until then; a shipped entry under the templates `config.toml`'s
+  per-template lists put it on (so the HK list's "Sales revenues" does not follow its shared key onto
+  the Ind AS and US GAAP lists); an entry that lands nowhere dropped and logged — and the old table
+  dropped; otherwise from `config.toml`. From
   then on the table *is* the lists — an emptied list means no line of that template is in focus, not
   "use the file". "Restore the shipped list" replaces one template's entries with the file's.
 - **Applied onto the lists a run reads.** The master is put onto `Settings.extraction.llm_focus_keys`
