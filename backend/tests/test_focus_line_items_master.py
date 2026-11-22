@@ -58,9 +58,14 @@ def _live(template) -> list[str]:
 def test_each_template_has_its_shipped_list_and_it_is_the_list_its_runs_read(master):
     assert set(SHIPPED) == {HK, ICON, INDAS, USGAAP}
     body = master.get(BASE).json()
-    assert [t["key"] for t in body["templates"]] == sorted(SHIPPED)
-    for t in body["templates"]:
-        assert t["entries"] == t["shipped"] == len(SHIPPED[t["key"]]), t
+    # Every shipped template is offered. Others may be too: a test that publishes a set for a
+    # template of its own leaves it in force in the suite's shared database.
+    offered = {t["key"]: t for t in body["templates"]}
+    assert set(SHIPPED) <= set(offered), sorted(offered)
+    assert [t["key"] for t in body["templates"]] == sorted(offered)
+    for key in SHIPPED:
+        t = offered[key]
+        assert t["entries"] == t["shipped"] == len(SHIPPED[key]), t
         assert t["name"] and t["set"]
     for template, keys in SHIPPED.items():
         got = master.get(BASE, params={"template": template}).json()
