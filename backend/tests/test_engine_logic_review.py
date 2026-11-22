@@ -163,7 +163,7 @@ def test_a_row_printing_both_bases_does_not_blend_them() -> None:
 def _restore_settings():
     st = get_settings()
     ex = st.extraction
-    was = (ex.llm_mapping, ex.llm_focus_only, list(ex.llm_focus_keys or ()), st.llm.provider)
+    was = (ex.llm_mapping, ex.llm_focus_only, ex.llm_focus_keys, st.llm.provider)
     try:
         yield
     finally:

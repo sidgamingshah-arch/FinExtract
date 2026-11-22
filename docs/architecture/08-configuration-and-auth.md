@@ -109,27 +109,40 @@ rules gave it. It is **off as shipped** — a run asks the model about every lin
 It governs the rules route's questions (`stages.line_item_llm`); the whole-PDF route asks every
 extracted line either way.
 
-**Which** lines are in focus is a master on the same screen, kept like the FX rate master: one row
-per entry in `focus_line_items` (`db.models.FocusLineItem`), read by any signed-in caller
-(`GET /focus-line-items`) and changed only under `config:settings` (`POST` to add,
-`DELETE /{id}`, `POST /restore`). `services/focus_master.py`:
+**Which** lines are in focus is a master on the same screen, kept **per template** like the FX rate
+master: one row per (template, entry) in `focus_line_items_by_template` (`db.models.FocusLineItem`),
+read by any signed-in caller (`GET /focus-line-items?template=…`) and changed only under
+`config:settings` (`POST` with `template` and `key` to add, `DELETE /{id}`,
+`POST /restore?template=…`). The Settings screen's Focus line items tab picks the template
+(`?template=` names it). `services/focus_master.py`:
 
-- **An entry** is a line-item key of a set in force, or a prefix ending in `*` (`bs_icon__*`,
-  every ICON balance-sheet line). Anything else is a **422 saying why**, so a typo cannot sit in
-  the master naming a line no run returns.
+- **Per template, because keys are shared.** 69 line-item keys are held by more than one shipped
+  set (`bs_nca__goodwill` is in the HK and the Ind AS sets alike). With one list for every template,
+  a line put in focus for one was in focus for every set holding its key. A run now reads its own
+  template's list (`line_item_requests.focus_list`, by the set's `target_template_key`); a template
+  with no entry has no line in focus. The same key may be listed for two templates, each with its own
+  note.
+- **An entry** is a line-item key of the template's set in force, or a prefix ending in `*`
+  (`bs_icon__*`, every ICON balance-sheet line). Anything else — including a line of another
+  template's set — is a **422 saying why**, so a typo cannot sit in the master naming a line no run
+  returns. An unknown template is a 422 on add and a 404 on read or restore.
 - **A line computed from its parts** (`type: derived`) is never asked itself — its figure is its
   cascade's — so adding one adds the asked-about parts its cascade reads, nested parts expanded
   (`with_parts`, on by default). The screen marks each entry *asked*, *computed from its parts*,
-  *a prefix* naming N lines, *asked or computed, by set* (a key several sets hold and treat
-  differently), or *names no line in force*.
-- **Seeded once from `config.toml`.** `extraction.llm_focus_keys` there is the **shipped list**: the
-  table is filled from it when it is created (`db.base.init_db`), and from then on the table *is*
-  the list — an emptied master means no line is in focus, not "use the file". "Restore the shipped
-  list" (`POST /focus-line-items/restore`) replaces it with the file's.
-- **Applied onto the list a run reads.** The master is put onto `Settings.extraction.llm_focus_keys`
-  at startup (`settings_state.load_persisted`) and after every change, as the other knobs are: the
-  next run reads it, a run that already happened is never rewritten, and a second process picks a
-  change up on its next restart.
+  *a prefix* naming N lines, or *names no line in force*.
+- **Seeded once.** `extraction.llm_focus_keys` in `config.toml` holds the **shipped list of each
+  template**, keyed by template key (`llm_focus_keys.output_csv_hk_v1 = [...]`). The table is filled
+  when it is created (`db.base.init_db`): on a database that kept the older single list
+  (`focus_line_items`), from that list, each entry under every template whose set names it — exactly
+  the runs that read it until then, so no run asks anything different — with an entry naming no
+  line of any set dropped and logged, and the old table dropped; otherwise from `config.toml`. From
+  then on the table *is* the lists — an emptied list means no line of that template is in focus, not
+  "use the file". "Restore the shipped list" replaces one template's entries with the file's.
+- **Applied onto the lists a run reads.** The master is put onto `Settings.extraction.llm_focus_keys`
+  (a table keyed by template) at startup (`settings_state.load_persisted`) and after every change,
+  as the other knobs are: the next run reads it, a run that already happened is never rewritten, and
+  a second process picks a change up on its next restart. The setting also takes a plain list, which
+  applies to every template — the shape a test or a deployment's environment may pin.
 
 ## Session authentication
 

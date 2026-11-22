@@ -355,12 +355,19 @@ class ExtractionSettings(BaseModel):
     # THESE LINE ITEMS AND NOT THE OTHERS — and it is read at that level, beside
     # `llm_request_grouping`, by `services.line_item_requests`. A key names a line item either way.
     #
-    # THE LIVE VALUE IS THE FOCUS LINE ITEMS MASTER'S (`services.focus_master`): an admin keeps the
-    # list on the Settings screen, it is stored in the `focus_line_items` table, and it is applied
-    # onto this field at startup and on every change, which is what `stages.line_item_llm` reads per
-    # run. config.toml's value is the SHIPPED list: the master is seeded from it once, when its table
-    # is created, and "Restore the shipped list" puts it back.
-    llm_focus_keys: list[str] = Field(default_factory=list)
+    # THE LIVE VALUE IS THE FOCUS LINE ITEMS MASTER'S (`services.focus_master`): an admin keeps a
+    # list PER TEMPLATE on the Settings screen, it is stored in the `focus_line_items_by_template`
+    # table, and it is applied onto this field at startup and on every change, which is what
+    # `stages.line_item_llm` reads per run. config.toml's value is the SHIPPED lists: the master is
+    # seeded from them once, when its table is created, and "Restore the shipped list" puts a
+    # template's back.
+    #
+    # TWO SHAPES. A table keyed by template key ({"output_csv_hk_v1": [...], ...}) — the shipped
+    # shape and the master's: a run reads its own template's list, and a template with none has no
+    # line in focus. A plain list — the shape this setting had when it was one list for every
+    # template, still accepted so that a test or a deployment's environment pinning one list keeps
+    # working — applies to every template (`line_item_requests.focus_list`).
+    llm_focus_keys: list[str] | dict[str, list[str]] = Field(default_factory=dict)
     # …and the switch that turns the above on, separated from it because the two answer different
     # questions. WHICH lines are in focus is the master's list; WHETHER to restrict this run to them
     # is an operational choice an admin flips from the Settings screen.

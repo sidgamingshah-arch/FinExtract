@@ -214,6 +214,8 @@ export type FocusLineKind = "asked" | "computed" | "not_asked";
 /** A line of a line-item set in force that a focus key may name. */
 export interface FocusLine {
   set: string;
+  /** The template whose set holds the line. */
+  template: string;
   key: string;
   label: string;
   statement: string;
@@ -225,32 +227,47 @@ export interface FocusLine {
 /** One entry of the Focus line items master: a line-item key, or a prefix ending in `*`. */
 export interface FocusLineItem {
   id: string;
+  /** The template whose list it is on: each template keeps its own. */
+  template: string;
   key: string;
   note: string;
   /** "shipped" — seeded from config.toml; "admin" — added from this screen. */
   source: "shipped" | "admin";
   pattern: boolean;
   label: string;
-  /** "mixed": the sets holding the key treat it differently (asked in one, computed in another). */
-  kind: FocusLineKind | "mixed" | "";
-  /** How many lines of the sets in force it names (0: it names none any more). */
+  kind: FocusLineKind | "";
+  /** How many lines of the template's set it names (0: it names none any more). */
   matched: number;
   sets: string[];
   created_at: string | null;
   updated_at: string | null;
 }
+/** A template a focus list is kept for: one whose line-item set is in force. */
+export interface FocusTemplate {
+  key: string;
+  name: string;
+  set: string;
+  /** How many entries its list holds, and how many config.toml ships for it. */
+  entries: number;
+  shipped: number;
+}
 export interface FocusMaster {
-  /** extraction.llm_focus_only — whether a run is restricted to this list at all. */
+  /** extraction.llm_focus_only — whether a run is restricted to its template's list at all. */
   focus_only: boolean;
+  /** The template this payload's list is (the first, when none was asked for). */
+  template: string;
+  templates: FocusTemplate[];
   items: FocusLineItem[];
-  /** config.toml's list, which "Restore the shipped list" puts back. */
+  /** config.toml's list for this template, which "Restore the shipped list" puts back. */
   shipped: string[];
-  /** Every line a key may name, across the sets in force. */
+  /** Every line of this template's set a key may name. */
   candidates: FocusLine[];
   /** On an add: the keys added (a computed line's parts with it). */
   added?: string[];
 }
 export interface FocusLineItemInput {
+  /** The template whose list it goes on. */
+  template: string;
   key: string;
   note?: string;
   /** For a computed line: add the parts its cascade reads too (default true). */

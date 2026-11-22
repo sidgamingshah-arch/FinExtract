@@ -261,12 +261,24 @@ def capped(plans: list[RequestPlan], cap: int) -> list[RequestPlan]:
     return out
 
 
+def focus_list(value, line_item_set) -> list[str]:
+    """The focus list THIS RUN reads from `extraction.llm_focus_keys`: its own template's, when the
+    setting is kept per template (the shipped shape, and the Focus line items master's), so a key
+    another template lists is not in focus here; or the one list, when the setting is written as
+    one (a test or a deployment's environment pinning a list for every template). A template with no
+    list has no line in focus."""
+    if isinstance(value, dict):
+        template_key = str(getattr(line_item_set, "target_template_key", "") or "")
+        return [str(k) for k in (value.get(template_key) or ())]
+    return [str(k) for k in (value or ())]
+
+
 def focus_keys(named, line_item_set) -> set[str]:
     """The line items a focus list names: each key as written, and for a key ending in "*" every
-    asked-about line of this set whose key starts with what precedes it (`bs_icon__*`). A pattern
-    only ever adds keys of this set, so a list serving every shipped set focuses each run on its
-    own. Read by the stage and by the scripts that mirror it."""
-    named = [str(k) for k in (named or ())]
+    asked-about line of this set whose key starts with what precedes it (`bs_icon__*`). `named` is a
+    list, or the per-template setting itself, which is read for this set's template
+    (`focus_list`). Read by the stage and by the scripts that mirror it."""
+    named = focus_list(named, line_item_set)
     prefixes = tuple(k[:-1] for k in named if k.endswith("*") and len(k) > 1)
     keys = {k for k in named if not k.endswith("*")}
     keys |= {i.key for i in (getattr(line_item_set, "items", None) or ())

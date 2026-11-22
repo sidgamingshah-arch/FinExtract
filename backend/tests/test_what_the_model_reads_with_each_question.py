@@ -52,7 +52,7 @@ from tests.test_anywhere_reads_the_whole_report import (AUDITOR, _answers,
 def _restore_settings():
     st = get_settings()
     ex = st.extraction
-    was = (ex.llm_mapping, ex.llm_focus_only, list(ex.llm_focus_keys or ()),
+    was = (ex.llm_mapping, ex.llm_focus_only, ex.llm_focus_keys,
            ex.llm_parallel_requests, ex.llm_document_context, ex.llm_request_grouping,
            st.llm.provider)
     try:

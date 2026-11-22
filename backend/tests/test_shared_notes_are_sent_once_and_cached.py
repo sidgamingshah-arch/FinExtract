@@ -158,7 +158,7 @@ class _NoCache(_Caching):
 def _restore():
     st = get_settings()
     ex = st.extraction
-    was = (ex.llm_mapping, ex.llm_focus_only, list(ex.llm_focus_keys or ()), ex.llm_shared_notes,
+    was = (ex.llm_mapping, ex.llm_focus_only, ex.llm_focus_keys, ex.llm_shared_notes,
            ex.llm_request_grouping, ex.llm_parallel_requests, st.llm.provider)
     yield
     (ex.llm_mapping, ex.llm_focus_only, ex.llm_focus_keys, ex.llm_shared_notes,

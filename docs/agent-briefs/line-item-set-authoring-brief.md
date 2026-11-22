@@ -173,9 +173,9 @@ Source: `backend/app/stages/line_item_llm.py`, `backend/app/services/line_item_l
   `extraction_mode: derive`.
 - **Deployment gate.** `backend/config.toml` ships `llm_focus_only = false`: a run asks about
   every line above. An admin can switch focus-only on from the Settings screen, and then only the
-  lines on the **Focus line items master** (Settings; seeded from `config.toml`'s
-  `llm_focus_keys`) are asked — **a new set's lines get zero model questions** in a focus run
-  unless their keys are added to the master. That is a deployment setting, not part of your
+  lines on the template's list in the **Focus line items master** (Settings, one list per
+  template; seeded from `config.toml`'s `llm_focus_keys.<template_key>`) are asked — **a new
+  template's lines get zero model questions** in a focus run unless its list names them. That is a deployment setting, not part of your
   file. Report it (§9).
 
 ### 3.4 Note reading: `note_source` on parts
@@ -578,7 +578,8 @@ accepted. Only remove a veto you can show never fires on the corpus.
 5. **`side` and `allow_contra` have no reader.** Do not rely on them.
 6. **`children_if_decomposed` without `is_gross_parent` does nothing.**
 7. **Code comments carry stale counts** (475 / 539 / 549 items, Ind AS "276" or "256"). Trust the files.
-8. **The Focus line items master** must name the new keys, or no line is asked in a focus run
+8. **The Focus line items master** must hold a list for the new template naming its keys, or no
+   line is asked in a focus run
    (§3.3). Focus-only ships off, so an ordinary run asks them.
 
 ---
@@ -632,8 +633,9 @@ test.
    - **Unplaced captions:** printed captions the template has no line for, and where they go
      (an "Others" line, or "needs a product decision").
    - **Assumptions and open questions:** e.g. sign conventions, entity basis, units.
-   - **Deployment actions you cannot take:** additions to the Focus line items master (and to
-     `config.toml`'s shipped `llm_focus_keys`), and whether the pair should ship as files.
+   - **Deployment actions you cannot take:** a list for the template on the Focus line items master
+     (and in `config.toml`'s shipped `llm_focus_keys.<template_key>`), and whether the pair should
+     ship as files.
    - **Measurement results** per filing (§8), if filings were available.
 3. **Nothing else changed.** Do not edit the template, the shipped sets, `backend/config.toml`
    or code. If something is needed there, say so in the report.

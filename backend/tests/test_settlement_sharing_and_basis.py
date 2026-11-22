@@ -554,7 +554,7 @@ def _model_cites_the_company_note(shipped, basis_from: str):
     ctx.line_items = shipped
     ctx.ontology = build_working_view(shipped)
     ex = ctx.settings.extraction
-    was = (ex.llm_mapping, ex.llm_focus_only, list(ex.llm_focus_keys or ()), ctx.settings.llm.provider)
+    was = (ex.llm_mapping, ex.llm_focus_only, ex.llm_focus_keys, ctx.settings.llm.provider)
     try:
         ex.llm_mapping, ex.llm_focus_only, ex.llm_focus_keys = True, True, [_PART]
         spy = SpyLineItemLlm(only={_PART}, cite={_PART: ("28", "Bank guarantees")})

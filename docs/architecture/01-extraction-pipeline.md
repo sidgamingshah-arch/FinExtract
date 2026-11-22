@@ -326,8 +326,9 @@ The face and its cited notes are processed in this order:
     *A focus run asks its focus lines and no other.* With `llm_focus_only` on, each planned group
     keeps only its focus lines (`line_item_requests.focused`, with the notes and sections it was
     planned with, and named after the lines it holds), a group with none is not asked, and a kept
-    group is then cut by the cap like any other — so every line outside the Focus line items master
-    keeps the rules' answer. The log counts these in groups (`focus keys=… groups=kept/all`,
+    group is then cut by the cap like any other — so every line outside its template's list on the
+    Focus line items master (one list per template, `line_item_requests.focus_list`) keeps the
+    rules' answer. The log counts these in groups (`focus keys=… groups=kept/all`,
     `groups_skipped_by_focus=`), because the plans are cut into requests later.
 
     *An `anywhere` line is asked with the whole annual report.* Its plan is set aside

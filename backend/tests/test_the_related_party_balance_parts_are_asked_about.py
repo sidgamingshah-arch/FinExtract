@@ -31,7 +31,8 @@ _SET = _BACKEND / "app/sample/templates/output_csv_hk_line_items.json"
 def test_they_are_on_the_focus_list():
     """Read off the SHIPPED file rather than the settings object, which other tests reconfigure."""
     shipped = tomllib.loads((_BACKEND / "config.toml").read_text(encoding="utf-8"))
-    focus = set(shipped["extraction"]["llm_focus_keys"])
+    # The HK template's list: the focus lists are kept per template.
+    focus = set(shipped["extraction"]["llm_focus_keys"]["output_csv_hk_v1"])
     assert set(RELATED_PARTY_BALANCE_PARTS) <= focus, sorted(set(RELATED_PARTY_BALANCE_PARTS) - focus)
 
 

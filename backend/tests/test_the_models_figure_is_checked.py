@@ -55,7 +55,7 @@ def shipped():
 def _restore_settings():
     st = get_settings()
     ex = st.extraction
-    was = (ex.llm_mapping, ex.llm_focus_only, list(ex.llm_focus_keys or ()), st.llm.provider,
+    was = (ex.llm_mapping, ex.llm_focus_only, ex.llm_focus_keys, st.llm.provider,
            ex.llm_document_context)
     try:
         yield

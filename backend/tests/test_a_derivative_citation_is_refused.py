@@ -98,7 +98,7 @@ def _stage_run():
                             items=[row])]
     settings = get_settings()
     ex = settings.extraction
-    was = (ex.llm_mapping, ex.llm_focus_only, list(ex.llm_focus_keys or ()), settings.llm.provider)
+    was = (ex.llm_mapping, ex.llm_focus_only, ex.llm_focus_keys, settings.llm.provider)
     try:
         ctx = PipelineContext(raw_bytes=b"", settings=settings)
         ctx.line_items, ctx.ontology = st, build_working_view(st)

@@ -130,13 +130,15 @@ class LineItemLlmStage(Stage):
 
         # WHICH LINE ITEMS THIS RUN ASKS ABOUT, read before anything is planned so the note router
         # below asks about the same lines the requests will. See the focus block further down.
-        named = (list(ctx.settings.extraction.llm_focus_keys or ())
+        # THE LIST OF THIS RUN'S TEMPLATE, and no other's: the master keeps one per template
+        # (`services.focus_master`), because a key several sets share would otherwise be in focus
+        # for all of them (`line_item_requests.focus_list`).
+        named = (line_item_requests.focus_list(ctx.settings.extraction.llm_focus_keys,
+                                               line_item_set)
                  if getattr(ctx.settings.extraction, "llm_focus_only", False) else [])
         # A KEY ENDING IN "*" NAMES EVERY LINE WHOSE KEY STARTS WITH WHAT PRECEDES IT, so a whole
         # set can be put in focus without copying its keys into the deployment file — `bs_icon__*`
         # is every ICON balance-sheet line the model is asked about, and stays so as ICON changes.
-        # A pattern only ever ADDS keys of this run's own set, so a run of another set is focused
-        # exactly as before.
         focus = line_item_requests.focus_keys(named, line_item_set)
 
         # THE NOTE ROUTER — ONE CALL THAT READS EVERY NOTE HEADING FOR THE LINES ASKED ABOUT
@@ -186,9 +188,9 @@ class LineItemLlmStage(Stage):
             skipped_by_focus = len(plans) - len(kept)
             # NAMED, not only counted: a focus key that names no asked-about line is a key whose
             # figure this run cannot return, and the log said nothing about that for the whole
-            # life of the row-level focus gate. Only keys of THIS set's own namespaces are named:
-            # the deployment list serves every shipped set, and a key of another set is not one this
-            # run was ever going to answer.
+            # life of the row-level focus gate. Only keys of THIS set's own namespaces are named: a
+            # list written as one (not per template) serves every set, and a key of another set is
+            # not one this run was ever going to answer.
             spaces = {k.split("__", 1)[0] for k in by_key}
             unanswerable = sorted(k for k in focus
                                   if k not in by_key and k.split("__", 1)[0] in spaces)

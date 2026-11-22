@@ -85,18 +85,24 @@ export function usePatchSettings() {
 }
 
 // --- Focus line items master ---
-/** The Focus line items master (Settings). Readable by any authenticated user. */
-export const useFocusLineItems = () => {
+/** One template's focus list (Settings) — the first template's when none is named. Readable by any
+ *  authenticated user. */
+export const useFocusLineItems = (template?: string) => {
   const token = useUI((s) => s.token);
-  return useQuery({ queryKey: ["focus-line-items"], queryFn: api.focusLineItems, enabled: !!token });
+  return useQuery({
+    queryKey: ["focus-line-items", template ?? ""],
+    queryFn: () => api.focusLineItems(template),
+    enabled: !!token,
+  });
 };
 
-/** Add a line (and a computed line's parts) to the master (admin). */
+/** Add a line (and a computed line's parts) to a template's list (admin). Every template's query
+ *  is refreshed: the picker shows each template's entry count. */
 export function useAddFocusLineItem() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: FocusLineItemInput) => api.addFocusLineItem(body),
-    onSuccess: (res) => qc.setQueryData(["focus-line-items"], res),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["focus-line-items"] }),
   });
 }
 
@@ -108,12 +114,12 @@ export function useDeleteFocusLineItem() {
   });
 }
 
-/** Replace the master with config.toml's shipped list (admin). */
+/** Replace one template's list with config.toml's shipped list for it (admin). */
 export function useRestoreFocusLineItems() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => api.restoreFocusLineItems(),
-    onSuccess: (res) => qc.setQueryData(["focus-line-items"], res),
+    mutationFn: (template: string) => api.restoreFocusLineItems(template),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["focus-line-items"] }),
   });
 }
 

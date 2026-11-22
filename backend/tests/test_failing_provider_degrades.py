@@ -146,9 +146,14 @@ def test_the_focus_list_names_the_parts_and_not_only_the_wholes(shipped):
     # THE NAMED KEYS ONLY. A trailing "*" puts a whole set in focus by prefix — ICON's three
     # patterns, and the seven groups of the 10-K set's additional items — so it names no line of
     # this set and is not part of the count this test pins.
-    named = list(_shipped_extraction()["llm_focus_keys"])
+    #
+    # PER TEMPLATE: the named keys counted are the HK template's list (this set's); the patterns
+    # are every template's, and none may begin a key of this set.
+    lists = _shipped_extraction()["llm_focus_keys"]
+    named = list(lists["output_csv_hk_v1"])
     focus = {k for k in named if not k.endswith("*")}
-    patterns = {k for k in named if k.endswith("*")}
+    patterns = {k for keys in lists.values() for k in keys if k.endswith("*")}
+    assert not {k for k in named if k.endswith("*")}
     assert patterns == {"pl_icon__*", "bs_icon__*", "cov_icon__*", "notes_cash__*", "notes_debt__*",
                         "notes_tax__*", "notes_assets__*", "notes_audit__*", "notes_contingencies__*",
                         "notes_related__*"}

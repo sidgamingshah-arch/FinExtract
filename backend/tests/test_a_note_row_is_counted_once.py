@@ -79,7 +79,7 @@ def _restore_settings():
     """`get_settings` is `lru_cache`d, so the settings object is shared with the whole suite."""
     st = get_settings()
     ex = st.extraction
-    was = (ex.llm_mapping, ex.llm_focus_only, list(ex.llm_focus_keys or ()),
+    was = (ex.llm_mapping, ex.llm_focus_only, ex.llm_focus_keys,
            ex.llm_request_grouping, st.llm.provider)
     try:
         yield

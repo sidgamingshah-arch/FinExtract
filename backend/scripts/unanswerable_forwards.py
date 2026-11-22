@@ -41,7 +41,10 @@ def main() -> int:
     cfg = load_line_item_set(json.loads(SEED.read_text(encoding="utf-8")), resolve=True)
     view = build_working_view(cfg)
     settings = get_settings()
-    focus = set(settings.extraction.llm_focus_keys or ())
+    value = settings.extraction.llm_focus_keys or ()
+    # Kept per template now: every template's keys, as the single list this script was written for.
+    focus = ({k for keys in value.values() for k in keys} if isinstance(value, dict)
+             else set(value))
 
     class Capture:
         id = "unanswerable-probe"

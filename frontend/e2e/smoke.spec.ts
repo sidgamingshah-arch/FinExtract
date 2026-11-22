@@ -1332,7 +1332,10 @@ test("the Focus line items master: add a line with its parts, remove one, restor
   // The master is PERSISTED (one row per entry), so the test starts and ends on the shipped list
   // rather than trusting what an earlier run left behind.
   await loginAs(page, "admin");
-  await page.goto("/settings?tab=focus", DCL);
+  // Each template keeps its own list; this one is the HK template's.
+  await page.goto("/settings?tab=focus&template=output_csv_hk_v1", DCL);
+  await expect(page.getByTestId("focus-template-output_csv_hk_v1"))
+    .toHaveAttribute("data-on", "true", { timeout: 15_000 });
   const restore = page.getByTestId("focus-restore");
   await expect(restore).toBeVisible({ timeout: 15_000 });
   page.once("dialog", (d) => d.accept());
@@ -1361,9 +1364,19 @@ test("the Focus line items master: add a line with its parts, remove one, restor
     await expect(parent).toHaveCount(0, { timeout: 15_000 });
     await expect(rows).toHaveCount(withParts - 1);
 
-    // A prefix that names no line of a set in force cannot be added.
+    // A prefix that names no line of this template's set cannot be added — nor another
+    // template's, which is that template's to list.
     await page.getByTestId("focus-search").fill("zz_nothing__*");
     await expect(page.getByTestId("focus-results")).toContainText("0 lines");
+    await page.getByTestId("focus-search").fill("bs_icon__*");
+    await expect(page.getByTestId("focus-results")).toContainText("0 lines");
+
+    // Another template's list is its own: ICON's is its three prefixes, whatever HK's holds.
+    await page.getByTestId("focus-template-output_csv_icon_v1").click();
+    await expect(page).toHaveURL(/template=output_csv_icon_v1/);
+    await expect(rows).toHaveCount(3, { timeout: 15_000 });
+    await page.getByTestId("focus-template-output_csv_hk_v1").click();
+    await expect(rows).toHaveCount(withParts - 1, { timeout: 15_000 });
   } finally {
     page.once("dialog", (d) => d.accept());
     await restore.click();

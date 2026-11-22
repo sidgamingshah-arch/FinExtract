@@ -182,24 +182,35 @@ class FxRate(Base):
 
 
 class FocusLineItem(Base):
-    """One entry of the FOCUS LINE ITEMS MASTER: a line item a focus run asks the model about.
+    """One entry of the FOCUS LINE ITEMS MASTER: a line item a focus run OF ONE TEMPLATE asks the
+    model about.
 
     ``extraction.llm_focus_only`` (the Settings screen's switch, off as shipped) restricts a run's
-    model requests to the line items named here; every other line is read by the rules. ``key``
-    is a line-item key of a set in force, or a prefix pattern ending in ``*`` ("bs_icon__*") that
-    puts every line starting with it in focus — `stages.line_item_llm` reads both.
+    model requests to the line items its template's list names; every other line is read by the
+    rules. ``key`` is a line-item key of that template's set in force, or a prefix pattern ending in
+    ``*`` ("bs_icon__*") that puts every line of it starting with that in focus —
+    `stages.line_item_llm` reads both.
 
-    One row per key rather than one list in a settings row, as the FX rate master is one row per
-    rate: two admins adding different lines cannot clobber each other's edit, and each entry can
-    say why it is there. SEEDED ONCE, when the table is created, from config.toml's
-    ``llm_focus_keys`` (``source = "shipped"``); after that the table is the list, and "Restore the
-    shipped list" replaces it with the file's (``services.focus_master``).
+    PER TEMPLATE. 69 line-item keys are held by more than one shipped set (``bs_nca__goodwill`` is in
+    the HK and the Ind AS sets alike), and the list used to be one for every template, so putting a
+    line in focus for one template put it in focus for every set that held its key. A row now names
+    its template, and the same key may be listed for two templates, each with its own note.
+
+    One row per (template, key) rather than one list in a settings row, as the FX rate master is one
+    row per rate: two admins adding different lines cannot clobber each other's edit, and each entry
+    can say why it is there. SEEDED ONCE, when the table is created, from config.toml's
+    ``llm_focus_keys`` (``source = "shipped"``) — or, on a database that held the single list, from
+    that list, each entry under every template whose set it names (``db.base.init_db``); after that
+    the table is the list, and "Restore the shipped list" replaces a template's with the file's
+    (``services.focus_master``).
     """
 
-    __tablename__ = "focus_line_items"
+    __tablename__ = "focus_line_items_by_template"
+    __table_args__ = (UniqueConstraint("template_key", "key", name="uq_focus_template_key"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
-    key: Mapped[str] = mapped_column(String(160), unique=True, index=True)
+    template_key: Mapped[str] = mapped_column(String(128), index=True)
+    key: Mapped[str] = mapped_column(String(160), index=True)
     # Why it is in focus, free text ("under review with the credit team").
     note: Mapped[str] = mapped_column(String(256), default="")
     # "shipped" — seeded from config.toml; "admin" — added from the Settings screen.

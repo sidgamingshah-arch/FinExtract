@@ -268,8 +268,9 @@ def test_a_focus_run_asks_every_additional_item_and_nothing_of_another_set(raw):
 
     # READ OFF config.toml, the file that ships, and not off `get_settings()`: that is one cached
     # object, and the stage tests set its focus list to the one key they exercise.
+    # The US GAAP template's own list: the focus lists are kept per template.
     named = tomllib.loads((pathlib.Path(__file__).resolve().parents[1] / "config.toml").read_text("utf-8"))[
-        "extraction"]["llm_focus_keys"]
+        "extraction"]["llm_focus_keys"]["output_csv_usgaap_v1"]
     ours = tuple(k[:-1] for k in named if k.endswith("*") and k.startswith("notes_"))
     for item in _additional_items(raw):
         assert item["key"].startswith(ours), item["key"]

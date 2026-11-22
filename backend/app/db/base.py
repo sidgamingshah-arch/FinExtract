@@ -145,14 +145,18 @@ def init_db() -> None:
     from app.db import models  # noqa: F401
 
     _reconcile_schema(engine)          # bring an existing DB up to the current model
-    had_focus_master = "focus_line_items" in set(inspect(engine).get_table_names())
+    tables = set(inspect(engine).get_table_names())
+    had_focus_master = "focus_line_items_by_template" in tables
     Base.metadata.create_all(bind=engine)  # create anything still missing (indexes, new tables)
     if not had_focus_master:
-        # THE FOCUS LINE ITEMS MASTER IS SEEDED ONCE, when its table is created, from config.toml's
-        # `extraction.llm_focus_keys`; from then on the table is the list (`services.focus_master`).
-        from app.services.focus_master import seed_shipped
+        # THE FOCUS LINE ITEMS MASTER IS SEEDED ONCE, when its table is created: from the single
+        # list an older database kept (`focus_line_items`), each entry under every template whose
+        # set names it, so no run asks anything different; or, on a fresh database, from
+        # config.toml's per-template `extraction.llm_focus_keys`. From then on the table is the
+        # list (`services.focus_master`).
+        from app.services.focus_master import seed_new_master
 
-        seed_shipped()
+        seed_new_master(single_list_table="focus_line_items" in tables)
 
 
 def get_session() -> Iterator[Session]:

@@ -39,7 +39,7 @@ def shipped():
 @pytest.fixture(autouse=True)
 def _restore():
     ex, st = get_settings().extraction, get_settings()
-    was = (ex.llm_mapping, ex.llm_focus_only, list(ex.llm_focus_keys or ()),
+    was = (ex.llm_mapping, ex.llm_focus_only, ex.llm_focus_keys,
            ex.llm_parallel_requests, ex.llm_request_grouping, st.llm.provider)
     yield
     (ex.llm_mapping, ex.llm_focus_only, ex.llm_focus_keys, ex.llm_parallel_requests,

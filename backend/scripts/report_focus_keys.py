@@ -31,7 +31,11 @@ from pathlib import Path
 def _focus_keys() -> list[str]:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
     from app.config import get_settings
-    return list(get_settings().extraction.llm_focus_keys)
+    value = get_settings().extraction.llm_focus_keys
+    # Kept per template now: every template's keys, as the single list this report was written for.
+    if isinstance(value, dict):
+        return list(dict.fromkeys(k for keys in value.values() for k in keys))
+    return list(value)
 
 
 _GENERIC = ("llm", "exact", "alias", "rule", "engine")

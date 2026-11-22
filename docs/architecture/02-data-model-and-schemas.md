@@ -375,8 +375,8 @@ mapping configuration comes from `/line-items`, and an endpoint that took an
 `ontology_version_id` takes a `line_item_version_id`. `GET`/`PATCH /settings`;
 `POST /auth/login`, `POST /auth/logout`, `GET /auth/demo-users`, `GET /me`;
 `GET /languages` (parity); the FX master (`GET /fx-rates`, `GET /fx-rates/resolve`,
-`POST`, `PUT /{id}`, `DELETE /{id}`); the Focus line items master (`GET /focus-line-items`,
-`POST`, `DELETE /{id}`, `POST /restore`); and the seeded-sample `projects` router
+`POST`, `PUT /{id}`, `DELETE /{id}`); the Focus line items master, per template (`GET /focus-line-items?template=`,
+`POST`, `DELETE /{id}`, `POST /restore?template=`); and the seeded-sample `projects` router
 (`GET /projects/{id}` + its statement/notes/review/commentary/audit reads,
 `POST /projects/{id}/analysis`, `POST /projects/{id}/submit-review`,
 `POST /projects/{id}/export`).

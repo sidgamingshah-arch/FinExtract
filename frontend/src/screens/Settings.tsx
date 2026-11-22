@@ -31,7 +31,7 @@ import {
 } from "../lib/queries";
 import { color, font, radius } from "../theme";
 import type {
-  AppSettings, ExtractionField, FocusLine, FocusLineItem, FxRate, FxRateInput,
+  AppSettings, ExtractionField, FocusLineItem, FxRate, FxRateInput,
 } from "../types";
 
 /** Read-only key/value row. */
@@ -523,21 +523,6 @@ function FxRatesCard({ canEdit }: { canEdit: boolean }) {
 
 /* ------------------------- Focus line items master (admin) ------------------------- */
 
-/** One line per key: a key held by several sets (a shared total) is offered once, naming them. */
-function byKey(lines: FocusLine[]): (FocusLine & { sets: string[] })[] {
-  const out = new Map<string, FocusLine & { sets: string[] }>();
-  for (const ln of lines) {
-    const had = out.get(ln.key);
-    if (had) {
-      if (!had.sets.includes(ln.set)) had.sets.push(ln.set);
-      for (const p of ln.parts) if (!had.parts.includes(p)) had.parts.push(p);
-    } else {
-      out.set(ln.key, { ...ln, parts: [...ln.parts], sets: [ln.set] });
-    }
-  }
-  return [...out.values()];
-}
-
 const pill = (bg: string, fg: string): React.CSSProperties => ({
   fontSize: 9.5, fontWeight: 600, padding: "1px 7px", borderRadius: radius.pill,
   background: bg, color: fg, whiteSpace: "nowrap", fontFamily: font.sans,
@@ -554,21 +539,22 @@ function FocusKind({ item }: { item: FocusLineItem }) {
   if (item.kind === "computed") {
     return <span style={pill(color.amberBg, color.amberFg)}>{t("st.focus.computed")}</span>;
   }
-  if (item.kind === "mixed") {
-    return <span style={pill(color.indigoTint2, color.indigo)}>{t("st.focus.mixed")}</span>;
-  }
   return <span style={pill(color.greenBg, color.greenFg)}>{t("st.focus.asked")}</span>;
 }
 
-/** The Focus line items master: which line items a focus run asks the model about.
+/** The Focus line items master: which line items a focus run of each template asks the model about.
  *
- *  Kept on one tab with the switch that decides whether a run is restricted to it at all
- *  (`llm_focus_only`, above it). Search the line-item sets in force, add a line —
- *  a line computed from its parts goes in with the parts its cascade reads, since it is never asked
- *  itself — or a prefix ending in *. Non-admins see the list read-only. */
-function FocusLineItemsCard({ canEdit, focusOnly }: { canEdit: boolean; focusOnly: boolean }) {
+ *  ONE LIST PER TEMPLATE, picked at the top of the card: a run reads its own template's list and no
+ *  other's, so a line several sets hold (Inventories, Goodwill, ...) is in focus only for the
+ *  templates that list it. Kept on one tab with the switch that decides whether a run is restricted
+ *  to its list at all (`llm_focus_only`, above it). Search the template's set, add a line — a line
+ *  computed from its parts goes in with the parts its cascade reads, since it is never asked itself
+ *  — or a prefix ending in *. Non-admins see the lists read-only. */
+function FocusLineItemsCard({ canEdit, focusOnly, template, onTemplate }: {
+  canEdit: boolean; focusOnly: boolean; template?: string; onTemplate: (key: string) => void;
+}) {
   const t = useT();
-  const { data, isPending } = useFocusLineItems();
+  const { data, isPending } = useFocusLineItems(template);
   const add = useAddFocusLineItem();
   const remove = useDeleteFocusLineItem();
   const restore = useRestoreFocusLineItems();
@@ -577,11 +563,17 @@ function FocusLineItemsCard({ canEdit, focusOnly }: { canEdit: boolean; focusOnl
   const [filter, setFilter] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const current = data?.template ?? "";
+  const templates = data?.templates ?? [];
+  const pick = (key: string) => {
+    setQuery(""); setFilter(""); setError(null); setMessage(null);
+    onTemplate(key);
+  };
 
   const items = data?.items ?? [];
   const shipped = data?.shipped ?? [];
   const inFocus = new Set(items.map((i) => i.key));
-  const lines = byKey(data?.candidates ?? []);
+  const lines = data?.candidates ?? [];
   const q = query.trim().toLowerCase();
   const isPattern = q.endsWith("*") && q.length > 2;
   const prefix = isPattern ? q.slice(0, -1) : "";
@@ -599,7 +591,7 @@ function FocusLineItemsCard({ canEdit, focusOnly }: { canEdit: boolean; focusOnl
   const addKey = (key: string) => {
     setError(null);
     setMessage(null);
-    add.mutate({ key, note: note.trim() || undefined }, {
+    add.mutate({ template: current, key, note: note.trim() || undefined }, {
       onSuccess: (res) => {
         setMessage(t("st.focus.added").replace("{n}", String(res.added?.length ?? 0)));
         setQuery("");
@@ -612,7 +604,7 @@ function FocusLineItemsCard({ canEdit, focusOnly }: { canEdit: boolean; focusOnl
     if (!window.confirm(t("st.focus.restoreConfirm").replace("{n}", String(shipped.length)))) return;
     setError(null);
     setMessage(null);
-    restore.mutate(undefined, { onError });
+    restore.mutate(current, { onError });
   };
   const busy = add.isPending || remove.isPending || restore.isPending;
 
@@ -620,6 +612,28 @@ function FocusLineItemsCard({ canEdit, focusOnly }: { canEdit: boolean; focusOnl
     <SectionCard title={t("st.focus")} note={canEdit ? undefined : t("st.readOnly")}>
       <div style={{ fontSize: 11.5, color: color.sec2, lineHeight: 1.55, marginBottom: 10 }}>
         {t("st.focusHelp")}
+      </div>
+      <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: 0.5, color: color.muted,
+                    textTransform: "uppercase", marginBottom: 6 }}>{t("st.focus.template")}</div>
+      <div role="tablist" data-testid="focus-templates"
+           style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
+        {templates.map((tp) => {
+          const on = tp.key === current;
+          return (
+            <button key={tp.key} role="tab" aria-selected={on} title={tp.key}
+                    data-testid={`focus-template-${tp.key}`} data-on={on ? "true" : "false"}
+                    onClick={() => !on && pick(tp.key)}
+                    style={{ fontSize: 12, fontWeight: 600, padding: "6px 11px", borderRadius: 8,
+                             cursor: on ? "default" : "pointer",
+                             color: on ? color.indigo : color.ink2,
+                             background: on ? color.indigoTint2 : "#fff",
+                             border: `1px solid ${on ? color.indigoBorder2 : color.controlBorder}` }}>
+              {tp.name}
+              <span style={{ fontWeight: 500, color: on ? color.indigo : color.muted,
+                             marginInlineStart: 6 }}>{tp.entries}</span>
+            </button>
+          );
+        })}
       </div>
       <div data-testid="focus-state" data-on={focusOnly ? "true" : "false"}
            style={{ fontSize: 11.5, lineHeight: 1.5, padding: "8px 10px", borderRadius: 7,
@@ -666,7 +680,7 @@ function FocusLineItemsCard({ canEdit, focusOnly }: { canEdit: boolean; focusOnl
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 12, fontWeight: 600, color: color.ink }}>{ln.label}</div>
                     <div style={{ fontSize: 10.5, fontFamily: font.mono, color: color.sec2 }}>
-                      {ln.key} · {ln.sets.join(", ")}{ln.statement ? ` · ${ln.statement}` : ""}
+                      {ln.key}{ln.statement ? ` · ${ln.statement}` : ""}
                     </div>
                   </div>
                   {ln.kind === "computed" && (
@@ -716,17 +730,15 @@ function FocusLineItemsCard({ canEdit, focusOnly }: { canEdit: boolean; focusOnl
           <table data-testid="focus-table"
                  style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
             <colgroup>
-              <col style={{ width: canEdit ? "34%" : "38%" }} />
-              <col style={{ width: "17%" }} />
-              <col style={{ width: "19%" }} />
+              <col style={{ width: canEdit ? "40%" : "44%" }} />
+              <col style={{ width: "20%" }} />
               <col />
-              <col style={{ width: "9%" }} />
+              <col style={{ width: "10%" }} />
               {canEdit && <col style={{ width: 82 }} />}
             </colgroup>
             <thead>
               <tr>
                 <th style={fxHead}>{t("st.focus.line")}</th>
-                <th style={fxHead}>{t("st.focus.set")}</th>
                 <th style={fxHead}>{t("st.focus.kind")}</th>
                 <th style={fxHead}>{t("st.focus.note")}</th>
                 <th style={fxHead}>{t("st.focus.source")}</th>
@@ -739,9 +751,6 @@ function FocusLineItemsCard({ canEdit, focusOnly }: { canEdit: boolean; focusOnl
                   <td style={{ ...fxCell, fontFamily: font.sans, overflowWrap: "anywhere" }}>
                     {i.label && <div style={{ fontWeight: 600 }}>{i.label}</div>}
                     <div style={{ fontFamily: font.mono, fontSize: 10.5, color: color.sec2 }}>{i.key}</div>
-                  </td>
-                  <td style={{ ...fxCell, fontSize: 10.5, color: color.sec2, overflowWrap: "anywhere" }}>
-                    {i.sets.join(", ") || "—"}
                   </td>
                   <td style={fxCell}><FocusKind item={i} /></td>
                   <td style={{ ...fxCell, fontFamily: font.sans, color: color.sec2, overflowWrap: "anywhere" }}>
@@ -899,7 +908,10 @@ export default function SettingsScreen() {
       {tab === "focus" && (
         <>
           {knobs("focus")}
-          <FocusLineItemsCard canEdit={canEdit} focusOnly={Boolean(s.extraction?.llm_focus_only)} />
+          <FocusLineItemsCard canEdit={canEdit} focusOnly={Boolean(s.extraction?.llm_focus_only)}
+                              template={params.get("template") ?? undefined}
+                              onTemplate={(key) => setParams((p) => { p.set("template", key); return p; },
+                                                             { replace: true })} />
         </>
       )}
 

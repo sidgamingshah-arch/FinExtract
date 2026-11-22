@@ -339,13 +339,15 @@ export const api = {
     req<FxRate>(`/fx-rates/${id}`, { method: "PUT", body: JSON.stringify(body) }),
   deleteFxRate: (id: string) => req<void>(`/fx-rates/${id}`, { method: "DELETE" }),
   // --- Focus line items master (admin-maintained; the lines a focus run asks the model about) ---
-  focusLineItems: () => req<FocusMaster>(`/focus-line-items`),
+  focusLineItems: (template?: string) => req<FocusMaster>(
+    `/focus-line-items${template ? `?template=${encodeURIComponent(template)}` : ""}`),
   addFocusLineItem: (body: FocusLineItemInput) =>
     req<FocusMaster>(`/focus-line-items`, { method: "POST", body: JSON.stringify(body) }),
   deleteFocusLineItem: (id: string) =>
     req<void>(`/focus-line-items/${encodeURIComponent(id)}`, { method: "DELETE" }),
-  restoreFocusLineItems: () =>
-    req<FocusMaster>(`/focus-line-items/restore`, { method: "POST" }),
+  restoreFocusLineItems: (template: string) =>
+    req<FocusMaster>(`/focus-line-items/restore?template=${encodeURIComponent(template)}`,
+                     { method: "POST" }),
   /** Hand the output to the reviewer. `documentId` says WHOSE filing is being submitted: the
    *  Export screen serves an uploaded document and the seeded sample from the same controls, and
    *  without it the server had no choice but to name the demo company in the audit entry. Omitted
