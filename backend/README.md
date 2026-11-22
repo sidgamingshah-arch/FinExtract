@@ -47,9 +47,10 @@ sends the filing outside this server.
    replaced by the id the submit call returns).
 2. Put the token in the environment: `KENSHO_ACCESS_TOKEN`, or set `kensho_token_url` and
    `KENSHO_REFRESH_TOKEN` to exchange a refresh token for short-lived access tokens.
-3. On the Settings screen, set **Document extraction engine** to `kensho` and choose **Pages the
-   document engine reads**: `scanned` (in place of OCR) or `all` (in place of the text layer).
-   The OCR card shows whether the addresses and a token are configured.
+3. On the Settings screen's **Reading documents** tab, set **Document extraction engine** to
+   `kensho` and choose **Pages the document engine reads** (shown once an engine is chosen):
+   `scanned` (in place of OCR) or `all` (in place of the text layer). The tab's **Engines on this
+   server** card shows whether the addresses and a token are configured.
 
 A page Kensho does not return, or a run where the call fails, is read as before, and the run log
 says why (`extract:document_engine_failed(...)`). The engine plugs in through

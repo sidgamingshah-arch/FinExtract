@@ -276,6 +276,142 @@ EXTRACTION_KNOBS: tuple[Knob, ...] = (
 _KNOB_BY_KEY = {k.key: k for k in EXTRACTION_KNOBS}
 
 
+class Placement(NamedTuple):
+    """Where a knob sits on the Settings screen, and the one line it is introduced by.
+
+    The screen is split into tabs; a tab into sections. ``summary`` is what a reader sees first —
+    the knob's ``help`` is the full explanation, one click away. ``shown_when`` names another knob
+    and the values of it under which this one is read at all: with the switch off, a knob that
+    only that switch's route reads changes nothing, and showing it is what made the screen heavy.
+    """
+
+    tab: str
+    section: str
+    summary: str
+    shown_when: tuple[str, tuple] | None = None
+
+
+_ON = (True,)
+
+#: Every knob's place on the screen, in the order the screen lists them.
+KNOB_PLACEMENT: dict[str, Placement] = {
+    # The model's questions about line items (the normal route).
+    "llm_mapping": Placement(
+        "model", "Line-item questions",
+        "Ask the model where each line item's figure is printed. Off: the rules decide every "
+        "line."),
+    "llm_request_grouping": Placement(
+        "model", "Line-item questions",
+        "Whether line items that need the same notes share one request. \"identical\" (shipped) "
+        "is safe and cheap; \"none\" asks one line per request.",
+        ("llm_mapping", _ON)),
+    "llm_lines_per_request": Placement(
+        "model", "Line-item questions",
+        "The most line items one shared request asks about.",
+        ("llm_request_grouping", ("identical", "similar"))),
+    "llm_group_similarity": Placement(
+        "model", "Line-item questions",
+        "How alike two lines' notes must be before they share a request.",
+        ("llm_request_grouping", ("similar",))),
+    "llm_document_context": Placement(
+        "model", "Line-item questions",
+        "How much of the annual report a request carries: only the notes its lines selected, the "
+        "whole report for lines that may be read from anywhere (shipped), or the whole report "
+        "every time.",
+        ("llm_mapping", _ON)),
+    "llm_note_synonyms": Placement(
+        "model", "Finding notes",
+        "Also find a note whose heading uses another name for the line (\"Fixed assets\" for "
+        "property, plant and equipment).",
+        ("llm_mapping", _ON)),
+    "llm_note_router": Placement(
+        "model", "Finding notes",
+        "One extra call that asks the model which notes print each line, adding up to two to its "
+        "request.",
+        ("llm_mapping", _ON)),
+    "llm_row_suggestions": Placement(
+        "model", "Extra model calls",
+        "One call that suggests a line for each printed row that reached none. A person applies "
+        "it."),
+    "llm_disclosures": Placement(
+        "model", "Extra model calls",
+        "Up to eight calls that read the Disclosures screen's topics: going concern, guarantees, "
+        "litigation and the rest."),
+    "llm_gap_routing": Placement(
+        "model", "Extra model calls",
+        "When a subtotal does not add up, ask the model which unplaced rows close the gap."),
+    "llm_contingent_liabilities": Placement(
+        "model", "Extra model calls",
+        "Let the model rewrite the contingent-liabilities summary in clearer English. The "
+        "figures stay the rules'."),
+    "llm_parallel_requests": Placement(
+        "model", "Sending",
+        "How many requests are sent at once. Lower it if the provider refuses requests for rate "
+        "limits."),
+    # The focus list's switch, on the tab that holds the list.
+    "llm_focus_only": Placement(
+        "focus", "",
+        "Ask the model only about the line items on the list below; the rules read every other "
+        "line."),
+    # How the pages are read.
+    "ocr_scanned_pages": Placement(
+        "reading", "Pages",
+        "Read a page that has no text layer (a scan) with the offline OCR engine. Off: such "
+        "pages are skipped."),
+    "document_reader": Placement(
+        "reading", "Pages",
+        "Send the filing to Kensho Extract and read pages from its answer. This sends the PDF "
+        "outside this server."),
+    "document_reader_pages": Placement(
+        "reading", "Pages",
+        "Which pages the engine reads: only those with no text layer, or every page.",
+        ("document_reader", ("kensho",))),
+    "whole_pdf_to_model": Placement(
+        "reading", "Whole PDF to the model",
+        "Send the PDF itself to the model, which reads every figure from the pages as printed. "
+        "If it fails, the run is read by the rules."),
+    "whole_pdf_pages": Placement(
+        "reading", "Whole PDF to the model",
+        "Send only the statement and note pages, or every page.",
+        ("whole_pdf_to_model", _ON)),
+    "whole_pdf_pages_per_request": Placement(
+        "reading", "Whole PDF to the model",
+        "The most pages in one request; a longer selection is sent in parts.",
+        ("whole_pdf_to_model", _ON)),
+    "whole_pdf_max_request_mb": Placement(
+        "reading", "Whole PDF to the model",
+        "The largest request the provider accepts.",
+        ("whole_pdf_to_model", _ON)),
+    "whole_pdf_lines_per_request": Placement(
+        "reading", "Whole PDF to the model",
+        "The most template lines one request asks about.",
+        ("whole_pdf_to_model", _ON)),
+    # The rules' thresholds.
+    "evidence_floor": Placement(
+        "mapping", "Matching captions",
+        "How closely a caption must match one of a line's aliases to count as evidence."),
+    "alias_coverage_floor": Placement(
+        "mapping", "Matching captions",
+        "How much of the alias the caption must cover, so a short heading is not read as a long "
+        "name."),
+    "mapping_margin": Placement(
+        "mapping", "Matching captions",
+        "How far the winning line must beat the runner-up; below it the row is left unmapped."),
+    "auto_accept_confidence": Placement(
+        "mapping", "Matching captions",
+        "The confidence at which a mapping counts as settled rather than a weak match."),
+    "recon_abs_tolerance": Placement(
+        "mapping", "Reconciliation",
+        "The difference allowed between a note total and its face figure, in the filing's units."),
+    "recon_rel_tolerance": Placement(
+        "mapping", "Reconciliation",
+        "The same allowance as a fraction of the figure, for large figures."),
+    "recon_corroboration_rel": Placement(
+        "mapping", "Reconciliation",
+        "How near a note total must come before the note counts as a breakdown of the figure."),
+}
+
+
 def _persist(scope: str, values: dict) -> None:
     """Write these overrides to the database, one row per setting (upsert).
 
@@ -501,6 +637,19 @@ def _warn_if_provider_unregistered() -> None:
             "LLM steps will be skipped or refused.", provider, ", ".join(sorted(available)))
 
 
+_SCREEN_ORDER = {key: i for i, key in enumerate(KNOB_PLACEMENT)}
+
+
+def _placed(knob: Knob) -> Placement:
+    # A knob with no placement still appears — on its own "other" tab, introduced by its label —
+    # rather than vanishing from the screen. tests/test_settings_extraction.py fails it.
+    return KNOB_PLACEMENT.get(knob.key) or Placement("other", "", knob.label)
+
+
+def _screen_order(knob: Knob) -> int:
+    return _SCREEN_ORDER.get(knob.key, len(_SCREEN_ORDER))
+
+
 def extraction_config() -> dict:
     """The extraction settings an admin may edit, with the shipped default for each.
 
@@ -512,11 +661,18 @@ def extraction_config() -> dict:
     return {
         "values": {k.key: getattr(ex, k.key) for k in EXTRACTION_KNOBS},
         "defaults": dict(_EXTRACTION_DEFAULTS or {}),
+        # In the screen's order (`KNOB_PLACEMENT`), each with its tab, section, one-line summary
+        # and the switch it is read under, so the screen is laid out from this list too.
         "fields": [
             {"key": k.key, "kind": k.kind, "label": k.label, "help": k.help,
              "min": k.minimum, "max": k.maximum, "step": k.step,
-             "choices": list(k.choices)}
-            for k in EXTRACTION_KNOBS
+             "choices": list(k.choices),
+             "tab": _placed(k).tab, "section": _placed(k).section,
+             "summary": _placed(k).summary,
+             "shown_when": ({"key": _placed(k).shown_when[0],
+                             "values": list(_placed(k).shown_when[1])}
+                            if _placed(k).shown_when else None)}
+            for k in sorted(EXTRACTION_KNOBS, key=_screen_order)
         ],
     }
 

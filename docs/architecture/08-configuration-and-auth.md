@@ -87,10 +87,18 @@ cache of that table. `config.toml` remains the source of the **defaults** — "r
 defaults" means what the file shipped, never the last value that happened to be stored. No
 secret is ever written.
 
-The admin **Settings** screen (`frontend/src/screens/Settings.tsx`) renders the whole
-snapshot: the read-only parts (OCR, access flags, locales) alongside the
-editable ones above. Non-admins do not see the screen; the server enforces the
-`config:settings` permission regardless.
+The admin **Settings** screen (`frontend/src/screens/Settings.tsx`) is split into tabs: **General**
+(the feature flags, locales), **AI model**, **Focus line items** (the focus-only switch and its
+master), **Reading documents** (OCR, the document engine, the whole-PDF route, and the read-only
+engine status), **Mapping & checks** (the rules' thresholds), **FX rates**, and **System** (the
+read-only access flags). `?tab=` names the open one. The extraction knobs are laid out from the
+API's own descriptors: each field also carries its `tab`, a `section` heading, a one-line `summary`
+(the full `help` is behind "Details") and `shown_when` — the knob and values under which it is read
+at all (`settings_state.KNOB_PLACEMENT`). An option only one route reads (the whole-PDF page limits,
+the grouping similarity, the document engine's pages) is hidden while that route is off, and shown
+as soon as the switch is flipped on screen. Each tab saves, and restores the shipped defaults of,
+its own knobs. Non-admins do not see the screen; the server enforces the `config:settings`
+permission regardless.
 
 ### The Focus line items master
 

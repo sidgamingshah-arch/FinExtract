@@ -231,3 +231,32 @@ def test_every_described_knob_is_actually_settable(client):
         assert res.json()["extraction"][f["key"]] == target, (
             f"{f['key']} is described by the API but a PATCH did not change it")
         client.patch("/api/v1/settings", headers=h, json={"reset_extraction": True})
+
+
+def test_every_knob_has_a_place_on_the_screen(client):
+    """The Settings screen is laid out from these descriptors: a tab, a section, a one-line
+    summary, and the switch a knob is read under. A knob with no place would land on a catch-all
+    tab; one whose switch names nothing, or a value that switch cannot take, would never show."""
+    body = client.get("/api/v1/settings", headers=_admin(client)).json()
+    fields = {f["key"]: f for f in body["extraction_fields"]}
+
+    for key, f in fields.items():
+        assert f["tab"] in ("model", "focus", "reading", "mapping"), key
+        assert f["summary"] and len(f["summary"]) <= 200, key
+        when = f["shown_when"]
+        if when is None:
+            continue
+        parent = fields.get(when["key"])
+        assert parent is not None, f"{key} is shown under {when['key']}, which is no knob"
+        assert parent["tab"] == f["tab"], f"{key} hangs off a switch on another tab"
+        allowed = parent["choices"] if parent["kind"] == "choice" else [True, False]
+        assert when["values"] and set(when["values"]) <= set(allowed), key
+
+
+def test_a_knob_only_one_route_reads_hangs_off_that_routes_switch(client):
+    body = client.get("/api/v1/settings", headers=_admin(client)).json()
+    when = {f["key"]: f["shown_when"] for f in body["extraction_fields"]}
+    assert when["whole_pdf_pages"] == {"key": "whole_pdf_to_model", "values": [True]}
+    assert when["llm_group_similarity"] == {"key": "llm_request_grouping", "values": ["similar"]}
+    assert when["document_reader_pages"] == {"key": "document_reader", "values": ["kensho"]}
+    assert when["llm_mapping"] is None and when["whole_pdf_to_model"] is None

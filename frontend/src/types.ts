@@ -131,6 +131,13 @@ export interface ExtractionField {
   max: number | null;
   step: number | null;
   choices: string[];
+  /** Where the Settings screen shows it: a tab ("model", "focus", "reading", "mapping"), a
+   *  section heading within it, and the one line it is introduced by (`help` is the full text). */
+  tab: string;
+  section: string;
+  summary: string;
+  /** Shown only while another knob holds one of these values: an option only one route reads. */
+  shown_when: { key: string; values: (string | number | boolean)[] } | null;
 }
 
 /** Runtime-mutable settings an admin can PATCH. */

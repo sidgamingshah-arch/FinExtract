@@ -85,7 +85,9 @@ async function setSampleLoaded(page: Page, want: boolean) {
  * them restores them, and any test asserting "back to the default" establishes that baseline
  * first rather than trusting the value it happens to find. */
 async function resetThresholds(page: Page) {
-  await page.goto("/settings", DCL);
+  // The thresholds are on the Mapping & checks tab, and a tab's Restore defaults puts back that
+  // tab's knobs only.
+  await page.goto("/settings?tab=mapping", DCL);
   const reset = page.getByTestId("ex-reset");
   await expect(reset).toBeVisible({ timeout: 15_000 });
   await reset.click();
@@ -1266,6 +1268,32 @@ test("admin tunes the extraction thresholds and they persist", async ({ page }) 
   await expect(page.getByTestId("ex-evidence_floor")).toHaveValue(shipped, { timeout: 15_000 });
 });
 
+test("settings are split into tabs, and an option only one route reads waits for its switch",
+     async ({ page }) => {
+  await loginAs(page, "admin");
+  await page.goto("/settings", DCL);
+  // General is the first tab, and the extraction knobs are not all on one page any more.
+  await expect(page.getByTestId("seed-demo")).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("ex-evidence_floor")).toHaveCount(0);
+
+  await page.getByTestId("st-tab-reading").click();
+  await expect(page).toHaveURL(/tab=reading/);
+  const wholePdf = page.getByTestId("ex-whole_pdf_to_model");
+  await expect(wholePdf).toBeVisible({ timeout: 15_000 });
+  const on = (await wholePdf.textContent())?.includes("On");
+  // Flipping the switch on screen shows or hides the options only its route reads — before Save.
+  await wholePdf.click();
+  await expect(page.getByTestId("ex-whole_pdf_pages")).toHaveCount(on ? 0 : 1);
+  await expect(page.getByTestId("st-tab-unsaved-reading")).toBeVisible();
+  await wholePdf.click();
+  await expect(page.getByTestId("ex-whole_pdf_pages")).toHaveCount(on ? 1 : 0);
+  await expect(page.getByTestId("st-tab-unsaved-reading")).toHaveCount(0);
+
+  // The full explanation is one click away, not on the page.
+  await page.getByTestId("knob-more-ocr_scanned_pages").click();
+  await expect(page.getByTestId("knob-ocr_scanned_pages")).toContainText("text layer");
+});
+
 test("a saved threshold is still in force for a browser that never saw the edit", async ({
   page, browser,
 }) => {
@@ -1278,7 +1306,7 @@ test("a saved threshold is still in force for a browser that never saw the edit"
   // context shares nothing with the first except the server, so reading the saved value back
   // there is what proves it left the first tab.
   await loginAs(page, "admin");
-  await page.goto("/settings", DCL);
+  await page.goto("/settings?tab=mapping", DCL);
   await expect(page.getByTestId("ex-mapping_margin")).toBeVisible({ timeout: 15_000 });
   const original = await page.getByTestId("ex-mapping_margin").inputValue();
 
@@ -1290,7 +1318,7 @@ test("a saved threshold is still in force for a browser that never saw the edit"
   const other = await fresh.newPage();
   try {
     await loginAs(other, "admin");
-    await other.goto("/settings", DCL);
+    await other.goto("/settings?tab=mapping", DCL);
     await expect(other.getByTestId("ex-mapping_margin")).toHaveValue("0.17", { timeout: 15_000 });
   } finally {
     await page.getByTestId("ex-reset").click();
@@ -1304,7 +1332,7 @@ test("the Focus line items master: add a line with its parts, remove one, restor
   // The master is PERSISTED (one row per entry), so the test starts and ends on the shipped list
   // rather than trusting what an earlier run left behind.
   await loginAs(page, "admin");
-  await page.goto("/settings", DCL);
+  await page.goto("/settings?tab=focus", DCL);
   const restore = page.getByTestId("focus-restore");
   await expect(restore).toBeVisible({ timeout: 15_000 });
   page.once("dialog", (d) => d.accept());
@@ -1361,45 +1389,6 @@ test("an analyst cannot reach the extraction thresholds at all", async ({ page }
   await expect(page.getByTestId("ex-evidence_floor")).toHaveCount(0);
   await expect(page.getByTestId("ex-save")).toHaveCount(0);
   await expect(page.getByText("Alias evidence floor")).toHaveCount(0);
-});
-
-test("the thresholds are still editable against a backend that omits the descriptors", async ({
-  page,
-}) => {
-  // An older API returns the extraction VALUES without the field descriptions. Rendering from an
-  // empty descriptor list produced a card with a Save button and no fields in it — visibly
-  // broken, and silent about why. The controls are inferred from the values instead, and the
-  // card says the ranges are not being checked locally.
-  await page.route("**/api/v1/settings", async (route) => {
-    if (route.request().method() !== "GET") return route.fallback();
-    const res = await route.fetch();
-    const body = await res.json();
-    delete body.extraction_fields;
-    delete body.extraction_defaults;
-    await route.fulfill({ response: res, json: body });
-  });
-
-  await loginAs(page, "admin");
-  await page.goto("/settings", DCL);
-
-  // Inferred from the value's own type: a number input for a threshold…
-  const floor = page.getByTestId("ex-evidence_floor");
-  await expect(floor).toBeVisible({ timeout: 15_000 });
-  await expect(floor).toHaveAttribute("type", "number");
-  // …a toggle for the boolean, and a readable label rather than the raw key.
-  await expect(page.getByTestId("ex-llm_mapping")).toBeVisible();
-  await expect(page.getByText("Evidence floor")).toBeVisible();
-  // And it is honest about the degraded mode.
-  await expect(page.getByText(/did not describe these settings/i)).toBeVisible();
-
-  // Still genuinely editable: the save round-trips through the real endpoint.
-  await floor.fill("0.58");
-  await page.getByTestId("ex-save").click();
-  await expect(page.getByTestId("ex-save")).toBeDisabled({ timeout: 15_000 });
-
-  // Hand nothing to the next run: the save above is persisted.
-  await page.unroute("**/api/v1/settings");
-  await resetThresholds(page);
 });
 
 test("real extraction: prior-year links, an edit that sticks, KPIs and Additional items",

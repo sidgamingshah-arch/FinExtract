@@ -1,14 +1,17 @@
-/** Settings (admin) — surfaces backend configuration on the frontend and lets an admin
- * edit the runtime-mutable pieces: interface localization, the reviewer sign-off step,
- * the FX rate master
- * used for presentation currency conversion, the extraction thresholds, and the Focus line items
- * master — the lines a focus run asks the model about. The LLM is NOT
- * here: it is defined only in backend/config.toml [llm]. Everything else is config.toml / env
- * driven and shown read-only.
+/** Settings (admin), in tabs: General (interface, sign-off, sample project), AI model (what the
+ * model is asked and how requests are put together), Focus line items (the focus-only switch and
+ * its list), Reading documents (OCR, the document engine, the whole-PDF route), Mapping & checks
+ * (the rules' thresholds), FX rates, and System (read-only access settings).
+ *
+ * The extraction knobs are laid out from the backend's own descriptors: each names its tab,
+ * section, one-line summary, and the switch it is read under — an option only one route reads is
+ * hidden while that route is off. The LLM itself is NOT here: it is defined only in
+ * backend/config.toml [llm].
  *
  * Edits are SAVED: the backend persists them and re-applies them at startup, so a change holds
- * across a restart. "Restore defaults" puts back what config.toml shipped. */
-import { useEffect, useState } from "react";
+ * across a restart. Each tab saves, and restores the shipped defaults of, its own knobs. */
+import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 
 import { Card, ScreenHeader, Toggle } from "../components/ui";
 import { useT } from "../i18n";
@@ -104,213 +107,217 @@ function Field({
   );
 }
 
-/** Turn a snake_case setting key into something readable, for a backend that reports the
- *  values but not the descriptors. */
-function humanise(key: string): string {
-  const words = key.replace(/_/g, " ").trim();
-  return words.charAt(0).toUpperCase() + words.slice(1);
+type Value = number | boolean | string;
+
+/** Whether a knob is read at all under the values on screen: with no `shown_when` always; else
+ *  while the knob it hangs off is itself shown and holds one of the listed values. Evaluated on
+ *  the values being edited, so turning a switch on shows its options at once. */
+function isShown(f: ExtractionField, byKey: Map<string, ExtractionField>,
+                 current: (k: string) => Value | undefined, seen = new Set<string>()): boolean {
+  const when = f.shown_when;
+  if (!when || seen.has(f.key)) return true;
+  const parent = byKey.get(when.key);
+  if (!parent) return true;
+  seen.add(f.key);
+  return isShown(parent, byKey, current, seen)
+    && when.values.some((v) => String(v) === String(current(when.key)));
 }
 
-/** Controls inferred from the VALUES alone.
- *
- * The backend normally describes each knob (label, bounds, step, explanation) and this screen
- * renders from that. An older backend returns the values without the descriptors — and rendering
- * from an empty descriptor list produced a card with a Save button and no fields in it, which
- * looks broken and says nothing about why. Inferring the control from each value's own type
- * keeps the screen usable against any backend; only the bounds are unknown, and the API refuses
- * an out-of-range value anyway. */
-function inferFields(values: Record<string, number | boolean | string>): ExtractionField[] {
-  return Object.entries(values).map(([key, v]) => ({
-    key,
-    kind: typeof v === "boolean" ? "bool" : typeof v === "number" ? "number" : "choice",
-    label: humanise(key),
-    help: "",
-    min: null,
-    max: null,
-    step: typeof v === "number" && Number.isInteger(v) ? 1 : 0.01,
-    // A string value with no declared options can only be offered as its current value; the
-    // real choice list lives on the backend.
-    choices: typeof v === "string" ? [v] : [],
-  }));
+/** The first bound a typed value breaks, checked against the backend's own descriptor so the
+ *  Save button never sends something the API will refuse. */
+function boundError(f: ExtractionField, raw: Value | undefined): string | null {
+  if (f.kind !== "number") return null;
+  const v = Number(raw);
+  if (raw === "" || raw === undefined || !Number.isFinite(v)) return `${f.label} must be a number`;
+  if (f.min !== null && v < f.min) return `${f.label} must be at least ${f.min}`;
+  if (f.max !== null && v > f.max) return `${f.label} must be at most ${f.max}`;
+  return null;
 }
 
-/** The mapping / reconciliation thresholds, tunable by an admin.
- *
- * Every control is rendered from the backend's own field descriptors — label, bounds, step and
- * an explanation of what the knob does. Nothing about mapping is hardcoded here, so a knob added
- * on the backend shows up with no change to this screen, and the bounds the UI enforces are by
- * construction the bounds the API enforces. */
-function ExtractionConfigCard({ s, canEdit }: { s: AppSettings; canEdit: boolean }) {
+/** One knob's control: a switch, a list of choices, or a number. */
+function KnobControl({ f, value, onChange }: {
+  f: ExtractionField; value: Value | undefined; onChange: (v: Value) => void;
+}) {
   const t = useT();
-  const patch = usePatchSettings();
-  const described = s.extraction_fields ?? [];
-  const values = s.extraction ?? {};
-  const inferred = described.length === 0 && Object.keys(values).length > 0;
-  const fields = inferred ? inferFields(values) : described;
-  const [form, setForm] = useState<Record<string, number | boolean | string>>(values);
-  const [dirty, setDirty] = useState(false);
-
-  // Re-sync when the server's view changes (a save, or a reset) — but never clobber an edit in
-  // progress, which would silently discard what the admin is typing.
-  useEffect(() => {
-    if (!dirty) setForm(values);
-  }, [values, dirty]);
-
-  const set = (k: string, v: number | boolean | string) => {
-    setDirty(true);
-    setForm((f) => ({ ...f, [k]: v }));
-  };
-
-  /** The first bound a typed value breaks, checked against the backend's own descriptor so the
-   *  Save button never sends something the API will refuse. */
-  const localError = (): string | null => {
-    for (const f of fields) {
-      if (f.kind !== "number") continue;
-      const v = Number(form[f.key]);
-      if (!Number.isFinite(v)) return `${f.label} must be a number`;
-      if (f.min !== null && v < f.min) return `${f.label} must be at least ${f.min}`;
-      if (f.max !== null && v > f.max) return `${f.label} must be at most ${f.max}`;
-    }
-    return null;
-  };
-  const invalid = localError();
-  const changed = fields.some((f) => String(form[f.key]) !== String(values[f.key]));
-  const defaults = s.extraction_defaults ?? {};
-  const movedFromDefault = (k: string) =>
-    k in defaults && String(values[k]) !== String(defaults[k]);
-
-  // Nothing to show at all — an older backend that reports no extraction block.
-  if (fields.length === 0) {
+  if (f.kind === "bool") {
     return (
-      <SectionCard title={t("st.extraction")} note={t("st.readOnly")}>
-        <div style={{ fontSize: 11.5, color: color.sec2, lineHeight: 1.55 }}>
-          {t("st.extractionUnavailable")}
-        </div>
-      </SectionCard>
-    );
-  }
-
-  if (!canEdit) {
-    return (
-      <SectionCard title={t("st.extraction")} note={t("st.readOnly")}>
-        {fields.map((f) => (
-          <Row key={f.key} label={f.label} value={String(values[f.key])} />
-        ))}
-      </SectionCard>
-    );
-  }
-
-  return (
-    <SectionCard title={t("st.extraction")} note={t("st.editable")}>
-      <div style={{ fontSize: 11, color: color.sec2, marginBottom: 12, lineHeight: 1.55 }}>
-        {t("st.extractionNote")}
-        {inferred && (
-          <span style={{ display: "block", marginTop: 5, color: color.amberFg, fontWeight: 600 }}>
-            {t("st.extractionInferred")}
-          </span>
-        )}
-      </div>
-
-      <div style={{ display: "grid", gap: 12 }}>
-        {fields.map((f) => (
-          <div key={f.key}
-               style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 150px", gap: 12,
-                        alignItems: "start", paddingBottom: 10,
-                        borderBottom: `1px solid ${color.hairline}` }}>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                <span style={{ fontSize: 12.5, fontWeight: 600, color: color.ink }}>{f.label}</span>
-                {movedFromDefault(f.key) && (
-                  <span title={`Default: ${String(defaults[f.key])}`}
-                        style={{ fontSize: 9.5, fontWeight: 600, padding: "1px 6px",
-                                 borderRadius: radius.pill, background: color.amberBg,
-                                 color: color.amberFg }}>
-                    {t("st.changed")}
-                  </span>
-                )}
-              </div>
-              <div style={{ fontSize: 10.5, color: color.muted, marginTop: 3, lineHeight: 1.5 }}>
-                {f.help}
-              </div>
-            </div>
-            {f.kind === "bool" ? (
-              // Toggle is presentational; the surrounding control carries the interaction.
-              <button
-                data-testid={`ex-${f.key}`}
-                onClick={() => set(f.key, !form[f.key])}
-                style={{ display: "flex", alignItems: "center", gap: 8, background: "none",
-                         border: "none", padding: 0, cursor: "pointer", justifySelf: "start" }}
-              >
-                <Toggle on={Boolean(form[f.key])} />
-                <span style={{ fontSize: 11, fontWeight: 600,
-                               color: form[f.key] ? color.greenFg : color.muted }}>
-                  {form[f.key] ? t("st.on") : t("st.off")}
-                </span>
-              </button>
-            ) : f.kind === "choice" ? (
-              <select data-testid={`ex-${f.key}`} value={String(form[f.key])}
-                      onChange={(e) => set(f.key, e.target.value)} style={inputStyle}>
-                {f.choices.map((c: string) => <option key={c} value={c}>{c}</option>)}
-              </select>
-            ) : (
-              <input
-                data-testid={`ex-${f.key}`}
-                type="number"
-                value={String(form[f.key] ?? "")}
-                step={f.step ?? 0.01}
-                min={f.min ?? undefined}
-                max={f.max ?? undefined}
-                onChange={(e) => set(f.key, e.target.value === "" ? "" : Number(e.target.value))}
-                style={inputStyle}
-              />
-            )}
-          </div>
-        ))}
-      </div>
-
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
-                    marginTop: 13, gap: 12 }}>
-        <span data-testid="ex-message"
-              style={{ fontSize: 11, color: invalid ? color.redFg : color.muted }}>
-          {invalid
-            ?? (patch.isError
-                  ? `${(patch.error as { detail?: string } | null)?.detail ?? t("st.saveFailed")}`
-                  : "")}
+      // Toggle is presentational; the surrounding control carries the interaction.
+      <button data-testid={`ex-${f.key}`} onClick={() => onChange(!value)}
+              style={{ display: "flex", alignItems: "center", gap: 8, background: "none",
+                       border: "none", padding: 0, cursor: "pointer", justifySelf: "start" }}>
+        <Toggle on={Boolean(value)} />
+        <span style={{ fontSize: 11, fontWeight: 600, color: value ? color.greenFg : color.muted }}>
+          {value ? t("st.on") : t("st.off")}
         </span>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {patch.isSuccess && !patch.isPending && !changed && (
-            <span style={{ fontSize: 11, color: color.greenFg, fontWeight: 600 }}>
-              ✓ {t("st.saved")}
-            </span>
-          )}
-          <button
-            data-testid="ex-reset"
-            onClick={() => { setDirty(false); patch.mutate({ reset_extraction: true }); }}
-            disabled={patch.isPending}
-            style={{ fontSize: 12, fontWeight: 600, color: color.sec2, background: "#fff",
-                     border: `1px solid ${color.controlBorder}`, borderRadius: 8,
-                     padding: "8px 14px", cursor: patch.isPending ? "default" : "pointer" }}
-          >
-            {t("st.restoreDefaults")}
-          </button>
-          <button
-            data-testid="ex-save"
-            onClick={() => { setDirty(false); patch.mutate({ extraction: form }); }}
-            disabled={patch.isPending || !!invalid || !changed}
-            style={{
-              fontSize: 12, fontWeight: 600, color: "#fff",
-              background: patch.isPending || invalid || !changed ? color.faint : color.indigo,
-              border: "none", borderRadius: 8, padding: "8px 16px",
-              cursor: patch.isPending || invalid || !changed ? "default" : "pointer",
-            }}
-          >
-            {patch.isPending ? t("st.saving") : t("st.save")}
-          </button>
-        </div>
-      </div>
-    </SectionCard>
+      </button>
+    );
+  }
+  if (f.kind === "choice") {
+    return (
+      <select data-testid={`ex-${f.key}`} value={String(value)}
+              onChange={(e) => onChange(e.target.value)} style={inputStyle}>
+        {f.choices.map((c) => <option key={c} value={c}>{c}</option>)}
+      </select>
+    );
+  }
+  return (
+    <input data-testid={`ex-${f.key}`} type="number" value={String(value ?? "")}
+           step={f.step ?? 0.01} min={f.min ?? undefined} max={f.max ?? undefined}
+           onChange={(e) => onChange(e.target.value === "" ? "" : Number(e.target.value))}
+           style={inputStyle} />
   );
 }
+
+/** One knob: its name, its one-line summary, the full explanation one click away, and its
+ *  control — or, for a reader without the right to change it, its value. */
+function KnobRow({ f, value, changed, hidden, canEdit, onChange }: {
+  f: ExtractionField; value: Value | undefined; changed: string | null; hidden: number;
+  canEdit: boolean; onChange: (v: Value) => void;
+}) {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  return (
+    <div data-testid={`knob-${f.key}`}
+         style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 170px", gap: 14,
+                  alignItems: "start", padding: "11px 0", borderBottom: `1px solid ${color.hairline}` }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 12.5, fontWeight: 600, color: color.ink }}>{f.label}</span>
+          {changed !== null && (
+            <span title={`${t("st.default")}: ${changed}`}
+                  style={pill(color.amberBg, color.amberFg)}>{t("st.changed")}</span>
+          )}
+        </div>
+        <div style={{ fontSize: 11.5, color: color.sec2, marginTop: 3, lineHeight: 1.5 }}>
+          {f.summary || f.help}
+          {f.summary && f.help && (
+            <button data-testid={`knob-more-${f.key}`} onClick={() => setOpen((o) => !o)}
+                    style={{ background: "none", border: "none", padding: 0, marginInlineStart: 6,
+                             fontSize: 11, fontWeight: 600, color: color.indigo, cursor: "pointer" }}>
+              {open ? t("st.lessDetail") : t("st.moreDetail")}
+            </button>
+          )}
+        </div>
+        {open && (
+          <div style={{ fontSize: 11, color: color.muted, marginTop: 6, lineHeight: 1.55,
+                        padding: "8px 10px", background: color.rowAltBg, borderRadius: 7 }}>
+            {f.help}
+          </div>
+        )}
+        {hidden > 0 && (
+          <div style={{ fontSize: 10.5, color: color.muted2, marginTop: 5 }}>
+            {t(f.kind === "bool" ? "st.moreWhenOn" : "st.moreWhenOther").replace("{n}", String(hidden))}
+          </div>
+        )}
+      </div>
+      {canEdit ? (
+        <KnobControl f={f} value={value} onChange={onChange} />
+      ) : (
+        <span style={{ fontSize: 12, fontWeight: 600, fontFamily: font.mono, color: color.ink,
+                       textAlign: "right" }}>{String(value)}</span>
+      )}
+    </div>
+  );
+}
+
+/** The extraction knobs of one tab, under their section headings, with the tab's own Save and
+ *  Restore defaults. Edits are held by the screen (`edits`), so moving to another tab and back
+ *  keeps them; Save sends this tab's and Restore defaults puts back this tab's — never another
+ *  tab's, which an admin cannot see from here. Every control is rendered from the backend's own
+ *  descriptors, so a knob added there shows up with no change to this screen, and the bounds
+ *  checked here are the API's. */
+function KnobTab({ s, fields, all, canEdit, edits, setEdit, clearEdits }: {
+  s: AppSettings; fields: ExtractionField[]; all: ExtractionField[]; canEdit: boolean;
+  edits: Record<string, Value>; setEdit: (k: string, v: Value) => void;
+  clearEdits: (keys: string[]) => void;
+}) {
+  const t = useT();
+  const patch = usePatchSettings();
+  const values = s.extraction ?? {};
+  const defaults = s.extraction_defaults ?? {};
+  const current = (k: string): Value | undefined => (k in edits ? edits[k] : values[k]);
+  const byKey = new Map(all.map((f) => [f.key, f]));
+  const keys = fields.map((f) => f.key);
+  const changedKeys = keys.filter((k) => k in edits && String(edits[k]) !== String(values[k]));
+  const invalid = fields.map((f) => boundError(f, current(f.key))).find(Boolean) ?? null;
+  const shown = fields.filter((f) => isShown(f, byKey, current));
+  const hiddenUnder = (key: string) =>
+    fields.filter((f) => f.shown_when?.key === key && !isShown(f, byKey, current)).length;
+  const sections: [string, ExtractionField[]][] = [];
+  for (const f of shown) {
+    const last = sections[sections.length - 1];
+    if (last && last[0] === f.section) last[1].push(f);
+    else sections.push([f.section, [f]]);
+  }
+  if (fields.length === 0) return null;
+
+  return (
+    <Card style={{ marginBottom: 14 }}>
+      {sections.map(([title, list], i) => (
+        <div key={title || i} style={{ marginTop: i ? 18 : 0 }}>
+          {title && (
+            <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: 0.5, color: color.muted,
+                          textTransform: "uppercase", paddingBottom: 2 }}>{title}</div>
+          )}
+          {list.map((f) => (
+            <KnobRow key={f.key} f={f} value={current(f.key)} canEdit={canEdit}
+                     changed={f.key in defaults && String(values[f.key]) !== String(defaults[f.key])
+                       ? String(defaults[f.key]) : null}
+                     hidden={hiddenUnder(f.key)}
+                     onChange={(v) => setEdit(f.key, v)} />
+          ))}
+        </div>
+      ))}
+
+      {canEdit ? (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+                      marginTop: 14, gap: 12, flexWrap: "wrap" }}>
+          <span data-testid="ex-message"
+                style={{ fontSize: 11, color: invalid || patch.isError ? color.redFg : color.muted,
+                         flex: "1 1 220px" }}>
+            {invalid
+              ?? (patch.isError
+                    ? `${(patch.error as { detail?: string } | null)?.detail ?? t("st.saveFailed")}`
+                    : t("st.nextRun"))}
+          </span>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {patch.isSuccess && !patch.isPending && changedKeys.length === 0 && (
+              <span style={{ fontSize: 11, color: color.greenFg, fontWeight: 600 }}>✓ {t("st.saved")}</span>
+            )}
+            <button data-testid="ex-reset" disabled={patch.isPending}
+                    onClick={() => {
+                      clearEdits(keys);
+                      patch.mutate({ extraction: Object.fromEntries(
+                        keys.filter((k) => k in defaults).map((k) => [k, defaults[k]])) });
+                    }}
+                    style={secondaryButton(patch.isPending)}>
+              {t("st.restoreDefaults")}
+            </button>
+            <button data-testid="ex-save" disabled={patch.isPending || !!invalid || changedKeys.length === 0}
+                    onClick={() => patch.mutate(
+                      { extraction: Object.fromEntries(changedKeys.map((k) => [k, edits[k]])) },
+                      { onSuccess: () => clearEdits(changedKeys) })}
+                    style={primaryButton(patch.isPending || !!invalid || changedKeys.length === 0)}>
+              {patch.isPending ? t("st.saving") : t("st.save")}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div style={{ fontSize: 11, color: color.muted, marginTop: 10 }}>{t("st.adminOnly")}</div>
+      )}
+    </Card>
+  );
+}
+
+const primaryButton = (disabled: boolean): React.CSSProperties => ({
+  fontSize: 12, fontWeight: 600, color: "#fff", background: disabled ? color.faint : color.indigo,
+  border: "none", borderRadius: 8, padding: "8px 16px", cursor: disabled ? "default" : "pointer",
+});
+const secondaryButton = (disabled: boolean): React.CSSProperties => ({
+  fontSize: 12, fontWeight: 600, color: color.sec2, background: "#fff",
+  border: `1px solid ${color.controlBorder}`, borderRadius: 8, padding: "8px 14px",
+  cursor: disabled ? "default" : "pointer",
+});
 
 /* ---------------------------- FX rate master (admin) ---------------------------- */
 
@@ -386,7 +393,7 @@ function FxRatesCard({ canEdit }: { canEdit: boolean }) {
   const saving = upsert.isPending || update.isPending;
 
   return (
-    <SectionCard title={t("st.fx")} note={canEdit ? t("st.editable") : t("st.readOnly")}>
+    <SectionCard title={t("st.fx")} note={canEdit ? undefined : t("st.readOnly")}>
       <div style={{ fontSize: 11.5, color: color.sec2, lineHeight: 1.55, marginBottom: 10 }}>
         {t("st.fxHelp")}
       </div>
@@ -555,8 +562,8 @@ function FocusKind({ item }: { item: FocusLineItem }) {
 
 /** The Focus line items master: which line items a focus run asks the model about.
  *
- *  Kept here, beside the switch that decides whether a run is restricted to it at all
- *  (`llm_focus_only`, Extraction settings above). Search the line-item sets in force, add a line —
+ *  Kept on one tab with the switch that decides whether a run is restricted to it at all
+ *  (`llm_focus_only`, above it). Search the line-item sets in force, add a line —
  *  a line computed from its parts goes in with the parts its cascade reads, since it is never asked
  *  itself — or a prefix ending in *. Non-admins see the list read-only. */
 function FocusLineItemsCard({ canEdit, focusOnly }: { canEdit: boolean; focusOnly: boolean }) {
@@ -610,7 +617,7 @@ function FocusLineItemsCard({ canEdit, focusOnly }: { canEdit: boolean; focusOnl
   const busy = add.isPending || remove.isPending || restore.isPending;
 
   return (
-    <SectionCard title={t("st.focus")} note={canEdit ? t("st.editable") : t("st.readOnly")}>
+    <SectionCard title={t("st.focus")} note={canEdit ? undefined : t("st.readOnly")}>
       <div style={{ fontSize: 11.5, color: color.sec2, lineHeight: 1.55, marginBottom: 10 }}>
         {t("st.focusHelp")}
       </div>
@@ -786,97 +793,154 @@ const addButton = (disabled: boolean): React.CSSProperties => ({
   borderRadius: radius.controlSm, padding: "5px 11px", cursor: disabled ? "default" : "pointer",
 });
 
+/** The screen's tabs, in order. The extraction knobs say which of these they sit on
+ *  (`ExtractionField.tab`); a knob naming a tab this build does not know lands on "other", shown
+ *  only when something is on it, rather than vanishing. */
+const TABS = ["general", "model", "focus", "reading", "mapping", "fx", "system"] as const;
+type TabId = (typeof TABS)[number] | "other";
+
 export default function SettingsScreen() {
   const t = useT();
   const { data, isPending } = useSettings();
   const patch = usePatchSettings();
   const canEdit = useCan("config:settings");
+  const [params, setParams] = useSearchParams();
+  // Edits not yet saved, by knob. Held here rather than in a tab, so moving between tabs keeps
+  // them; each tab saves its own.
+  const [edits, setEdits] = useState<Record<string, Value>>({});
 
   if (isPending || !data) {
     return <div style={{ padding: 60, textAlign: "center", color: color.muted }}>Loading…</div>;
   }
   const s: AppSettings = data;
-  const readOnlyNote = t("st.readOnly");
+  const fields = s.extraction_fields ?? [];
+  const known = new Set<string>(TABS);
+  const tabOf = (f: ExtractionField): TabId => (known.has(f.tab) ? (f.tab as TabId) : "other");
+  const tabs: TabId[] = fields.some((f) => tabOf(f) === "other") ? [...TABS, "other"] : [...TABS];
+  const asked = params.get("tab") as TabId | null;
+  const tab: TabId = asked && tabs.includes(asked) ? asked : "general";
+  const values = s.extraction ?? {};
+  const unsaved = (id: TabId) => fields.some(
+    (f) => tabOf(f) === id && f.key in edits && String(edits[f.key]) !== String(values[f.key]));
+  const knobs = (id: TabId) => (
+    <KnobTab s={s} fields={fields.filter((f) => tabOf(f) === id)} all={fields} canEdit={canEdit}
+             edits={edits}
+             setEdit={(k, v) => setEdits((e) => ({ ...e, [k]: v }))}
+             clearEdits={(keys) => setEdits((e) => {
+               const next = { ...e };
+               for (const k of keys) delete next[k];
+               return next;
+             })} />
+  );
 
   return (
     <div style={{ maxWidth: 900, margin: "0 auto", padding: "26px 30px 60px" }}>
       <ScreenHeader title={t("st.title")} subtitle={t("st.subhead")} />
 
-      {/* Workflow & interface — the editable feature flags */}
-      <SectionCard title={t("st.features")}>
-        <ToggleRow
-          on={s.features.ui_localization}
-          onToggle={() => patch.mutate({ ui_localization: !s.features.ui_localization })}
-          canEdit={canEdit}
-          saving={patch.isPending}
-          title={t("st.localizeUI")}
-          help={t("st.localizeUIHelp")}
-        />
-        <ToggleRow
-          on={s.features.review_required}
-          onToggle={() => patch.mutate({ review_required: !s.features.review_required })}
-          canEdit={canEdit}
-          saving={patch.isPending}
-          title={t("st.reviewRequired")}
-          help={t("st.reviewRequiredHelp")}
-        />
-        <ToggleRow
-          on={s.features.seed_demo}
-          onToggle={() => patch.mutate({ seed_demo: !s.features.seed_demo })}
-          canEdit={canEdit}
-          saving={patch.isPending}
-          title={t("st.seedDemo")}
-          help={t("st.seedDemoHelp")}
-          testId="seed-demo"
-        />
-        {!canEdit && <div style={{ fontSize: 11, color: color.muted, marginTop: 4 }}>{t("st.adminOnly")}</div>}
-        <div style={{ marginTop: 12 }}>
-          <Row label={t("st.supportedLangs")} value={s.features.supported_locales.join(" · ")} />
-          <Row label={t("st.defaultOutput")} value={s.features.default_output_locale} />
-        </div>
-      </SectionCard>
-
-      {/* No LLM card: the LLM is defined only in backend/config.toml [llm], never from here. */}
-      {/* FX rate master — the rates the Workspace converts presentation currency with */}
-      <FxRatesCard canEdit={canEdit} />
-
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-        {/* OCR */}
-        <SectionCard title={t("st.ocr")} note={readOnlyNote}>
-          <Row label={t("st.engine")} value={s.ocr.engine} />
-          <Row label={t("st.languages")} value={s.ocr.languages.join(" · ")} />
-          <Row label={t("st.dpi")} value={s.ocr.dpi} />
-          {s.ocr.docling && (
-            <Row label={t("st.doclingReady")}
-                 value={s.ocr.docling.installed && s.ocr.docling.models_present
-                   ? t("st.doclingYes")
-                   : !s.ocr.docling.installed ? t("st.doclingNotInstalled")
-                   : t("st.doclingNoModels").replace("{dir}", s.ocr.docling.models_dir)} />
-          )}
-          {s.document_engine && (
-            <Row label={t("st.kensho")}
-                 value={!s.document_engine.kensho.addresses_set ? t("st.kenshoNoAddress")
-                   : !s.document_engine.kensho.token_present
-                     ? t("st.kenshoNoToken").replace("{env}", s.document_engine.kensho.token_env)
-                   : t("st.kenshoReady")} />
-          )}
-        </SectionCard>
+      <div role="tablist" style={{ display: "flex", gap: 2, flexWrap: "wrap", marginBottom: 6,
+                                   borderBottom: `1px solid ${color.cardBorder}` }}>
+        {tabs.map((id) => {
+          const on = id === tab;
+          return (
+            <button key={id} role="tab" aria-selected={on} data-testid={`st-tab-${id}`}
+                    onClick={() => setParams((p) => { p.set("tab", id); return p; }, { replace: true })}
+                    style={{ fontSize: 12.5, fontWeight: 600, padding: "8px 12px 9px",
+                             background: "none", border: "none", cursor: "pointer",
+                             color: on ? color.indigo : color.sec2, marginBottom: -1,
+                             borderBottom: `2px solid ${on ? color.indigo : "transparent"}` }}>
+              {t(`st.tab.${id}`)}
+              {unsaved(id) && (
+                <span title={t("st.unsaved")} data-testid={`st-tab-unsaved-${id}`}
+                      style={{ display: "inline-block", width: 6, height: 6, borderRadius: 3,
+                               background: color.amberFg, marginInlineStart: 6,
+                               verticalAlign: "middle" }} />
+              )}
+            </button>
+          );
+        })}
+      </div>
+      <div style={{ fontSize: 11.5, color: color.muted, margin: "8px 0 14px", lineHeight: 1.5 }}>
+        {t(`st.tabIntro.${tab}`)}
       </div>
 
-      {/* Extraction & reconciliation */}
-      <ExtractionConfigCard s={s} canEdit={canEdit} />
+      {tab === "general" && (
+        <SectionCard title={t("st.features")}>
+          <ToggleRow
+            on={s.features.ui_localization}
+            onToggle={() => patch.mutate({ ui_localization: !s.features.ui_localization })}
+            canEdit={canEdit} saving={patch.isPending}
+            title={t("st.localizeUI")} help={t("st.localizeUIHelp")}
+          />
+          <ToggleRow
+            on={s.features.review_required}
+            onToggle={() => patch.mutate({ review_required: !s.features.review_required })}
+            canEdit={canEdit} saving={patch.isPending}
+            title={t("st.reviewRequired")} help={t("st.reviewRequiredHelp")}
+          />
+          <ToggleRow
+            on={s.features.seed_demo}
+            onToggle={() => patch.mutate({ seed_demo: !s.features.seed_demo })}
+            canEdit={canEdit} saving={patch.isPending}
+            title={t("st.seedDemo")} help={t("st.seedDemoHelp")} testId="seed-demo"
+          />
+          {!canEdit && <div style={{ fontSize: 11, color: color.muted, marginTop: 4 }}>{t("st.adminOnly")}</div>}
+          <div style={{ marginTop: 12 }}>
+            <Row label={t("st.supportedLangs")} value={s.features.supported_locales.join(" · ")} />
+            <Row label={t("st.defaultOutput")} value={s.features.default_output_locale} />
+          </div>
+        </SectionCard>
+      )}
 
-      {/* Focus line items master — the lines a focus run asks the model about. Whether a run is
-          restricted to them is the llm_focus_only switch in the card above, read from the same
-          settings snapshot so the two never disagree. */}
-      <FocusLineItemsCard canEdit={canEdit} focusOnly={Boolean(s.extraction?.llm_focus_only)} />
+      {/* No model-connection card: the LLM is defined only in backend/config.toml [llm]. */}
+      {tab === "model" && knobs("model")}
 
-      {/* Access & session */}
-      <SectionCard title={t("st.access")} note={readOnlyNote}>
-        <Row label={t("st.roleHeader")} value={s.auth.allow_role_header ? t("st.on") : t("st.off")} />
-        <Row label={t("st.demoMode")} value={s.auth.demo_mode ? t("st.on") : t("st.off")} />
-        <Row label={t("st.sessionTtl")} value={s.auth.session_ttl_minutes} />
-      </SectionCard>
+      {/* The focus-only switch and the list it restricts runs to, together. The list's banner reads
+          the SAVED switch, from the same settings snapshot, so the two never disagree. */}
+      {tab === "focus" && (
+        <>
+          {knobs("focus")}
+          <FocusLineItemsCard canEdit={canEdit} focusOnly={Boolean(s.extraction?.llm_focus_only)} />
+        </>
+      )}
+
+      {tab === "reading" && (
+        <>
+          {knobs("reading")}
+          <SectionCard title={t("st.engines")} note={t("st.readOnly")}>
+            <Row label={t("st.engine")} value={s.ocr.engine} />
+            <Row label={t("st.languages")} value={s.ocr.languages.join(" · ")} />
+            <Row label={t("st.dpi")} value={s.ocr.dpi} />
+            {s.ocr.docling && (
+              <Row label={t("st.doclingReady")}
+                   value={s.ocr.docling.installed && s.ocr.docling.models_present
+                     ? t("st.doclingYes")
+                     : !s.ocr.docling.installed ? t("st.doclingNotInstalled")
+                     : t("st.doclingNoModels").replace("{dir}", s.ocr.docling.models_dir)} />
+            )}
+            {s.document_engine && (
+              <Row label={t("st.kensho")}
+                   value={!s.document_engine.kensho.addresses_set ? t("st.kenshoNoAddress")
+                     : !s.document_engine.kensho.token_present
+                       ? t("st.kenshoNoToken").replace("{env}", s.document_engine.kensho.token_env)
+                     : t("st.kenshoReady")} />
+            )}
+          </SectionCard>
+        </>
+      )}
+
+      {tab === "mapping" && knobs("mapping")}
+
+      {tab === "fx" && <FxRatesCard canEdit={canEdit} />}
+
+      {tab === "system" && (
+        <SectionCard title={t("st.access")} note={t("st.readOnly")}>
+          <Row label={t("st.roleHeader")} value={s.auth.allow_role_header ? t("st.on") : t("st.off")} />
+          <Row label={t("st.demoMode")} value={s.auth.demo_mode ? t("st.on") : t("st.off")} />
+          <Row label={t("st.sessionTtl")} value={s.auth.session_ttl_minutes} />
+        </SectionCard>
+      )}
+
+      {tab === "other" && knobs("other")}
     </div>
   );
 }
