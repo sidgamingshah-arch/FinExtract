@@ -2151,8 +2151,35 @@ def without_empty_duplicates(tables: list[NotesTable]) -> list[NotesTable]:
     empty fragment under its number.
     """
     with_items = {t.note_number for t in tables if t.items}
+    # A HEADING IS NOT A DUPLICATE. The fragment this filter exists for repeats the title of a
+    # fragment of its note — it is the carried section, titled like the note it continues. A
+    # row-less fragment with a title of its OWN is the note's heading over sub-sections that carry
+    # their own titles, and dropping it deletes the only words saying what the note is about.
+    # Measured on 四创电子 (600990) 2024: 十六、2 is headed "2、 或有事项" and
+    # "(1).资产负债表日存在的重要或有事项", then titled by its two lawsuits, the second of which
+    # states the ¥117,523,500 of bank guarantees and ¥1,231,000 of letters of credit in prose. The
+    # headings were dropped as "empty duplicates" (the first lawsuit has a row), so no fragment of
+    # 十六、2 said 或有事项: the contingent-liabilities line found no note to read and the
+    # narrative reported nothing.
+    #
+    # ONLY THE NOTE'S OWN HEADING — its FIRST fragment. A sub-heading further down a note is kept
+    # out as before: CAS prints "（8）与合营企业或联营企业投资相关的或有负债" inside the note on
+    # interests in associates, and kept, it made that whole note read as a contingency note —
+    # measured on 湖北能源, its 十、3 summarised financial information (流动资产 49,215,044,555.63 …)
+    # was summed into Contingent liabilities, 178,247,836,052.64.
+    titled: dict[str, list[str]] = {}
+    first: dict[str, int] = {}
+    for t in tables:
+        titled.setdefault(t.note_number, []).append((t.title or "").strip())
+        first.setdefault(t.note_number, id(t))
+
+    def the_heading(t: NotesTable) -> bool:
+        own = (t.title or "").strip()
+        return (bool(own) and titled[t.note_number].count(own) == 1
+                and first[t.note_number] == id(t))
     return [t for t in tables
-            if t.items or t.note_number not in with_items or _carries_prose(t)]
+            if t.items or t.note_number not in with_items or _carries_prose(t)
+            or the_heading(t)]
 
 
 # A FOOTNOTE LEGEND HAS NO ROWS AND IS NOT FURNITURE. The "*"/"^"/"#" explanations behind a note's

@@ -1554,6 +1554,10 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
     # reordered any entry silently re-paired the remaining figures with the wrong signs: a
     # declared deduction of 120,000 published as +120,000. `at` is what lets every consumer pair a
     # figure with the sign the model actually gave it, whatever it does with the rest.
+    # THE ROWS A REPEATED CITATION HAS ALREADY TAKEN, keyed by everything the citation says. See
+    # the tie-break below: an answer that names the same caption, table, group, period and column
+    # N times is naming N rows the request presented identically, not one row N times.
+    repeats: dict[tuple, set[int]] = {}
     for at, ref in enumerate(sources or ()):
         want_note = str(getattr(ref, "note", "") or "").strip()
         want_cap = norm(getattr(ref, "caption", ""))
@@ -1952,6 +1956,26 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
                 printed_so = [r for r in tied if _as_printed(r[1]) == as_cited]
                 if len(tied) > 1 and len(printed_so) == 1:
                     hit, tied = printed_so[0], printed_so
+                # THE SAME CITATION AGAIN TAKES THE NEXT TIED ROW, not the first one again. A
+                # counterparty name wrapped over two lines leaves many rows of one related-party
+                # table with the same caption fragment, and nothing the model can write names one
+                # of them; it can only cite the caption once per row. Measured on 诚志股份 2024,
+                # note 十四、4: thirteen guarantees print as "技有限公司南京诚志永清能源科", the
+                # answer cited that caption thirteen times, and document order resolved all
+                # thirteen to the first — 6,220,000 thirteen times, 804,190,000 published for
+                # guarantees that add up to 2,103,890,000. Only an IDENTICAL citation advances —
+                # one naming another column of the row (its opening balance) is a different
+                # citation and still reads the row it names.
+                if len(tied) > 1:
+                    said = (_note_key(want_note) if want_note else "", want_table,
+                            norm(getattr(ref, "group", "")), want_period, want_cap,
+                            str(want_col or "").casefold())
+                    taken = repeats.setdefault(said, set())
+                    if id(hit[2]) in taken:
+                        fresh = next((r for r in tied if id(r[2]) not in taken), None)
+                        if fresh is not None:
+                            hit = fresh
+                    taken.add(id(hit[2]))
                 places = {(r[4], norm(_group_of(r[2])),
                            str((layout.get(id(r[2])) or {}).get("period_text") or ""))
                           for r in tied}
@@ -2008,6 +2032,9 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
                     # the other in the prior year's slot.
                     scale_word, prior = prose_context(
                         found, getattr(table, "source_text", "") or "")
+                    # …AND THE CURRENCY PRINTED AGAINST IT, so a dollar is not added to yuan
+                    # (`stages.line_item_llm._refuse_foreign_currency_prose`).
+                    currency = prose_currency_at(found, getattr(table, "source_text", "") or "")
                     resolved.append({
                         "at": at,
                         "note": want_note, "title": getattr(table, "title", "") or "",
@@ -2020,7 +2047,8 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
                         "provenance": _prose_provenance(table),
                         "quote": quote, "prose": True,
                         "prose_scale": str(scale_word) if scale_word else None,
-                        "prose_prior": str(prior) if prior is not None else None})
+                        "prose_prior": str(prior) if prior is not None else None,
+                        "prose_currency": currency})
                     continue
                 unresolved.append({
                     "at": at,
@@ -2046,7 +2074,9 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
                         "caption": getattr(ref, "caption", ""),
                         "figures": {"prose": str(found)},
                         "provenance": _prose_provenance(table),
-                        "quote": quote, "prose": True, "sentence_located": True})
+                        "quote": quote, "prose": True, "sentence_located": True,
+                        "prose_currency": prose_currency_at(
+                            found, getattr(table, "source_text", "") or "")})
                     continue
             else:
                 why = ""
@@ -2378,6 +2408,63 @@ def _scale_word_at(text: str) -> Decimal | None:
     for pattern, factor in _PROSE_SCALE_WORDS:
         if _re.match(rf"\s*(?:{pattern})", text or "", _re.I):
             return factor
+    return None
+
+
+#: The currency a printed token names, for `stages.line_item_llm._refuse_foreign_currency_prose`. ISO codes, so a
+#: statement whose currency was read as "CNY" compares with a sentence saying 人民币 or 元.
+_CURRENCY_ISO = (
+    (r"US\$|USD|美元", "USD"), (r"HK\$|HKD|港元|港币|港幣", "HKD"), (r"EUR|€|欧元|歐元", "EUR"),
+    (r"JPY|日元|日圓", "JPY"), (r"GBP|£|英镑|英鎊", "GBP"), (r"SGD|新加坡元|新元", "SGD"),
+    (r"AUD|澳元", "AUD"), (r"MOP|澳门元|澳門元|澳门币", "MOP"),
+    (r"RMB|CNY|人民币|人民幣|元", "CNY"),
+)
+
+
+def currency_iso(token: str | None) -> str | None:
+    """The ISO code of a printed currency token ("美元", "US$", "元"), or None."""
+    import re as _re
+
+    text = (token or "").strip()
+    if not text:
+        return None
+    for pattern, iso in _CURRENCY_ISO:
+        if _re.fullmatch(rf"(?:{pattern})", text, _re.IGNORECASE):
+            return iso
+    return None
+
+
+#: A currency token printed straight BEFORE an amount ("US$6,568,662", "人民币 3.5亿元") or straight
+#: AFTER it, past any scale word ("6,568,662.00 美元", "11,752.35 万元", "HK$375 million").
+_CURRENCY_TOKEN_BEFORE = re.compile(
+    r"(US\$|HK\$|RMB|CNY|HKD|USD|EUR|GBP|JPY|SGD|AUD|MOP|€|£|人民币|人民幣|港币|港幣|港元|美元|"
+    r"欧元|歐元|日元|英镑|英鎊|澳元|新加坡元)\s*$")
+_CURRENCY_TOKEN_AFTER = re.compile(
+    r"^\s*(?:(?:billion|million|thousand|bn|mn|亿|億|百万|百萬|万|萬|千)\s*)?"
+    r"(港元|港币|港幣|美元|欧元|歐元|日元|日圓|英镑|英鎊|澳元|新加坡元|澳门元|澳門元|人民币|人民幣|元"
+    r"|HKD\b|USD\b|RMB\b|CNY\b|EUR\b|GBP\b|JPY\b|SGD\b)", re.IGNORECASE)
+
+
+def prose_currency_at(found: Decimal, text: str) -> str | None:
+    """The ISO code of the currency the note prints against a located prose amount, or None.
+
+    THE FIRST PRINTED OCCURRENCE OF THE AMOUNT, as `prose_context` reads its scale. A token before
+    the amount wins over one after it ("US$5,000 元" does not happen; "人民币 5,000 万元" is both).
+    None where nothing is printed beside it — an unmarked amount is the statements' own, as before.
+    """
+    import re as _re
+
+    for m in _re.finditer(r"(?<![\d.])(?:" + _PROSE_NUMBER + r")", text or ""):
+        try:
+            if Decimal(_re.sub(r"[^0-9.]", "", m.group(0))) != found:
+                continue
+        except (InvalidOperation, ValueError):
+            continue
+        before = _CURRENCY_TOKEN_BEFORE.search(text[max(0, m.start() - 12):m.start()])
+        if before:
+            return currency_iso(before.group(1))
+        after = _CURRENCY_TOKEN_AFTER.match(text[m.end():m.end() + 16])
+        return currency_iso(after.group(1)) if after else None
     return None
 
 

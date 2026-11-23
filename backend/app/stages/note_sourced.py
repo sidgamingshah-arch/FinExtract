@@ -2450,6 +2450,10 @@ def _settle_against_the_face(doc: DocumentModel, ctx: PipelineContext, all_items
             by_key.setdefault(li.canonical_key, []).append(li)
     first_row = {k: rows[0] for k, rows in by_key.items()}
     face_pages = {p.index for p in doc.face_pages()}
+    # receiving line -> the parts it receives (`Term.received`), for the hand-over test below.
+    received_by: dict[str, set[str]] = {}
+    for receiver, ref in _received_terms(all_items):
+        received_by.setdefault(receiver, set()).add(ref)
 
     # WHAT EVERY FIGURE WAS BEFORE ANY OF THIS RAN. A slot settled in the current year must not
     # change what the prior-year confirmation compares against, and a residual carved for one line
@@ -2800,6 +2804,7 @@ def _settle_against_the_face(doc: DocumentModel, ctx: PipelineContext, all_items
         if not others:
             continue
         is_cascade = bool(getattr(item, "cascade", None) or getattr(item, "terms", None))
+        arriving = received_by.get(key, set())
         for row in rows:
             for ev in list(row.values.values()):
                 if ev.value is None:
@@ -2807,6 +2812,21 @@ def _settle_against_the_face(doc: DocumentModel, ctx: PipelineContext, all_items
                 basis, period = _basis(ev), str(getattr(ev, "period_label", "") or "")
                 slot = f"{basis}:{period}"
                 trail = (row.derivation or {}).get(slot)
+                # A FACE LINE THAT GAVE THE MONEY UP DOES NOT STILL PRINT IT. A term this line
+                # RECEIVES (`Term.received`) is money its configured parent deducts from its own
+                # printed row. Where that parent's figure for this slot did deduct it, the parent's
+                # face rows are no longer counting it, so settling this line against them takes the
+                # money out a second time — and it is then counted on no line at all. Measured on
+                # 诚志股份 2024, parent company: note 十九、2 prints 关联方往来 651,977,554.59 inside
+                # 其他应收款 724,403,938.75; Other Receivables(CP) published 72,426,384.16 without
+                # it, and Due from Related Parties(CP) was settled to 0 against the same 其他应收款,
+                # so total current assets lost 651,977,554.59.
+                gave_up = {sender for ref in arriving
+                           for sender in (parent_of.get(ref, ""),)
+                           if sender and _deducted_in(by_key.get(sender, ()), ref, slot)}
+                slot_others = ([r for r in others
+                                if not (family(r.canonical_key or "") & gave_up)]
+                               if gave_up else others)
                 if not trail:
                     continue
                 cascade = is_cascade and str(trail.get("method") or "").startswith("cascade:")
@@ -2838,7 +2858,7 @@ def _settle_against_the_face(doc: DocumentModel, ctx: PipelineContext, all_items
                         if piece_id(piece) in done or (piece.level == "row"
                                                        and piece.owner in covered):
                             continue
-                        hit, refused = match(piece, others, key, home, basis, period, absorbed)
+                        hit, refused = match(piece, slot_others, key, home, basis, period, absorbed)
                         if hit is None:
                             if refused is not None:
                                 row.confidence.flags.append(
@@ -2969,6 +2989,18 @@ def _settle_against_the_face(doc: DocumentModel, ctx: PipelineContext, all_items
                             f"{piece.amount} is printed on the face in {face_row.canonical_key} "
                             f"({str(face_row.source_label)[:60]!r}, {rel}) — the line's "
                             f"calculation runs without it: {before} -> {after}")
+
+
+def _deducted_in(rows, ref: str, slot: str) -> bool:
+    """Whether a line's figure for `slot` took the part `ref` out — its trail names `ref` as a
+    deduction that was applied, not one that was skipped."""
+    for row in rows or ():
+        trail = (getattr(row, "derivation", None) or {}).get(slot) or {}
+        for inp in trail.get("inputs") or ():
+            if (inp and str(inp.get("canonical_key") or inp.get("ref") or "") == ref
+                    and inp.get("deducted") and inp.get("status") == "deducted"):
+                return True
+    return False
 
 
 def _reduced(known: dict, reduced: dict[str, Decimal]) -> dict:

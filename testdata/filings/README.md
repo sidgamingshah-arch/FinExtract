@@ -29,6 +29,7 @@ The five filings `CLAUDE.md` says every configuration change is measured against
 | --- | --- | --- | --- | --- | --- | --- |
 | `000883_hubei_energy_2024_prc.pdf` | 湖北能源集团股份有限公司 | 000883.SZ | 2024 | CAS | HK | `000883_hubei_energy_2024_prc.key.json` |
 | `600990_sun_create_2024_prc.pdf` | 四创电子股份有限公司 | 600990.SH | 2024 | CAS | HK | — |
+| `000990_chengzhi_2024_prc.pdf` | 诚志股份有限公司 | 000990.SZ | 2024 | CAS | HK | — |
 | `688411_hyperstrong_2024_prc.pdf` | 北京海博思创科技股份有限公司 | 688411.SH | 2024 | CAS | HK | — |
 | `301577_meixin_2024_prc.pdf` | 广东美信科技股份有限公司 | 301577.SZ | 2024 | CAS | HK | — |
 | `300391_changjiang_pharma_2024_prc.pdf` | 长江医药控股股份有限公司 (*ST) | 300391.SZ | 2024 | CAS | HK | — |
@@ -66,6 +67,11 @@ The five FY 2024-25 Indian reports were added together, each for a shape the oth
   statement titles are set in a font with no Unicode map, every character shifted by 29 code
   points (`3URSHUW\3ODQW` for "Property Plant"), so little of it maps. It is a different edition
   from a 347-page copy run elsewhere.
+
+**诚志股份** (222 pages, the full 2024 annual report from cninfo.com.cn, announcement of
+2025-03-27) was added with 湖北能源 and 四创电子 for the related-party, revenue and
+contingent-liability lines: its parent company prints 关联方往来 inside 其他应收款, and its
+related-party note lists nineteen guarantees under counterparty names that wrap onto two lines.
 
 An answer key gives the consolidated figures the filing prints, with page and caption, in the
 template's own sign convention (an expense or a minority share that a rollup deducts is negative).

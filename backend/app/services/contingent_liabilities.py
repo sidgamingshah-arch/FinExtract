@@ -64,6 +64,12 @@ _NOTE_HEADING_RE = re.compile(
     r"|pending\s+litigation|pending\s+arbitration|litigation\s+and\s+arbitration",
     re.IGNORECASE)
 
+# The headings that name a WHOLE contingency note, as against a sub-heading of another note
+# (关联担保情况 under 关联交易情况). Only these qualify every fragment printed under the number.
+_WHOLE_NOTE_HEADING_RE = re.compile(
+    r"或有负债|或有負債|或有事项|或有事項|或然负债|或然負債|承诺及或有事项|承诺事项及或有事项"
+    r"|contingent\s+liabilit(?:y|ies)|contingencies", re.IGNORECASE)
+
 # ── section 3: amount labels that DO / do not represent the exposure itself ────────────────────
 _AMOUNT_LABEL_RE = re.compile(
     # …and the commitment amounts a CAS filing states under 承诺事项, which are exposures of the
@@ -109,7 +115,7 @@ _BANK_GUARANTEE_RE = re.compile(
     r"|bank\s+guarantees?|banker'?s?\s+guarantees?|bid\s+bonds?",
     re.IGNORECASE)
 _CORPORATE_GUARANTEE_RE = re.compile(
-    r"公司担保|企业担保|对外担保|关联方担保|为子公司提供担保|为关联方提供担保|债务担保|借款担保"
+    r"公司担保|企业担保|对外担保|关联方担保|关联担保|为子公司提供担保|为关联方提供担保|债务担保|借款担保"
     r"|融资担保|连带责任保证|保证责任"
     r"|corporate\s+guarantees?|guarantees?\s+(?:given|issued|provided)\s+(?:to|for|on\s+behalf\s+of)"
     # …and the active-voice ordering an HKEX filing actually prints ("given guarantees to banks
@@ -240,7 +246,25 @@ _ZH_EXPOSURE_RE = re.compile(
     r"[^。；\n]{0,40}?"
     r"(?:总额|金额|余额|合计)?\s*为?\s*"
     r"([\d,]+(?:\.\d+)?)\s*"
-    r"(亿元|亿|万元|万|千元|元)")
+    # …AND THE CURRENCY WHEN IT IS NOT THE YUAN. 湖北能源 2024 states its two letters of credit as
+    # "尚未结清的信用证余额为 6,568,662.00 美元": with 元 as the only unit the sentence matched
+    # nothing and the letters of credit were missing from the narrative. They are kept in their
+    # own currency (§6.2) — `_ZH_CURRENCY` — and never added to the yuan items.
+    r"(亿元|亿|万元|万|千元|元|(?:亿|万|千)?(?:美元|港元|港币|欧元|日元|英镑))")
+#: A foreign-currency unit word, its ISO code.
+_ZH_CURRENCY = {"美元": "USD", "港元": "HKD", "港币": "HKD", "欧元": "EUR", "日元": "JPY",
+                "英镑": "GBP"}
+
+
+def _zh_unit(suffix: str) -> tuple[Decimal | None, str | None]:
+    """(multiplier, ISO currency or None for the yuan) of a Chinese amount suffix."""
+    if suffix in _ZH_SCALE:
+        return _ZH_SCALE[suffix], None
+    for word, iso in _ZH_CURRENCY.items():
+        if suffix.endswith(word):
+            head = suffix[: -len(word)]
+            return (_ZH_SCALE.get(head, Decimal(1)) if head else Decimal(1)), iso
+    return None, None
 # The sentence dates itself ("截至2024 年12 月31 日止"), and that date is what decides which period
 # the exposure belongs to — there is no bracketed comparative to lean on the way the English form
 # has. Captured so a prior-year sentence on the same page is not attributed to the current period.
@@ -263,30 +287,41 @@ def _zh_prose_items(table, pk: PeriodKey, unit, row_amounts: set) -> list["Conti
     currency, scale, page = unit
     out: list[ContingentItem] = []
     seen: set[Decimal] = set()
-    for sentence in re.split(r"[。；\n]", table.source_text or ""):
-        m = _ZH_EXPOSURE_RE.search(sentence)
-        if not m:
-            continue
-        instrument, digits, suffix = m.group(1), m.group(2), m.group(3)
-        factor = _ZH_SCALE.get(suffix)
-        if factor is None:
-            continue
-        amount = Decimal(digits.replace(",", "")) * factor
-        # The note's own presentation scale still applies: a table printed in thousands wants the
-        # absolute figure divided down to it, exactly as the English path does.
-        table_divisor = _prose_divisor(table.source_text or "")
-        if table_divisor is not None:
-            amount = amount / table_divisor
-        if amount in row_amounts or amount in seen:
-            continue                          # §6.4: already tabulated, or the same sentence twice
-        seen.add(amount)
-        text = re.sub(r"\s+", " ", sentence).strip()
-        classification, basis_terms = _classify(f"{instrument} {text}")
-        out.append(ContingentItem(
-            description=text[:300], classification=classification,
-            classification_basis=basis_terms, amount=amount, currency=currency, scale=scale,
-            note_number=table.note_number, note_heading=table.title, page=page,
-            counterparty=None))
+    for sentence in re.split(r"[。；\n]", _sentences_of(table)):
+        # EVERY AMOUNT OF THE SENTENCE, not its first. The text layer joins a note's lines with
+        # spaces, so two statements printed on two lines arrive as one "sentence": 四创电子 2024
+        # prints "…保函总额为11,752.35 万元" and "…国内信用证总额为123.10 万元" on consecutive lines, and
+        # only the first was read.
+        for m in _ZH_EXPOSURE_RE.finditer(sentence):
+            instrument, digits, suffix = m.group(1), m.group(2), m.group(3)
+            factor, foreign = _zh_unit(suffix)
+            if factor is None:
+                continue
+            amount = Decimal(digits.replace(",", "")) * factor
+            # The note's own presentation scale still applies: a table printed in thousands wants the
+            # absolute figure divided down to it, exactly as the English path does.
+            table_divisor = _prose_divisor(table.source_text or "")
+            if table_divisor is not None and not foreign:
+                amount = amount / table_divisor
+            if amount in row_amounts or amount in seen:
+                continue                          # §6.4: already tabulated, or the same sentence twice
+            seen.add(amount)
+            text = re.sub(r"\s+", " ", sentence).strip()
+            # CLASSIFIED BY ITS OWN CLAUSE FIRST — the words from the last comma before the amount —
+            # and by the whole sentence only where the clause names no kind. The sentence can carry
+            # the note's heading: "2．开出保函、信用证 截至…保函总额为11,752.35 万元" is a bank guarantee,
+            # and read whole the heading's 信用证 made it a letter of credit.
+            clause = re.split(r"，|,(?!\d)", sentence[: m.end()])[-1]
+            classification, basis_terms = _classify(clause)
+            if classification == UNCLASSIFIED:
+                classification, basis_terms = _classify(f"{instrument} {text}")
+            out.append(ContingentItem(
+                description=text[:300], classification=classification,
+                classification_basis=basis_terms, amount=amount,
+                # A foreign-currency amount is stated in full in its own currency: no note scale.
+                currency=foreign or currency, scale=None if foreign else scale,
+                note_number=table.note_number, note_heading=table.title, page=page,
+                counterparty=None))
     return out
 
 
@@ -379,12 +414,31 @@ def _extract_items(doc: DocumentModel, pk: PeriodKey) -> tuple[list[ContingentIt
     """Section 2/3: every qualifying item from every identified note, for one (basis, period)."""
     items: list[ContingentItem] = []
     found_note = False
+    # WHICH NOTES ARE CONTINGENCY NOTES, decided per NOTE NUMBER and not per fragment. A note
+    # arrives in fragments, each titled by the heading nearest its text, so the heading that says
+    # what the note IS titles only the first of them: 四创电子 (600990) 2024 prints 十六、2 as
+    # "2、 或有事项" over two fragments titled by its lawsuits, and the second of those states the
+    # bank guarantees and letters of credit. Gating each fragment on its own title read neither.
+    # The CHAPTER counts as well ("十六、承诺及或有事项"), for a note whose own heading was lost.
+    #
+    # ONLY A HEADING THAT NAMES THE WHOLE NOTE qualifies its number. A related-party note numbers
+    # all of its transactions alike — 湖北能源's 十四、5 holds purchases, leases, loans and, as
+    # "(4) 关联担保情况", its guarantees — so a guarantee sub-heading qualifies its own fragment
+    # and not the purchases beside it.
+    qualifying = {t.note_number for t in doc.notes
+                  if _WHOLE_NOTE_HEADING_RE.search(t.title or "")
+                  or _NOTE_HEADING_RE.search(getattr(t, "chapter_title", "") or "")}
+
+    def qualifies(table) -> bool:
+        return (table.note_number in qualifying
+                or bool(_NOTE_HEADING_RE.search(table.title or "")))
+
     # Unit per NOTE, resolved in one pass before the tables are walked: a note is extracted as
     # several fragments and the one carrying the prose often carries no figure, so a per-fragment
     # lookup would leave the prose amount with no currency/scale depending on fragment order.
     note_units: dict[str, tuple] = {}
     for table in doc.notes:
-        if not _NOTE_HEADING_RE.search(table.title or "") or table.note_number in note_units:
+        if not qualifies(table) or table.note_number in note_units:
             continue
         for note_item in table.items:
             amount, currency, scale, page = _amount_of(note_item, pk)
@@ -392,7 +446,7 @@ def _extract_items(doc: DocumentModel, pk: PeriodKey) -> tuple[list[ContingentIt
                 note_units[table.note_number] = (currency, scale, page)
                 break
     for table in doc.notes:
-        if not _NOTE_HEADING_RE.search(table.title or ""):
+        if not qualifies(table):
             continue
         found_note = True
         for note_item in table.items:
@@ -403,7 +457,20 @@ def _extract_items(doc: DocumentModel, pk: PeriodKey) -> tuple[list[ContingentIt
             if _NON_EXPOSURE_LABEL_RE.search(text) and not _AMOUNT_LABEL_RE.search(text):
                 continue                                # section 3: not the exposure amount
             classification, basis_terms = _classify(text)
+            # A ROW CAPTIONED ONLY BY ITS COUNTERPARTY takes its kind from the table it is in:
+            # a 关联担保情况 table lists the guaranteed companies by name, and each row is a
+            # corporate guarantee though no word of its caption says so.
+            if classification == UNCLASSIFIED and table.title:
+                # The table's KIND only — its title alone, against the instrument patterns. Not
+                # the deposit rule, whose bond language a heading such as 其他或有事项 would supply
+                # to every 履约保证金 under it.
+                kind = next(((label, [m.group(0)]) for label, pattern in _CLASSIFY_ORDER
+                             if (m := pattern.search(table.title))), None)
+                if kind is not None:
+                    classification, basis_terms = kind
             amount, currency, scale, page = _amount_of(note_item, pk)
+            if amount is not None and _a_printed_year(amount, table):
+                amount = None                           # a date column, not an exposure
             items.append(ContingentItem(
                 description=label, classification=classification,
                 classification_basis=basis_terms, amount=amount, currency=currency, scale=scale,
@@ -426,6 +493,37 @@ def _extract_items(doc: DocumentModel, pk: PeriodKey) -> tuple[list[ContingentIt
             tabulated | {it.amount for it in items
                          if it.note_number == table.note_number and it.amount is not None}))
     return items, found_note
+
+
+def _a_printed_year(amount: Decimal, table) -> bool:
+    """Whether a row's "amount" is a YEAR the note prints as a date ("2020 年 12 月 09 日").
+
+    Measured on 湖北能源 2024, 十四、5 (4) 关联担保情况: the guarantee table prints no 担保金额 for
+    its four guarantees, only their dates, and each row's figure was read as 2020, 2019, 2019 and
+    2018 — four "exposures" in the narrative. Only a whole number in the range of years that the
+    note also prints followed by 年 is refused, so a real amount of 2,020 is kept wherever the
+    note does not date something in that year.
+    """
+    if amount != amount.to_integral_value() or not 1900 <= amount <= 2100:
+        return False
+    text = getattr(table, "source_text", "") or ""
+    return bool(re.search(rf"(?<![\d,.]){int(amount)}\s*年", text))
+
+
+def _sentences_of(table) -> str:
+    """The note's text for the prose readers, with its TITLE in front where the title is the
+    opening of its first sentence.
+
+    A fragment is titled by the line nearest its text, and where a sentence opens on that line the
+    title is the sentence's first half: 湖北能源 2024's 十六、2 prints "1）基于兵团第五师…出具的保函金"
+    as a fragment's title and "额为25,000,000.00 元。" as its text. Read apart, the amount had no
+    保函 beside it and the 履约保函 of the next two never reached their classification.
+    """
+    title = (getattr(table, "title", "") or "").strip()
+    text = getattr(table, "source_text", "") or ""
+    if not title or text.lstrip().startswith(title):
+        return text
+    return f"{title}{text}" if not re.search(r"[。：:；;]\s*$", title) else f"{title}\n{text}"
 
 
 def _dedupe(items: list[ContingentItem]) -> list[ContingentItem]:

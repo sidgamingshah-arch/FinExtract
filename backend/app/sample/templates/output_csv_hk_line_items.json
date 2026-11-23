@@ -9051,7 +9051,7 @@
   {
    "key": "is_pl__sales_revenues",
    "label": "Sales(Revenues)",
-   "definition": "Revenue from the ordinary course of business — turnover from the sale of goods and the rendering of services, before cost of sales and excluding other income, finance income and gains. This is the top line of the income statement, and a revenue note disaggregates the same figure by product, service line, geography, segment or timing of transfer. The principal-business revenue the revenue note prints, or the face's revenue line where no note gives it.",
+   "definition": "Revenue from the ordinary course of business — turnover from the sale of goods and the rendering of services, before cost of sales and excluding other income, finance income and gains. This is the top line of the income statement, and a revenue note disaggregates the same figure by product, service line, geography, segment or timing of transfer. The principal-business revenue the revenue note prints, or the face's principal-business revenue line where no note gives it — never the total 营业收入 of a CAS income statement, which includes other business revenue (其他业务收入).",
    "sign_rule": {},
    "inherits": "is_pl",
    "face_only": false,
@@ -9085,7 +9085,7 @@
        "role": "required"
       }
      ],
-     "note": "The face's revenue line, where the revenue note gives no figure.",
+     "note": "The face's principal-business revenue line, where the revenue note gives no figure. On a CAS filing that is a row captioned 主营业务收入 and nothing else: the part's exclusions name 营业收入 and 营业总收入, and since the model's answer is held to them as well (`stages.line_item_llm._refuse_excluded_face_citations`) a face that prints only the total leaves this rung empty — the spec's \"do not use total 营业收入 as a fallback\". Measured on 湖北能源 2024's parent company, whose revenue note prints only 其他业务 40,617,220.64: this rung used to publish that as Sales(Revenues), the same figure Other Operating Income carries.",
      "refuse_negative": false,
      "outranks_printed": false
     }
@@ -18049,7 +18049,7 @@
   {
    "key": "notes__contingent_liabilities",
    "label": "Contingent liabilities",
-   "definition": "Contingent liabilities disclosed in the notes: the guarantees, letters of credit, performance bonds and bank guarantees the entity has given and that are still in force at the reporting date, summed. Litigation, claims and other matters that are not guarantees are described in the disclosure but are not part of this figure.",
+   "definition": "Contingent liabilities disclosed in the notes: the guarantees, letters of credit, performance bonds and bank guarantees the entity has given and that are still in force at the reporting date, summed. Litigation, claims and other matters that are not guarantees are described in the disclosure but are not part of this figure. In the currency the statements are presented in: an exposure the note states in another currency (美元, US$, 港元) is not added to it — the disclosure shows it on its own, by currency.",
    "sign_rule": {},
    "inherits": "notes",
    "match_priority": 40,
@@ -19319,7 +19319,7 @@
    "section_scope": [
     "is_pl"
    ],
-   "definition": "Revenue (turnover, sales) for the period as printed on the face of the income statement — the top line, before cost of sales, excluding other income and gains. For a bank or other financial institution this may be its interest income.",
+   "definition": "Revenue (turnover, sales) for the period as printed on the face of the income statement — the top line, before cost of sales, excluding other income and gains. For a bank or other financial institution this may be its interest income. On a PRC (CAS) income statement this is ONLY a row captioned 主营业务收入 (principal-business revenue): 营业收入 and 营业总收入 are NOT this line, because they include other business revenue (其他业务收入). Where the face prints only 营业收入 or 营业总收入, leave this line unanswered — the revenue note's 主营业务 row is where Sales is read.",
    "aliases": [
     "Sales(Revenues)",
     "Turnover/Sales/Revenues",
@@ -19431,7 +19431,8 @@
      "total|合计|合計|小计|小計|总计|總計|合共",
      "credit\\s+(?:limits?|lines?)|facility\\s+limits?|unutili[sz]|undrawn|授信|额度|額度|限额|限額|commitments?|承诺|承諾|provisions?\\b|预计负债|預計負債|carrying\\s+amount|账面|賬面|releas|repaid|已解除|已偿还|已償還|累计发生|累計發生|交易金[额額]",
      "share\\s+of|應佔|应占|(?:ventures|associates)[^a-z]{0,3}(?:and\\s+associates[^a-z]{0,3})?properties|(?:合營|聯營|合营|联营)公司[^，,]{0,8}物[業业][買买]家|被担保|被擔保|\\breceived\\b",
-     "litigation|arbitration|\\bclaims?\\b|disputes?|lawsuit|诉讼|訴訟|仲裁|纠纷|糾紛|索赔|索賠|recourse|discounted|endorsed|追索|贴现|貼現|背书|背書|warrant|质量保证|質量保證|\\btax|税务|稅務|did\\s+not\\s+have|not\\s+have\\s+any|no\\s+(?:material|significant)|并无|並無|不存在|作为担保方|作為擔保方"
+     "litigation|arbitration|\\bclaims?\\b|disputes?|lawsuit|诉讼|訴訟|仲裁|纠纷|糾紛|索赔|索賠|recourse|discounted|endorsed|追索|贴现|貼現|背书|背書|warrant|质量保证|質量保證|\\btax|税务|稅務|did\\s+not\\s+have|not\\s+have\\s+any|no\\s+(?:material|significant)|并无|並無|不存在|作为担保方|作為擔保方",
+     "[。](?=.)"
     ],
     "prose_any": [],
     "prose_subject": "",
@@ -19452,7 +19453,7 @@
    },
    "statement": null,
    "section_scope": [],
-   "definition": "Sum of all financial guarantees the entity has given for the obligations of others and that are still in force at the reporting date, excluding its share of guarantees given by its joint ventures and associates, guarantees it received, credit facility limits, and totals. Only guarantees still in force — not those already fulfilled, released or expired.",
+   "definition": "Sum of all financial guarantees the entity has given for the obligations of others and that are still in force at the reporting date, excluding its share of guarantees given by its joint ventures and associates, guarantees it received, credit facility limits, and totals. Only guarantees still in force — not those already fulfilled, released or expired. In the currency the statements are presented in: an exposure the note states in another currency (美元, US$, 港元) is not added to it — the disclosure shows it on its own, by currency. A guarantee's amount is its outstanding exposure (担保余额, the 保函 or 信用证 amount still open), not a facility, credit line or loan limit.",
    "route": "note_tables"
   },
   {
@@ -19472,7 +19473,8 @@
      "total|合计|合計|小计|小計|总计|總計|合共",
      "credit\\s+(?:limits?|lines?)|facility\\s+limits?|unutili[sz]|undrawn|授信|额度|額度|限额|限額|commitments?|承诺|承諾|provisions?\\b|预计负债|預計負債|carrying\\s+amount|账面|賬面|releas|repaid|已解除|已偿还|已償還|累计发生|累計發生|交易金[额額]",
      "share\\s+of|應佔|应占|(?:ventures|associates)[^a-z]{0,3}(?:and\\s+associates[^a-z]{0,3})?properties|(?:合營|聯營|合营|联营)公司[^，,]{0,8}物[業业][買买]家|被担保|被擔保|\\breceived\\b",
-     "litigation|arbitration|\\bclaims?\\b|disputes?|lawsuit|诉讼|訴訟|仲裁|纠纷|糾紛|索赔|索賠|recourse|discounted|endorsed|追索|贴现|貼現|背书|背書|warrant|质量保证|質量保證|\\btax|税务|稅務|did\\s+not\\s+have|not\\s+have\\s+any|no\\s+(?:material|significant)|并无|並無|不存在|作为担保方|作為擔保方"
+     "litigation|arbitration|\\bclaims?\\b|disputes?|lawsuit|诉讼|訴訟|仲裁|纠纷|糾紛|索赔|索賠|recourse|discounted|endorsed|追索|贴现|貼現|背书|背書|warrant|质量保证|質量保證|\\btax|税务|稅務|did\\s+not\\s+have|not\\s+have\\s+any|no\\s+(?:material|significant)|并无|並無|不存在|作为担保方|作為擔保方",
+     "[。](?=.)"
     ],
     "prose_any": [],
     "prose_subject": "",
@@ -19490,7 +19492,7 @@
    },
    "statement": null,
    "section_scope": [],
-   "definition": "Sum of all guarantees the entity has given for the obligations of related parties and that are still in force at the reporting date, excluding guarantees it received from related parties, and totals. Only guarantees still in force — not those already fulfilled, released or expired.",
+   "definition": "Sum of all guarantees the entity has given for the obligations of related parties and that are still in force at the reporting date, excluding guarantees it received from related parties, and totals. Only guarantees still in force — not those already fulfilled, released or expired. In the currency the statements are presented in: an exposure the note states in another currency (美元, US$, 港元) is not added to it — the disclosure shows it on its own, by currency. A guarantee's amount is its outstanding exposure (担保余额, the 保函 or 信用证 amount still open), not a facility, credit line or loan limit.",
    "route": "note_tables"
   },
   {
@@ -20164,7 +20166,7 @@
    "inherits": "notes",
    "statement": null,
    "section_scope": [],
-   "definition": "Sum of all amounts owed by related parties that are included in the other receivables balance, excluding balances within the consolidated group (合并范围内), loss allowances and totals. Not a related-party balance the balance sheet presents as a line of its own.",
+   "definition": "Sum of all amounts owed by related parties that are included in the other receivables balance, NET of the loss allowance held against them, excluding balances within the consolidated group (合并范围内) and totals. Not a related-party balance the balance sheet presents as a line of its own.",
    "route": "note_tables",
    "type": "derived",
    "cascade": [
@@ -20175,9 +20177,16 @@
        "ref": "sub__cp_other_receivables_rp_note",
        "role": "required",
        "sign": 1
+      },
+      {
+       "ref": "sub__cp_other_receivables_rp_note_allowance",
+       "role": "adjustment",
+       "sign": -1
       }
      ],
-     "note": "The related-party note's balances filed under 其他应收款 — the filing's own statement that they are inside this line (000709 consolidated, p196)."
+     "note": "The related-party note's balances filed under 其他应收款 — the filing's own statement that they are inside this line (000709 consolidated, p196) — NET OF THE LOSS ALLOWANCE the note holds against them. Other Receivables (CP) is printed net, so what leaves it is the net: the spec's \"net related-party amount included in that same component\". A 关联方应收应付款项 table prints 账面余额 and 坏账准备 and no net column, so the net is gross LESS allowance, as Find 3 does. Measured on 湖北能源 2024 (十四、6, p264): gross 1,660,377.50 less 871,531.91 = 788,845.59 (prior 9,538,556.30 less 1,486,422.04 = 8,052,134.26); on 四创电子 (十四、6): 757,464.77 less 225,433.90 = 532,030.87. The allowance is an `adjustment`, so a note printing no allowance column deducts nothing, and `refuse_negative` catches an allowance read larger than the gross.",
+     "terms_op": "sum",
+     "refuse_negative": true
     },
     {
      "id": "RP_ROWS",
@@ -20668,7 +20677,9 @@
      "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:长期应收款|(?:发放)?贷款及垫款)",
      "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:長期應收款|(?:發放)?貸款及墊款)",
      "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:long.?term|loans?)\\s+receivables?",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?loans?\\s+and\\s+advances"
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?loans?\\s+and\\s+advances",
+     "(?:长期应收款|(?:发放)?贷款及垫款)\\s*$",
+     "(?:長期應收款|(?:發放)?貸款及墊款)\\s*$"
     ],
     "row_caption_none": [
      "^\\s*(?:合计|合計|小计|小計|总计|總計|合共|(?:sub)?total)",
@@ -20714,7 +20725,9 @@
      "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:长期应收款|(?:发放)?贷款及垫款)",
      "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:長期應收款|(?:發放)?貸款及墊款)",
      "^\\s*(?:\\d+[\\.、)]?\\s*)?(?:long.?term|loans?)\\s+receivables?",
-     "^\\s*(?:\\d+[\\.、)]?\\s*)?loans?\\s+and\\s+advances"
+     "^\\s*(?:\\d+[\\.、)]?\\s*)?loans?\\s+and\\s+advances",
+     "(?:长期应收款|(?:发放)?贷款及垫款)\\s*$",
+     "(?:長期應收款|(?:發放)?貸款及墊款)\\s*$"
     ],
     "row_caption_none": [
      "^\\s*(?:合计|合計|小计|小計|总计|總計|合共|(?:sub)?total)",
@@ -20999,7 +21012,7 @@
    "statement": null,
    "section_scope": [],
    "route": "note_tables",
-   "definition": "Sum of all guarantees, letters of credit, performance bonds and bank guarantees the entity has given and that are still in force at the reporting date, excluding litigation and other claims, commitments, credit facility limits, guarantees it received, its share of guarantees given by its joint ventures and associates, and totals. Only guarantees still in force — not those already fulfilled, released or expired.",
+   "definition": "Sum of all guarantees, letters of credit, performance bonds and bank guarantees the entity has given and that are still in force at the reporting date, excluding litigation and other claims, commitments, credit facility limits, guarantees it received, its share of guarantees given by its joint ventures and associates, and totals. Only guarantees still in force — not those already fulfilled, released or expired. In the currency the statements are presented in: an exposure the note states in another currency (美元, US$, 港元) is not added to it — the disclosure shows it on its own, by currency. A guarantee's amount is its outstanding exposure (担保余额, the 保函 or 信用证 amount still open), not a facility, credit line or loan limit.",
    "note_source": {
     "note_title_any": [],
     "note_terms": [
@@ -21020,7 +21033,8 @@
      "total|合计|合計|小计|小計|总计|總計|合共",
      "credit\\s+(?:limits?|lines?)|facility\\s+limits?|unutili[sz]|undrawn|授信|额度|額度|限额|限額|commitments?|承诺|承諾|provisions?\\b|预计负债|預計負債|carrying\\s+amount|账面|賬面|releas|repaid|已解除|已偿还|已償還|累计发生|累計發生|交易金[额額]",
      "share\\s+of|應佔|应占|(?:ventures|associates)[^a-z]{0,3}(?:and\\s+associates[^a-z]{0,3})?properties|(?:合營|聯營|合营|联营)公司[^，,]{0,8}物[業业][買买]家|被担保|被擔保|\\breceived\\b",
-     "litigation|arbitration|\\bclaims?\\b|disputes?|lawsuit|诉讼|訴訟|仲裁|纠纷|糾紛|索赔|索賠|recourse|discounted|endorsed|追索|贴现|貼現|背书|背書|warrant|质量保证|質量保證|\\btax|税务|稅務|did\\s+not\\s+have|not\\s+have\\s+any|no\\s+(?:material|significant)|并无|並無|不存在|作为担保方|作為擔保方"
+     "litigation|arbitration|\\bclaims?\\b|disputes?|lawsuit|诉讼|訴訟|仲裁|纠纷|糾紛|索赔|索賠|recourse|discounted|endorsed|追索|贴现|貼現|背书|背書|warrant|质量保证|質量保證|\\btax|税务|稅務|did\\s+not\\s+have|not\\s+have\\s+any|no\\s+(?:material|significant)|并无|並無|不存在|作为担保方|作為擔保方",
+     "[。](?=.)"
     ],
     "row_terms": [],
     "row_terms_none": [],
@@ -21039,8 +21053,8 @@
    "route": "note_tables",
    "key": "sub__cp_other_receivables_rp_note",
    "order": 1,
-   "label": "Related-party other receivables in the related-party note",
-   "definition": "Sum of all amounts owed by related parties that the related-party note lists under other receivables (其他应收款), excluding trade receivables, prepayments, entrusted loans, loss allowances and totals.",
+   "label": "Related-party other receivables in the related-party note, before loss allowance",
+   "definition": "Sum of all amounts owed by related parties that the related-party note lists under other receivables (其他应收款), at their carrying amount before the loss allowance (账面余额), excluding trade receivables, prepayments, entrusted loans, loss allowances and totals. Every 其他应收款 row counts, including a row whose counterparty name wraps over several lines. Do NOT read 坏账准备, the loss allowance column: it is read separately.",
    "note_source": {
     "note_title_any": [],
     "note_terms": [
@@ -21053,13 +21067,15 @@
     ],
     "row_caption_any": [
      "^\\s*(?:\\d+[\\.、)）]?\\s*)?其他(?:应收款|應收款)",
+     "其他(?:应收款|應收款)(?:项|項)?\\s*$",
      "^\\s*(?:\\d+[\\.、)）]?\\s*)?other\\s+receivables?"
     ],
     "row_caption_none": [
      "^\\s*(?:合计|合計|小计|小計|总计|總計|合共|(?:sub.?|grand\\s+)?total)",
      "坏账|壞賬|壞帳|减值|減值|[损損]失[准準]备|[损損]失[准準]備|allowance|impairment|provision",
      "委托|委託|entrusted",
-     "应付|應付|payable|预付|預付|prepay"
+     "应付|應付|payable|预付|預付|prepay",
+     "^\\s*(?:\\d+[\\.、)）]?\\s*)?(?:应收(?:账款|票据|款项融资)|應收(?:賬款|票據|款項融資)|合同资产|合同資產|长期应收款|長期應收款|一年内到期|一年內到期)"
     ],
     "row_terms": [],
     "row_terms_none": []
@@ -21073,8 +21089,47 @@
    "statement": null,
    "section_scope": [],
    "route": "note_tables",
-   "key": "sub__cp_other_receivables_rp_rows",
+   "key": "sub__cp_other_receivables_rp_note_allowance",
    "order": 2,
+   "label": "Loss allowance on related-party other receivables in the related-party note",
+   "definition": "Sum of the loss allowance (坏账准备) the related-party note holds against those same related-party other receivables (其他应收款), as a POSITIVE figure. Leave it empty when the note prints no allowance.",
+   "note_source": {
+    "note_title_any": [],
+    "note_terms": [
+     "balances with related parties",
+     "amounts due from related parties",
+     "關聯方應收應付款項",
+     "應收項目",
+     "关联方应收应付款项",
+     "应收项目"
+    ],
+    "row_caption_any": [
+     "^\\s*(?:\\d+[\\.、)）]?\\s*)?其他(?:应收款|應收款)",
+     "其他(?:应收款|應收款)(?:项|項)?\\s*$",
+     "^\\s*(?:\\d+[\\.、)）]?\\s*)?other\\s+receivables?"
+    ],
+    "row_caption_none": [
+     "^\\s*(?:合计|合計|小计|小計|总计|總計|合共|(?:sub.?|grand\\s+)?total)",
+     "坏账|壞賬|壞帳|减值|減值|[损損]失[准準]备|[损損]失[准準]備|allowance|impairment|provision",
+     "委托|委託|entrusted",
+     "应付|應付|payable|预付|預付|prepay",
+     "^\\s*(?:\\d+[\\.、)）]?\\s*)?(?:应收(?:账款|票据|款项融资)|應收(?:賬款|票據|款項融資)|合同资产|合同資產|长期应收款|長期應收款|一年内到期|一年內到期)"
+    ],
+    "row_terms": [],
+    "row_terms_none": [],
+    "measure": "allowance"
+   }
+  },
+  {
+   "in_output": false,
+   "parent": "sub__cp_other_receivables_rp",
+   "namespace": "internal",
+   "inherits": "notes",
+   "statement": null,
+   "section_scope": [],
+   "route": "note_tables",
+   "key": "sub__cp_other_receivables_rp_rows",
+   "order": 3,
    "label": "Related-party rows inside the other receivables note",
    "definition": "Sum of all amounts owed by related parties that the other receivables note breaks out inside its other-receivables balance as rows of their own, such as related-party loans and current accounts (关联借款 / 关联方往来), excluding balances with the entity's own subsidiaries (合并范围内), credit-loss portfolios (关联方组合), loss allowances and totals.",
    "note_source": {

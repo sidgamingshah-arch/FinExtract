@@ -582,6 +582,14 @@ class LineItemLlmStage(Stage):
                     # `_refuse_derivative_citations`. Refused citations carry no figure, so they
                     # are recorded on the row and counted nowhere.
                     resolved, refused = _refuse_derivative_citations(item, resolved)
+                    # …AND AN ANSWER THAT IS ONLY FACE ROWS THIS LINE'S OWN CAPTION EXCLUSIONS
+                    # RULE OUT — see `_refuse_excluded_face_citations`.
+                    resolved, excluded = _refuse_excluded_face_citations(item, resolved)
+                    refused = refused + excluded
+                    # …AND A SENTENCE'S AMOUNT IN ANOTHER CURRENCY THAN THE STATEMENTS' — see
+                    # `_refuse_foreign_currency_prose`.
+                    resolved, foreign = _refuse_foreign_currency_prose(doc, resolved)
+                    refused = refused + foreign
                     for bad in refused:
                         ctx.log(f"line_item_llm:{key}: citation REFUSED "
                                 f"note={bad.get('note')!r} caption={str(bad.get('caption'))[:60]!r} "
@@ -632,10 +640,13 @@ class LineItemLlmStage(Stage):
                     # applies `row_caption_none` and `row_terms_none` — so the exclusions are unenforced
                     # only on the route whose request never mentioned them.
                     #
-                    # ONE EXCEPTION, decided after a measured failure: the DERIVATIVE veto binds model
-                # answers (`_refuse_derivative_citations`, applied right after `resolve` below),
-                # because "excluding derivatives" is in those lines' label and definition — the
-                # model is told it — and on 佳明 the swaps' notional was published as securities.
+                    # THREE EXCEPTIONS, each decided after a measured failure and each one the model
+                # is told in words: the DERIVATIVE veto (`_refuse_derivative_citations`) — on 佳明
+                # the swaps' notional was published as securities; an answer made only of FACE
+                # rows the line's own `exclude_hints` rule out (`_refuse_excluded_face_citations`)
+                # — on 湖北能源 the face's 营业收入 total became Sales(Revenues); and a sentence's
+                # amount in ANOTHER CURRENCY than the statements' (`_refuse_foreign_currency_prose`)
+                # — on 湖北能源 two letters of credit in 美元 were added to RMB guarantees.
                 #
                 # `extraction.llm_vetoes_bind_model_answers` is consequently unread. It is left in
                     # the settings schema rather than deleted: it is the switch this behaviour comes
@@ -2274,6 +2285,90 @@ def _refuse_derivative_citations(item, resolved: list[dict]) -> tuple[list[dict]
                             # For the trail, which names the citation as refused rather than as
                             # one that was not found.
                             "refused": "derivative"})
+        else:
+            kept.append(entry)
+    return kept, refused
+
+
+def _refuse_excluded_face_citations(item, resolved: list[dict]) -> tuple[list[dict], list[dict]]:
+    """`(kept, refused)`: an answer made ONLY of face rows the line's own `exclude_hints` rule out.
+
+    THE SAME RULE THE RULES ROUTE APPLIES, AND NO WIDER. `exclude_hints` says which printed
+    captions are NOT this line: `services.line_item_matching` never binds such a caption to it,
+    whatever its aliases say. A model answer that is nothing but such rows is that same binding,
+    made by the other route. Measured on the three CAS filings of the 2024 logs (湖北能源, 四创电子,
+    诚志股份): every model answer for `sub__face_principal_revenue` cited the face's 营业收入 /
+    营业总收入 — the TOTAL, other business revenue included — which that part's exclusions name.
+    On 湖北能源's parent company, whose revenue note prints no 主营业务 row at all, the cascade then
+    published 40,617,220.64 of 其他业务 revenue as Sales(Revenues), and the same figure was on
+    Other Operating Income as well. The spec says in so many words not to use 营业收入 as a fallback.
+
+    ONLY A WHOLE ANSWER OF VETOED FACE ROWS. An exclusion decides whether a caption standing alone
+    IS the line; it says nothing about a row cited as one term of a sum (Trade and other
+    receivables = "Trade receivables" + "Other receivables" — the first is vetoed for that line on
+    its own, and rightly). So an answer citing any row the exclusions do not rule out — another
+    face row, a note row, a sentence — is left whole.
+
+    THE MODEL IS TOLD THE SAME THING: the line's definition says it in words, which is what makes
+    holding the answer to it fair (`line_item_payload` sends the definition, not the patterns).
+    """
+    import re as _re
+    from app.services.mapping import normalize_label
+
+    hints = list(getattr(item, "exclude_hints", None) or ())
+    if not hints or not resolved:
+        return resolved, []
+    vetoes = []
+    for raw in hints:
+        try:
+            vetoes.append(_re.compile(raw, _re.IGNORECASE))
+        except _re.error:
+            continue
+
+    def vetoed(entry: dict) -> bool:
+        caption = str(entry.get("caption") or "")
+        spellings = {caption.lower(), normalize_label(caption)} - {""}
+        return any(v.search(s) for v in vetoes for s in spellings)
+
+    if not vetoes or not all(e.get("on_face") and vetoed(e) for e in resolved):
+        return resolved, []
+    refused = [{"at": e.get("at"), "note": e.get("note"), "caption": e.get("caption"),
+                "why": "this line's own caption exclusions rule that face row out — the rules "
+                       "route never binds it to this line either",
+                "refused": "excluded_caption"} for e in resolved]
+    return [], refused
+
+
+def _refuse_foreign_currency_prose(doc, resolved: list[dict]) -> tuple[list[dict], list[dict]]:
+    """`(kept, refused)`: a sentence's amount printed in a currency other than the statements'.
+
+    A FIGURE IS ADDED ONLY TO FIGURES IN ITS OWN CURRENCY. Measured on 湖北能源 2024, note 十六、2:
+    the contingent-liabilities answer summed seven 保函 stated in 元 (323,426,677.00) and two letters
+    of credit stated in 美元 (6,568,662.00 and 51,823.11), and published 330,047,162.11 as RMB —
+    a dollar counted as a yuan. The contingent-liabilities spec (§6.2) says not to convert and not
+    to add across currencies; no line of a set stated in one currency can hold a sum that does.
+
+    Read off the NOTE'S text beside the located amount (`note_sourced.prose_currency_at`), never
+    off the model's quote. Only a sentence whose currency is printed and is not the statements'
+    is refused: an amount with no currency beside it, or a filing whose statements declare none,
+    is kept as before.
+    """
+    from app.services.note_sourced import currency_iso
+
+    unit = getattr(doc, "unit_context", None)
+    statements = currency_iso(getattr(unit, "currency", "") or "") or (
+        str(getattr(unit, "currency", "") or "").upper() or None)
+    if not statements or not resolved:
+        return resolved, []
+    kept, refused = [], []
+    for entry in resolved:
+        printed = entry.get("prose_currency") if entry.get("prose") else None
+        if printed and printed != statements:
+            refused.append({"at": entry.get("at"), "note": entry.get("note"),
+                            "caption": entry.get("caption"),
+                            "why": (f"the note states this amount in {printed}, and the "
+                                    f"statements are in {statements} — it is not added to them"),
+                            "refused": "foreign_currency"})
         else:
             kept.append(entry)
     return kept, refused

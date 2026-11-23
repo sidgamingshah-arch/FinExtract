@@ -9625,7 +9625,7 @@
     "^(?:[一二三四五六七八九十]+、|其中：)?\\s*(?:收益|营业额|销售收入|客户合约收益)$"
    ],
    "label": "Sales(Revenues)",
-   "definition": "Revenue from the ordinary course of business — turnover from the sale of goods and the rendering of services, before cost of sales and excluding other income, finance income and gains. This is the top line of the income statement, and a revenue note disaggregates the same figure by product, service line, geography, segment or timing of transfer. The principal-business revenue the revenue note prints, or the face's revenue line where no note gives it.",
+   "definition": "Revenue from the ordinary course of business — turnover from the sale of goods and the rendering of services, before cost of sales and excluding other income, finance income and gains. This is the top line of the income statement, and a revenue note disaggregates the same figure by product, service line, geography, segment or timing of transfer. The principal-business revenue the revenue note prints, or the face's principal-business revenue line where no note gives it — never the total 营业收入 of a CAS income statement, which includes other business revenue (其他业务收入).",
    "aliases": [
     "Sales(Revenues)",
     "Turnover/Sales/Revenues",
