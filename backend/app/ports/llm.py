@@ -30,6 +30,11 @@ class LlmMessage(TypedDict):
     # provider caches by prefix on its own, or not at all, sends `role` and `content` only and
     # never forwards it.
     cache: NotRequired[bool]
+    # A LONG READ: the message carries the WHOLE annual report as text, so the model reads every
+    # page before it answers, as it does a file. The request waits `llm.document_timeout_seconds`
+    # rather than `llm.timeout_seconds` (`adapters._structured.request_timeout`). Like `cache`, an
+    # adapter sends `role` and `content` only and never forwards it.
+    long_read: NotRequired[bool]
     # FILES SENT BEFORE THIS MESSAGE'S TEXT, in order. Only an adapter whose class says
     # `takes_documents = True` is handed a message carrying them (`takes_documents`); it sends each
     # as the provider's own file block — a `document` block on the Anthropic body, a `file` part

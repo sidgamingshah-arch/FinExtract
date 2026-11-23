@@ -114,18 +114,21 @@ def test_beside_a_face_whose_scale_was_never_read_the_figure_takes_the_faces(shi
     assert _unit(row) == ("HKD", Decimal(1)), "it was ('HKD', 1000): beside the face at scale 1"
 
 
-def test_a_figure_cited_from_a_note_in_another_scale_keeps_the_notes_unit(shipped):
-    """This route writes the amount as printed and does not rescale it, so a figure read from a
-    note in CNY millions under a face in CNY'000 is in millions — and saying so is what lets the
-    checks refuse to add it to the thousands."""
+def test_a_figure_cited_from_a_note_in_another_scale_is_put_into_the_statements_scale(shipped):
+    """A figure read from a note in CNY millions under a face in CNY'000 is written in thousands,
+    as the rules route writes it (`note_sourced._in_face_units`), and carries the face's unit.
+
+    It used to be written as printed and labelled millions, which let the checks refuse to add it
+    — but every cascade still added it: on 四创电子 2024 a 关键管理人员报酬 printed "单位：万元"
+    (476.37) was summed with Related Party Transactions in 元 (`_in_statement_scale`)."""
     note = _note("7", "PROFIT BEFORE TAX", [("Depreciation", "6.6")])
     _in(note.items[0], UnitContext(currency="CNY", scale_factor=Decimal(1000000)))
     doc = _doc([note], [_printed(_face("Profit before tax", "1000", "pl_profit_before_tax"))])
     row, _ctx, _p = _run(shipped, doc, PBT_DEP, [{"note": "7", "caption": "Depreciation"}])
     assert row is not None and row.values
     ev = next(ev for ev in row.values.values() if ev.period_label == "current")
-    assert ev.value == Decimal("6.6"), "the amount as printed: this route does not rescale"
-    assert _unit(row) == ("CNY", Decimal(1000000))
+    assert ev.value == Decimal("6600"), "6.6 million is 6,600 thousand"
+    assert _unit(row) == ("CNY", Decimal(1000))
 
 
 def test_cited_rows_in_two_scales_give_the_figure_no_one_unit():

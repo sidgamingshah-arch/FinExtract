@@ -1233,8 +1233,17 @@ def _by_canonical_key(doc: DocumentModel) -> tuple[dict[str, dict[str, float]],
     printed = {(li.canonical_key, _col(ev)) for li in doc.line_items if li.canonical_key
                for ev in li.values.values()
                if (ev.value is not None or ev.value_raw is not None) and not restated(ev)}
+    from app.core.models.enums import LineRole
+
     totals: dict[str, dict[str, float]] = {}
     rows: dict[str, list] = {}
+    # A TOTAL PRINTED TWICE IS ONE TOTAL. A CAS cash-flow statement prints 经营活动产生的现金流量净额
+    # on its face and again at the foot of the supplement's indirect reconciliation, and both rows
+    # carry the section's subtotal key: added, the section's "reported" figure was twice what the
+    # filing prints — 四创电子 2024 reported=489,391,672.80 against a printed 244,695,836.40 — and
+    # every cash-flow section showed an unallocated gap of the size of the total itself. A line
+    # (not a total) printed twice can be two amounts and is still added.
+    totalled: set[tuple[str, str]] = set()
     for li in doc.line_items:
         if not li.canonical_key:
             continue
@@ -1242,9 +1251,14 @@ def _by_canonical_key(doc: DocumentModel) -> tuple[dict[str, dict[str, float]],
         slot = totals.setdefault(li.canonical_key, {})
         dropped = {_col(ev) for ev in li.values.values()
                    if restated(ev) and (li.canonical_key, _col(ev)) in printed}
+        is_total = getattr(li, "role", None) in (LineRole.TOTAL, LineRole.SUBTOTAL)
         for col, val in _row_values(li).items():
             if col in dropped:
                 continue
+            if is_total:
+                if (li.canonical_key, col) in totalled:
+                    continue
+                totalled.add((li.canonical_key, col))
             slot[col] = slot.get(col, 0.0) + float(val)
     return totals, rows
 

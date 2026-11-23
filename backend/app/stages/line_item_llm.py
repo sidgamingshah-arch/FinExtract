@@ -31,7 +31,7 @@ untouched. A run with no provider is a fully deterministic run, which is a defin
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, wait
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 import app.adapters  # noqa: F401 - registers configured LLM adapters
 from app.core.models import DocumentModel
@@ -474,7 +474,10 @@ class LineItemLlmStage(Stage):
             return line_item_llm.ask(provider, system_text, request,
                                      max_tokens=_max_tokens(len(request["line_items"]),
                                                             report=whole),
-                                     document=document_text_)
+                                     document=document_text_,
+                                     # THE WHOLE REPORT, wherever it is sent: the report batches,
+                                     # and every request under `llm_document_context = "full"`.
+                                     long_read=bool(report_text) and document_text_ == report_text)
 
         pool = ThreadPoolExecutor(max_workers=workers) if prepared else None
         futures: list = [None] * len(prepared)
@@ -590,6 +593,9 @@ class LineItemLlmStage(Stage):
                     # `_refuse_foreign_currency_prose`.
                     resolved, foreign = _refuse_foreign_currency_prose(doc, resolved)
                     refused = refused + foreign
+                    # …AND A NOTE ROW PRINTED IN ANOTHER SCALE IS PUT INTO THE STATEMENTS' — see
+                    # `_in_statement_scale`.
+                    resolved = _in_statement_scale(doc, resolved, ctx, key)
                     for bad in refused:
                         ctx.log(f"line_item_llm:{key}: citation REFUSED "
                                 f"note={bad.get('note')!r} caption={str(bad.get('caption'))[:60]!r} "
@@ -909,6 +915,7 @@ class LineItemLlmStage(Stage):
                     provider, system, request,
                     max_tokens=_max_tokens(len(request["line_items"]), report=whole, prose=prose),
                     document=report_text if whole else None,
+                    long_read=bool(whole and report_text),
                     schema=(line_item_llm.LineItemProseReply if prose
                             else line_item_llm.LineItemTextReply))
             except Exception as exc:  # noqa: BLE001 — the request is the unit of failure
@@ -2372,6 +2379,66 @@ def _refuse_foreign_currency_prose(doc, resolved: list[dict]) -> tuple[list[dict
         else:
             kept.append(entry)
     return kept, refused
+
+
+def _in_statement_scale(doc, resolved: list[dict], ctx, key: str) -> list[dict]:
+    """Each cited NOTE ROW's figures in the scale of the statements of its basis.
+
+    THE RULE THE RULES ROUTE APPLIES (`note_sourced._in_face_units`): a note row printed in another
+    scale than the face it is published beside is multiplied into the face's. This route wrote the
+    figure as printed instead, under the row's own unit, and every check and cascade that adds it
+    to the statements' figures added 万元 to 元. Measured on 四创电子 2024, 十四、5 (7) 关键管理人员
+    报酬, printed "单位：万元": the rules route read 4,763,700.00 / 4,216,700.00, the model's
+    476.37 / 421.67 outranked it, and Related Party Transactions summed 476.37 with figures in 元.
+
+    The row keeps what it printed (`printed_figures`, `rescaled`) for the trail, and its `unit`
+    becomes the statement's, so `_cited_unit` stamps the slot with the unit the figure is now in.
+    A face row is the statement's own, and a sentence's amount is scaled by its own words
+    (`_prose_in_statement_units`); neither is touched. A currency that differs is left alone here:
+    no factor converts it.
+    """
+    from app.core.models.line_item import UnitContext
+    from app.services.units import compare
+
+    out = []
+    for entry in resolved or ():
+        unit = entry.get("unit")
+        if entry.get("on_face") or entry.get("prose") or not isinstance(unit, dict):
+            out.append(entry)
+            continue
+        try:
+            printed_in = UnitContext(**unit)
+        except Exception:  # noqa: BLE001 - a malformed citation keeps its figure as it was
+            out.append(entry)
+            continue
+        basis = str(entry.get("basis") or _prose_basis(doc) or "consolidated")
+        statement = _statement_unit(doc, basis)
+        check = compare(printed_in, statement) if statement is not None else None
+        if check is None or not check.rescaled or check.currency_mismatch:
+            out.append(entry)
+            continue
+
+        def scaled(figures):
+            moved = {}
+            for period, raw in (figures or {}).items():
+                try:
+                    moved[period] = str(Decimal(str(raw)) * check.factor)
+                except (InvalidOperation, ValueError, TypeError):
+                    moved[period] = raw
+            return moved
+
+        entry = dict(entry)
+        entry["printed_figures"] = dict(entry.get("figures") or {})
+        entry["figures"] = scaled(entry.get("figures"))
+        if isinstance(entry.get("figures_by_basis"), dict):
+            entry["figures_by_basis"] = {b: scaled(f) for b, f in entry["figures_by_basis"].items()}
+        entry["rescaled"] = list(check.rescaled)
+        entry["unit"] = statement.model_dump()
+        ctx.log(f"line_item_llm:{key}: note {entry.get('note')!r} row "
+                f"{str(entry.get('caption'))[:40]!r} printed at scale {check.rescaled[0]}, "
+                f"put into the statement's scale {check.rescaled[1]}")
+        out.append(entry)
+    return out
 
 
 def _current_period(doc) -> str | None:

@@ -1103,7 +1103,8 @@ def citations_disagree(records, periods=None) -> list[tuple[str, Decimal, Decima
 
 
 def ask(provider, system: str, request: dict, *, max_tokens: int,
-        document: str | None = None, schema=LineItemReply) -> LineItemReply:
+        document: str | None = None, schema=LineItemReply,
+        long_read: bool = False) -> LineItemReply:
     """One provider call. Raises whatever the provider raises — the caller records it per request.
 
     The whole request is the unit of failure on purpose. A reply that does not validate is not a
@@ -1114,8 +1115,12 @@ def ask(provider, system: str, request: dict, *, max_tokens: int,
     # up to its end is a reusable prefix, and marked as one (`cache`) — and the question after it.
     # Without one, the request is one message as before.
     question = {"role": "user", "content": json.dumps(request, ensure_ascii=False, indent=2)}
-    messages = ([{"role": "user", "content": document, "cache": True}, question] if document
-                else [question])
+    # `long_read`: the document is the WHOLE report, which waits the longer timeout
+    # (`ports.llm.LlmMessage.long_read`).
+    head = {"role": "user", "content": document, "cache": True}
+    if long_read:
+        head["long_read"] = True
+    messages = [head, question] if document else [question]
     # A REPLY CUT OFF AT ITS BUDGET IS ASKED FOR ONCE MORE WITH TWICE THE ROOM — see
     # `ports.llm.complete_with_room`. It failed the whole request before, and its lines fell to
     # the deterministic route: 1-2 requests per CAS filing.

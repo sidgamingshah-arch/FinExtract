@@ -301,3 +301,113 @@ def test_a_line_that_deducted_a_part_is_recognised_as_having_given_it_up():
     # A deduction the trail records as NOT applied gave nothing up.
     sender.derivation["standalone:current"]["inputs"][1]["status"] = "not_used"
     assert not _deducted_in([sender], "sub__cp_other_receivables_rp", "standalone:current")
+
+
+# ── a model's figure from a note printed in 万元 is put into the statements' 元 ──────────────────
+
+def _face_doc():
+    from app.core.models.enums import PrintedIn
+    from app.core.models.line_item import LineItem
+    doc = DocumentModel(unit_context=UnitContext(currency="CNY"))
+    li = LineItem(source_label="营业收入", canonical_key="x", printed_in=PrintedIn.FACE)
+    li.values["v"] = ExtractedValue(basis=Basis.CONSOLIDATED, period_label="current",
+                                    value=Decimal("1603146551.95"),
+                                    unit_ctx=UnitContext(currency="CNY", scale_factor=Decimal(1),
+                                                         units_label="元"))
+    doc.line_items.append(li)
+    return doc
+
+
+def test_a_cited_note_row_printed_in_wan_yuan_is_put_into_the_statements_scale():
+    """四创电子 2024 十四、5 (7) 关键管理人员报酬, "单位：万元": 476.37 / 421.67. The rules route read
+    4,763,700.00 / 4,216,700.00; the model's figure was taken as printed and outranked it."""
+    from app.core.stage import PipelineContext
+    from app.stages.line_item_llm import _in_statement_scale
+
+    wan = {"currency": "CNY", "scale_factor": "10000", "units_label": "万元"}
+    entry = {"at": 0, "note": "十四、5", "caption": "关键管理人员报酬", "basis": "consolidated",
+             "figures": {"current": "476.37", "prior": "421.67"}, "unit": wan}
+    face = {"at": 1, "note": "", "caption": "营业收入", "on_face": True,
+            "figures": {"current": "1"}, "unit": wan}
+    ctx = PipelineContext(raw_bytes=b"")
+    out = _in_statement_scale(_face_doc(), [entry, face], ctx, "sub__rpt_key_management")
+    assert Decimal(out[0]["figures"]["current"]) == Decimal("4763700")
+    assert Decimal(out[0]["figures"]["prior"]) == Decimal("4216700")
+    assert out[0]["printed_figures"] == {"current": "476.37", "prior": "421.67"}
+    assert Decimal(str(out[0]["unit"]["scale_factor"])) == 1
+    assert out[1] is face, "a face row is the statement's own and is not rescaled"
+
+
+def test_a_note_row_in_the_statements_scale_is_untouched():
+    from app.core.stage import PipelineContext
+    from app.stages.line_item_llm import _in_statement_scale
+
+    entry = {"at": 0, "note": "七、61", "caption": "主营业务", "basis": "consolidated",
+             "figures": {"current": "1589859743.31"},
+             "unit": {"currency": "CNY", "scale_factor": "1", "units_label": "元"}}
+    out = _in_statement_scale(_face_doc(), [entry], PipelineContext(raw_bytes=b""), "k")
+    assert out == [entry]
+
+
+# ── a total printed on the face and again in the supplement is one total ──────────────────────
+
+def test_a_total_printed_twice_is_reported_once():
+    """四创电子 2024: 经营活动产生的现金流量净额 244,695,836.40 on the face and at the foot of the
+    supplement; the residual check reported 489,391,672.80."""
+    from app.core.models.enums import LineRole
+    from app.core.models.line_item import LineItem
+    from app.stages.residual import _by_canonical_key
+
+    def row(caption, value, role, basis=Basis.CONSOLIDATED):
+        li = LineItem(source_label=caption, canonical_key="cf_total", role=role)
+        li.values[caption + basis.value] = ExtractedValue(basis=basis, period_label="current",
+                                                          value=Decimal(value))
+        return li
+
+    doc = DocumentModel()
+    doc.line_items = [row("经营活动产生的现金流量净额", "244695836.40", LineRole.TOTAL),
+                      row("经营活动产生的现金流量净额", "244695836.40", LineRole.TOTAL),
+                      row("经营活动产生的现金流量净额", "177219546.46", LineRole.TOTAL,
+                          Basis.STANDALONE)]
+    totals, _rows = _by_canonical_key(doc)
+    assert totals["cf_total"]["consolidated|current"] == pytest.approx(244695836.40)
+    assert totals["cf_total"]["standalone|current"] == pytest.approx(177219546.46)
+
+    lines = DocumentModel()
+    lines.line_items = [row("其他", "10", LineRole.LINE), row("其他", "10", LineRole.LINE)]
+    assert _by_canonical_key(lines)[0]["cf_total"]["consolidated|current"] == 20.0, \
+        "two LINES of one key are two amounts and are still added"
+
+
+# ── the whole report waits as long as a file does ─────────────────────────────────────────────
+
+def test_a_request_carrying_the_whole_report_waits_the_document_timeout():
+    """湖北能源 2024: request(report:balance_sheet#1) FAILED ReadTimeout at 120 seconds."""
+    from types import SimpleNamespace
+
+    from app.adapters._structured import request_timeout
+
+    settings = SimpleNamespace(llm=SimpleNamespace(timeout_seconds=120,
+                                                   document_timeout_seconds=600))
+    question = {"role": "user", "content": "{}"}
+    assert request_timeout(settings, [question]) == 120
+    report = {"role": "user", "content": "the report", "cache": True, "long_read": True}
+    assert request_timeout(settings, [report, question]) == 600
+    shared = {"role": "user", "content": "shared notes", "cache": True}
+    assert request_timeout(settings, [shared, question]) == 120
+
+
+def test_ask_marks_only_a_report_as_a_long_read():
+    from app.services import line_item_llm
+
+    seen = []
+
+    class _P:
+        def complete_structured(self, *, system, messages, response_schema, max_tokens, **_kw):
+            seen.append(messages)
+            return response_schema(answers=[]), None
+
+    line_item_llm.ask(_P(), "s", {"line_items": []}, max_tokens=10, document="r", long_read=True)
+    line_item_llm.ask(_P(), "s", {"line_items": []}, max_tokens=10, document="n")
+    assert seen[0][0].get("long_read") is True
+    assert "long_read" not in seen[1][0]

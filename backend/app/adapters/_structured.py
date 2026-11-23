@@ -103,10 +103,12 @@ def chat_content(message) -> object:
 
 def request_timeout(settings, messages) -> float:
     """Seconds one attempt may wait. A request carrying a file waits `llm.document_timeout_seconds`
-    — the model reads every page before it answers — and every other request
-    `llm.timeout_seconds`, as before."""
+    — the model reads every page before it answers — and so does one carrying the whole report as
+    text (`long_read`), for the same reason: measured on 湖北能源 2024, the balance-sheet batch of
+    the report requests failed with ReadTimeout at 120 seconds and its lines fell to the rules.
+    Every other request waits `llm.timeout_seconds`, as before."""
     llm = settings.llm
-    if any(m.get("documents") for m in messages or ()):
+    if any(m.get("documents") or m.get("long_read") for m in messages or ()):
         return float(getattr(llm, "document_timeout_seconds", llm.timeout_seconds))
     return float(llm.timeout_seconds)
 
