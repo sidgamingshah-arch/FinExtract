@@ -1677,6 +1677,8 @@ def _fill_by_cascade(parent_def, kids: list, by_key: dict, doc: DocumentModel,
                      + ([f"displaced_printed:{displaced}"] if displaced is not None else []),
                 display=display))
         target_row.confidence.flags.append(f"cascade_rung:{got.rung_used}")
+        _flag_absent_terms(rung_def, got, target_row, basis, period, ctx,
+                           where=f"note_sourced:{parent_def.key}[{basis}:{period}]")
         # Per SLOT, not per row: one basis may be read out of the face's captions and another
         # printed as a line of its own. See `CascadeRung.carved_from_face`.
         from app.services.rollups import CARVED_FROM_FACE
@@ -1689,6 +1691,27 @@ def _fill_by_cascade(parent_def, kids: list, by_key: dict, doc: DocumentModel,
                 f"-> {got.value} from {len(got.inputs)} term(s)")
         filled += 1
     return filled
+
+
+def _flag_absent_terms(rung, got, row, basis: str, period: str, ctx, *, where: str) -> None:
+    """`Term.flag_when_absent`: the flags of the terms the rung that wrote this slot went without,
+    on the slot and on the row (``flag:basis:period``), and said in the log."""
+    if rung is None or not got.missing:
+        return
+    absent = set(got.missing)
+    flags = [str(t.flag_when_absent) for t in (getattr(rung, "terms", None) or ())
+             if getattr(t, "flag_when_absent", "") and t.ref in absent]
+    if not flags:
+        return
+    slot = _slot(row, basis, period)
+    for flag in dict.fromkeys(flags):
+        if slot is not None and flag not in slot.confidence.flags:
+            slot.confidence.flags.append(flag)
+        tagged = f"{flag}:{basis}:{period}"
+        if tagged not in row.confidence.flags:
+            row.confidence.flags.append(tagged)
+        ctx.log(f"{where}: {flag} — rung {got.rung_used} resolved without "
+                f"{', '.join(t.ref for t in rung.terms if t.flag_when_absent == flag)}")
 
 
 #: Raised on the carrier a rung's figure is written on beside the line's printed row — see
@@ -1962,6 +1985,12 @@ def _fill_childless_internal(all_items, children_of: dict[str, list], by_key: di
                    unit_ctx=_unit_of_terms(getattr(ev, "inputs", None), by_key, basis, period))
             row.confidence.flags.append(f"computed_from_config:{ev.rung_used or 'terms'}")
             wrote.append(f"{basis}/{period}={ev.value}")
+            # …AND A LATER LINE OF THIS PASS SEES IT, which is what declared order promises. The
+            # column's figures were collected once, before the pass, so a line naming one computed
+            # earlier in it saw nothing: Find 3 (`sub__fa_cp_level_3_total`, order 10) is now a
+            # cascade over the hierarchy's printed total and its rows, and the overshoot residual
+            # (order 11) that CP_ZERO and LTP_P1 read is Find 3 less Find 1.
+            known[item.key] = ev.value
         if wrote:
             filled += 1
             ctx.log(f"note_sourced:{item.key}: computed from its own declaration — "

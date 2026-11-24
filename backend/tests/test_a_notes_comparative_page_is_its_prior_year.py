@@ -94,7 +94,7 @@ def _hints(tables) -> list[tuple[list[int], str]]:
 @pytest.fixture(scope="module")
 def level_3_part():
     st = load_line_item_set(json.loads(SEED.read_text(encoding="utf-8")), resolve=True)
-    item = next(i for i in st.items if i.key == "sub__fa_cp_level_3_total")
+    item = next(i for i in st.items if i.key == "sub__fa_cp_level_3_rows")
     # The note is named by title, so the row and column rules are what is under test — finding the
     # note by meaning is `line_item_notes`' business, pinned there.
     return item.model_copy(update={"note_source": item.note_source.model_copy(

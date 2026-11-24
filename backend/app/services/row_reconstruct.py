@@ -5474,6 +5474,8 @@ _NIL_MARK = re.compile(r"^[-–—−]{1,2}$")
 # every word on it is one.
 _CURRENCY_TOKEN = re.compile(r"^(?:RMB|HK\$|US\$|USD|HKD|S\$|NT\$|\$|人民[幣币]|港[幣币]|港元|美元)$",
                              re.IGNORECASE)
+# The currency half of a units line the PDF split in two: "HK$’" of "HK$’000".
+_UNIT_FRAGMENT = re.compile(r"^(?:RMB|HK\$|US\$|USD|HKD|S\$|NT\$|\$)\s*[’'‘]$", re.IGNORECASE)
 # What a heading line never is. A Han sentence carries its own punctuation; an English one is told
 # by its function words, three of which no column heading measured on the corpus contains.
 _HEADER_HAN_SENTENCE = re.compile(r"[，。；！？]")
@@ -5647,6 +5649,13 @@ def _caption_geometry(body: list[list[Word]], fmt=None) -> tuple[float | None, f
         labels = [w for w in labels if not _NIL_MARK.match(_cell_text(w.text))]
         if labels and (_header_reads_as_prose(labels) or _RUNNING_HDR.search(_join_words(labels))):
             continue
+        if labels and all(_UNIT_FRAGMENT.match(w.text.strip()) for w in labels):
+            # A UNITS LINE SPLIT IN TWO IS NOT A CAPTION. Hon Kwok 0160 p147 prints the Level 3
+            # movement table's "HK$’000" as "HK$’" + "000" under its 2023 column; read as a caption
+            # ending at x 0.738 with a figure beside it, it widened the caption column over the
+            # hierarchy header above, whose "Markets" / "Inputs" were then taken for caption words
+            # and the header came out one column wide.
+            continue
         if values and _carries_amounts(row, fmt):
             figure_rows.append((labels, [w for w in values if _is_placed_amount(w, fmt)]))
         elif labels:
@@ -5679,6 +5688,84 @@ def _caption_side(words: list[Word], margin: float | None, right: float | None) 
     return side
 
 
+def _label_line_beside(row: list[Word], heads: list[Word]) -> bool:
+    """Whether ``row`` is 项目 / Items alone, set left of every heading in ``heads`` and on a line
+    directly beside them — the caption column's heading printed apart from the columns'."""
+    words = [w for w in row if w.text.strip()]
+    if len(words) != 1 or not _HEADING_LABEL_WORD.match(words[0].text.strip()):
+        return False
+    if words[0].bbox.x1 >= min(w.bbox.x0 for w in heads):
+        return False
+    tall = max(w.bbox.y1 - w.bbox.y0 for w in heads + words)
+    gap = max(_row_box(words).y0 - _row_box(heads).y1, _row_box(heads).y0 - _row_box(words).y1)
+    return gap <= _HEADER_LINE_GAP * tall
+
+
+def _header_block_around(rows: list[list[Word]], k: int, heads: list[Word], fmt=None,
+                         page_chrome: frozenset[str] = frozenset(), *,
+                         label: Word | None = None) -> list[list[Word]]:
+    """The header lines printed WITH the line that names the caption column (row ``k``, whose
+    column headings are ``heads``), top to bottom, for a header with no figure under it yet.
+
+    A two-line header is one block: 002273 水晶光电 十三、1 prints 期末公允价值 over
+    "项目 第一层次公允 第二层次公允价 第三层次公允价", 合计 set between that line and the next, and
+    "价值计量 值计量 值计量" below — and a numbered sub-heading then opens a section of its own for
+    the rows. Read as the 项目 line alone, the header had three columns, its fourth band (合计)
+    stood outside all of them, the header was refused for the rows, and no column was named: the
+    Level 3 figure 187,541,328.29 reached no part.
+
+    A line belongs to the block when every word of it stands over the value columns (right of the
+    caption column, which ends where the first heading starts) and it is not a figure, a nil row, a
+    sentence or the page's furniture; the block ends at the first line that is not, or at clear air.
+    """
+    # THE CAPTION COLUMN ENDS AT 项目, where it is printed: a lower line of the headings can be
+    # wider than the line it continues ("公允价值计量" under "第一层次" on 688411 starts left of it).
+    left = (label.bbox.x1 + _CAPTION_MARGIN_SLACK / 2 if label is not None
+            else min(w.bbox.x0 for w in heads) - _CAPTION_MARGIN_SLACK)
+
+    def header_line(row: list[Word]) -> list[Word] | None:
+        words = [w for w in row if w.text.strip() and not _HEADING_UNIT.match(w.text.strip())]
+        if not words or all(_CURRENCY_TOKEN.match(w.text.strip()) for w in words):
+            return []                                   # a units line: skipped, not an end
+        if all(_HEADING_LABEL_WORD.match(w.text.strip()) for w in words):
+            return []                                   # 项目 on its own line: the block goes on
+        text = _join_words(words)
+        if _RUNNING_HDR.search(text) or (page_chrome and _chrome_key(text) in page_chrome):
+            return None
+        if any(w.bbox.x0 < left for w in words):
+            return None                                 # a caption: the body, or the title
+        if (_carries_amounts(row, fmt) or _header_reads_as_prose(words)
+                or all(_NIL_MARK.match(_cell_text(w.text)) for w in words)):
+            return None
+        return words
+
+    def near(a: list[Word], b: list[Word]) -> bool:
+        """``b`` printed directly below ``a``, with no clear air between them."""
+        tall = max((w.bbox.y1 - w.bbox.y0 for w in a + b), default=0.01)
+        return _row_box(b).y0 - _row_box(a).y1 <= _HEADER_LINE_GAP * tall
+
+    block: list[list[Word]] = [heads]
+    for j in range(k + 1, len(rows)):
+        words = header_line(rows[j])
+        if words is None:
+            break
+        if words:
+            if not near(block[-1], words):
+                break
+            block.append(words)
+    for j in range(k - 1, -1, -1):
+        words = header_line(rows[j])
+        if words is None:
+            break
+        if words:
+            if not near(words, block[0]):
+                break
+            block.insert(0, words)
+        if len(block) >= _HEADER_MAX_LINES:
+            break
+    return block
+
+
 def _header_lines(rows: list[list[Word]], fmt=None, page_chrome: frozenset[str] = frozenset()
                   ) -> tuple[list[list[Word]], int | None, float | None]:
     """The printed header lines over a table's value columns, top to bottom, the index of the
@@ -5689,13 +5776,24 @@ def _header_lines(rows: list[list[Word]], fmt=None, page_chrome: frozenset[str] 
         # A HEADER WITH NO FIGURES UNDER IT YET: a table titled and headed at a page's foot, its
         # rows on the next page — 000883's 固定资产情况 ends page 188 on "项目 房屋及建筑物 机器设备
         # 运输工具 其他 合计". Only the line that NAMES the caption column (项目, Items) and prints
-        # two or more columns beside it is read, so a section of prose yields nothing.
-        for row in reversed(rows):
-            words = [w for w in row if w.text.strip()]
+        # two or more columns beside it anchors a header, so a section of prose yields nothing.
+        for k in range(len(rows) - 1, -1, -1):
+            words = [w for w in rows[k] if w.text.strip()]
             if (len(words) >= 3 and _HEADING_LABEL_WORD.match(words[0].text.strip())
-                    and not _carries_amounts(row, fmt)
+                    and not _carries_amounts(rows[k], fmt)
                     and not _header_reads_as_prose(words[1:])):
-                return [words[1:]], len(rows), None
+                return (_header_block_around(rows, k, words[1:], fmt, page_chrome,
+                                             label=words[0]), len(rows), None)
+            # …OR 项目 SET ON A LINE OF ITS OWN beside the headings: 688411 十三、1 prints 项目 at y
+            # 0.519 and "第一层次 第二层次 第三层次" at 0.526, its rows in sections of their own below.
+            beside = [j for j in (k - 1, k + 1) if 0 <= j < len(rows)
+                      and _label_line_beside(rows[j], words)]
+            if (len(words) >= 3 and beside and not _carries_amounts(rows[k], fmt)
+                    and not _header_reads_as_prose(words)
+                    and not any(_HEADING_LABEL_WORD.match(w.text.strip()) for w in words)):
+                label = next(w for w in rows[beside[0]] if w.text.strip())
+                return (_header_block_around(rows, k, words, fmt, page_chrome, label=label),
+                        len(rows), None)
         return [], first, None
     if not first:
         return [], first, None
@@ -5711,6 +5809,15 @@ def _header_lines(rows: list[list[Word]], fmt=None, page_chrome: frozenset[str] 
         words = [w for w in words if not _HEADING_LABEL_WORD.match(w.text.strip())]
         if not words:
             continue                                    # 项目 / Notes alone, on a line of its own
+        if (not lines and not _carries_amounts(row, fmt)
+                and len(_caption_side(words, margin, right)) == len(words)):
+            # A WRAPPED CAPTION OF THE BODY, BELOW THE HEADER, even one that reads as a sentence:
+            # 002273 十三、1 prints "1. 交易性金融资产和其他非流动金融资产" and "分类为以公允价值计量
+            # 且其变动计入当期" in the caption column between its nil row and its first figure, and
+            # the second ended the climb as prose — no header was read, no column named, and the
+            # Level 3 total 187,541,328.29 reached no part. A line wholly in the caption column
+            # before any header line is the body's; a sentence across the columns still ends it.
+            continue
         if _carries_amounts(row, fmt) or _header_reads_as_prose(words):
             break                                       # a figure or a sentence: above the table
         if lines and _row_box(lines[-1]).y0 - _row_box(words).y1 > _HEADER_LINE_GAP * max(
@@ -6155,13 +6262,18 @@ def _figures_where_the_table_printed_them(model: HeaderModel, mapping: dict[int,
     if not model.anchors and placed:
         # A HEADER PRINTED OVER NO FIGURES — the foot of a page, the rows on the next (see
         # `_header_lines`) — has no figure edges to hold the continuation to. It is held to the
-        # header itself instead, and more strictly: every column it prints receives figures, and
-        # every figure falls inside the cell of the column it was named into.
-        if len(by_column) == len(model.columns) and all(
-                model.cell_of(_xc(p.word)) == (mapping.get(p.col) if value_bands
-                                               else model.cell_of(_xc(p.word)))
-                for p in placed if _is_placed_amount(p.word, fmt)):
+        # header itself instead, and more strictly: every figure falls inside the cell of the
+        # column it was named into, and every column it prints receives figures — or, where some
+        # are blank, at least two do and the LAST one does. A fair-value hierarchy leaves the
+        # levels a filing holds nothing at blank and always prints its 合计 / Total: 002273 十三、1
+        # fills 第二层次, 第三层次 and 合计 under a header of four, 湖北能源 十三、1 第三层次 and 合计.
+        inside = all(model.cell_of(_xc(p.word)) == (mapping.get(p.col) if value_bands
+                                                     else model.cell_of(_xc(p.word)))
+                     for p in placed if _is_placed_amount(p.word, fmt))
+        if inside and len(by_column) == len(model.columns):
             return True, "header_only"
+        if inside and len(by_column) >= 2 and len(model.columns) - 1 in by_column:
+            return True, f"header_only(blank:{len(model.columns) - len(by_column)})"
         return False, "header_only_does_not_fit"
     if not shifts:
         return False, "no_figure_column_in_common"
@@ -6202,7 +6314,8 @@ def _name_note_columns(items: list[LineItem], placed_at: dict[int, _Placed],
                        carried: HeaderModel | None, headings: dict[int, str],
                        spans: dict[int, tuple[float, float]], *, fmt=None,
                        reporting_year: int | None = None, log=None,
-                       page_index: int | None = None) -> HeaderModel | None:
+                       page_index: int | None = None,
+                       stop_y: float | None = None) -> HeaderModel | None:
     """Name every placed figure's column from the printed header, and list the printed columns.
 
     The table's OWN header first. A table with no header of its own — a continuation page, or a
@@ -6211,8 +6324,18 @@ def _name_note_columns(items: list[LineItem], placed_at: dict[int, _Placed],
     of its own never borrows one. Where no header holds, a heading read the old way is kept only
     where it stands over its own figures. Returns the header the figures were named by, or None.
     """
+    # ``stop_y``: WHERE A SECOND TABLE OPENS IN THE SECTION, at a line of bare years printed after
+    # its first captioned figure row. Hon Kwok 0160 p147 prints the 2023 fair-value hierarchy and,
+    # under "The movement in fair value measurement within Level 3 … as follows:", the Level 3
+    # movement table headed "2024 2023" — one section, one header read above the first. The
+    # movement rows ("At 1 January 63,862", "Addition 20,079") are not under Level 3 / Total, so the
+    # header names nothing from that line down; those rows keep no heading, as they always had.
+    def above_stop(p: _Placed) -> bool:
+        return stop_y is None or p.word.bbox.y0 < stop_y
+
     records = [(ev, placed_at[id(ev)]) for li in items for ev in li.values.values()
-               if id(ev) in placed_at and placed_at[id(ev)].fact is ev]
+               if id(ev) in placed_at and placed_at[id(ev)].fact is ev
+               and above_stop(placed_at[id(ev)])]
     placed = [p for _ev, p in records]
     if not any(_is_placed_amount(p.word, fmt) for p in placed):
         # NOTHING TO HOLD A HEADER TO: a section of prose, or of dates. It names nothing, and a
@@ -6227,8 +6350,16 @@ def _name_note_columns(items: list[LineItem], placed_at: dict[int, _Placed],
         return carried if own is None else own
     used: HeaderModel | None = None
     mapping: dict[int, int] = {}
-    for model, source in ((own, "header"), (carried if own is None else None, "carried")):
+    # A HEADER CARRIED WITH NOTHING UNDER IT outranks an own header that does not fit: 688008
+    # 十三、1 ends page 238 on "第一层次公允价 第二层次公允价值 第三层次公 合计" and opens page 239 on
+    # its second line, "值计量 计量 允价值计量" — read alone a three-column header its figures did not
+    # fit, refused, and the carried four columns were never tried. A carried header with figures
+    # under it (`anchors`) still yields to any header the section prints.
+    own_failed = False
+    for model, source in ((own, "header"), (carried, "carried")):
         if model is None:
+            continue
+        if source == "carried" and own is not None and not (own_failed and not carried.anchors):
             continue
         if value_bands:
             found, why = _place_bands(model, value_bands, placed, fmt)
@@ -6244,6 +6375,8 @@ def _name_note_columns(items: list[LineItem], placed_at: dict[int, _Placed],
         if ok:
             used, mapping = model, found or {}
             break
+        if source == "header":
+            own_failed = True
     if used is not None:
         edges: dict[int, list[float]] = {}
         for ev, p in records:
@@ -6258,6 +6391,9 @@ def _name_note_columns(items: list[LineItem], placed_at: dict[int, _Placed],
         if not value_bands:
             _file_by_the_header(items, placed_at, used, log=log, page_index=page_index)
         for li in items:
+            placed = [placed_at[id(ev)] for ev in li.values.values() if id(ev) in placed_at]
+            if placed and not any(above_stop(p) for p in placed):
+                continue                                # a row of the second table
             li.printed_columns = list(used.headings)
             if li.values:
                 li.column_groups = list(used.groups)
@@ -8661,6 +8797,17 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
     # A HEADING THAT FOLLOWS A CLOSED BLOCK heads the rows indented beneath it: (its left edge,
     # whether its first row has been read). See where it is set.
     inset_head: tuple[float, bool] | None = None
+    # A SECOND TABLE'S YEAR HEADER INSIDE THE SECTION — see `_name_note_columns`' ``stop_y``.
+    second_table_y: float | None = None
+    if not on_face:
+        captioned = False
+        for row in rows:
+            lw, _nref, vw = _scan_row(row, number_format, extract_note_refs=False)
+            if lw and vw:
+                captioned = True
+            elif captioned and not lw and _years_only(vw):
+                second_table_y = min(w.bbox.y0 for w in vw)
+                break
     if not on_face:
         for i, row in enumerate(rows[:-1]):
             lw, nref, vw = _scan_row(row, number_format, extract_note_refs=False)
@@ -9435,7 +9582,7 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
         named = _name_note_columns(items, placed_at, value_bands, printed, header_carry,
                                    headings, heading_spans, fmt=number_format,
                                    reporting_year=reporting_year, log=log,
-                                   page_index=page_index)
+                                   page_index=page_index, stop_y=second_table_y)
         if header_out is not None:
             header_out.append(named)
     _CAPTION_YEARS.set(None)

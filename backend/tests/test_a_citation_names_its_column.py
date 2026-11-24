@@ -257,7 +257,7 @@ def test_a_table_with_every_column_filled_sends_no_printed_columns(ppe_1966):
 
 # ── through the stage, with the model answering ──────────────────────────────────────────────────
 
-LEVEL3_KEY = "sub__fa_cp_level_3_total"
+LEVEL3_KEY = "sub__fa_cp_level_3_rows"
 
 
 @pytest.fixture(autouse=True)

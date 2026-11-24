@@ -35,7 +35,7 @@ from app.services import note_sourced
 
 SEED = (pathlib.Path(__file__).resolve().parents[1]
         / "app" / "sample" / "templates" / "output_csv_hk_line_items.json")
-KEY = "sub__fa_cp_level_3_total"
+KEY = "sub__fa_cp_level_3_rows"
 PERIODS = {"current", "prior"}
 
 
@@ -75,10 +75,26 @@ L3_HK = "Significant unobservable inputs (Level 3) 重大不可觀察輸入數�
 
 
 def test_the_part_names_the_level_as_a_column_and_its_rows_as_assets(part):
+    """Every row the hierarchy prints is a candidate, and the vetoes say which are not assets.
+    Measured on Lai Sun 0191 note 47: a caption list read 120,792 + 153,594 + 14,654 = 289,040
+    and missed "Film investments 174,215"; the table's Level 3 for its assets is 463,255."""
     ns = part.note_source
     assert ns.column_heading_any and ns.column_heading_none
-    assert ns.row_caption_any != [r"\S"]
+    assert ns.row_caption_any == [r"\S"]
     assert not any("level" in p.lower() or "第三" in p for p in ns.row_caption_any)
+    liability = R("— CCSs", V("7707", L3_HK, "col2"), period_hint="current")
+    liability.group_hint = "Financial liabilities"
+    note = T("47", "FAIR VALUE HIERARCHY OF FINANCIAL INSTRUMENTS",
+             R("Financial assets at fair value through profit or loss", V("153594", L3_HK, "col2"),
+               period_hint="current"),
+             R("Film investments", V("174215", L3_HK, "col2"), period_hint="current"),
+             R("Derivative financial instruments", V("6537", L3_HK, "col2"), period_hint="current"),
+             R("Total", V("9", L3_HK, "col2"), period_hint="current"),
+             liability,
+             R("Commercial properties", V("15012989", L3_HK, "col2"), period_hint="current"),
+             R("At 1 January", V("63862", L3_HK, "col2"), period_hint="current"))
+    assert picked(part, note) == [("current", Decimal("6537")), ("current", Decimal("153594")),
+                                  ("current", Decimal("174215"))]
 
 
 def test_000709_reads_level_3_and_not_the_year_ends_total(part):

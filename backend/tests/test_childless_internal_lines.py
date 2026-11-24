@@ -48,6 +48,9 @@ SIX = ["sub__fa_cp_fvtpl_note_total", "sub__fa_cp_fvtoci_note_total",
        "sub__fa_cp_investment_and_money_market_securities_note_total",
        "sub__fa_cp_other_fincl_assets_note_total"]
 LEVEL3 = "sub__fa_cp_level_3_total"
+# Find 3 is a cascade over these two: the hierarchy's printed Level 3 total, else its asset rows.
+LEVEL3_PRINTED = "sub__fa_cp_level_3_printed_total"
+LEVEL3_ROWS = "sub__fa_cp_level_3_rows"
 MAIN = "bs_ca__secur_and_other_fincl_assets_cp"
 LTP = "bs_nca__secur_and_other_fincl_assets_ltp"
 
@@ -96,7 +99,13 @@ def test_the_template_subtotals_are_not_in_this_pass(shipped):
     #
     # Pinned by name rather than by count, so a THIRD becoming eligible is a failure someone has to
     # look at — that is the whole guard.
-    assert {i.key for i in eligible} == {RESIDUAL, "sub__rp_find_1"}, (
+    #
+    # A THIRD DID, AND IT WAS LOOKED AT: Find 3 (`sub__fa_cp_level_3_total`) is now a cascade over
+    # the fair-value hierarchy's printed Level 3 total and the sum of its asset rows — 002273 prints
+    # a category row over its own items, so the rows alone counted 129,450,000.00 twice. It is
+    # arithmetic over two parts, has no children of its own, and the residual (order 11) reads it
+    # (order 10) in this same pass.
+    assert {i.key for i in eligible} == {RESIDUAL, "sub__rp_find_1", LEVEL3}, (
         f"the eligible population changed: {sorted(i.key for i in eligible)}")
 
 
@@ -351,9 +360,14 @@ def test_each_of_the_six_identifies_its_own_note(shipped):
     from app.services.line_item_notes import by_meaning_only
 
     by_key = {i.key: i for i in shipped.items}
-    terms = {k: tuple(by_key[k].note_source.note_terms) for k in SIX + [LEVEL3]}
+    terms = {k: tuple(by_key[k].note_source.note_terms) for k in SIX + [LEVEL3_ROWS]}
     assert len(set(terms.values())) == len(terms), "two parts share their note terms"
-    for k in SIX + [LEVEL3]:
+    # The two Level 3 parts are alternatives over ONE note and share its terms by design — they do
+    # not compete for it (`NoteSource.competes_for_notes`).
+    assert (tuple(by_key[LEVEL3_PRINTED].note_source.note_terms) == terms[LEVEL3_ROWS]
+            and not by_key[LEVEL3_PRINTED].note_source.competes_for_notes
+            and not by_key[LEVEL3_ROWS].note_source.competes_for_notes)
+    for k in SIX + [LEVEL3_ROWS]:
         assert by_meaning_only(by_key[k]), f"{k} still carries a title regex"
         han = [t for t in terms[k] if re.search(r"[\u4e00-\u9fff]", t)]
         latin = [t for t in terms[k] if not re.search(r"[\u4e00-\u9fff]", t)]
@@ -402,12 +416,22 @@ def test_level_3_reads_a_different_note_entirely(shipped):
     ITS ROW PATTERNS NAMED THE LEVEL UNTIL THE COLUMN ROUTE. Every fair-value hierarchy table on
     the five reference filings prints its levels as columns, so a level-naming row pattern
     selected nothing on any of them. The level is now `column_heading_any` — read through
-    `note_columns.matches_patterns` — and the rows are the classes of financial asset, named
-    rather than `\\S`, so a liability row, a total or the header read as a row stays out."""
+    `note_columns.matches_patterns`.
+
+    AND ITS ROWS ARE EVERY ASSET ROW, NO LONGER A LIST OF CLASSES. A caption list read Lai Sun's
+    hierarchy as 289,040 and missed "Film investments 174,215" (the table's Level 3 is 463,255);
+    every row is now a candidate and the vetoes keep a liability, a total, a header read as a row,
+    investment properties and the Level 3 reconciliation out. Where the table prints its own total
+    of the assets, that total is read first (`sub__fa_cp_level_3_printed_total`)."""
     by_key = {i.key: i for i in shipped.items}
-    l3 = by_key[LEVEL3].note_source
-    assert any("hierarch" in t or "fair value" in t for t in l3.note_terms), l3.note_terms
-    assert any("level" in p.lower() for p in l3.column_heading_any), l3.column_heading_any
-    assert any("total" in p.lower() for p in l3.column_heading_none), l3.column_heading_none
-    assert l3.row_caption_any and l3.row_caption_any != [r"\S"]
-    assert not any("level" in p.lower() for p in l3.row_caption_any), l3.row_caption_any
+    assert [r.id for r in by_key[LEVEL3].cascade] == ["L3_PRINTED_TOTAL", "L3_ROWS"]
+    for key in (LEVEL3_PRINTED, LEVEL3_ROWS):
+        l3 = by_key[key].note_source
+        assert any("hierarch" in t or "fair value" in t for t in l3.note_terms), l3.note_terms
+        assert any("level" in p.lower() for p in l3.column_heading_any), l3.column_heading_any
+        assert any("total" in p.lower() for p in l3.column_heading_none), l3.column_heading_none
+        assert not any("level" in p.lower() for p in l3.row_caption_any), l3.row_caption_any
+        assert l3.blank_column_is_nil
+        assert any("liabilit" in p for p in l3.row_caption_none), l3.row_caption_none
+    assert by_key[LEVEL3_ROWS].note_source.row_caption_any == [r"\S"]
+    assert any("资产总额" in p for p in by_key[LEVEL3_PRINTED].note_source.row_caption_any)

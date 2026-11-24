@@ -236,6 +236,13 @@ class Term(BaseModel):
     # every cross-reference: other cascades name other lines' parts as inputs to a judgement (the
     # cost-of-sales depreciation share) and must not start evaluating in new columns.
     received: bool = False
+    # A FLAG THE PUBLISHED FIGURE CARRIES WHEN THIS TERM WAS ABSENT. A spec that says what to do
+    # without a figure also says to say so: docs/HKEX_Securities_Other_Financial_Assets_Extraction_
+    # Logic_Clean.md 5.4, "IF the fair value hierarchy note or Level 3 value is not found: CP_final =
+    # Find_1_CP - Find_2_CP … raise MISSING_LEVEL_3". The Level 3 term is an `adjustment`, so the
+    # rung resolves without it — and the slot the rung writes carries this flag, its trail too.
+    # Empty, the default, raises nothing.
+    flag_when_absent: str = ""
 
     @model_validator(mode="after")
     def _one_source(self):
@@ -254,6 +261,8 @@ class Term(BaseModel):
         out = handler(self)
         if isinstance(out, dict) and not self.received:
             out.pop("received", None)
+        if isinstance(out, dict) and not self.flag_when_absent:
+            out.pop("flag_when_absent", None)
         return out
 
 
@@ -433,6 +442,23 @@ class NoteSource(BaseModel):
     #: column the reader could not name fails closed. The veto wins.
     column_heading_any: list[str] = Field(default_factory=list)
     column_heading_none: list[str] = Field(default_factory=list)
+    #: A COLUMN THE TABLE PRINTS AND LEAVES BLANK IS A NIL, for a part that selects its column by
+    #: heading. A fair-value hierarchy prints every level whether the filing holds anything there:
+    #: 688008's 持续以公允价值计量的资产总额 has figures under 第一层次, 第二层次 and 合计 and none under
+    #: 第三层次; 688411 prints "-" there; 佳明 "–". That says Level 3 is nil, which is not the same
+    #: as no hierarchy at all — the spec raises MISSING_LEVEL_3 only for the second. With this set,
+    #: a row the gates admit that prints an admitted column with no figure in it is read as 0, filed
+    #: under the row's block period or, failing that, the one period every figure of the row is
+    #: filed under; with neither, nothing is read. False, the default, reads only figures.
+    blank_column_is_nil: bool = False
+    #: WHETHER THIS PART COMPETES WITH ITS SIBLINGS FOR A NOTE (`line_item_notes.claimed_notes`).
+    #: Siblings compete because their parent ADDS them, and one note read by two is counted twice.
+    #: A part its parent reads as an ALTERNATIVE — a rung of its own, taken instead of another —
+    #: is never added to that sibling, and competing hands the note to one of them and leaves the
+    #: other reading nothing: Find 3 is the hierarchy's printed Level 3 total, else the sum of its
+    #: asset rows, and both read the same note. False declares the part an alternative; it then
+    #: reads every note its terms cover. True, the default, is how every part has always claimed.
+    competes_for_notes: bool = True
     #: A NOTE THAT SPLITS ITS HOLDINGS INTO CURRENT AND NON-CURRENT. A Hong Kong note commonly
     #: prints the holdings gross, then "Less: Portion classified as current (174,822)" and
     #: "Non-current portion 788,507" — so its line items belong to NEITHER side alone, and a part
@@ -550,6 +576,17 @@ class NoteSource(BaseModel):
             ("column_heading_none", self.column_heading_none),
         )
         return self
+
+    @model_serializer(mode="wrap")
+    def _blank_is_nil_only_when_set(self, handler):
+        # The rule `Term.received` follows: every note source written before the field dumps byte
+        # for byte as it did.
+        out = handler(self)
+        if isinstance(out, dict) and not self.blank_column_is_nil:
+            out.pop("blank_column_is_nil", None)
+        if isinstance(out, dict) and self.competes_for_notes:
+            out.pop("competes_for_notes", None)
+        return out
 
 
 def _refuse_uncompilable(*groups: tuple[str, list[str]]) -> None:

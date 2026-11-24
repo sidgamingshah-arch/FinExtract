@@ -1392,6 +1392,35 @@ def _period_anchors(rows: list[list[Word]], fmt=None) -> list[tuple[float, int, 
     return out
 
 
+# A SENTENCE THAT DATES THE TABLE IT INTRODUCES: "As of December 31, 2024, financial assets
+# continuing to be measured at fair value are listed in three levels as follows:" (PetroChina 0857,
+# 3. Fair value estimation, p210 and its 2023 twin on p211). Too long for a block caption, and
+# "As of" besides, so the hierarchy's Level 1 / Level 2 / Level 3 / Total columns — which state no
+# period — gave its rows none, and the Level 3 part filed nothing: 9,185 / 10,999 unread.
+_LEAD_IN = re.compile(r"^\s*as\s+(?:at|of)\s+([^,，]{2,20}(?:[,，]\s*)?(?:19|20)\d{2})\s*[,，]", re.I)
+_LEAD_IN_END = re.compile(r"follows\s*[:：]\s*$", re.I)
+
+
+def _lead_in_anchors(rows: list[list[Word]], fmt=None) -> list[tuple[float, int, bool]]:
+    """``(top y, year, False)`` for every sentence that opens on a date and ends "as follows:" —
+    within the line or the two after it. Applied only to rows whose columns state no period of their
+    own (see where it is read), so a dated column outranks it and a table of years is untouched."""
+    out: list[tuple[float, int, bool]] = []
+    rows = [row for row in rows if row]
+    texts = [" ".join(w.text for w in sorted(row, key=lambda w: w.bbox.x0)).strip() for row in rows]
+    for k, row in enumerate(rows):
+        _labels, _refs, value_words = _scan_row(row, fmt, extract_note_refs=False)
+        if any(not _DATE_TOKEN.match(w.text.strip().strip(",.()")) for w in (value_words or ())):
+            continue
+        m = _LEAD_IN.match(texts[k])
+        if not m or not any(_LEAD_IN_END.search(t) for t in texts[k:k + 3]):
+            continue
+        year = _year_of(m.group(1))
+        if year is not None:
+            out.append((min(w.bbox.y0 for w in row), year, False))
+    return out
+
+
 def _period_year_for(anchors: list[tuple[float, int, bool]], y: float | None) -> int | None:
     """The year governing the row printed at ``y``, or None when this note states none.
 
@@ -1962,7 +1991,22 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
                         f":newest_year={earlier}(the note's earlier page; this page names {newest})")
                 newest = earlier
             note_years[table.note_number] = max(newest, earlier or newest)
+        # THE LEAD-IN SENTENCES, kept apart from the block anchors and read only for a row whose
+        # columns state no period — see `_lead_in_anchors`. Their newest year is the note's across
+        # its pages, as the blocks' is: the comparative's sentence is on a page of its own.
+        lead_ins = _lead_in_anchors(grouped)
+        lead_newest = max((year for _y, year, _f in lead_ins), default=None)
+        if lead_newest is not None and note_years is not None and table.note_number:
+            key = f"{table.note_number}#lead_in"
+            earlier = note_years.get(key)
+            if earlier == lead_newest + 1:
+                lead_newest = earlier
+            note_years[key] = max(lead_newest, earlier or lead_newest)
         for li in items:
+            hint = _period_hint_for(anchors, newest, _row_top(li))
+            if (not hint and lead_ins
+                    and not any(getattr(ev, "column_period", None) for ev in li.values.values())):
+                hint = _period_hint_for(lead_ins, lead_newest, _row_top(li))
             # THE CAPTION DECIDES THE ROLE, EXCEPT WHERE THE BUILDER ALREADY KNEW. Almost every
             # row reaches here as ``LINE`` — the promotion that classifies a face row runs in
             # ``map_ontology``, which never sees a note — so the printed caption is what is left to
@@ -1987,7 +2031,7 @@ def extract_note_tables(words: list[Word], *, page_index: int, document_id: str 
                                       or _category_for(cells, _row_top(li))),
                           # Both empty unless this note states a period on its blocks AND this row
                           # has a column that totals the others — a movement row and nothing else.
-                          period_hint=_period_hint_for(anchors, newest, _row_top(li)),
+                          period_hint=hint,
                           total_slot=_total_slot_of(li),
                           provenance=li.values and next(iter(li.values.values())).provenance or None)
             for ev in li.values.values():

@@ -1135,8 +1135,10 @@ def readable_tables(item, notes) -> set[int]:
 
 def claim_group(item) -> tuple:
     """The parts that compete for one note in `claimed_notes`: one parent, one measure, one column
-    selector."""
+    selector — or the part alone, where it declares `NoteSource.competes_for_notes` false."""
     src = getattr(item, "note_source", None)
+    if src is not None and not getattr(src, "competes_for_notes", True):
+        return ("alone", str(getattr(item, "key", "") or ""))
     return (str(getattr(item, "parent", "") or ""), str(getattr(src, "measure", "") or ""),
             (tuple(getattr(src, "column_heading_any", None) or ()),
              tuple(getattr(src, "column_heading_none", None) or ())))

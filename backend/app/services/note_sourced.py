@@ -244,18 +244,20 @@ class _ColumnSelector:
     Two admitted columns printing the same figure (a bilingual heading read twice) are one.
     """
 
-    __slots__ = ("any_rx", "none_rx", "unsatisfiable")
+    __slots__ = ("any_rx", "none_rx", "unsatisfiable", "blank_is_nil")
 
-    def __init__(self, any_raw: list[str], none_raw: list[str]):
+    def __init__(self, any_raw: list[str], none_raw: list[str], blank_is_nil: bool = False):
         self.any_rx = [(raw, rx) for raw, rx in _compiled(any_raw) if rx is not None]
         self.none_rx = [rx for _, rx in _compiled(none_raw) if rx is not None]
         self.unsatisfiable = bool(any_raw) and not self.any_rx
+        self.blank_is_nil = blank_is_nil
 
     @classmethod
     def of(cls, src) -> "_ColumnSelector | None":
         any_raw = list(getattr(src, "column_heading_any", None) or ())
         none_raw = list(getattr(src, "column_heading_none", None) or ())
-        return cls(any_raw, none_raw) if (any_raw or none_raw) else None
+        return (cls(any_raw, none_raw, bool(getattr(src, "blank_column_is_nil", False)))
+                if (any_raw or none_raw) else None)
 
     def admits(self, heading) -> str | None:
         """The pattern that admits ``heading`` ("" when the part declares only vetoes), or None."""
@@ -303,7 +305,45 @@ class _ColumnSelector:
         for found in slots.values():
             if len({h.amount for h in found}) == 1:
                 out.append(found[0])
+        if not out and self.blank_is_nil:
+            out.extend(self._nil_hits(item=item, table=table, title=title, row=row,
+                                      caption=caption, matched=matched, periods=periods))
         return out
+
+    def _nil_hits(self, *, item, table, title, row, caption, matched, periods) -> list[NoteRowHit]:
+        """`NoteSource.blank_column_is_nil`: an admitted column the row's table PRINTS and this row
+        leaves blank, read as 0 — under the row's block period, else the one period every figure
+        of the row is filed under. Nothing when the row prints no figure at all (a heading, not a
+        row of the table) or its figures are filed under more than one period."""
+        cells = [v for v in (getattr(row, "values", None) or {}).values()
+                 if getattr(v, "value", None) is not None and getattr(v, "column_index", None) is None]
+        if not cells:
+            return []
+        blank = [h for h in note_columns.blank_columns(row) if self.admits(h) is not None]
+        if not blank:
+            return []
+        hint = str(getattr(row, "period_hint", "") or "")
+        if hint in note_columns.FILED_PERIODS:
+            period, source = hint, "row_block"
+        else:
+            stated = {note_columns.period_of(v, row)[0] for v in cells}
+            if len(stated) != 1 or None in stated:
+                return []
+            period, source = stated.pop(), "row_figures"
+        if periods is not None and period not in periods:
+            return []
+        sibling = cells[0]
+        heading = blank[0]
+        nil = sibling.model_copy(update={"value": Decimal(0), "value_raw": Decimal(0),
+                                         "column_heading": heading, "column_period": period})
+        basis = _table_basis(table, sibling)
+        return [NoteRowHit(
+            key=item.key, note_number=str(getattr(table, "note_number", "")),
+            note_title=title, caption=caption, matched_by=matched,
+            value=nil, amount=Decimal(0), basis=basis, period=period,
+            column=str(heading), column_matched_by=self.admits(heading),
+            period_source=f"blank_printed_column:{source}",
+            basis_from=str(getattr(table, "basis_from", "") or ""))]
 
 
 def select_rows(item, notes, periods: set[str] | None = None,

@@ -3216,10 +3216,11 @@
       {
        "ref": "sub__fa_cp_level_3_total",
        "role": "adjustment",
-       "sign": -1
+       "sign": -1,
+       "flag_when_absent": "missing_level_3"
       }
      ],
-     "note": "Find 1 − Find 3. Find 1 is the six current parts, each already the sum of a note's CURRENT line items with derivatives and other receivables left out — so there is no Find 2 and no non-current deduction to take afterwards. Each part is `any_of`, so a filing printing only some of these notes sums the ones it prints. Find 3 (Level 3) is an `adjustment`, so a filing with no fair value hierarchy table subtracts nothing. PASSED OVER WHEN IT COMPUTES BELOW ZERO, and the next rung then publishes zero."
+     "note": "Find 1 − Find 3. Find 1 is the six current parts, each already the sum of a note's CURRENT line items with derivatives and other receivables left out — so there is no Find 2 and no non-current deduction to take afterwards. Each part is `any_of`, so a filing printing only some of these notes sums the ones it prints. Find 3 (Level 3) is an `adjustment`, so a filing with no fair value hierarchy table subtracts nothing. PASSED OVER WHEN IT COMPUTES BELOW ZERO, and the next rung then publishes zero. WHERE NO LEVEL 3 FIGURE EXISTS — no hierarchy table for the slot, which is every CAS comparative year (the note prints 期末公允价值 only) — the rung is Find 1 alone and the slot carries `missing_level_3` (spec 5.4, MISSING_LEVEL_3). A hierarchy whose Level 3 column is blank or nil is 0, not missing."
     },
     {
      "id": "CP_ZERO",
@@ -19241,22 +19242,112 @@
    "order": 10,
    "namespace": "internal",
    "inherits": "notes",
+   "statement": null,
+   "section_scope": [],
+   "definition": "Total Level 3 amount for financial assets in the fair value measurement / fair value hierarchy table (spec 5.2, Find 3): the table's printed total of its assets at Level 3, else the sum of its asset rows at Level 3. Assets only — not liabilities, not Level 1 or Level 2, not the all-levels total, not investment properties. A table that prints the Level 3 column blank or nil gives 0; a filing that prints no hierarchy gives nothing, and the current line then raises MISSING_LEVEL_3.",
+   "route": "note_tables",
+   "type": "derived",
+   "cascade": [
+    {
+     "id": "L3_PRINTED_TOTAL",
+     "terms": [
+      {
+       "ref": "sub__fa_cp_level_3_printed_total",
+       "role": "required",
+       "sign": 1
+      }
+     ],
+     "terms_op": "sum",
+     "refuse_negative": true,
+     "note": "The hierarchy's own total of its financial assets at Level 3 — the figure the spec names (\"Level 3 total\"). First, because a sum of rows can count a category and the items printed under it: 002273 十三、1 prints 分类为以公允价值计量且其变动计入当期损益的金融资产 129,450,000.00 over 权益工具投资 29,450,000.00 and 交易性金融资产 100,000,000.00, and its total is 187,541,328.29."
+    },
+    {
+     "id": "L3_ROWS",
+     "terms": [
+      {
+       "ref": "sub__fa_cp_level_3_rows",
+       "role": "required",
+       "sign": 1
+      }
+     ],
+     "terms_op": "sum",
+     "refuse_negative": true,
+     "note": "The table's asset rows at Level 3, for a hierarchy that prints no total (000709, 诚志, 300257, 300391, 1966, 3360) or prints it without a caption (Lai Sun 0191: 463,255 / 415,272, film investments and derivative assets included)."
+    }
+   ]
+  },
+  {
+   "key": "sub__fa_cp_level_3_printed_total",
+   "label": "Level 3 financial assets — the hierarchy's printed total",
+   "in_output": false,
+   "parent": "bs_ca__secur_and_other_fincl_assets_cp",
+   "order": 1,
+   "namespace": "internal",
+   "inherits": "notes",
    "note_source": {
     "note_title_any": [],
     "row_caption_any": [
-     "financial\\s+assets?",
-     "fair\\s+value\\s+through",
-     "\\b(?:fvtpl|fvoci|fvtoci)\\b",
-     "equity\\s+(?:investments?|instruments?|securities)",
-     "debt\\s+(?:investments?|instruments?|securities)",
-     "(?:listed|unlisted)\\s+(?:equity\\s+)?(?:investments?|securities)",
-     "investments?\\s+at\\s+fair\\s+value",
-     "structured\\s+deposits?|wealth\\s+management\\s+products?",
-     "bills?\\s+receivables?|receivables?\\s+financing",
-     "金融资产|金融資產",
-     "权益工具投资|權益工具投資|债权投资|債權投資|债务工具投资|債務工具投資",
-     "应收款项融资|應收款項融資",
-     "理财产品|理財產品|结构性存款|結構性存款"
+     "持续(?:以|的)?公允价值计量的资产总额|持續(?:以|的)?公允價值計量的資產總額",
+     "^\\s*total\\s+(?:financial\\s+)?assets\\b"
+    ],
+    "row_caption_none": [
+     "liabilit|負債|负债",
+     "非持续|非持續|non-?recurring",
+     "propert|物業|物业|房地产|房地產|biological|生物资产|生物資產"
+    ],
+    "column_heading_any": [
+     "第三层次|第三層次|第三级|第三級|第三层级|第三層級|level\\s*(?:3|three)"
+    ],
+    "column_heading_none": [
+     "第[一二]|level\\s*(?:1|2|one|two)|合计|合計|總計|总计|total",
+     "转入|转出|轉入|轉出|transfers?\\s+(?:in|out|into|from|to)"
+    ],
+    "prose_any": [],
+    "prose_subject": "",
+    "prose_landed_in": [],
+    "note_terms": [
+     "fair value hierarchy",
+     "fair value estimation",
+     "fair values of financial instruments",
+     "公平值層級",
+     "公允值計量",
+     "公允价值层级",
+     "公允价值计量",
+     "金融工具公平值"
+    ],
+    "row_terms": [],
+    "row_terms_none": [],
+    "blank_column_is_nil": true,
+    "competes_for_notes": false
+   },
+   "statement": null,
+   "section_scope": [],
+   "definition": "The Level 3 figure of the TOTAL row of the financial assets in a fair value hierarchy table — 持续以公允价值计量的资产总额 on a CAS filing, 'Total financial assets' on an HKFRS one. Assets only: never the liabilities' total. Read from the Level 3 column; a total row that prints that column blank or nil reads 0.",
+   "note_selection": "any",
+   "keyword_hints": [
+    "fair value"
+   ],
+   "route": "note_tables",
+   "exclude_hints": [
+    "investment propert",
+    "投资性房地产",
+    "投资物业",
+    "^items that (?:will not|may|are or may) be reclassified",
+    "^fair value changes? (?:in|of|on) equity investments? (?:measured|designated) at fair value through other comprehensive income$"
+   ]
+  },
+  {
+   "key": "sub__fa_cp_level_3_rows",
+   "label": "Level 3 financial assets — the hierarchy's asset rows",
+   "in_output": false,
+   "parent": "bs_ca__secur_and_other_fincl_assets_cp",
+   "order": 2,
+   "namespace": "internal",
+   "inherits": "notes",
+   "note_source": {
+    "note_title_any": [],
+    "row_caption_any": [
+     "\\S"
     ],
     "row_caption_none": [
      "level\\s*(?:1|2|one|two)\\b|第[一二](?:級|层|層|级)",
@@ -19269,31 +19360,43 @@
      "^\\s*[\\\"“”'‘’]",
      "significant|observable|quoted\\s+prices",
      "第[一二三](?:层次|層次|級|级)",
-     "非持续|非持續|non-?recurring"
+     "非持续|非持續|non-?recurring",
+     "非持续|非持續|non-?recurring",
+     "propert|物業|物业|房地产|房地產|biological|生物资产|生物資產",
+     "^\\s*(?:at|as\\s+at)\\s+(?:\\d|the\\s+|beginning|end|1\\s|31\\s)",
+     "^\\s*(?:balance\\s+)?(?:at\\s+)?(?:beginning|end)\\s+of\\b",
+     "^\\s*(?:additions?|disposals?|purchases?|settlements?|sales?|issues?|redemptions?|exchange|reclassif|(?:net\\s+)?(?:gains?|losses?)|changes?\\s+in\\s+fair\\s+value|fair\\s+value\\s+(?:changes?|gains?|losses?|adjustments?))\\b",
+     "^\\s*(?:期初|期末|年初|年末|本期|本年|上期|上年)",
+     "^\\s*[一二三四五六七八九十]+\\s*[、.．]\\s*(?:持续|持續|非持续|非持續)"
     ],
     "column_heading_any": [
      "第三层次|第三層次|第三级|第三級|第三层级|第三層級|level\\s*(?:3|three)"
     ],
     "column_heading_none": [
-     "第[一二]|level\\s*(?:1|2|one|two)|合计|合計|總計|总计|total"
+     "第[一二]|level\\s*(?:1|2|one|two)|合计|合計|總計|总计|total",
+     "转入|转出|轉入|轉出|transfers?\\s+(?:in|out|into|from|to)"
     ],
     "prose_any": [],
     "prose_subject": "",
     "prose_landed_in": [],
     "note_terms": [
      "fair value hierarchy",
-     "fair value measurement",
+     "fair value estimation",
+     "fair values of financial instruments",
      "公平值層級",
      "公允值計量",
      "公允价值层级",
-     "公允价值计量"
+     "公允价值计量",
+     "金融工具公平值"
     ],
     "row_terms": [],
-    "row_terms_none": []
+    "row_terms_none": [],
+    "blank_column_is_nil": true,
+    "competes_for_notes": false
    },
    "statement": null,
    "section_scope": [],
-   "definition": "Total Level 3 amount for financial assets in the fair value measurement / fair value hierarchy table. Assets only — not liabilities, not Level 1 or Level 2, and not the all-levels total.",
+   "definition": "The sum of the Level 3 figures of every FINANCIAL ASSET row of a fair value hierarchy table, for a table that prints no total row: each class of financial asset, receivables financing, derivative financial assets, film or fund investments — whatever the table lists as an asset. Not a liability, not a subtotal or total, not a category whose items are printed beneath it, not investment properties or biological assets, and not a row of the Level 3 reconciliation (opening balance, additions, transfers).",
    "note_selection": "any",
    "keyword_hints": [
     "fair value"

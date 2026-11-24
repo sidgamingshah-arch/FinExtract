@@ -340,7 +340,8 @@ llm_focus_keys.output_csv_hk_v1 = [
   "sub__fa_cp_fvtoci_note_total",
   "sub__fa_cp_fvtpl_note_total",
   "sub__fa_cp_investment_and_money_market_securities_note_total",
-  "sub__fa_cp_level_3_total",
+  "sub__fa_cp_level_3_printed_total",
+  "sub__fa_cp_level_3_rows",
   "sub__fa_cp_other_fincl_assets_note_total",
 
   "bs_nca__secur_and_other_fincl_assets_ltp",
