@@ -65,6 +65,11 @@ class PipelineContext:
     # What the whole-PDF route sent and got back (`stages.whole_pdf`): pages, parts, requests,
     # lines answered and how each figure checked against its page. None on every other run.
     whole_pdf: dict | None = None
+    # THE RULES' OWN FACE ROWS on the whole-PDF route: every row `extract` read, as it read them
+    # (no line mapped yet), set aside by `stages.whole_pdf` when the model's rows replaced them in
+    # `doc.line_items`. Kept so a figure the model read can be found in the rules' reading of its
+    # page. None on every other run, and on a whole-PDF run that fell back to the rules.
+    whole_pdf_rules_rows: list | None = None
 
     def log(self, message: str) -> None:
         self.logs.append(message)

@@ -69,7 +69,8 @@ async function signOut(page: Page) {
  *  setting, so it carries across a restart and across suite runs — a test that needs it on or
  *  off has to say so rather than inherit whatever the last run left behind. */
 async function setSampleLoaded(page: Page, want: boolean) {
-  await page.goto("/settings", DCL);
+  // The sample-project switch is on the General tab; Settings opens on How filings are read.
+  await page.goto("/settings?tab=general", DCL);
   const row = page.getByTestId("seed-demo");
   await expect(row).toBeVisible({ timeout: 15_000 });
   if ((await row.getAttribute("data-on")) !== String(want)) {
@@ -85,8 +86,9 @@ async function setSampleLoaded(page: Page, want: boolean) {
  * them restores them, and any test asserting "back to the default" establishes that baseline
  * first rather than trusting the value it happens to find. */
 async function resetThresholds(page: Page) {
-  // The thresholds are on the Mapping & checks tab, and a tab's Restore defaults puts back that
-  // tab's knobs only.
+  // The thresholds are in the Advanced tab's folded "Matching captions" and "Reconciliation" groups;
+  // `?tab=mapping` (the tab they used to have) opens that tab with both groups open. A tab's
+  // Restore defaults puts back that tab's knobs only.
   await page.goto("/settings?tab=mapping", DCL);
   const reset = page.getByTestId("ex-reset");
   await expect(reset).toBeVisible({ timeout: 15_000 });
@@ -1271,27 +1273,42 @@ test("admin tunes the extraction thresholds and they persist", async ({ page }) 
 test("settings are split into tabs, and an option only one route reads waits for its switch",
      async ({ page }) => {
   await loginAs(page, "admin");
+  // Signed in: the shell's own marker. "FinExtract" alone is on the sign-in page too, so a
+  // navigation straight after the click can race the login and land back there.
+  await expect(page.getByTestId("nav-rail")).toBeVisible({ timeout: 15_000 });
   await page.goto("/settings", DCL);
-  // General is the first tab, and the extraction knobs are not all on one page any more.
-  await expect(page.getByTestId("seed-demo")).toBeVisible({ timeout: 15_000 });
+  // How filings are read is the first tab, and the rules' thresholds are not on it.
+  await expect(page.getByTestId("route-card-whole_pdf")).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("st-tab-route")).toHaveAttribute("aria-selected", "true");
   await expect(page.getByTestId("ex-evidence_floor")).toHaveCount(0);
 
-  await page.getByTestId("st-tab-reading").click();
-  await expect(page).toHaveURL(/tab=reading/);
-  const wholePdf = page.getByTestId("ex-whole_pdf_to_model");
-  await expect(wholePdf).toBeVisible({ timeout: 15_000 });
-  const on = (await wholePdf.textContent())?.includes("On");
-  // Flipping the switch on screen shows or hides the options only its route reads — before Save.
-  await wholePdf.click();
-  await expect(page.getByTestId("ex-whole_pdf_pages")).toHaveCount(on ? 0 : 1);
-  await expect(page.getByTestId("st-tab-unsaved-reading")).toBeVisible();
-  await wholePdf.click();
-  await expect(page.getByTestId("ex-whole_pdf_pages")).toHaveCount(on ? 1 : 0);
-  await expect(page.getByTestId("st-tab-unsaved-reading")).toHaveCount(0);
+  await page.getByTestId("st-tab-advanced").click();
+  await expect(page).toHaveURL(/tab=advanced/);
+  // The everyday group is open; a rarely changed one shows its heading only, and opens on a click.
+  await expect(page.getByTestId("ex-llm_disclosures")).toBeVisible({ timeout: 15_000 });
+  const pages = page.getByTestId("st-group-pages-and-ocr");
+  await expect(pages).toHaveAttribute("data-open", "false");
+  await expect(page.getByTestId("ex-document_reader")).toHaveCount(0);
+  await pages.click();
+  await expect(pages).toHaveAttribute("data-open", "true");
+  // Picking the engine shows the option only it reads — before Save — and the tab is marked.
+  await expect(page.getByTestId("ex-document_reader_pages")).toHaveCount(0);
+  await page.getByTestId("ex-document_reader-kensho").check();
+  await expect(page.getByTestId("ex-document_reader_pages")).toBeVisible();
+  await expect(page.getByTestId("st-tab-unsaved-advanced")).toBeVisible();
+  await page.getByTestId("ex-document_reader-off").check();
+  await expect(page.getByTestId("ex-document_reader_pages")).toHaveCount(0);
+  await expect(page.getByTestId("st-tab-unsaved-advanced")).toHaveCount(0);
 
   // The full explanation is one click away, not on the page.
   await page.getByTestId("knob-more-ocr_scanned_pages").click();
   await expect(page.getByTestId("knob-ocr_scanned_pages")).toContainText("text layer");
+
+  // A link to a tab this screen used to have lands where its settings went, groups open.
+  await page.goto("/settings?tab=mapping", DCL);
+  await expect(page.getByTestId("st-tab-advanced")).toHaveAttribute("aria-selected", "true",
+                                                                    { timeout: 15_000 });
+  await expect(page.getByTestId("ex-mapping_margin")).toBeVisible();
 });
 
 test("a saved threshold is still in force for a browser that never saw the edit", async ({
@@ -1343,7 +1360,8 @@ test("the Focus line items master: add a line with its parts, remove one, restor
   const rows = page.getByTestId("focus-row");
   await expect(rows.first()).toBeVisible({ timeout: 15_000 });
   const shipped = await rows.count();
-  // Off as shipped: the card says the list is not used until the switch above is on.
+  // Off as shipped: the card says the list is not used until the switch (an option of the
+  // Rules + model questions route, on How filings are read) is on.
   await expect(page.getByTestId("focus-state")).toHaveAttribute("data-on", "false");
 
   try {

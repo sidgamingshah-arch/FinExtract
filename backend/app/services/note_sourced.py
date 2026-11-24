@@ -714,10 +714,13 @@ def _row_figures(row) -> dict:
     return out
 
 
-def _broken_down_across_fragments(notes, counts) -> dict[int, set[int]]:
-    """Rows (by table, by index) whose 其中 breakdown is printed in the NEXT fragment of the note.
+def breakdowns_across_fragments(notes) -> list[tuple[object, int, object, list[int]]]:
+    """Each 其中 breakdown printed in the NEXT fragment of its note: `(table, parent index, next
+    table, breakdown row indices)`. The one reading of that shape, for the rules route
+    (`_broken_down_across_fragments`) and for the checks on a model's citations
+    (`services.answer_checks.NoteIndex.parents`).
 
-    A page break splits a note into fragments, and `_broken_down` reads one fragment at a time.
+    A page break splits a note into fragments, and `breakdown_groups` reads one fragment at a time.
     301577 美信 2024 七、2 prints 以公允价值计量且其变动计入当期损益的金融资产 25,020,357.93 /
     15,002,157.53 as the last row of page 158, and its 其中：信托计划 25,020,357.93 and
     结构性存款 15,002,157.53 at the top of page 159; the parent and its breakdown were both read,
@@ -726,9 +729,10 @@ def _broken_down_across_fragments(notes, counts) -> dict[int, set[int]]:
     ACROSS A BREAK ONLY WHERE THE BREAKDOWN ADDS UP. The last row of one fragment is the parent
     of the 其中 rows that open the next fragment of the SAME note number only when those rows
     reach its figure in every column it prints — the break is a weaker witness than the indent,
-    so the arithmetic is required here where `_broken_down` merely uses it to end a group.
+    so the arithmetic is required here where `breakdown_groups` merely uses it to end a group.
+    The breakdown is the 其中 rows up to and including the one whose sum reaches the parent.
     """
-    out: dict[int, set[int]] = {}
+    out: list[tuple[object, int, object, list[int]]] = []
     prev = None
     for table in notes or ():
         number = str(getattr(table, "note_number", "") or "")
@@ -748,22 +752,33 @@ def _broken_down_across_fragments(notes, counts) -> dict[int, set[int]]:
         if not wanted:
             continue
         summed: dict = {}
-        counted = False
-        for row in below:
+        for j, row in enumerate(below):
             if not _BREAKDOWN_GROUP.match(str(getattr(row, "group_hint", "") or "")):
                 break
-            counted = counted or _matches_any(str(getattr(row, "raw_label", "") or ""), counts)
             for k, v in _row_figures(row).items():
                 summed[k] = summed.get(k, Decimal(0)) + v
             if all(summed.get(k) == v for k, v in wanted.items()):
-                if counted:
-                    out.setdefault(id(before), set()).add(len(above) - 1)
+                out.append((before, len(above) - 1, table, list(range(j + 1))))
                 break
     return out
 
 
-def _broken_down(rows, counts) -> set[int]:
-    """Indices of rows followed by a 其中 / "of which" breakdown that this line also reads.
+def _broken_down_across_fragments(notes, counts) -> dict[int, set[int]]:
+    """Rows (by table, by index) whose 其中 breakdown is printed in the NEXT fragment of the note
+    and that this line also reads — see `breakdowns_across_fragments`, which finds the shape."""
+    out: dict[int, set[int]] = {}
+    for before, parent, table, kids in breakdowns_across_fragments(notes):
+        below = list(getattr(table, "items", None) or ())
+        if any(_matches_any(str(getattr(below[j], "raw_label", "") or ""), counts) for j in kids):
+            out.setdefault(id(before), set()).add(parent)
+    return out
+
+
+def breakdown_groups(rows) -> dict[int, list[int]]:
+    """`{parent index: [its 其中 / "of which" breakdown row indices]}` within one fragment of a note.
+
+    The one reading of a 其中 breakdown, for the rules route (`_broken_down`) and for the checks on
+    a model's citations (`services.answer_checks.NoteIndex.parents`).
 
     A BREAKDOWN ENDS WHERE IT ADDS UP TO ITS ROW. The row reader carries a 其中 heading down the
     table until something else replaces it, so the next row of the table's own level can arrive
@@ -779,10 +794,10 @@ def _broken_down(rows, counts) -> set[int]:
     under a parent have reached its figure in every column it prints, the breakdown is complete,
     and the next row is a row of the table's own level — a new parent if a breakdown follows it.
     A parent whose breakdown never adds up to it (one that lists only some of its components)
-    keeps every following 其中 row, as before.
+    keeps every following 其中 row, as before. A 其中 row with no row above it breaks down nothing.
     """
     figures = _row_figures
-    out: set[int] = set()
+    out: dict[int, list[int]] = {}
     parent: int | None = None
     parent_figures: dict = {}
     summed: dict = {}
@@ -793,14 +808,22 @@ def _broken_down(rows, counts) -> set[int]:
     for i, row in enumerate(rows):
         group = str(getattr(row, "group_hint", "") or "")
         if _BREAKDOWN_GROUP.match(group) and not (parent is not None and complete()):
-            if parent is not None and _matches_any(str(getattr(row, "raw_label", "") or ""),
-                                                   counts):
-                out.add(parent)
+            if parent is not None:
+                out.setdefault(parent, []).append(i)
             for k, v in figures(row).items():
                 summed[k] = summed.get(k, Decimal(0)) + v
             continue
         parent, parent_figures, summed = i, figures(row), {}
     return out
+
+
+def _broken_down(rows, counts) -> set[int]:
+    """Indices of rows followed by a 其中 / "of which" breakdown that this line also reads — see
+    `breakdown_groups`, which finds the breakdowns."""
+    rows = list(rows or ())
+    return {parent for parent, kids in breakdown_groups(rows).items()
+            if any(_matches_any(str(getattr(rows[k], "raw_label", "") or ""), counts)
+                   for k in kids)}
 
 
 # ── a figure the filing states only in PROSE ─────────────────────────────────────────────────────
@@ -2094,17 +2117,15 @@ def resolve_sources(sources, notes, face=None, *, allow_face: bool = True,
                 # thirteen to the first — 6,220,000 thirteen times, 804,190,000 published for
                 # guarantees that add up to 2,103,890,000. Only an IDENTICAL citation advances —
                 # one naming another column of the row (its opening balance) is a different
-                # citation and still reads the row it names.
+                # citation and still reads the row it names. The rule is
+                # `services.answer_checks.take_tied_row`, one of the checks every model route shares.
                 if len(tied) > 1:
+                    from app.services.answer_checks import take_tied_row
+
                     said = (_note_key(want_note) if want_note else "", want_table,
                             norm(getattr(ref, "group", "")), want_period, want_cap,
                             str(want_col or "").casefold())
-                    taken = repeats.setdefault(said, set())
-                    if id(hit[2]) in taken:
-                        fresh = next((r for r in tied if id(r[2]) not in taken), None)
-                        if fresh is not None:
-                            hit = fresh
-                    taken.add(id(hit[2]))
+                    hit = take_tied_row(repeats, said, hit, tied, ident=lambda r: id(r[2]))
                 places = {(r[4], norm(_group_of(r[2])),
                            str((layout.get(id(r[2])) or {}).get("period_text") or ""))
                           for r in tied}
@@ -2375,13 +2396,19 @@ def _page_sentence(stated: str, quote: str, page: int,
         declared = _money_table_above(text, start)
         if declared is not None:
             money, scale_word = True, declared
+    # …AND THE CURRENCY PRINTED AGAINST IT, as a note's sentence records it — so a US$ amount on a
+    # page is not added to the statements' yuan (`services.answer_checks.refuse_foreign_currency`).
+    # Without it a sentence cited by its page, the one way an `anywhere` line is answered from
+    # prose, was the one prose citation the currency rule could not see.
+    currency = (currency_around(text, best.start(), best.end()) if best is not None
+                else prose_currency_at(found, text))
     return {"note": "", "statement": "", "title": "", "page": int(page),
             "figures": {"prose": str(found)},
             "provenance": {"page_index": int(page) - 1, "source": "page_prose"},
             "quote": quote, "prose": True, "on_face": False,
             "prose_scale": str(scale_word) if scale_word else None,
             "prose_prior": str(prior) if prior is not None else None,
-            "prose_money": money}, ""
+            "prose_money": money, "prose_currency": currency}, ""
 
 
 _SCALE_AFTER = r"(?:\s*({name}billion|million|thousand|bn|mn))?"
@@ -2589,12 +2616,22 @@ def prose_currency_at(found: Decimal, text: str) -> str | None:
                 continue
         except (InvalidOperation, ValueError):
             continue
-        before = _CURRENCY_TOKEN_BEFORE.search(text[max(0, m.start() - 12):m.start()])
-        if before:
-            return currency_iso(before.group(1))
-        after = _CURRENCY_TOKEN_AFTER.match(text[m.end():m.end() + 16])
-        return currency_iso(after.group(1)) if after else None
+        return currency_around(text, m.start(), m.end())
     return None
+
+
+def currency_around(text: str, start: int, end: int) -> str | None:
+    """The ISO code of the currency printed against the amount at `text[start:end]`, or None.
+
+    A token straight before the amount wins over one straight after it, past any scale word — the
+    reading `prose_currency_at` makes of a note's first occurrence, and `_page_sentence` of the
+    occurrence on a page the citation's quote chose.
+    """
+    before = _CURRENCY_TOKEN_BEFORE.search((text or "")[max(0, start - 12):start])
+    if before:
+        return currency_iso(before.group(1))
+    after = _CURRENCY_TOKEN_AFTER.match((text or "")[end:end + 16])
+    return currency_iso(after.group(1)) if after else None
 
 
 def prose_context(found: Decimal, text: str) -> tuple[Decimal | None, Decimal | None]:

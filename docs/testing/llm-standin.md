@@ -186,6 +186,52 @@ and the sentence in `quote`. The gateway checks the amount against that page's t
 `lint`, `coverage` and `grade` read the report's blocks as if the question carried them
 (`payload_of` merges the first message in). A text answer is checked against the report's `pages`.
 
+### The whole-PDF requests (`extraction.whole_pdf_to_model`)
+
+The whole-PDF route sends the **PDF file itself**, and a provider must say it takes files
+(`ports/llm.py::takes_documents`) or the stage falls back to the rules at once — the run log says
+`whole_pdf:fallback(provider standin cannot be sent a file)`. The stand-in says so **only when
+asked**, so a capture of the rules route is what it always was:
+
+    python scripts/llm_standin.py capture ../_filings/X.pdf --template T --set S --takes-documents
+
+Each whole-PDF request is then recorded with its file as a placeholder — `<pdf base64: N chars,
+sha1 …>` in place of the base64 — and a `documents` entry naming the part (`document-<n>.pdf`), its
+size, its page count and the report pages it holds (0-based). Its `line_keys` are the lines the
+question asks; its schema is `WholePdfReply`. An `answers/<id>.txt` is read as for any request.
+
+**A script answers them with no model at all.** `--whole-pdf-script FILE` (which implies
+`--takes-documents`) answers every whole-PDF request that has no `answers/<id>.txt` from a JSON
+script (`scripted_whole_pdf_reply`):
+
+    {"units": "元",
+     "lines": {"<line key>": [{"basis": "consolidated", "period": "current",
+                               "amount": "1783494750.68", "page": 182, "caption": "合计",
+                               "parts": [{"caption": "结构性存款", "amount": "1629362905.47"}]}],
+               "<text line key>": {"text": "…", "pages": [240]}},
+     "parts": {"2": {"lines": {…}}},
+     "leave_out": ["<line key>"],
+     "fail": [{"part": 2, "statement": "notes"}, {"key": "<line key>"}]}
+
+`page` is the **report's** page (1 = the file's first, as a PDF viewer numbers it). A figure is
+answered only by the part that holds that page, renumbered to the part's own page, as a model
+reading the part would; a line the request does not ask is never answered. `parts` answers a line
+differently in one part, `leave_out` in none, and a request matching a `fail` entry raises, as a
+request that timed out does. Every scripted reply's meta says `standin-scripted`: it is the
+script's answer, never a model's.
+
+**A script from a rules run.** `whole-pdf-script` writes one from `scripts/run_filing.py`'s
+`<stem>__result.json`: every line the route asks, answered with the figure the rules published, as
+printed, on its page — several printed rows on one line as one figure with its rows. That is the
+answer a model following the prompt gives where the rules read the filing right; a figure the rules
+computed with no printed source is left out.
+
+    python scripts/llm_standin.py whole-pdf-script RESULT.json --set S --out script.json \
+        --leave-out sub__fa_cp_level_3_printed_total --leave-out sub__fa_cp_level_3_rows
+
+In the tests, `backend/tests/whole_pdf_standin.py::run_whole_pdf` runs the real pipeline on a real
+filing (a page selection, or all of it) with the stand-in answering from a script.
+
 ## The answerer's brief
 
 You are the model behind the gateway. You see only the request body: the system prompt and the

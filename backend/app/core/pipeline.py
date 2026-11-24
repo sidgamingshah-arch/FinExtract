@@ -41,28 +41,46 @@ class Pipeline:
 
 def pipeline_for(settings) -> Pipeline:
     """The pipeline a run assembles: `default_pipeline()`, or — with
-    `extraction.whole_pdf_to_model` on — the same with the whole-PDF stage after the page
-    classifier (`whole_pdf_pipeline`)."""
+    `extraction.whole_pdf_to_model` on — the same with the whole-PDF stage after the extraction
+    (`whole_pdf_pipeline`)."""
     if getattr(getattr(settings, "extraction", None), "whole_pdf_to_model", False):
         return whole_pdf_pipeline()
     return default_pipeline()
 
 
 def whole_pdf_pipeline() -> Pipeline:
-    """`default_pipeline()` with `stages.whole_pdf` straight after the page classifier.
+    """`default_pipeline()` with `stages.whole_pdf` straight after the extraction.
 
     The stage sends the PDF itself to the model and, when the model has answered, names the
     stages still to run (`PipelineContext.only_stages`); the others are skipped. When it cannot —
     no provider that takes a file, or no request answered — it leaves the document as it was and
     every stage runs: the filing is read by the rules.
+
+    AFTER `extract`, NOT BEFORE IT, so the rules have read the filing by the time the model
+    answers. Three things follow, and they are why the stage moved here from straight after the
+    page classifier:
+
+      * THE NOTE TABLES (`doc.notes`) EXIST ON THIS ROUTE TOO. The model's rows replace the face
+        rows, never the notes, so the Notes screen, the disclosures' note text and the
+        contingent-liability narrative are built as on the rules route, and `note_sourced` fills a
+        part the model left empty from the rules' own reading of the notes (a blank Level 3 column
+        read as 0; the parts of a request that failed). A part the model answered keeps the
+        model's figure (`stages.note_sourced._llm_holds`).
+      * THE RULES' FACE ROWS ARE KEPT beside the model's (`PipelineContext.whole_pdf_rules_rows`),
+        so a figure the model read can be found again in the rules' reading of its page.
+      * A FALLBACK READS NOTHING TWICE. When the model cannot answer, the document still holds what
+        `extract` read and the rest of the rules route simply carries on.
+
+    The page classifier still runs first, as the stage chooses its pages from the page map; the
+    extraction reads the same page map and changes no page's kind.
     """
     from app.stages.whole_pdf import WholePdfStage
 
     stages = list(default_pipeline().stages)
-    at = next((i for i, st in enumerate(stages) if st.name == "classify"), None)
+    at = next((i for i, st in enumerate(stages) if st.name == "extract"), None)
     if at is None:
-        # The stage chooses its pages from the classifier's page map; a pipeline without one is
-        # not given it.
+        # The stage replaces what the extraction read and keeps the notes it read; a pipeline
+        # without an extraction is not given it.
         return Pipeline(stages=stages)
     stages.insert(at + 1, WholePdfStage())
     return Pipeline(stages=stages)

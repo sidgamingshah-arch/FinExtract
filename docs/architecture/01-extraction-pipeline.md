@@ -745,27 +745,44 @@ provider (the test suite, `scripts/run_filing.py --no-llm`) or a spreadsheet, th
 (below) and the rules read the filing exactly as with the switch off. **Off, nothing above
 changes**: `core/pipeline.py::pipeline_for` assembles `default_pipeline()` and the stage
 below is not in it. **On**, the run assembles `whole_pdf_pipeline()` — the same list with
-`whole_pdf` straight after `classify` — and the filing is read differently:
+`whole_pdf` straight after `extract` — and the filing is read differently:
 
-1. `ingest · integrity · language_detect · classify` run as always, so the page map and the Page
-   Scope screen are what they were.
+1. `ingest · integrity · language_detect · classify · extract` run as always, so the page map, the
+   Page Scope screen, the rules' face rows and the **note tables** are what they were. The stage
+   comes after the extraction so the note tables exist on this route too (the model's rows replace
+   the face rows, never the notes), so the rules' face rows can be kept beside the model's
+   (`PipelineContext.whole_pdf_rules_rows`, set aside unmapped), and so a fallback reads nothing
+   twice.
 2. `stages/whole_pdf.py` sends the PDF **file itself** to the model, not text the app read out of
    it: the pages the classifier found to be statements and notes (`whole_pdf_pages =
    "statements"`), every page (`"all"`), or the pages a person chose on the Page Scope screen.
-   They go as one or more PDF parts cut from the original (`services/whole_pdf.py::build_parts`):
-   at most `whole_pdf_pages_per_request` pages and `whole_pdf_max_request_mb` a part, in even
-   parts. **The model is asked for every `extracted` line, whatever its `route`** — the face, the
+   With "statements" and no page selection, the **auditor's report** goes too
+   (`services/whole_pdf.py::report_pages`): a page classified `AUDITOR_REPORT` or `COVER`, and —
+   since no corpus filing is classified so — the pages from the report's heading ("INDEPENDENT
+   AUDITOR'S REPORT", "一、审计报告") up to each set of statements, found in the PDF's own text; the
+   Accountant and the auditor's opinion are printed nowhere else. They go as one or more PDF
+   parts cut from the original (`services/whole_pdf.py::build_parts`): at most
+   `whole_pdf_pages_per_request` pages and `whole_pdf_max_request_mb` a part, in even parts, and
+   **every part carries the statement faces**, so a note in the second part is read with the
+   statements in view — the other pages are cut into smaller parts to make room, never dropped. **The model is asked for every `extracted` line, whatever its `route`** — the face, the
    note tables, anywhere in the report or the narrative, as the rules route asks them
    (`line_item_requests.asked_about`) — the internal `sub__` parts a cascade adds up and the text
    lines (a phrase or prose) included, and for the total the filing prints of every `calculated`
    line (`services/whole_pdf.py::lines_to_ask`). Each line in the question says where to read it
    (`[read from the notes]`) and whether it is a TOTAL, a TEXT, or a PART of the line it feeds.
    Not asked: a `derived` line, whose figure is its cascade's (step 4); an `intermediate`
-   working figure; and a line the app computes or a person fills (`extraction_mode: derive` —
-   the HK set's analyst, status, target currency and control totals). That is 517 lines on the
-   HK set (484 extracted, of them 78 internal parts and 11 text lines, and 33 printed totals),
-   157 on US GAAP (13 text lines) and 111 on Ind AS. At most `whole_pdf_lines_per_request` at a
-   time and one statement per request. The model answers a figure line with its figures —
+   working figure; a line the app computes or a person fills (`extraction_mode: derive` —
+   the HK set's analyst, status, target currency and control totals); and a part nothing reads
+   (no cascade, formula or parent — the HK set's `bs_ca_residual_L3`, which has no definition).
+   That is 518 lines on the HK set (485 extracted, of them 79 internal parts and 11 text lines,
+   and 33 printed totals), 157 on US GAAP (13 text lines) and 111 on Ind AS. At most
+   `whole_pdf_lines_per_request` at a time; a statement's own lines are never asked with another
+   statement's, but **the parts one cascade adds up are asked in one request**
+   (`services/whole_pdf.py::families` — Securities (CP)'s Find 1 and Level 3 parts with the LTP
+   parts its residual reaches), and the question lists them under "Added together": one printed
+   holding goes into at most one of them. Each line is sent with its **whole definition** (it was
+   cut at 240 characters), and where its `exclude_hints` name captions the definition does not, a
+   "Not this line: …" sentence rendered from them (`definition_of`, `hint_caption`). The model answers a figure line with its figures —
    basis, period, the amount as printed, the page of the file it read it on, the caption, and
    the printed rows of a figure that is a sum of rows — and a text line with its words and the
    pages they are on.
@@ -774,22 +791,41 @@ below is not in it. **On**, the run assembles `whole_pdf_pipeline()` — the sam
    cache breakpoint so every request after the first reads it from the prompt cache; a `file`
    part on Chat Completions (`openai`, `openai_compatible`, `azure_openai`). Such a request waits
    `llm.document_timeout_seconds` (600 as shipped; `llm.retries` applies too, so a stalled request
-   holds its lines for up to twice that). The first request of each part goes alone (it fills the
-   cache), the rest `llm_parallel_requests` at a time.
+   holds its lines for up to twice that). **The smallest request goes first**, alone: it fills
+   the cache, and it answers quickest whether the gateway is up and takes the file. Then the rest
+   of that part, the largest first, `llm_parallel_requests` at a time, and each later part the
+   same way (`services/whole_pdf.py::Plan.order`). A request that fails is asked once more; a
+   reply cut off at its budget is asked again with twice the room where that is within
+   `ports/llm.py::ROOM_CEILING`, and otherwise — the balance sheet is budgeted 32,000 tokens — as
+   two halves, at most three times halved (`stages/whole_pdf.py::_request`).
 4. The stage writes one row per line and basis, with `printed_in` from the page's kind and the
    statement it is on stamped on it (`printed_on:<statement>`, read before the page by
    `buckets.statement_resolver`: a face line's statement; none for a part read in the notes or a
    note's, covenant's or setup line, which the rules route fills after `normalize`), and names the
    stages still to run
-   (`PipelineContext.only_stages`): `normalize` (the statements' units, the template's sign
-   rules); **`note_sourced`, the configured cascades** — each `derived` line (Sales (Revenues),
-   the depreciation lines, the related-party and financial-asset lines) is computed from the parts
-   the model read by the same rungs as on the rules route, nested parts first, so the HK set's
-   revenue is the revenue note's principal-business revenue where the note prints it and the
-   face's otherwise; `shared_figures` (one printed figure the model put on two lines);
-   `confidence`; `structural` (the template's checks, comparing a printed total with its printed
-   parts, both read by the model); `disclosure_reading`; and `segment`. Every other stage works
-   on rows rebuilt from the page or on note tables, and is logged `stage:<name>:skipped`. A text
+   (`PipelineContext.only_stages`, `stages/whole_pdf.py::KEPT_STAGES`): `normalize` (the
+   statements' units, the template's sign rules); `link_notes` (links a face row to the notes it
+   cites — the model's rows cite none yet, so it links nothing); **`note_sourced`, the configured
+   cascades** — each `derived` line (Sales (Revenues), the depreciation lines, the related-party
+   and financial-asset lines) is computed from the parts the model read by the same rungs as on
+   the rules route, nested parts first, so the HK set's revenue is the revenue note's
+   principal-business revenue where the note prints it and the face's otherwise — and, with the
+   note tables, it **fills a part the model left empty from the rules' own reading** (a Level 3
+   column printed blank reads 0; the parts of a request that failed are read as on the rules
+   route), while a slot the model answered, on any of its rows, keeps the model's figure, and a
+   note figure the model placed on another line is not read again — that very cell, where the
+   model's figure can be put on one, so a row printing one amount in two columns (gross and its
+   full allowance) keeps its other column (`services/whole_pdf_rules.py`);
+   `contingent_liabilities` (the classified narrative, from the notes); `shared_figures` (one
+   printed figure the model put on two lines); `reconcile` (the notes' own arithmetic, and a
+   linked face row's tie); `prune_notes` (with no note reference on the model's rows nothing is
+   pruned, so the Notes screen shows every note read); `confidence`; `structural` (the template's
+   checks, comparing a printed total with its printed parts, both read by the model);
+   `disclosure_reading`; and `segment`. Skipped, and logged `stage:<name>:skipped`: the stages
+   that map the rules' face captions (`map_line_items`, `residual`), the rules route's own model
+   call (`line_item_llm`), the stages that place rows left unplaced (`assemble_components`,
+   `gap_closing`, `row_suggestions`), `face_mapping_contract`, and `note_tag_gate`, which would
+   zero a model figure for printing no note reference. A text
    line is checked as the rules route checks one, by the same functions (`text_lines.locate`,
    `text_lines.check_prose`): a phrase is written only where the PDF's own text prints it — on the
    page it cites, or on exactly one other page of the part — and a narrative only when every
@@ -833,13 +869,21 @@ and moved there, the common case being a model citing the printed folio (`moved`
 (`nil`); a page with no text layer (`no_text`); or not found (`not_found`). `no_text` and
 `not_found`, and a line given two different figures for one slot by two parts, raise
 `low_mapping_confidence` and go to review; a `not_found` figure's confidence is 0.3, below the
-auto-accept bar. The run result's `mapping.whole_pdf` counts each outcome.
+auto-accept bar. Between two parts' readings (`services/whole_pdf.py::merge`) a confirmed one
+wins, then the page the line is read from — a [read from the notes] line prefers a note page, a
+statement's line a statement page; where nothing chooses, part 1's figure is kept and the slot is
+flagged `whole_pdf:parts_disagree:<kept>@p<n>(part i):<other>@p<m>(part j)`. A [read from the
+statement] line kept off a page that is not a statement's is flagged
+`whole_pdf:face_line_not_on_a_statement_page`. Both go to review. The run result's
+`mapping.whole_pdf` counts each outcome, and names every request that failed
+(`requests_failed`) and every line no request answered (`lines_lost`).
 
 **It never leaves a run with nothing.** No line-item set, a file that is not a PDF, the `stub`
-provider, a provider that cannot be sent a file, a first request that fails (the file refused, or
-the provider not answering) or no request answered: the stage logs
-`whole_pdf:fallback(<why>)`, leaves the document as it was, and every stage runs — the rules read
-the filing.
+provider, a provider that cannot be sent a file, a first request that fails after its retry (the
+file refused, or the provider not answering), no request answered, or a statement whose own lines
+no request answered in a part holding its face pages: the stage logs
+`whole_pdf:fallback(<why>)`, leaves the document as the extraction left it, and every later stage
+runs — the rules read the filing, with nothing read twice.
 
 **What it costs**, measured as the request shape on ten corpus filings with the defaults (no model
 called): statement and notes pages are 28 to 180 of 97 to 383 pages; one or two parts of 0.3 to
@@ -850,7 +894,13 @@ roughly 1,500 to 4,800 tokens — so
 the largest request is an estimated 75,000 to 520,000 input tokens: it needs a model with a 1M
 window at 100 pages a part, or fewer pages a part on a smaller one. The requests after the first
 of each part read the file at the cached rate. The run log prints each request's input, cached and
-output tokens.
+output tokens. Measured again with the whole definitions, the auditor's report and the faces in
+every part, on the five reference filings (688008, 000709, 300319, 1966, kaming; no model
+called): 94 to 176 pages sent (3 to 10 of them the auditor's report), one or two parts of at most
+94 pages and 2.7 MB, 7 or 14 requests as before; the largest question, the balance sheet's, is
+201,147 characters (about 52,000 estimated tokens) where it was 70,043, and the largest request an
+estimated 195,000 to 282,000 input tokens (the app's text estimate plus 1,600 a page for its
+picture) where it was 140,000 to 228,000.
 
 ## Progress reporting
 

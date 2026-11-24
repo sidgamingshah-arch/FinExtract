@@ -131,13 +131,35 @@ export interface ExtractionField {
   max: number | null;
   step: number | null;
   choices: string[];
-  /** Where the Settings screen shows it: a tab ("model", "focus", "reading", "mapping"), a
-   *  section heading within it, and the one line it is introduced by (`help` is the full text). */
+  /** For a choice: each value with a short name and one line on what picking it does. Empty when
+   *  the knob's values are shown as they are. */
+  choice_info?: { value: string; label: string; note: string }[];
+  /** Where the Settings screen shows it: a tab ("route" or "advanced"), a section heading within
+   *  it, and the one line it is introduced by (`help` is the full text). */
   tab: string;
   section: string;
   summary: string;
+  /** The section is rarely changed and starts folded. */
+  folded?: boolean;
   /** Shown only while another knob holds one of these values: an option only one route reads. */
   shown_when: { key: string; values: (string | number | boolean)[] } | null;
+}
+
+/** One of the three ways a filing is read (backend `settings_state.ROUTES`): the knob values that
+ *  choose it, and the words its card shows. */
+export interface ExtractionRoute {
+  id: string;
+  name: string;
+  summary: string;
+  best_for: string;
+  cost: string;
+  limits: string[];
+  /** The knob values that choose this route; picking its card sets exactly these. */
+  sets: Record<string, boolean>;
+  /** The knob this route's own options hang off (`shown_when`), or null when it has none. */
+  switch: string | null;
+  /** What a failed run of this route is read with: the same values with these overridden. */
+  fallback: Record<string, boolean> | null;
 }
 
 /** Runtime-mutable settings an admin can PATCH. */
@@ -171,6 +193,8 @@ export interface AppSettings {
     base_url: string;
     api_key_env: string;
     key_configured: boolean;
+    /** Whether that provider can be sent a PDF file (the whole-PDF route's first test). */
+    takes_files?: boolean;
   };
   ocr: {
     engine: string; languages: string[]; dpi: number;
@@ -192,6 +216,9 @@ export interface AppSettings {
    *  values have been moved away from them. */
   extraction_defaults: Record<string, number | boolean | string>;
   extraction_fields: ExtractionField[];
+  /** The route picker's cards, and the one the saved values read a filing by. */
+  extraction_routes?: ExtractionRoute[];
+  extraction_route?: string;
   auth: { allow_role_header: boolean; demo_mode: boolean; session_ttl_minutes: number };
 }
 

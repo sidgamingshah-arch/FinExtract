@@ -132,7 +132,10 @@ def test_end_to_end_the_swaps_notional_is_not_published():
 def test_without_the_rule_the_same_answer_would_publish_the_notional(monkeypatch):
     """The control: the scenario above really reaches publication, so the test above is about the
     rule and not about a citation that never resolved."""
-    import app.stages.line_item_llm as stage
-    monkeypatch.setattr(stage, "_refuse_derivative_citations", lambda item, resolved: (resolved, []))
+    # The rule lives in `services.answer_checks`, which every model route calls; it is switched
+    # off there, where the stage reaches it.
+    import app.services.answer_checks as checks
+    monkeypatch.setattr(checks, "refuse_derivatives",
+                        lambda item, resolved, *_a, **_k: (resolved, []))
     line, _ctx = _stage_run()
     assert any(str(v.value) == "950000" for v in line.values.values()), line.values

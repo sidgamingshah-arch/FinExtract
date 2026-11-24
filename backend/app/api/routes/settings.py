@@ -33,6 +33,7 @@ from app.services.settings_state import (
     get_review_required,
     get_seed_demo,
     get_ui_localization,
+    provider_takes_files,
     reset_extraction_config,
     set_extraction_config,
     set_review_required,
@@ -45,6 +46,7 @@ router = APIRouter(tags=["settings"])
 
 def _snapshot() -> dict:
     s = get_settings()
+    extraction = extraction_config()
     return {
         "features": {
             "ui_localization": get_ui_localization(),
@@ -75,6 +77,10 @@ def _snapshot() -> dict:
             "base_url": s.llm.base_url,
             "api_key_env": s.llm.api_key_env,
             "key_configured": bool(os.environ.get(s.llm.api_key_env)),
+            # Whether that provider can be sent a PDF file, asked as the whole-PDF stage asks it:
+            # the Settings screen says beforehand that, without it, every filing is read by the
+            # whole-PDF route's fallback.
+            "takes_files": provider_takes_files(),
             "azure_endpoint": s.llm.azure_endpoint,
             "azure_api_version": s.llm.azure_api_version,
             # What Azure will actually be asked for, deployment fallback resolved, so the screen
@@ -93,9 +99,13 @@ def _snapshot() -> dict:
         # what it does — so the Settings screen renders and validates from the backend's own
         # definition instead of a second copy that can drift from it; ``defaults`` is what the
         # config file shipped, for "restore defaults".
-        "extraction": extraction_config()["values"],
-        "extraction_defaults": extraction_config()["defaults"],
-        "extraction_fields": extraction_config()["fields"],
+        "extraction": extraction["values"],
+        "extraction_defaults": extraction["defaults"],
+        "extraction_fields": extraction["fields"],
+        # The route picker: the three ways a filing is read, each with the knob values that
+        # choose it (`settings_state.ROUTES`), and the one the values above choose.
+        "extraction_routes": extraction["routes"],
+        "extraction_route": extraction["route"],
         "auth": {
             "allow_role_header": s.auth.allow_role_header,
             "demo_mode": s.auth.demo_mode,

@@ -18981,7 +18981,7 @@
    "section_scope": [
     "bs_ca"
    ],
-   "definition": "Sum of all current financial assets at fair value through other comprehensive income (FVTOCI), excluding derivatives and other receivables. Only the current portion — not the non-current portion. Exclude derivatives and other receivables from the sum.",
+   "definition": "Sum of all current financial assets at fair value through other comprehensive income (FVTOCI), excluding derivatives and other receivables. Only the current portion — not the non-current portion. Exclude derivatives and other receivables from the sum. Not 应收款项融资 (receivables financing: the bills and trade receivables a CAS balance sheet measures at fair value through other comprehensive income and prints as a current-asset row of their own) — that row is a receivables line, and a fair-value table that lists it among its assets does not make it this one.",
    "keyword_hints": [
     "fair value"
    ],
@@ -18992,7 +18992,9 @@
     "投资性房地产",
     "投资物业",
     "^items that (?:will not|may|are or may) be reclassified",
-    "^fair value changes? (?:in|of|on) equity investments? (?:measured|designated) at fair value through other comprehensive income$"
+    "^fair value changes? (?:in|of|on) equity investments? (?:measured|designated) at fair value through other comprehensive income$",
+    "应收款项融资",
+    "應收款項融資"
    ],
    "route": "note_tables"
   },

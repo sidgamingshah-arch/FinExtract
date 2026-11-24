@@ -65,6 +65,10 @@ class Knob(NamedTuple):
     maximum: float | None = None
     step: float | None = None
     choices: tuple[str, ...] = ()
+    #: For a choice: each value with a short name and one line on what picking it does, so the
+    #: screen offers "Only the notes each line chose" rather than a bare "selected". Every choice
+    #: has one or none does (tests/test_settings_extraction.py).
+    choice_info: tuple[tuple[str, str, str], ...] = ()
 
 
 # Every extraction setting an admin may change from the Settings screen. Changing one affects
@@ -78,7 +82,7 @@ EXTRACTION_KNOBS: tuple[Knob, ...] = (
          "provider, the note-sourced tiers decide that too."),
     Knob("llm_focus_only", "bool", "Ask the model only about focus line items",
          "Off (as shipped): the model is asked about every line item. On: a run's requests are "
-         "restricted to the lines on the Focus line items master below, and every other line keeps "
+         "restricted to the lines on the Focus line items master (its own tab), and every other line keeps "
          "what the deterministic tiers gave it — a way to spend a small provider budget on the "
          "lines under review instead of on the whole filing. With the master empty this does "
          "nothing and says so in the run log. The whole-PDF route asks every extracted line either "
@@ -97,7 +101,19 @@ EXTRACTION_KNOBS: tuple[Knob, ...] = (
          "Shipped: \"identical\" — lines needing the same notes, or the same section of a "
          "statement, share one request, at most the number below: 50-63 line-item requests a "
          "filing where \"none\" made 421. Choose \"none\" for the per-line baseline.",
-         choices=("none", "identical", "similar", "manual")),
+         choices=("none", "identical", "similar", "manual"),
+         choice_info=(
+             ("none", "One line item per request",
+              "The per-line baseline: about 420 requests a filing, and each answer belongs to one "
+              "line."),
+             ("identical", "Lines that need the same notes share a request",
+              "Safe: no line is sent a note it did not ask for. About 50 to 75 requests a filing."),
+             ("similar", "Lines whose notes overlap share a request",
+              "Fewer requests, but a line may see notes it did not ask for, and lines sharing a "
+              "request can sway each other's answers."),
+             ("manual", "The groups written on the line-item set",
+              "Every line in no group is asked one at a time."),
+         )),
     Knob("llm_lines_per_request", "number", "Line items in one request",
          "Read when grouping is \"identical\" or \"similar\": the most line items one request asks "
          "about. A larger group is asked in even parts, each sent the group's notes and the "
@@ -118,7 +134,19 @@ EXTRACTION_KNOBS: tuple[Knob, ...] = (
          "on every request that carries it, so a provider that caches prompts charges the cached "
          "rate for it after the first; the run log shows input, cached and output tokens per "
          "request and a summary at the end.",
-         choices=("selected", "anywhere", "full")),
+         choices=("selected", "anywhere", "full"),
+         choice_info=(
+             ("selected", "Only the notes each line chose",
+              "The smallest requests. A line that may be read from anywhere is given the pages "
+              "that print its name, not the whole report."),
+             ("anywhere", "The whole report for lines read from anywhere",
+              "Each line is sent the notes it chose, and the lines that may be read from anywhere "
+              "are asked with the whole annual report, in batches of their own."),
+             ("full", "The whole report with every question",
+              "The model always has the whole filing in view. Costs the most: the report, often "
+              "over 100,000 tokens, goes with every request, at the cached rate after the first "
+              "where the provider caches prompts."),
+         )),
     Knob("ocr_scanned_pages", "bool", "Read scanned pages (OCR)",
          "A page with a text layer is always read from that layer, exactly as printed — OCR would "
          "only re-guess characters the file already holds — so this changes nothing for a native "
@@ -136,33 +164,56 @@ EXTRACTION_KNOBS: tuple[Knob, ...] = (
          "OUTSIDE this server, to the address set in config.toml [document_engine]; the status "
          "below says whether that address and a token are configured. A page Kensho does not "
          "return, or a run where it fails, is read as usual and the run log says so.",
-         choices=("off", "kensho")),
+         choices=("off", "kensho"),
+         choice_info=(
+             ("off", "Off: read the PDF's own text",
+              "A page with no text layer goes to the OCR engine above."),
+             ("kensho", "Kensho Extract",
+              "Sends the PDF outside this server, to the address in config.toml "
+              "[document_engine]."),
+         )),
     Knob("document_reader_pages", "choice", "Pages the document engine reads",
          "\"scanned\" uses the engine only for pages with no text layer, in place of OCR — a "
          "native page is still read from its own text, exactly as printed. \"all\" reads every "
          "page from the engine's answer instead of the PDF's text layer: for filings whose text "
          "layer is broken or scrambled. Only read when an engine is chosen above.",
-         choices=("scanned", "all")),
-    Knob("whole_pdf_to_model", "bool", "Send the whole PDF to the model (skip extraction)",
+         choices=("scanned", "all"),
+         choice_info=(
+             ("scanned", "Only pages with no text layer",
+              "In place of OCR. A native page is still read from its own text."),
+             ("all", "Every page",
+              "In place of the PDF's text layer, for a filing whose text layer is broken."),
+         )),
+    Knob("whole_pdf_to_model", "bool", "Send the whole PDF to the model",
          "On in the shipped config.toml. Off, a filing is read as always: rows are rebuilt from "
          "each page and placed on the template's lines by the rules, and the model is only asked "
-         "where a line's figure is printed. On, the pages are still classified (what the Page Scope screen "
-         "shows), and then the PDF FILE ITSELF is sent to the model with the template's lines — "
-         "the model sees each page as printed, tables and columns intact — and returns each "
-         "line's figures with the page it read them on. Row reconstruction, note tables and "
-         "mapping are skipped; units, signs and the template's checks run on the model's figures "
-         "exactly as on the rules'. Every figure is looked for on the page it cites, in the PDF's "
-         "own text, and is marked unconfirmed for review when it is not there. It costs more: "
-         "each request carries the pages (text and picture, roughly 1,500 to 4,800 tokens a "
-         "page), cached after the first request of the run. Needs a provider that takes files "
-         "(anthropic, bedrock_gateway, openai, azure_openai); if the provider refuses the file "
-         "or no request succeeds, the run is read by the rules and the run log says why."),
+         "where a line's figure is printed. On, the pages are still classified (what the Page "
+         "Scope screen shows), and then the PDF FILE ITSELF is sent to the model with the "
+         "template's lines — the model sees each page as printed, tables and columns intact — "
+         "and returns each line's figures with the page it read them on. The rules still read "
+         "the filing alongside it: they read the note tables, check each model figure against "
+         "the page it cites and against their own reading, and fill the lines the model leaves "
+         "empty; the note screens and the contingent-liabilities narrative are filled as on the "
+         "rules route. Units, signs and the template's checks run on the figures exactly as on "
+         "the rules'. It costs more: each request carries the pages (text and picture, roughly "
+         "1,500 to 4,800 tokens a page), cached after the first request of the run. Needs a "
+         "provider that takes files (anthropic, bedrock_gateway, openai, azure_openai); if the "
+         "provider cannot be sent the file, or a statement's request fails, the whole filing is "
+         "read by the rules route — with the model's line-item questions if \"Ask the model "
+         "about line items\" is on — and the run log says why."),
     Knob("whole_pdf_pages", "choice", "Pages sent with the whole PDF",
          "Only read when the switch above is on. \"statements\" sends the pages the classifier "
          "found to be financial statements and notes — or the pages chosen on the Page Scope "
          "screen — which is usually a third to a half of an annual report and far cheaper. "
          "\"all\" sends every page, for a filing whose statements the classifier does not find.",
-         choices=("statements", "all")),
+         choices=("statements", "all"),
+         choice_info=(
+             ("statements", "Statement and note pages",
+              "The pages the classifier found, or those chosen on the Page Scope screen: usually "
+              "a third to a half of the report, and far cheaper."),
+             ("all", "Every page",
+              "For a filing whose statements the classifier does not find."),
+         )),
     Knob("whole_pdf_pages_per_request", "number", "Pages in one request (whole PDF)",
          "The most pages one request carries. A longer selection is sent in consecutive parts, "
          "each asked every line, and a figure read in two parts keeps the one from a statement "
@@ -223,12 +274,12 @@ EXTRACTION_KNOBS: tuple[Knob, ...] = (
          "where the word appears), with the amounts and counterparties as printed; every point must "
          "quote the page it cites or it is dropped. The credit view's report signals follow the "
          "reading. Off, or if a call fails, the screen shows the keyword scan."),
-    Knob("llm_gap_routing", "bool", "Close subtotal gaps (LLM)",
+    Knob("llm_gap_routing", "bool", "Close subtotal gaps with the model",
          "When a section subtotal computed from the template's lines differs from the printed "
          "one, offer the model the extracted lines that reached no statement and ask which "
          "belong in that section's Others. Only groups that close the difference in BOTH "
          "periods are offered. Off, the difference stays a review item."),
-    Knob("llm_contingent_liabilities", "bool", "Contingent liabilities narrative (LLM)",
+    Knob("llm_contingent_liabilities", "bool", "Contingent-liabilities summary in plain English",
          "Classification and every total are always deterministic, computed only from the "
          "filing's own figures. Enabled, the model rewrites the summary paragraph and each "
          "unclassified item's short statement in clearer English, grounded only in the supplied "
@@ -283,133 +334,249 @@ class Placement(NamedTuple):
     the knob's ``help`` is the full explanation, one click away. ``shown_when`` names another knob
     and the values of it under which this one is read at all: with the switch off, a knob that
     only that switch's route reads changes nothing, and showing it is what made the screen heavy.
+    ``folded`` marks a section that is rarely changed: the screen shows its heading, how many
+    settings it holds and how many differ from the default, and opens it on a click.
+
+    The "route" tab is laid out by the route picker (``ROUTES``): ``llm_mapping`` and
+    ``whole_pdf_to_model`` are the two switches the three routes set, and every other knob on that
+    tab hangs, through ``shown_when``, off one of them — which is how the picker knows that a
+    knob is that route's own option.
     """
 
     tab: str
     section: str
     summary: str
     shown_when: tuple[str, tuple] | None = None
+    folded: bool = False
 
 
 _ON = (True,)
 
 #: Every knob's place on the screen, in the order the screen lists them.
 KNOB_PLACEMENT: dict[str, Placement] = {
-    # The model's questions about line items (the normal route).
+    # HOW A FILING IS READ: the two switches the route picker sets…
     "llm_mapping": Placement(
-        "model", "Line-item questions",
+        "route", "Route",
         "Ask the model where each line item's figure is printed. Off: the rules decide every "
         "line."),
-    "llm_request_grouping": Placement(
-        "model", "Line-item questions",
-        "Whether line items that need the same notes share one request. \"identical\" (shipped) "
-        "is safe and cheap; \"none\" asks one line per request.",
-        ("llm_mapping", _ON)),
-    "llm_lines_per_request": Placement(
-        "model", "Line-item questions",
-        "The most line items one shared request asks about.",
-        ("llm_request_grouping", ("identical", "similar"))),
-    "llm_group_similarity": Placement(
-        "model", "Line-item questions",
-        "How alike two lines' notes must be before they share a request.",
-        ("llm_request_grouping", ("similar",))),
+    "whole_pdf_to_model": Placement(
+        "route", "Route",
+        "Send the PDF itself to the model, which reads each line from the pages as printed; the "
+        "rules read alongside it and take over the filing if it fails."),
+    # …the options of "Rules + model questions" (and of the whole-PDF route's fallback)…
     "llm_document_context": Placement(
-        "model", "Line-item questions",
-        "How much of the annual report a request carries: only the notes its lines selected, the "
-        "whole report for lines that may be read from anywhere (shipped), or the whole report "
-        "every time.",
+        "route", "What the model reads",
+        "How much of the annual report goes with each question: only the notes the line chose, "
+        "the whole report for lines that may be read from anywhere, or the whole report every "
+        "time.",
         ("llm_mapping", _ON)),
+    "llm_request_grouping": Placement(
+        "route", "How requests are put together",
+        "Whether line items that need the same notes share one request, or each is asked on its "
+        "own.",
+        ("llm_mapping", _ON), folded=True),
+    "llm_lines_per_request": Placement(
+        "route", "How requests are put together",
+        "The most line items one shared request asks about.",
+        ("llm_request_grouping", ("identical", "similar")), folded=True),
+    "llm_group_similarity": Placement(
+        "route", "How requests are put together",
+        "How alike two lines' notes must be before they share a request.",
+        ("llm_request_grouping", ("similar",)), folded=True),
     "llm_note_synonyms": Placement(
-        "model", "Finding notes",
+        "route", "Finding notes",
         "Also find a note whose heading uses another name for the line (\"Fixed assets\" for "
         "property, plant and equipment).",
-        ("llm_mapping", _ON)),
+        ("llm_mapping", _ON), folded=True),
     "llm_note_router": Placement(
-        "model", "Finding notes",
+        "route", "Finding notes",
         "One extra call that asks the model which notes print each line, adding up to two to its "
         "request.",
-        ("llm_mapping", _ON)),
-    "llm_row_suggestions": Placement(
-        "model", "Extra model calls",
-        "One call that suggests a line for each printed row that reached none. A person applies "
-        "it."),
-    "llm_disclosures": Placement(
-        "model", "Extra model calls",
-        "Up to eight calls that read the Disclosures screen's topics: going concern, guarantees, "
-        "litigation and the rest."),
-    "llm_gap_routing": Placement(
-        "model", "Extra model calls",
-        "When a subtotal does not add up, ask the model which unplaced rows close the gap."),
-    "llm_contingent_liabilities": Placement(
-        "model", "Extra model calls",
-        "Let the model rewrite the contingent-liabilities summary in clearer English. The "
-        "figures stay the rules'."),
-    "llm_parallel_requests": Placement(
-        "model", "Sending",
-        "How many requests are sent at once. Lower it if the provider refuses requests for rate "
-        "limits."),
-    # The focus list's switch, on the tab that holds the list.
+        ("llm_mapping", _ON), folded=True),
     "llm_focus_only": Placement(
-        "focus", "",
-        "Ask the model only about the line items on the list below; the rules read every other "
-        "line."),
-    # How the pages are read.
-    "ocr_scanned_pages": Placement(
-        "reading", "Pages",
-        "Read a page that has no text layer (a scan) with the offline OCR engine. Off: such "
-        "pages are skipped."),
-    "document_reader": Placement(
-        "reading", "Pages",
-        "Send the filing to Kensho Extract and read pages from its answer. This sends the PDF "
-        "outside this server."),
-    "document_reader_pages": Placement(
-        "reading", "Pages",
-        "Which pages the engine reads: only those with no text layer, or every page.",
-        ("document_reader", ("kensho",))),
-    "whole_pdf_to_model": Placement(
-        "reading", "Whole PDF to the model",
-        "Send the PDF itself to the model, which reads every figure from the pages as printed. "
-        "If it fails, the run is read by the rules."),
+        "route", "Which lines are asked",
+        "Ask the model only about the line items on the Focus line items list; the rules read "
+        "every other line.",
+        ("llm_mapping", _ON)),
+    # …and the options of "Whole PDF to the model".
     "whole_pdf_pages": Placement(
-        "reading", "Whole PDF to the model",
+        "route", "Pages sent",
         "Send only the statement and note pages, or every page.",
         ("whole_pdf_to_model", _ON)),
     "whole_pdf_pages_per_request": Placement(
-        "reading", "Whole PDF to the model",
+        "route", "Request limits",
         "The most pages in one request; a longer selection is sent in parts.",
-        ("whole_pdf_to_model", _ON)),
+        ("whole_pdf_to_model", _ON), folded=True),
     "whole_pdf_max_request_mb": Placement(
-        "reading", "Whole PDF to the model",
+        "route", "Request limits",
         "The largest request the provider accepts.",
-        ("whole_pdf_to_model", _ON)),
+        ("whole_pdf_to_model", _ON), folded=True),
     "whole_pdf_lines_per_request": Placement(
-        "reading", "Whole PDF to the model",
+        "route", "Request limits",
         "The most template lines one request asks about.",
-        ("whole_pdf_to_model", _ON)),
-    # The rules' thresholds.
+        ("whole_pdf_to_model", _ON), folded=True),
+    # EVERYTHING ELSE, out of the way on its own tab, the rarely changed groups folded.
+    "llm_row_suggestions": Placement(
+        "advanced", "Extra model calls",
+        "One call that suggests a line for each printed row that reached none. A person applies "
+        "it."),
+    "llm_disclosures": Placement(
+        "advanced", "Extra model calls",
+        "Up to eight calls that read the Disclosures screen's topics: going concern, guarantees, "
+        "litigation and the rest."),
+    "llm_gap_routing": Placement(
+        "advanced", "Extra model calls",
+        "When a subtotal does not add up, ask the model which unplaced rows close the gap."),
+    "llm_contingent_liabilities": Placement(
+        "advanced", "Extra model calls",
+        "Let the model rewrite the contingent-liabilities summary in clearer English. The "
+        "figures stay the rules'."),
+    "llm_parallel_requests": Placement(
+        "advanced", "Sending requests",
+        "How many requests are sent at once. Lower it if the provider refuses requests for rate "
+        "limits.",
+        folded=True),
+    "ocr_scanned_pages": Placement(
+        "advanced", "Pages and OCR",
+        "Read a page that has no text layer (a scan) with the offline OCR engine. Off: such "
+        "pages are skipped.",
+        folded=True),
+    "document_reader": Placement(
+        "advanced", "Pages and OCR",
+        "Send the filing to Kensho Extract and read pages from its answer. This sends the PDF "
+        "outside this server.",
+        folded=True),
+    "document_reader_pages": Placement(
+        "advanced", "Pages and OCR",
+        "Which pages the engine reads: only those with no text layer, or every page.",
+        ("document_reader", ("kensho",)), folded=True),
     "evidence_floor": Placement(
-        "mapping", "Matching captions",
-        "How closely a caption must match one of a line's aliases to count as evidence."),
+        "advanced", "Matching captions",
+        "How closely a caption must match one of a line's aliases to count as evidence.",
+        folded=True),
     "alias_coverage_floor": Placement(
-        "mapping", "Matching captions",
+        "advanced", "Matching captions",
         "How much of the alias the caption must cover, so a short heading is not read as a long "
-        "name."),
+        "name.",
+        folded=True),
     "mapping_margin": Placement(
-        "mapping", "Matching captions",
-        "How far the winning line must beat the runner-up; below it the row is left unmapped."),
+        "advanced", "Matching captions",
+        "How far the winning line must beat the runner-up; below it the row is left unmapped.",
+        folded=True),
     "auto_accept_confidence": Placement(
-        "mapping", "Matching captions",
-        "The confidence at which a mapping counts as settled rather than a weak match."),
+        "advanced", "Matching captions",
+        "The confidence at which a mapping counts as settled rather than a weak match.",
+        folded=True),
     "recon_abs_tolerance": Placement(
-        "mapping", "Reconciliation",
-        "The difference allowed between a note total and its face figure, in the filing's units."),
+        "advanced", "Reconciliation",
+        "The difference allowed between a note total and its face figure, in the filing's units.",
+        folded=True),
     "recon_rel_tolerance": Placement(
-        "mapping", "Reconciliation",
-        "The same allowance as a fraction of the figure, for large figures."),
+        "advanced", "Reconciliation",
+        "The same allowance as a fraction of the figure, for large figures.",
+        folded=True),
     "recon_corroboration_rel": Placement(
-        "mapping", "Reconciliation",
-        "How near a note total must come before the note counts as a breakdown of the figure."),
+        "advanced", "Reconciliation",
+        "How near a note total must come before the note counts as a breakdown of the figure.",
+        folded=True),
 }
+
+
+class Route(NamedTuple):
+    """One of the three ways a filing is read, as the Settings screen's route picker offers it.
+
+    A route is not a setting of its own: it is a reading of two knobs, ``llm_mapping`` and
+    ``whole_pdf_to_model`` (``sets``), which is what the pipeline decides on (``core.pipeline`` on
+    the second, ``stages.line_item_llm`` on the first). Picking a route on the screen sets those
+    knobs and nothing else, so a route can never disagree with what a run does. ``switch`` is the
+    knob the route's own options hang off (``Placement.shown_when``); ``fallback`` is what a
+    failed run of the route is read with — the same values with these overridden.
+
+    The words are facts about the pipeline, kept here beside the knob help for the same reason:
+    a card that says what a route costs or skips must change when the route does.
+    """
+
+    id: str
+    name: str
+    summary: str
+    best_for: str
+    cost: str
+    limits: tuple[str, ...]
+    sets: tuple[tuple[str, bool], ...]
+    switch: str | None = None
+    fallback: tuple[tuple[str, bool], ...] = ()
+
+
+#: The route picker's cards, in the order it shows them.
+ROUTES: tuple[Route, ...] = (
+    Route(
+        "rules", "Rules only",
+        "The rules read every figure from the pages; the model is asked nothing about line items.",
+        "Running without a model, or a baseline to compare a model run with.",
+        "No line-item requests.",
+        ("A line the rules cannot place stays empty or goes to review.",
+         "The extra model calls (Advanced tab) still go out while switched on."),
+        (("whole_pdf_to_model", False), ("llm_mapping", False))),
+    Route(
+        "questions", "Rules + model questions",
+        "The rules read the pages; then the model is asked where each line item's figure is "
+        "printed, and each answer is checked against the rows it cites.",
+        "Most filings: the model finds what the rules miss, and an answer in another currency or "
+        "scale, or citing a caption the line excludes, is refused.",
+        "About 50 to 75 requests a filing as shipped. Tokens grow with how much of the report "
+        "goes with each question.",
+        ("The model reads the text the rules took from each page, not the page as printed.",
+         "A request that fails leaves its lines to the rules."),
+        (("whole_pdf_to_model", False), ("llm_mapping", True)),
+        switch="llm_mapping"),
+    Route(
+        "whole_pdf", "Whole PDF to the model",
+        "The PDF itself goes to the model, which reads each line from the pages as printed. The "
+        "rules still read the note tables alongside it, check each model figure against the page "
+        "and their own reading, and fill the lines the model leaves empty.",
+        "Filings with complex tables, where seeing the page as printed matters. The note screens "
+        "and the contingent-liabilities narrative are still filled.",
+        "The most tokens: every request carries the pages (about 1,500 to 4,800 tokens a page, "
+        "cached after the first). Few requests: a statement's lines go in one.",
+        ("Needs a provider that can be sent a file (anthropic, bedrock_gateway, openai, "
+         "azure_openai).",
+         "If the file cannot be sent, or a statement's request fails, the whole filing is read "
+         "by the fallback."),
+        (("whole_pdf_to_model", True),),
+        switch="whole_pdf_to_model",
+        fallback=(("whole_pdf_to_model", False),)),
+)
+
+
+def route_of(values: dict) -> str:
+    """The id of the route these knob values read a filing by — exactly one matches any values."""
+    for route in ROUTES:
+        if all(bool(values.get(key)) == want for key, want in route.sets):
+            return route.id
+    raise ValueError("no route matches")  # unreachable while ROUTES covers both switches
+
+
+def _route_payload(route: Route) -> dict:
+    return {"id": route.id, "name": route.name, "summary": route.summary,
+            "best_for": route.best_for, "cost": route.cost, "limits": list(route.limits),
+            "sets": dict(route.sets), "switch": route.switch,
+            "fallback": dict(route.fallback) if route.fallback else None}
+
+
+def provider_takes_files() -> bool:
+    """Whether the provider config.toml [llm] names can be sent a PDF file — the whole-PDF route's
+    first test (`stages.whole_pdf.WholePdfStage._provider`), asked the same way, so the screen can
+    say before a run that every filing would fall back."""
+    import app.adapters  # noqa: F401 — import for its registration side effect
+    from app.ports.llm import takes_documents
+
+    provider_id = get_settings().llm.provider
+    if provider_id == "stub":
+        return False
+    try:
+        return takes_documents(registry.get("llm", provider_id))
+    except Exception:  # noqa: BLE001 — an adapter that will not build cannot be sent a file either
+        return False
 
 
 def _persist(scope: str, values: dict) -> None:
@@ -646,6 +813,19 @@ def _placed(knob: Knob) -> Placement:
     return KNOB_PLACEMENT.get(knob.key) or Placement("other", "", knob.label)
 
 
+def _field(k: Knob) -> dict:
+    place = _placed(k)
+    return {"key": k.key, "kind": k.kind, "label": k.label, "help": k.help,
+            "min": k.minimum, "max": k.maximum, "step": k.step,
+            "choices": list(k.choices),
+            "choice_info": [{"value": v, "label": label, "note": note}
+                            for v, label, note in k.choice_info],
+            "tab": place.tab, "section": place.section, "summary": place.summary,
+            "folded": place.folded,
+            "shown_when": ({"key": place.shown_when[0], "values": list(place.shown_when[1])}
+                           if place.shown_when else None)}
+
+
 def _screen_order(knob: Knob) -> int:
     return _SCREEN_ORDER.get(knob.key, len(_SCREEN_ORDER))
 
@@ -661,19 +841,14 @@ def extraction_config() -> dict:
     return {
         "values": {k.key: getattr(ex, k.key) for k in EXTRACTION_KNOBS},
         "defaults": dict(_EXTRACTION_DEFAULTS or {}),
-        # In the screen's order (`KNOB_PLACEMENT`), each with its tab, section, one-line summary
-        # and the switch it is read under, so the screen is laid out from this list too.
-        "fields": [
-            {"key": k.key, "kind": k.kind, "label": k.label, "help": k.help,
-             "min": k.minimum, "max": k.maximum, "step": k.step,
-             "choices": list(k.choices),
-             "tab": _placed(k).tab, "section": _placed(k).section,
-             "summary": _placed(k).summary,
-             "shown_when": ({"key": _placed(k).shown_when[0],
-                             "values": list(_placed(k).shown_when[1])}
-                            if _placed(k).shown_when else None)}
-            for k in sorted(EXTRACTION_KNOBS, key=_screen_order)
-        ],
+        # In the screen's order (`KNOB_PLACEMENT`), each with its tab, section, one-line summary,
+        # the switch it is read under and whether its section starts folded, so the screen is
+        # laid out from this list too.
+        "fields": [_field(k) for k in sorted(EXTRACTION_KNOBS, key=_screen_order)],
+        # The route picker's three cards (`ROUTES`), and which of them the values above read a
+        # filing by.
+        "routes": [_route_payload(r) for r in ROUTES],
+        "route": route_of({k.key: getattr(ex, k.key) for k in EXTRACTION_KNOBS}),
     }
 
 

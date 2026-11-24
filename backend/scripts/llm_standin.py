@@ -17,6 +17,19 @@ nothing". Nothing here changes how the app behaves; it registers its own provide
     python scripts/llm_standin.py replay   ../_filings/X.pdf --template T --set S --out DIR
     python scripts/llm_standin.py report   DIR [--key KEY.json]
 
+THE WHOLE-PDF ROUTE (`extraction.whole_pdf_to_model`, on in the shipped config.toml) sends the PDF
+file itself, and a provider must say it takes files or the stage falls back to the rules. The
+stand-in says so only when asked, so a capture records the route the run was meant to test:
+
+    python scripts/llm_standin.py capture X.pdf --template T --set S --takes-documents
+    python scripts/llm_standin.py whole-pdf-script RESULT.json --set S --out script.json \\
+        [--leave-out sub__fa_cp_level_3_printed_total]   # answers from a rules run's own figures
+    python scripts/llm_standin.py capture X.pdf --template T --set S --whole-pdf-script script.json
+
+A whole-PDF request with no `answers/<id>.txt` is then answered from the script
+(`scripted_whole_pdf_reply`), so the run goes end to end with no model; a script is the script's
+answer, never a model's.
+
 The procedure, the answerer's brief, the audit rubric and the key format: docs/testing/llm-standin.md.
 """
 from __future__ import annotations
@@ -191,14 +204,307 @@ def line_keys_of(payload: Any) -> list[str]:
     return list(dict.fromkeys(found))
 
 
-class Recorder:
-    """Records every call into OUT, answers from OUT/answers, else abstains."""
+# ------------------------------------------------------------------------------------------------
+# The whole-PDF route: the file a request carries, and scripted answers
+# ------------------------------------------------------------------------------------------------
 
-    def __init__(self, out: Path):
+#: The reply schema of a whole-PDF request (`services.whole_pdf.WholePdfReply`).
+WHOLE_PDF_SCHEMA = "WholePdfReply"
+_ASKED_LINE = re.compile(r"^- ([^\s:]+):", re.M)
+_ASKED_STATEMENT = re.compile(r"^Template lines \(([^)]*)\):", re.M)
+_PART_NAME = re.compile(r"document-(\d+)\.pdf$")
+
+
+class ScriptedFailure(RuntimeError):
+    """A whole-PDF request the script says fails, raised as a provider's error would be."""
+
+
+def _question_text(messages) -> str:
+    """The text of every message, as one string (a whole-PDF question is one message)."""
+    out = []
+    for m in messages or ():
+        content = m.get("content") if isinstance(m, dict) else getattr(m, "content", "")
+        if isinstance(content, list):
+            content = "".join(str(b.get("text") or "") for b in content if isinstance(b, dict))
+        out.append(str(content or ""))
+    return "\n".join(out)
+
+
+def asked_whole_pdf_lines(question: str) -> list[str]:
+    """The line keys a whole-PDF question asks, in its order (`services.whole_pdf.question`)."""
+    return _ASKED_LINE.findall(question or "")
+
+
+class FilingPages:
+    """Which of the filing's pages a PDF part holds, by each page's own text.
+
+    A part is cut from the filing page by page (`services.whole_pdf.build_parts`), in the filing's
+    order, so each of its pages prints exactly the text of one of the filing's — matched in order,
+    so a page whose text repeats (a blank one) is the next such page, not the first.
+    """
+
+    def __init__(self, filing: bytes):
+        import fitz
+
+        with fitz.open(stream=filing, filetype="pdf") as pdf:
+            self.texts = [page.get_text() for page in pdf]
+        self._cache: dict[str, list[int | None]] = {}
+
+    def of(self, part: bytes) -> list[int | None]:
+        """The filing's 0-based page index of each page of `part`, None where none matches."""
+        import fitz
+
+        key = hashlib.sha1(part).hexdigest()
+        if key not in self._cache:
+            with fitz.open(stream=part, filetype="pdf") as pdf:
+                texts = [page.get_text() for page in pdf]
+            out: list[int | None] = []
+            at = 0
+            for text in texts:
+                found = next((i for i in range(at, len(self.texts)) if self.texts[i] == text), None)
+                out.append(found)
+                if found is not None:
+                    at = found + 1
+            self._cache[key] = out
+        return self._cache[key]
+
+
+def documents_of(messages, filing_pages: FilingPages | None = None) -> list[dict]:
+    """What each file a request carries is: its name, the part it is (`document-<n>.pdf`), its
+    size and hash, its page count, and — given the filing — the report pages it holds (0-based)."""
+    import base64
+
+    out = []
+    for m in messages or ():
+        for d in (m.get("documents") if isinstance(m, dict) else None) or ():
+            data = str(d.get("data") or "")
+            raw = base64.b64decode(data) if data else b""
+            match = _PART_NAME.search(str(d.get("name") or ""))
+            info = {"name": d.get("name"), "part": int(match.group(1)) if match else None,
+                    "b64_chars": len(data), "pdf_bytes": len(raw),
+                    "sha1": hashlib.sha1(raw).hexdigest()[:12]}
+            try:
+                import fitz
+
+                with fitz.open(stream=raw, filetype="pdf") as pdf:
+                    info["pages"] = pdf.page_count
+            except Exception:  # noqa: BLE001 - a part that will not open is recorded as it is
+                info["pages"] = None
+            if filing_pages is not None and raw:
+                info["report_pages"] = filing_pages.of(raw)
+            out.append(info)
+    return out
+
+
+def without_document_data(messages) -> list:
+    """The messages with each file's base64 replaced by a placeholder naming its size and hash —
+    what a request is recorded and keyed by."""
+    import base64
+
+    out = []
+    for m in messages or ():
+        if not isinstance(m, dict) or not m.get("documents"):
+            out.append(m)
+            continue
+        docs = []
+        for d in m["documents"]:
+            data = str(d.get("data") or "")
+            sha = hashlib.sha1(base64.b64decode(data) if data else b"").hexdigest()[:12]
+            docs.append({**d, "data": f"<pdf base64: {len(data)} chars, sha1 {sha}>"})
+        out.append({**m, "documents": docs})
+    return out
+
+
+def _script_lines(script: dict, part: int) -> dict:
+    """The script's answers for one part: its `lines`, with `parts.<n>.lines` replacing a line's
+    answer in that part, and `leave_out` taken away."""
+    lines = dict(script.get("lines") or {})
+    lines.update(((script.get("parts") or {}).get(str(part)) or {}).get("lines") or {})
+    for key in script.get("leave_out") or ():
+        lines.pop(key, None)
+    return lines
+
+
+def _fails(script: dict, *, part: int, statement: str, asked: list[str]) -> dict | None:
+    """The `fail` entry this request matches: every field it gives must hold — `part` (1 = the
+    first), `statement` (as the question names it, "balance sheet", "notes", …) and `key` (a line
+    the request asks)."""
+    for entry in script.get("fail") or ():
+        if "part" in entry and int(entry["part"]) != part:
+            continue
+        if "statement" in entry and str(entry["statement"]).replace("_", " ") != statement:
+            continue
+        if "key" in entry and entry["key"] not in asked:
+            continue
+        return entry
+    return None
+
+
+def scripted_whole_pdf_reply(script: dict, *, question: str, part: int,
+                             part_pages: list[int | None] | None, response_schema):
+    """A whole-PDF request answered from a SCRIPT, as a model that read the part would answer it.
+
+    THE SCRIPT, a JSON object (every key optional):
+
+        {"units": "元",
+         "lines": {"<line key>": [{"basis": "consolidated", "period": "current",
+                                   "amount": "1783494750.68", "page": 182,
+                                   "caption": "交易性金融资产",
+                                   "parts": [{"caption": "结构性存款", "amount": "1629362905.47"}]}],
+                   "<text line key>": {"text": "…", "pages": [240]}},
+         "parts": {"2": {"lines": {…}}},
+         "leave_out": ["<line key>", …],
+         "fail": [{"part": 2, "statement": "notes"}, {"key": "<line key>"}]}
+
+    `page` is the REPORT's page, 1 = the file's first, as a PDF viewer numbers the filing. A figure
+    is answered only by the part that holds its page, renumbered to the part's own page — the
+    number the model gives (`services.whole_pdf.Part.original_page`); with no filing to tell the
+    parts' pages by (`part_pages` None), `page` is the part's own page. `parts` gives a line a
+    different answer in one part; `leave_out` answers it in none; a request matching a `fail` entry
+    raises `ScriptedFailure`, as a request that timed out raises. A line the request does not ask
+    is never answered, whatever the script says. Nothing here is a model's answer: it is the
+    script's, and every reply this builds says so in its run's meta (`standin-scripted`).
+    """
+    asked = asked_whole_pdf_lines(question)
+    found = _ASKED_STATEMENT.search(question or "")
+    statement = found.group(1) if found else ""
+    failure = _fails(script, part=part, statement=statement, asked=asked)
+    if failure is not None:
+        raise ScriptedFailure(f"scripted failure (stand-in) part={part} ({statement}): {failure}")
+
+    def on_part(page) -> int | None:
+        if page in (None, ""):
+            return None
+        page = int(page)
+        if part_pages is None:
+            return page
+        return part_pages.index(page - 1) + 1 if (page - 1) in part_pages else None
+
+    lines = _script_lines(script, part)
+    out = []
+    for key in asked:
+        answer = lines.get(key)
+        if answer is None:
+            continue
+        if isinstance(answer, dict):                   # a TEXT line: its words and pages
+            pages = [p for p in (on_part(x) for x in answer.get("pages") or ()) if p is not None]
+            if answer.get("pages") and not pages:
+                continue                               # printed in another part
+            out.append({"key": key, "text": str(answer.get("text") or ""), "text_pages": pages})
+            continue
+        figures = []
+        for fig in answer:
+            page = on_part(fig.get("page"))
+            if fig.get("page") not in (None, "") and page is None:
+                continue                               # printed in another part
+            figures.append({**{k: v for k, v in fig.items() if k != "page"}, "page": page or 0})
+        if figures:
+            out.append({"key": key, "figures": figures})
+    return response_schema.model_validate({"units": str(script.get("units") or ""), "lines": out})
+
+
+def whole_pdf_script_from_result(result: dict, line_item_set, *, leave_out=(),
+                                 units: str = "") -> dict:
+    """A SCRIPT built from a rules-route run's own figures (`scripts/run_filing.py`'s
+    `<stem>__result.json`): every line the whole-PDF route asks, answered with the figure the
+    rules published for it, as printed, on the page it was printed on — and, for a figure the rules
+    added up from several printed rows, those rows. That is the answer a model following the prompt
+    would give where the rules read the filing right; it is not a model's answer, and a line the
+    rules computed with no printed source (no page) is left out, as a model can cite nothing for it.
+    """
+    from decimal import Decimal, InvalidOperation
+
+    import app.services.whole_pdf as W
+
+    asked = {i.key: i for i in W.lines_to_ask(line_item_set)}
+    lines: dict[str, object] = {}
+    # SEVERAL PRINTED ROWS ON ONE LINE — a face line the rules filled from two captions, an "other"
+    # line collecting the rows no other line took — are ONE answer: their sum, with each row, as the
+    # prompt asks a model to give a figure that is a sum of rows. Collected per slot first.
+    slots: dict[tuple[str, str, str], list[tuple[dict, dict]]] = {}
+    for row in result.get("rows") or ():
+        key = row.get("canonical_key") or ""
+        if key not in asked or key in set(leave_out):
+            continue
+        for v in row.get("values") or ():
+            basis, period = str(v.get("basis") or ""), str(v.get("period_label") or "")
+            if period not in ("current", "prior"):
+                continue
+            prov = v.get("provenance") or {}
+            if W.is_text(asked[key]):
+                text = str(v.get("value_text") or "").strip()
+                if text and prov.get("page_index") is not None and key not in lines:
+                    lines[key] = {"text": text, "pages": [int(prov["page_index"]) + 1]}
+                continue
+            slots.setdefault((key, basis, period), []).append((row, v))
+
+    def printed_rows(row: dict, v: dict) -> list[tuple[str, str, int]]:
+        """(caption, amount as printed, 0-based page) of each printed row this slot was read from:
+        the slot itself where it is a printed figure, or the rows its trail counted."""
+        prov = v.get("provenance") or {}
+        amount = v.get("value_raw") if v.get("value_raw") not in (None, "") else v.get("value")
+        if prov.get("page_index") is not None and amount not in (None, ""):
+            return [(str(prov.get("text_snippet") or row.get("source_label") or ""), str(amount),
+                     int(prov["page_index"]))]
+        basis, period = str(v.get("basis") or ""), str(v.get("period_label") or "")
+        trail = (row.get("derivation") or {}).get(f"{basis}:{period}") or {}
+        return [(str(i.get("label") or ""), str(i.get("printed") or i.get("value")),
+                 int(i["provenance"]["page_index"]))
+                for i in trail.get("inputs") or ()
+                if isinstance(i, dict) and i.get("counted", True)
+                and (i.get("provenance") or {}).get("page_index") is not None
+                and i.get("value") not in (None, "")]
+
+    for (key, basis, period), found in slots.items():
+        rows = [r for row, v in found for r in printed_rows(row, v)]
+        if not rows:
+            continue                 # computed with no printed source: nothing a model can cite
+        if len(found) == 1:
+            row, v = found[0]
+            amount = v.get("value_raw") if v.get("value_raw") not in (None, "") else v.get("value")
+        else:
+            try:
+                amount = str(sum((Decimal(a) for _c, a, _p in rows), Decimal(0)))
+            except (InvalidOperation, ValueError):
+                continue
+        figure = {"basis": basis, "period": period, "amount": str(amount),
+                  "page": rows[0][2] + 1, "caption": rows[0][0]}
+        if len(rows) > 1:
+            figure["parts"] = [{"caption": c, "amount": a} for c, a, _p in rows]
+        lines.setdefault(key, []).append(figure)
+    return {"units": units, "lines": lines}
+
+
+class Recorder:
+    """Records every call into OUT, answers from OUT/answers, else abstains.
+
+    `takes_documents`: the stand-in DECLARES THAT IT TAKES FILES (`ports.llm.takes_documents`), so
+    the whole-PDF route (`extraction.whole_pdf_to_model`, `stages.whole_pdf`) sends it the PDF
+    parts instead of falling back to the rules route. Off by default, because a capture of the
+    rules route is what every earlier user of the stand-in records: with it off, the whole-PDF
+    stage logs `whole_pdf:fallback(provider standin cannot be sent a file)` and the run is the
+    rules route, exactly as before.
+
+    `whole_pdf_script`: SCRIPTED ANSWERS FOR THE WHOLE-PDF REQUESTS (`WholePdfReply`), a dict in
+    the format `scripted_whole_pdf_reply` reads, used for a request with no `answers/<id>.txt` —
+    so a whole-PDF run goes end to end with no model. Giving one turns `takes_documents` on.
+    `filing_bytes`, the PDF being run, lets the stand-in tell which of the report's pages each
+    part holds, so a scripted figure names the REPORT's page and is answered only by the part
+    that holds it, renumbered to the part's own page as a model would.
+
+    A FILE SENT WITH A REQUEST IS RECORDED AS A PLACEHOLDER — its size and a hash in place of its
+    base64 — so a request file stays readable and its id stays the same for the same part.
+    """
+
+    def __init__(self, out: Path, *, takes_documents: bool = False,
+                 whole_pdf_script: dict | None = None, filing_bytes: bytes | None = None):
         self.out = out
         self.answers = out / "answers"
         self.requests = out / "requests"
         self.system = out / "system"
+        self.takes_documents = bool(takes_documents or whole_pdf_script is not None)
+        self.whole_pdf_script = whole_pdf_script
+        self.filing_pages = FilingPages(filing_bytes) if filing_bytes else None
         # A capture records ONE run: requests a previous capture left in a reused folder would be
         # read as this run's. Answers and audits are kept — a replay answers from them.
         for d in (self.requests, self.system):
@@ -217,6 +523,8 @@ class Recorder:
             # declares the gateway's cache prices too: a capture is then the request shape the
             # gateway would send, shared notes included (`stages.line_item_llm`).
             prompt_cache_prices = _cache_prices()
+            # Whether the whole-PDF route may send it the file (`ports.llm.takes_documents`).
+            takes_documents = rec.takes_documents
 
             def complete_structured(self, *, system, messages, response_schema, temperature=0.0,
                                     max_tokens=2048):
@@ -227,8 +535,11 @@ class Recorder:
         return Standin()
 
     def handle(self, *, system, messages, response_schema, max_tokens, stage):
-        sent = gateway_body(system=system, messages=messages, response_schema=response_schema,
-                            max_tokens=max_tokens)
+        # THE FILE AS A PLACEHOLDER, before the body is built: the gateway would send the part's
+        # base64, and a request recorded with it would be megabytes long and unreadable.
+        documents = documents_of(messages, self.filing_pages)
+        sent = gateway_body(system=system, messages=without_document_data(messages),
+                            response_schema=response_schema, max_tokens=max_tokens)
         # RECORDED IN ITS CANONICAL FORM (`canonical_body`): what the model reads, the key it is
         # answered under, and the shape every reader of a request file expects. Where the gateway
         # body asks for the prompt cache is kept beside it.
@@ -236,17 +547,36 @@ class Recorder:
         rid = body_id(body)
         chars = len(json.dumps(body, ensure_ascii=False))
         payload = payload_of(body)
+        question = _question_text(messages)
+        whole_pdf = response_schema.__name__ == WHOLE_PDF_SCHEMA
         record = {"id": rid, "stage": stage, "schema": response_schema.__name__,
-                  "schema_module": response_schema.__module__, "line_keys": line_keys_of(payload),
+                  "schema_module": response_schema.__module__,
+                  "line_keys": (asked_whole_pdf_lines(question) if whole_pdf
+                                else line_keys_of(payload)),
                   "body": body, "chars": chars, "est_tokens": chars // EST_CHARS_PER_TOKEN,
-                  "cache_breakpoints": cache_breakpoints(sent)}
+                  "cache_breakpoints": cache_breakpoints(sent),
+                  **({"documents": documents} if documents else {})}
         self._write_request(record)
         hit = self.answers / f"{rid}.txt"
         answered = hit.exists()
-        self.calls.append({k: record[k] for k in ("id", "stage", "schema", "line_keys", "chars",
-                                                  "est_tokens")} | {"answered": answered})
+        scripted = (not answered and whole_pdf and self.whole_pdf_script is not None)
+        call = {k: record[k] for k in ("id", "stage", "schema", "line_keys", "chars",
+                                       "est_tokens")} | {"answered": answered or scripted}
+        if documents:
+            call["documents"] = documents
+        if scripted:
+            call["scripted"] = True
+        self.calls.append(call)
         if answered:
             return parse_answer(hit.read_text(encoding="utf-8"), response_schema), {"model": "standin"}
+        if scripted:
+            part = documents[0] if documents else {}
+            # A scripted failure raises here, as a request that timed out would.
+            reply = scripted_whole_pdf_reply(
+                self.whole_pdf_script, question=question, part=int(part.get("part") or 1),
+                part_pages=part.get("report_pages"), response_schema=response_schema)
+            call["scripted_lines"] = len(reply.lines)
+            return reply, {"model": "standin-scripted"}
         return response_schema.model_validate({}), {"model": "standin-abstain"}
 
     def _write_request(self, record: dict) -> None:
@@ -283,7 +613,13 @@ def default_out(filing: Path, template: str) -> Path:
     return REPO / "_standin" / f"{filing.stem}__{tstem}"
 
 
-def run_capture(filing: Path, template: str, line_set: str, out: Path, focus: str = "config") -> dict:
+def run_capture(filing: Path, template: str, line_set: str, out: Path, focus: str = "config", *,
+                takes_documents: bool = False, whole_pdf_script: dict | None = None) -> dict:
+    """One run of the real pipeline with the stand-in as the provider, recorded into `out`.
+
+    `takes_documents` / `whole_pdf_script`: see `Recorder`. With either, the whole-PDF route
+    (on in the shipped config.toml) sends the stand-in the PDF itself instead of falling back.
+    """
     scratch = Path(tempfile.mkdtemp(prefix="llm-standin-"))
     os.environ.setdefault("FINEX_DATABASE_URL", f"sqlite:///{scratch}/run.db")
     os.environ.setdefault("FINEX_OBJECT_STORE_ROOT", str(scratch / "objects"))
@@ -291,7 +627,9 @@ def run_capture(filing: Path, template: str, line_set: str, out: Path, focus: st
     from app.config import get_settings, pin_llm
     pin_llm(provider="standin", model="standin", base_url="http://standin.invalid")
     from app.ports.registry import registry
-    rec = Recorder(out)
+    files = bool(takes_documents or whole_pdf_script is not None)
+    rec = Recorder(out, takes_documents=files, whole_pdf_script=whole_pdf_script,
+                   filing_bytes=filing.read_bytes() if files else None)
     registry.register("llm", "standin", rec.provider)
 
     from app.api.routes.extractions import _serialize_rows
@@ -326,9 +664,15 @@ def run_capture(filing: Path, template: str, line_set: str, out: Path, focus: st
                                 "title": (getattr(p, "evidence", None) or {}).get("matched_title")}
                                for p in doc.pages])
     index = {"filing": filing.name, "template": template, "set": line_set, "focus": focus,
+             "takes_documents": files, "whole_pdf_scripted": whole_pdf_script is not None,
              "calls": len(rec.calls), "answered": sum(c["answered"] for c in rec.calls),
              "pending": sum(not c["answered"] for c in rec.calls),
-             "by_stage": dict(Counter(c["stage"] for c in rec.calls)), "requests": rec.calls}
+             "by_stage": dict(Counter(c["stage"] for c in rec.calls)), "requests": rec.calls,
+             # What the whole-PDF route did — or the one line saying why it fell back.
+             **({"whole_pdf": ctx.whole_pdf} if getattr(ctx, "whole_pdf", None) else {}),
+             **({"whole_pdf_fallback": fell[0]} if (fell := [line for line in ctx.logs
+                                                            if line.startswith("whole_pdf:fallback")])
+                else {})}
     _dump(out / "index.json", index)
     return index
 
@@ -341,9 +685,15 @@ def _dump(path: Path, obj) -> None:
     path.write_text(json.dumps(obj, ensure_ascii=False, indent=1, default=str), encoding="utf-8")
 
 
+def _script_arg(a) -> dict | None:
+    path = getattr(a, "whole_pdf_script", None)
+    return json.loads(Path(path).read_text(encoding="utf-8")) if path else None
+
+
 def cmd_capture(a) -> int:
     out = a.out or default_out(a.filing, a.template)
-    idx = run_capture(a.filing, a.template, a.set, out, a.focus)
+    idx = run_capture(a.filing, a.template, a.set, out, a.focus,
+                      takes_documents=a.takes_documents, whole_pdf_script=_script_arg(a))
     print(f"{out}: {idx['calls']} requests ({idx['answered']} answered, {idx['pending']} pending) "
           f"by stage {idx['by_stage']}")
     return 0
@@ -355,7 +705,10 @@ def cmd_replay(a) -> int:
     seen = {c["id"] for c in json.loads(prev.read_text(encoding="utf-8"))["requests"]} if prev.exists() else set()
     for rnd in range(1, 4):
         r = subprocess.run([sys.executable, __file__, "capture", str(a.filing), "--template", a.template,
-                            "--set", a.set, "--out", str(a.out), "--focus", a.focus],
+                            "--set", a.set, "--out", str(a.out), "--focus", a.focus,
+                            *(["--takes-documents"] if a.takes_documents else []),
+                            *(["--whole-pdf-script", str(a.whole_pdf_script)]
+                              if a.whole_pdf_script else [])],
                            capture_output=True, text=True)
         if r.returncode:
             print(r.stderr[-2000:])
@@ -368,6 +721,20 @@ def cmd_replay(a) -> int:
         seen |= {c["id"] for c in idx["requests"]}
         if not new:
             break
+    return 0
+
+
+def cmd_whole_pdf_script(a) -> int:
+    """A whole-PDF script answering every asked line with the rules route's own figure."""
+    from app.schemas.line_items import load_line_item_set
+
+    result = json.loads(a.result.read_text(encoding="utf-8"))
+    cfg = load_line_item_set(json.loads((TEMPLATES / a.set).read_text(encoding="utf-8")),
+                             resolve=True)
+    script = whole_pdf_script_from_result(result, cfg, leave_out=a.leave_out, units=a.units)
+    _dump(a.out, script)
+    figures = sum(len(v) for v in script["lines"].values() if isinstance(v, list))
+    print(f"{a.out}: {len(script['lines'])} lines, {figures} figures")
     return 0
 
 
@@ -1735,6 +2102,19 @@ def main(argv: list[str] | None = None) -> int:
         p.add_argument("--set", required=True)
         p.add_argument("--out", type=Path, required=(name == "replay"))
         p.add_argument("--focus", default="config", choices=["config", "all"])
+        p.add_argument("--takes-documents", action="store_true",
+                       help="the stand-in declares that it takes files, so the whole-PDF route "
+                            "sends it the PDF instead of falling back to the rules")
+        p.add_argument("--whole-pdf-script", type=Path,
+                       help="scripted answers for the whole-PDF requests (implies "
+                            "--takes-documents); see scripted_whole_pdf_reply")
+    p = sub.add_parser("whole-pdf-script",
+                       help="write a whole-PDF script from a rules-route run's result.json")
+    p.add_argument("result", type=Path)
+    p.add_argument("--set", required=True)
+    p.add_argument("--out", type=Path, required=True)
+    p.add_argument("--leave-out", action="append", default=[], help="a line no part answers")
+    p.add_argument("--units", default="")
     p = sub.add_parser("lint"); p.add_argument("dir", type=Path)
     p.add_argument("--budget", type=int, default=DEFAULT_BUDGET_TOKENS, help="est. tokens per request")
     p = sub.add_parser("sample"); p.add_argument("dir", type=Path)
@@ -1751,7 +2131,8 @@ def main(argv: list[str] | None = None) -> int:
     a = ap.parse_args(argv)
     if a.cmd in ("coverage", "grade") and not a.key_names:
         a.key_names = ["coverage_key.json", "sample_key.json"]
-    return {"capture": cmd_capture, "replay": cmd_replay, "lint": cmd_lint, "sample": cmd_sample,
+    return {"capture": cmd_capture, "replay": cmd_replay, "whole-pdf-script": cmd_whole_pdf_script,
+            "lint": cmd_lint, "sample": cmd_sample,
             "validate": cmd_validate, "report": cmd_report, "coverage": cmd_coverage,
             "grade": cmd_grade}[a.cmd](a)
 

@@ -31,7 +31,7 @@ untouched. A run with no provider is a fully deterministic run, which is a defin
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, wait
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 
 import app.adapters  # noqa: F401 - registers configured LLM adapters
 from app.core.models import DocumentModel
@@ -39,8 +39,9 @@ from app.core.models.enums import MappingMethod
 from app.core.models.line_item import LineItem
 from app.core.stage import PipelineContext, Stage
 from app.ports.registry import registry
-from app.services import (face_context, line_item_llm, line_item_notes, line_item_requests,
-                          line_item_routes, note_columns, note_sourced, text_lines)
+from app.services import (answer_checks, face_context, line_item_llm, line_item_notes,
+                          line_item_requests, line_item_routes, note_columns, note_sourced,
+                          text_lines)
 from app.services.face_bases import is_disclosure, note_basis_of, printed_bases, refuse_unprinted
 from app.services.mapping import authored_guidance
 from app.services.working_view import build_working_view
@@ -369,6 +370,8 @@ class LineItemLlmStage(Stage):
         # EVERY NOTE ROW each line was given, by its printed position — settled after the last
         # request by `_settle_shared_note_rows`.
         note_cells: dict[str, list[tuple | None]] = {}
+        # The run's notes as `services.answer_checks` looks them up, built on the first answer.
+        note_index: answer_checks.NoteIndex | None = None
         kept_printed: list[tuple[str, LineItem]] = []
         # WHAT THE MODEL PLACED OUT OF EACH NOTE, per basis, period and section — see
         # `_explain_swept_rows`. Indian filings only.
@@ -581,25 +584,23 @@ class LineItemLlmStage(Stage):
                         statements=None if whole_document else _own_statements(item),
                         page_texts=report_pages if whole_report else None,
                         expense_rows=line_item_routes.expense_note_rows(item))
-                    # A LINE THAT EXCLUDES DERIVATIVES REFUSES A DERIVATIVE CITATION — see
-                    # `_refuse_derivative_citations`. Refused citations carry no figure, so they
-                    # are recorded on the row and counted nowhere.
-                    resolved, refused = _refuse_derivative_citations(item, resolved)
-                    # …AND AN ANSWER THAT IS ONLY FACE ROWS THIS LINE'S OWN CAPTION EXCLUSIONS
-                    # RULE OUT — see `_refuse_excluded_face_citations`.
-                    resolved, excluded = _refuse_excluded_face_citations(item, resolved)
-                    refused = refused + excluded
-                    # …AND A SENTENCE'S AMOUNT IN ANOTHER CURRENCY THAN THE STATEMENTS' — see
-                    # `_refuse_foreign_currency_prose`.
-                    resolved, foreign = _refuse_foreign_currency_prose(doc, resolved)
-                    refused = refused + foreign
-                    # …AND A NOTE ROW PRINTED IN ANOTHER SCALE IS PUT INTO THE STATEMENTS' — see
-                    # `_in_statement_scale`.
-                    resolved = _in_statement_scale(doc, resolved, ctx, key)
-                    for bad in refused:
-                        ctx.log(f"line_item_llm:{key}: citation REFUSED "
-                                f"note={bad.get('note')!r} caption={str(bad.get('caption'))[:60]!r} "
-                                f"({bad.get('why')})")
+                    # THE CHECKS EVERY MODEL ANSWER IS HELD TO — `services.answer_checks`, one set
+                    # for every route that asks a model for figures: a derivative on a line that
+                    # excludes them, a row of an accounting-policy note, a 其中 row added to the
+                    # row it breaks down, one printed figure added twice, an answer of only face
+                    # rows the line's own exclusions rule out, a sentence's amount in another
+                    # currency — then each note row put into the statements' scale. Refused
+                    # citations carry no figure, so they are recorded on the row and counted
+                    # nowhere.
+                    if note_index is None:
+                        note_index = answer_checks.NoteIndex(doc.notes)
+                    checked = answer_checks.check_answer(
+                        item, resolved, doc=doc, signs=list(answer.signs or ()),
+                        component=str(answer.role or "").strip().lower() == "component",
+                        key=key, index=note_index)
+                    resolved, refused = checked.kept, checked.refused
+                    for line in checked.log:
+                        ctx.log(line)
                     unresolved = unresolved + refused
                     unresolved_total += len(unresolved)
                     for bad in unresolved:
@@ -652,7 +653,11 @@ class LineItemLlmStage(Stage):
                 # rows the line's own `exclude_hints` rule out (`_refuse_excluded_face_citations`)
                 # — on 湖北能源 the face's 营业收入 total became Sales(Revenues); and a sentence's
                 # amount in ANOTHER CURRENCY than the statements' (`_refuse_foreign_currency_prose`)
-                # — on 湖北能源 two letters of credit in 美元 were added to RMB guarantees.
+                # — on 湖北能源 two letters of credit in 美元 were added to RMB guarantees. Beside
+                # them, three rules that are the RULES' OWN reading of a note's structure rather
+                # than an authored veto (`services.answer_checks`): a row of an accounting-policy
+                # note, a 其中 row added to the row it breaks down, and one printed figure added
+                # twice.
                 #
                 # `extraction.llm_vetoes_bind_model_answers` is consequently unread. It is left in
                     # the settings schema rather than deleted: it is the switch this behaviour comes
@@ -717,8 +722,11 @@ class LineItemLlmStage(Stage):
                         cited_by_key.setdefault(item.key, []).append(
                             str(entry["row_id"]) if on_face else None)
                         if not on_face and not entry.get("prose"):
+                            # EVERY PRINTED FIGURE THE CITATION COUNTS, not only its first:
+                            # a whole row counts its current and its prior, and a sibling citing
+                            # the row's prior column holds the same money (`_settle_shared_note_rows`).
                             note_cells.setdefault(item.key, []).append(
-                                note_sourced.cell_of(entry.get("provenance")))
+                                answer_checks.footprint(entry, note_index))
                         if not on_face:
                             continue
                         rid = str(entry["row_id"])
@@ -1471,9 +1479,9 @@ class LineItemLlmStage(Stage):
         return released
 
     @staticmethod
-    def _settle_shared_note_rows(doc, note_cells: dict[str, list[tuple | None]], by_concept: dict,
+    def _settle_shared_note_rows(doc, note_cells: dict[str, list], by_concept: dict,
                                  line_item_set, ctx) -> int:
-        """One note row, one part: when the model gave the SAME note row to two parts of a parent.
+        """One note row, one part: when the model gave the SAME note money to two parts of a parent.
 
         THE CASE, from a Lai Sun run. Note 26 prints the FVTPL holdings and their "Non-current
         portion 788,507"; the model cited that row for the non-current FVTPL part AND for the
@@ -1486,56 +1494,69 @@ class LineItemLlmStage(Stage):
         configuration already says about each part: its `note_terms`, through the same
         one-note-one-sibling claim the deterministic route reads (`line_item_notes.claimed_notes`).
 
-        WHO KEEPS IT: the part whose claim covers the row's note; where none or several do, the
-        part declared first. THE OTHERS ARE EMPTIED, trail and all — a part whose only reading was
-        a sibling's row has no reading of its own — unless its figure also rests on other rows, in
-        which case it is left as it is and said so.
+        WHAT IS DECIDED, AND BY WHOM: `services.answer_checks.settle_siblings`, shared with every
+        route that asks a model for figures. `note_cells` is each key's footprints — the printed
+        figures each of its note citations counts (`answer_checks.footprint`; a bare cell, as
+        before, is one figure). Applied here:
+
+          * WITHHELD — the part is emptied, trail and all, and says which part holds its figure
+            (`llm_note_row_claimed_by:<owner>`): the same printed figure given to two parts (the
+            part whose claim covers the row's note keeps it; where none or several do, the part
+            declared first), or a 其中 row given to one part while a sibling the parent ADDS to it
+            holds the row it breaks down (`llm_note_row_breakdown_of:<owner>` as well);
+          * LEFT AS IT IS, and said so, where the part's figure also rests on other rows;
+          * FLAGGED FOR REVIEW, both parts (`llm_note_rows_overlap:<other>`,
+            `low_mapping_confidence`), where two parts the parent adds may hold the same money and
+            nothing can say safely which: another column of one row, or a row printed above a
+            total row the sibling holds.
         """
         from app.services.line_item_notes import claimed_notes
 
         items = list(getattr(line_item_set, "items", None) or ())
-        order = {i.key: n for n, i in enumerate(items)}
-        parent_of = {i.key: str(getattr(i, "parent", "") or "") for i in items}
-        shared: dict[tuple, list[str]] = {}
-        for key, cells in note_cells.items():
-            parent = parent_of.get(key, "")
-            if not parent:
-                continue
-            # `dict.fromkeys`, not a set: the groups are walked below in the order they are
-            # built, and a set of cell ids would build them in the hash seed's order.
-            for cell in dict.fromkeys(c for c in cells if c):
-                shared.setdefault((parent, cell), []).append(key)
-        shared = {k: v for k, v in shared.items() if len(set(v)) > 1}
-        if not shared:
+        if not any(note_cells.values()):
             return 0
-        claims = claimed_notes([i for i in items if getattr(i, "note_source", None)], doc.notes)
-        located = note_sourced.note_cells(doc)
+        index = answer_checks.NoteIndex(doc.notes)
         emptied = 0
-        for (parent, cell), keys in shared.items():
-            keys = sorted(set(keys), key=lambda k: order.get(k, len(order)))
-            table, note_row = located.get(cell, (None, None))
-            note = str(getattr(table, "note_number", "") or "")
-            owners = [k for k in keys if note and note in claims.get(k, ())]
-            owner = owners[0] if len(owners) == 1 else keys[0]
-            caption = str(getattr(note_row, "raw_label", "") or "")[:48]
-            for key in keys:
-                row = by_concept.get(key)
-                if key == owner or row is None:
-                    continue
-                if any(c and c != cell for c in note_cells.get(key, ())):
-                    ctx.log(f"line_item_llm:{key}: shares note {note} row {caption!r} with "
-                            f"{owner}, but its figure also rests on other rows — left as is")
-                    continue
-                figures = sorted({str(ev.value) for ev in (row.values or {}).values()
-                                  if getattr(ev, "value", None) is not None})
-                row.values = {}
-                row.derivation = None
-                row.confidence.flags.append(f"llm_note_row_claimed_by:{owner}")
-                if figures:
-                    row.confidence.flags.append(f"llm_note_row_withheld:{','.join(figures[:4])}")
-                emptied += 1
-                ctx.log(f"line_item_llm:{key}: note {note} row {caption!r} goes to {owner}, whose "
-                        f"note it is; this part is left empty"
+        for s in answer_checks.settle_siblings(
+                note_cells, items, index,
+                claims=lambda: claimed_notes([i for i in items if getattr(i, "note_source", None)],
+                                             doc.notes)):
+            row = by_concept.get(s.other)
+            if row is None:
+                continue
+            if s.action == "keep":
+                ctx.log(f"line_item_llm:{s.other}: shares note {s.note} row {s.caption!r} with "
+                        f"{s.owner}, but its figure also rests on other rows — left as is")
+                continue
+            if s.action == "flag":
+                for key, other in ((s.owner, s.other), (s.other, s.owner)):
+                    flagged = by_concept.get(key)
+                    if flagged is None:
+                        continue
+                    flagged.confidence.flags.append(f"llm_note_rows_overlap:{other}")
+                    if "low_mapping_confidence" not in flagged.confidence.flags:
+                        flagged.confidence.flags.append("low_mapping_confidence")
+                ctx.log(f"line_item_llm:{s.other}: may hold the same money as {s.owner} "
+                        f"(note {s.note} row {s.caption!r}, {s.kind.replace('_', ' ')}) — both "
+                        f"go to review")
+                continue
+            figures = sorted({str(ev.value) for ev in (row.values or {}).values()
+                              if getattr(ev, "value", None) is not None})
+            row.values = {}
+            row.derivation = None
+            row.confidence.flags.append(f"llm_note_row_claimed_by:{s.owner}")
+            if s.kind == "breakdown":
+                row.confidence.flags.append(f"llm_note_row_breakdown_of:{s.owner}")
+            if figures:
+                row.confidence.flags.append(f"llm_note_row_withheld:{','.join(figures[:4])}")
+            emptied += 1
+            if s.kind == "breakdown":
+                ctx.log(f"line_item_llm:{s.other}: note {s.note} row {s.caption!r} is a 其中 "
+                        f"breakdown of a row {s.owner} holds, and {s.parent} adds the two; this "
+                        f"part is left empty" + (f" (was {figures[0]})" if figures else ""))
+            else:
+                ctx.log(f"line_item_llm:{s.other}: note {s.note} row {s.caption!r} goes to "
+                        f"{s.owner}, whose note it is; this part is left empty"
                         + (f" (was {figures[0]})" if figures else ""))
         return emptied
 
@@ -2026,22 +2047,8 @@ def _cited_unit(resolved: list[dict], doc, basis: str, row=None):
 
 
 def _derivative_vetoes(item) -> list:
-    """The line's own `row_caption_none` patterns that exclude DERIVATIVES, compiled.
-
-    Read off the authored vetoes rather than restated here, so the words — and their exception for
-    structured deposits with embedded derivatives — are the ones the deterministic route already
-    applies. A line whose vetoes say nothing about derivatives gets an empty list.
-    """
-    import re as _re
-    src = getattr(item, "note_source", None)
-    out = []
-    for raw in (getattr(src, "row_caption_none", None) or ()):
-        if _re.search(r"derivative|衍生", raw, _re.IGNORECASE):
-            try:
-                out.append(_re.compile(raw, _re.IGNORECASE))
-            except _re.error:
-                continue
-    return out
+    """The line's own derivative vetoes — `services.answer_checks.derivative_vetoes`."""
+    return answer_checks.derivative_vetoes(item)
 
 
 def _record_explained(explained: dict, item, resolved: list[dict], signs: list[int],
@@ -2260,185 +2267,28 @@ def _banner_tokens(item) -> set[str]:
     return out
 
 
+# THE CHECKS ON A MODEL'S CITATIONS LIVE IN `services.answer_checks`, shared by every route that
+# asks a model for figures. These names are kept for the callers that reach them here.
+
 def _refuse_derivative_citations(item, resolved: list[dict]) -> tuple[list[dict], list[dict]]:
-    """`(kept, refused)`: a model citation of a DERIVATIVE, on a line that excludes derivatives.
-
-    THE ONE AUTHORED EXCLUSION A MODEL ANSWER IS HELD TO. The rest of `row_caption_none` is
-    deterministic-route bookkeeping (totals, the current/non-current split) that the request never
-    carries, and grading the model against it would be unfair — see the note above
-    `combine_terms`. "Excluding derivatives" is different: it is in the line's LABEL and its
-    DEFINITION, so the model was told, and measured on 佳明 (kaming) it cited the interest rate
-    swaps' notional amount (950,000, note 22 "Derivative financial instruments") for a current
-    securities part anyway, and Securities (CP) published it.
-
-    Both the row caption and the cited note's title are tested: a swap row captioned only by
-    its counterparty still sits in a note titled "Derivative financial instruments". A refused
-    citation carries no figure — not `figures`, not `amount` — so `combine_terms` counts nothing
-    for it; it is returned to be recorded on the row and in the log.
-    """
-    vetoes = _derivative_vetoes(item)
-    if not vetoes or not resolved:
-        return resolved, []
-    kept, refused = [], []
-    for entry in resolved:
-        # AND THE PICKED COLUMN'S HEADING: a fair-value table prints "Derivative financial
-        # instruments" as a column as readily as a row.
-        texts = [str(entry.get("caption") or ""), str(entry.get("title") or ""),
-                 str((entry.get("column") or {}).get("heading") or "")]
-        if any(v.search(t) for v in vetoes for t in texts if t):
-            refused.append({"at": entry.get("at"), "note": entry.get("note"),
-                            "caption": entry.get("caption"),
-                            "why": "this line excludes derivatives, and the cited row is one",
-                            # For the trail, which names the citation as refused rather than as
-                            # one that was not found.
-                            "refused": "derivative"})
-        else:
-            kept.append(entry)
-    return kept, refused
+    """`(kept, refused)` — `services.answer_checks.refuse_derivatives`."""
+    return answer_checks.refuse_derivatives(item, resolved)
 
 
 def _refuse_excluded_face_citations(item, resolved: list[dict]) -> tuple[list[dict], list[dict]]:
-    """`(kept, refused)`: an answer made ONLY of face rows the line's own `exclude_hints` rule out.
-
-    THE SAME RULE THE RULES ROUTE APPLIES, AND NO WIDER. `exclude_hints` says which printed
-    captions are NOT this line: `services.line_item_matching` never binds such a caption to it,
-    whatever its aliases say. A model answer that is nothing but such rows is that same binding,
-    made by the other route. Measured on the three CAS filings of the 2024 logs (湖北能源, 四创电子,
-    诚志股份): every model answer for `sub__face_principal_revenue` cited the face's 营业收入 /
-    营业总收入 — the TOTAL, other business revenue included — which that part's exclusions name.
-    On 湖北能源's parent company, whose revenue note prints no 主营业务 row at all, the cascade then
-    published 40,617,220.64 of 其他业务 revenue as Sales(Revenues), and the same figure was on
-    Other Operating Income as well. The spec says in so many words not to use 营业收入 as a fallback.
-
-    ONLY A WHOLE ANSWER OF VETOED FACE ROWS. An exclusion decides whether a caption standing alone
-    IS the line; it says nothing about a row cited as one term of a sum (Trade and other
-    receivables = "Trade receivables" + "Other receivables" — the first is vetoed for that line on
-    its own, and rightly). So an answer citing any row the exclusions do not rule out — another
-    face row, a note row, a sentence — is left whole.
-
-    THE MODEL IS TOLD THE SAME THING: the line's definition says it in words, which is what makes
-    holding the answer to it fair (`line_item_payload` sends the definition, not the patterns).
-    """
-    import re as _re
-    from app.services.mapping import normalize_label
-
-    hints = list(getattr(item, "exclude_hints", None) or ())
-    if not hints or not resolved:
-        return resolved, []
-    vetoes = []
-    for raw in hints:
-        try:
-            vetoes.append(_re.compile(raw, _re.IGNORECASE))
-        except _re.error:
-            continue
-
-    def vetoed(entry: dict) -> bool:
-        caption = str(entry.get("caption") or "")
-        spellings = {caption.lower(), normalize_label(caption)} - {""}
-        return any(v.search(s) for v in vetoes for s in spellings)
-
-    if not vetoes or not all(e.get("on_face") and vetoed(e) for e in resolved):
-        return resolved, []
-    refused = [{"at": e.get("at"), "note": e.get("note"), "caption": e.get("caption"),
-                "why": "this line's own caption exclusions rule that face row out — the rules "
-                       "route never binds it to this line either",
-                "refused": "excluded_caption"} for e in resolved]
-    return [], refused
+    """`(kept, refused)` — `services.answer_checks.refuse_excluded_face`."""
+    return answer_checks.refuse_excluded_face(item, resolved)
 
 
 def _refuse_foreign_currency_prose(doc, resolved: list[dict]) -> tuple[list[dict], list[dict]]:
-    """`(kept, refused)`: a sentence's amount printed in a currency other than the statements'.
-
-    A FIGURE IS ADDED ONLY TO FIGURES IN ITS OWN CURRENCY. Measured on 湖北能源 2024, note 十六、2:
-    the contingent-liabilities answer summed seven 保函 stated in 元 (323,426,677.00) and two letters
-    of credit stated in 美元 (6,568,662.00 and 51,823.11), and published 330,047,162.11 as RMB —
-    a dollar counted as a yuan. The contingent-liabilities spec (§6.2) says not to convert and not
-    to add across currencies; no line of a set stated in one currency can hold a sum that does.
-
-    Read off the NOTE'S text beside the located amount (`note_sourced.prose_currency_at`), never
-    off the model's quote. Only a sentence whose currency is printed and is not the statements'
-    is refused: an amount with no currency beside it, or a filing whose statements declare none,
-    is kept as before.
-    """
-    from app.services.note_sourced import currency_iso
-
-    unit = getattr(doc, "unit_context", None)
-    statements = currency_iso(getattr(unit, "currency", "") or "") or (
-        str(getattr(unit, "currency", "") or "").upper() or None)
-    if not statements or not resolved:
-        return resolved, []
-    kept, refused = [], []
-    for entry in resolved:
-        printed = entry.get("prose_currency") if entry.get("prose") else None
-        if printed and printed != statements:
-            refused.append({"at": entry.get("at"), "note": entry.get("note"),
-                            "caption": entry.get("caption"),
-                            "why": (f"the note states this amount in {printed}, and the "
-                                    f"statements are in {statements} — it is not added to them"),
-                            "refused": "foreign_currency"})
-        else:
-            kept.append(entry)
-    return kept, refused
+    """`(kept, refused)` — `services.answer_checks.refuse_foreign_currency`."""
+    return answer_checks.refuse_foreign_currency(doc, resolved)
 
 
 def _in_statement_scale(doc, resolved: list[dict], ctx, key: str) -> list[dict]:
-    """Each cited NOTE ROW's figures in the scale of the statements of its basis.
-
-    THE RULE THE RULES ROUTE APPLIES (`note_sourced._in_face_units`): a note row printed in another
-    scale than the face it is published beside is multiplied into the face's. This route wrote the
-    figure as printed instead, under the row's own unit, and every check and cascade that adds it
-    to the statements' figures added 万元 to 元. Measured on 四创电子 2024, 十四、5 (7) 关键管理人员
-    报酬, printed "单位：万元": the rules route read 4,763,700.00 / 4,216,700.00, the model's
-    476.37 / 421.67 outranked it, and Related Party Transactions summed 476.37 with figures in 元.
-
-    The row keeps what it printed (`printed_figures`, `rescaled`) for the trail, and its `unit`
-    becomes the statement's, so `_cited_unit` stamps the slot with the unit the figure is now in.
-    A face row is the statement's own, and a sentence's amount is scaled by its own words
-    (`_prose_in_statement_units`); neither is touched. A currency that differs is left alone here:
-    no factor converts it.
-    """
-    from app.core.models.line_item import UnitContext
-    from app.services.units import compare
-
-    out = []
-    for entry in resolved or ():
-        unit = entry.get("unit")
-        if entry.get("on_face") or entry.get("prose") or not isinstance(unit, dict):
-            out.append(entry)
-            continue
-        try:
-            printed_in = UnitContext(**unit)
-        except Exception:  # noqa: BLE001 - a malformed citation keeps its figure as it was
-            out.append(entry)
-            continue
-        basis = str(entry.get("basis") or _prose_basis(doc) or "consolidated")
-        statement = _statement_unit(doc, basis)
-        check = compare(printed_in, statement) if statement is not None else None
-        if check is None or not check.rescaled or check.currency_mismatch:
-            out.append(entry)
-            continue
-
-        def scaled(figures):
-            moved = {}
-            for period, raw in (figures or {}).items():
-                try:
-                    moved[period] = str(Decimal(str(raw)) * check.factor)
-                except (InvalidOperation, ValueError, TypeError):
-                    moved[period] = raw
-            return moved
-
-        entry = dict(entry)
-        entry["printed_figures"] = dict(entry.get("figures") or {})
-        entry["figures"] = scaled(entry.get("figures"))
-        if isinstance(entry.get("figures_by_basis"), dict):
-            entry["figures_by_basis"] = {b: scaled(f) for b, f in entry["figures_by_basis"].items()}
-        entry["rescaled"] = list(check.rescaled)
-        entry["unit"] = statement.model_dump()
-        ctx.log(f"line_item_llm:{key}: note {entry.get('note')!r} row "
-                f"{str(entry.get('caption'))[:40]!r} printed at scale {check.rescaled[0]}, "
-                f"put into the statement's scale {check.rescaled[1]}")
-        out.append(entry)
-    return out
+    """Each cited note row in the statements' scale — `services.answer_checks.in_statement_scale`,
+    logged on `ctx`."""
+    return answer_checks.in_statement_scale(doc, resolved, log=ctx.log, key=key)
 
 
 def _current_period(doc) -> str | None:

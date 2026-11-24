@@ -157,15 +157,17 @@ def _doc(kinds: list[PageKind]) -> DocumentModel:
 
 
 def test_the_pages_sent_are_the_pages_the_page_scope_screen_reads():
+    """The pages the rules read, and the cover (finding auditor_pages_not_sent: a classified
+    cover or auditor's report is sent too — the lines they print are printed nowhere else)."""
     doc = _doc([PageKind.COVER, PageKind.FACE, PageKind.OTHER, PageKind.NOTES, PageKind.NOTES])
-    assert W.pages_to_send(doc, choice="statements") == ([1, 3, 4], "statements")
+    assert W.pages_to_send(doc, choice="statements") == ([0, 1, 3, 4], "statements; +cover 1")
     assert W.pages_to_send(doc, choice="all")[0] == [0, 1, 2, 3, 4]
-    # A person's selection narrows them, as it narrows what the rules read.
+    # A person's selection narrows them, as it narrows what the rules read — and adds nothing.
     assert W.pages_to_send(doc, choice="statements", included_pages={1, 3, 9}) == (
         [1, 3], "page_scope")
-    # …and so do the sections they switched off.
+    # …and so do the sections they switched off (the cover is no section).
     pages, why = W.pages_to_send(doc, choice="statements", sections_off={"notes"})
-    assert pages == [1] and "sections off: notes" in why
+    assert pages == [0, 1] and "sections off: notes" in why
     none = _doc([PageKind.COVER, PageKind.OTHER])
     pages, why = W.pages_to_send(none, choice="statements")
     assert pages == [0, 1] and why.startswith("all(")
@@ -204,12 +206,15 @@ def test_a_part_over_the_request_size_is_halved_and_a_page_too_large_is_named():
 def test_every_extracted_line_is_asked_whatever_its_route(name):
     """THE RULE: every line of type `extracted` is asked of the model, whatever its route — the
     face, the note tables, anywhere, the narrative — internal cascade parts and text lines
-    included. Not asked: a derived line (its cascade computes it from the parts), and a line whose
-    extraction mode is `derive` (the app computes it; nothing is printed to read)."""
+    included. Not asked: a derived line (its cascade computes it from the parts), a line whose
+    extraction mode is `derive` (the app computes it; nothing is printed to read), and a part
+    nothing reads (no cascade, formula or parent: its figure would reach no column)."""
     st = _set(name)
     asked = {it.key for it in W.lines_to_ask(st)}
+    read = W.read_by(st)
     for it in st.items:
-        if it.type == "extracted" and it.extraction_mode != "derive":
+        if (it.type == "extracted" and it.extraction_mode != "derive"
+                and (not W.is_part(it) or it.key in read)):
             assert it.key in asked, it.key
         if it.type == "derived" or it.extraction_mode == "derive":
             assert it.key not in asked, it.key
@@ -217,8 +222,13 @@ def test_every_extracted_line_is_asked_whatever_its_route(name):
         assert {"sub__face_principal_revenue", "sub__revenue_note_principal_revenue"} <= asked
         assert {r for r in asked if r.startswith("sub__")}, "the cascade parts are asked"
         assert "statement_setup_controls__customer_s_name" in asked     # a TEXT line
+        assert "bs_ca_residual_L3" not in asked                         # nothing reads it
     chunks = W.chunk_lines(W.lines_to_ask(st), 250)
     assert all(len({W.statement_of(it) for it in c}) == 1 for c in chunks)
+    # With the set, a cascade's parts may join another statement's request; a statement's own
+    # lines never do.
+    for c in W.chunk_lines(W.lines_to_ask(st), 250, st):
+        assert {W.statement_of(it) for it in c if not W.is_part(it)} <= {c.statement}
 
 
 def test_the_question_names_each_line_and_marks_a_total():
@@ -376,8 +386,12 @@ def test_the_model_reads_the_file_and_the_extraction_is_skipped(run):
         "current": "1200", "prior": "1000"}
     assert {v.provenance.page_index for v in cash.values.values()} == {1}      # page 2
     assert all("whole_pdf:on_page" in v.confidence.flags for v in cash.values.values())
-    # The stages that rebuild rows from the page did not run; units and the checks did.
-    assert "stage:extract:skipped" in ctx.logs and "stage:map_line_items:skipped" in ctx.logs
+    # The rules read the filing first (the notes are kept, the face rows set aside); the stages
+    # that map captions did not run; units and the checks did.
+    assert ctx.logs.index("stage:extract:start") < ctx.logs.index("stage:whole_pdf:start")
+    assert "stage:map_line_items:skipped" in ctx.logs and "stage:residual:skipped" in ctx.logs
+    assert ctx.whole_pdf_rules_rows and all(li.canonical_key is None
+                                            for li in ctx.whole_pdf_rules_rows)
     assert "stage:normalize:start" in ctx.logs and "stage:structural:start" in ctx.logs
     assert doc.unit_context is not None and str(doc.unit_context.scale_factor) == "1000000"
     passed = {(r.rule_id, r.details.get("period_label")) for r in doc.structural.results
@@ -424,7 +438,7 @@ def test_switched_off_the_stage_is_not_in_the_pipeline(monkeypatch):
     monkeypatch.setattr(s.extraction, "whole_pdf_to_model", True)
     on = [st.name for st in pipeline_for(s).stages]
     assert on == [st.name for st in whole_pdf_pipeline().stages]
-    assert on.index("whole_pdf") == on.index("classify") + 1
+    assert on.index("whole_pdf") == on.index("extract") + 1
     assert KEPT_STAGES <= set(on)             # every stage it keeps is a stage that exists
 
 
@@ -691,6 +705,13 @@ def test_every_figure_the_model_read_links_to_where_it_is_printed(run):
 
 def test_a_sum_of_rows_cites_each_row_with_its_own_figure_and_box(run):
     class _Sum(_Scripted):
+        # The two rows the sum adds are not ALSO given to their own lines here: one printed
+        # balance-sheet row counted on two lines of current assets is taken off one of them
+        # (`services.whole_pdf_locate.Judge._settle_face_rows`), and this test is about the boxes.
+        TABLE: ClassVar[dict] = {k: v for k, v in _Scripted.TABLE.items()
+                                 if k not in ("bs_ca__cash_and_cash_equivalents",
+                                              "bs_ca__accounts_receivable")}
+
         def complete_structured(self, *, system, messages, response_schema, temperature=0.0,
                                 max_tokens=2048):
             reply, meta = super().complete_structured(

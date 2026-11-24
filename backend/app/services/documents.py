@@ -80,6 +80,6 @@ def run_extraction(data: bytes, filename: str = "", ontology=None,
     if context_cb is not None:
         context_cb(ctx)
     # `extraction.whole_pdf_to_model` chooses it: the default pipeline, or the same with the
-    # whole-PDF stage after the page classifier (`core.pipeline.pipeline_for`).
+    # whole-PDF stage after the extraction (`core.pipeline.pipeline_for`).
     doc = pipeline_for(ctx.settings).run(doc, ctx)
     return doc, ctx

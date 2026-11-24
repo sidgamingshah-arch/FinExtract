@@ -30,7 +30,7 @@ from decimal import Decimal, InvalidOperation
 from app.core.models.document import DocumentModel
 from app.core.models.line_item import ExtractedValue, LineItem, base_note_number
 from app.core.stage import PipelineContext, Stage
-from app.services import note_sourced
+from app.services import note_sourced, whole_pdf_rules
 from app.services.face_bases import (accepted_from, is_disclosure, note_basis_of, printed_bases,
                                       refuse_unprinted)
 
@@ -85,6 +85,10 @@ class NoteSourcedStage(Stage):
         # WHICH BLOCK OF A TWO-SIDED NOTE IS WHOSE, resolved once — see `note_sourced.block_sides`.
         sides = note_sourced.block_sides(doc, line_item_set)
         by_key = {li.canonical_key: li for li in doc.line_items if li.canonical_key}
+        # ON THE WHOLE-PDF ROUTE, every note figure the model already placed, by page, so a note row
+        # it put on one line is not read again for another — see `services.whole_pdf_rules`. Empty
+        # on every other route, where nothing below changes.
+        model_cited = whole_pdf_rules.model_figures(doc)
         # THE BASES THE FACE STATEMENTS PRINT, read once for the run (`services.face_bases`). A
         # figure for any other basis has no statement to sit on, so every write below asks first.
         # Each helper further down reads the same answer for itself.
@@ -103,6 +107,17 @@ class NoteSourcedStage(Stage):
             if basis not in face_units:
                 face_units[basis] = _statement_unit(doc, basis)
             return face_units[basis]
+
+        # ON THE WHOLE-PDF ROUTE A NOTE ROW IS PUT INTO THE UNIT THE RULES READ OFF THE FACE — the
+        # model's rows carry none (`whole_pdf_rules.rules_face_unit`). The unit the slot is stamped
+        # with is still `face_unit`'s. Everywhere else this is `face_unit` itself.
+        rules_units: dict[str, object] = {}
+
+        def rescale_unit(basis: str):
+            if basis not in rules_units:
+                rules_units[basis] = (whole_pdf_rules.rules_face_unit(ctx, doc, basis)
+                                      or face_unit(basis))
+            return rules_units[basis]
 
         children_of: dict[str, list] = {}
         filled = touched = 0
@@ -129,6 +144,12 @@ class NoteSourcedStage(Stage):
             hits = ([] if route_of(item) == "prose"
                     else note_sourced.select_rows(item, doc.notes, periods, note_sections,
                                                   claimed, sides))
+            if model_cited and hits:
+                # Before any rescale, so each amount is the figure as printed. A line whose every
+                # row the model placed elsewhere reads nothing — not a sentence in their stead.
+                hits = whole_pdf_rules.drop_cited(hits, model_cited, item.key, ctx.log)
+                if not hits:
+                    continue
             if not hits:
                 # A FIGURE THE FILING STATES ONLY IN PROSE, and this is the one route to it.
                 #
@@ -152,9 +173,13 @@ class NoteSourcedStage(Stage):
                     item, doc.notes, getattr(line_item_set, "prose_grammar", None),
                     siblings=[i for i in items
                               if getattr(i, "parent", None) and i.parent == getattr(item, "parent", None)])
+                if model_cited and prose:
+                    prose = whole_pdf_rules.drop_cited_prose(prose, model_cited, item.key,
+                                                             _prose_scale(doc), ctx.log)
                 if not prose:
                     continue
-                row = by_key.get(item.key)
+                # A row the whole-PDF model wrote is the model's: the rules write on their own.
+                row = whole_pdf_rules.own_row(doc, by_key.get(item.key), item.key, item.label)
                 if row is None:
                     row = LineItem(source_label=item.label or item.key, canonical_key=item.key)
                     doc.line_items.append(row)
@@ -203,10 +228,14 @@ class NoteSourcedStage(Stage):
                                         by="note_sourced", log=ctx.log, bases=bases):
                         continue
                     # THE MODEL'S ANSWER STANDS HERE TOO — see `_llm_holds`. It is not a correction
-                    # of an answer the model gave from the same notes.
-                    if _llm_holds(row, basis, period):
-                        row.confidence.flags.append(f"prose_deferred_to_llm:{amount}")
-                        _compare_with_model(row, item.key, basis, period, amount, tolerance, ctx)
+                    # of an answer the model gave from the same notes. On whichever of its rows it
+                    # gave it (`whole_pdf_rules.model_row_holding`).
+                    holder = (row if _llm_holds(row, basis, period) else
+                              whole_pdf_rules.model_row_holding(doc, item.key, basis, period))
+                    if holder is not None:
+                        holder.confidence.flags.append(f"prose_deferred_to_llm:{amount}")
+                        _compare_with_model(holder, item.key, basis, period, amount, tolerance,
+                                            ctx)
                         ctx.log(f"note_sourced:{item.key}[{basis}:{period}]: prose {amount} "
                                 f"NOT written — the model answered this row")
                         continue
@@ -244,6 +273,8 @@ class NoteSourcedStage(Stage):
                                      "scale": str(scale) if scale and scale != 1 else None}))
                     filled += 1
                     prose_filled += 1
+                if whole_pdf_rules.discard_if_empty(doc, row):
+                    continue                     # every period was the model's
                 row.is_computed = True
                 # SAID ON THE ROW, because a figure read out of a sentence is not the same evidence
                 # as one read off a tabulated row, and a reviewer cannot tell them apart from the
@@ -268,9 +299,10 @@ class NoteSourcedStage(Stage):
             rollup = str(getattr(item, "rollup", None) or "sum")
             # EACH ROW IN THE FACE'S UNIT FIRST — see `_in_face_units`. A rescaled row enters the
             # rollup at its face-unit figure; a slot with a row in another currency is not written.
-            unit_flags, foreign = _in_face_units(item.key, hits, face_unit, ctx)
+            unit_flags, foreign = _in_face_units(item.key, hits, rescale_unit, ctx)
             resolved = note_sourced.resolve(hits, rollup)
-            row = by_key.get(item.key)
+            # A row the whole-PDF model wrote is the model's: the rules write on their own.
+            row = whole_pdf_rules.own_row(doc, by_key.get(item.key), item.key, item.label)
             if row is None:
                 row = LineItem(source_label=item.label or item.key, canonical_key=item.key)
                 doc.line_items.append(row)
@@ -298,10 +330,13 @@ class NoteSourcedStage(Stage):
                 # THE MODEL'S ANSWER STANDS — see `_llm_holds`. A `note_source` declaration is one
                 # route to this row's figure and the model's reading of the notes is another; where
                 # the model has answered, this fills nothing and the figure it gave feeds the
-                # cascade below exactly as a note-sourced one would.
-                if _llm_holds(row, basis, period):
-                    row.confidence.flags.append(f"note_source_deferred_to_llm:{amount}")
-                    _compare_with_model(row, item.key, basis, period, amount, tolerance, ctx)
+                # cascade below exactly as a note-sourced one would. On whichever of its rows it
+                # gave it (`whole_pdf_rules.model_row_holding`).
+                holder = (row if _llm_holds(row, basis, period) else
+                          whole_pdf_rules.model_row_holding(doc, item.key, basis, period))
+                if holder is not None:
+                    holder.confidence.flags.append(f"note_source_deferred_to_llm:{amount}")
+                    _compare_with_model(holder, item.key, basis, period, amount, tolerance, ctx)
                     ctx.log(f"note_sourced:{item.key}[{basis}:{period}]: {amount} NOT written — "
                             f"the model answered this row; its figure joins the cascade instead")
                     continue
@@ -320,6 +355,8 @@ class NoteSourcedStage(Stage):
                         # An `alternatives` rollup takes the first row; any other adds them.
                         display={"op": "first" if rollup == "alternatives" else "sum"}))
                 filled += 1
+            if whole_pdf_rules.discard_if_empty(doc, row):
+                continue                         # every slot was the model's
             row.is_computed = True
             row.confidence.flags.append(f"note_sourced:{len(hits)}")
             ctx.log(f"note_sourced:{item.key}: {len(hits)} row(s) -> "
@@ -1090,7 +1127,8 @@ def _fill_parents(children_of: dict[str, list], by_key: dict, doc: DocumentModel
                 ctx.log(f"note_sourced:{parent_key}: {len(kids)} child(ren) filled, its rollup is "
                         f"`none` and it declares no cascade — nothing carried up")
                 continue
-            parent = by_key.get(parent_key)
+            # A row the whole-PDF model wrote is the model's: the rules write on their own.
+            parent = whole_pdf_rules.own_row(doc, by_key.get(parent_key), parent_key)
             if parent is None:
                 parent = LineItem(source_label=parent_key, canonical_key=parent_key)
                 doc.line_items.append(parent)
@@ -1130,6 +1168,11 @@ def _fill_parents(children_of: dict[str, list], by_key: dict, doc: DocumentModel
                         kept.append((item, ev))
                     offers = kept
                 existing = _slot(parent, basis, period)
+                if existing is None or existing.value is None:
+                    # THE MODEL'S FIGURE FOR THE LINE, on whichever of its rows it is — the
+                    # whole-PDF route writes one row per basis (`whole_pdf_rules`). None elsewhere.
+                    holder = whole_pdf_rules.model_row_holding(doc, parent_key, basis, period)
+                    existing = _slot(holder, basis, period) if holder is not None else existing
                 if existing is not None and existing.value is not None:
                     taken = offers[0][1].value if rollup == "alternatives" else sum(
                         (o[1].value for o in offers), Decimal(0))
@@ -1165,6 +1208,8 @@ def _fill_parents(children_of: dict[str, list], by_key: dict, doc: DocumentModel
                                           if getattr(ev, "unit_ctx", None) is not None), None))
                     parent.confidence.flags.append(f"note_sourced_sum_of:{len(offers)}")
                 resolved += 1
+            if whole_pdf_rules.discard_if_empty(doc, parent):
+                continue                         # every slot was the model's
             _enrol_with_its_own_parent(parent_key)
     return resolved
 
@@ -1530,7 +1575,16 @@ def _fill_by_cascade(parent_def, kids: list, by_key: dict, doc: DocumentModel,
         llm_answered = [li for li in carriers
                         if str(getattr(li.confidence, "method", "") or "").lower().endswith("llm")
                         and (ev := _slot(li, basis, period)) is not None and ev.value is not None]
-        if llm_answered and not beside:
+        if llm_answered and not beside and _model_read_the_printed_whole(
+                rung_def, got, llm_answered, basis, period):
+            # THE MODEL READ THE PRINTED ROW THE RUNG SPLITS: the rung outranks it as it outranks
+            # the printed figure on the rules route (see `_model_read_the_printed_whole`).
+            ctx.log(f"note_sourced:{parent_def.key}[{basis}:{period}]: the model answered with "
+                    f"the printed row rung {got.rung_used} splits — the rung outranks it, as it "
+                    f"outranks the printed figure")
+            for li in llm_answered:
+                li.confidence.flags.append(f"cascade_over_model_printed:{got.rung_used}")
+        elif llm_answered and not beside:
             ctx.log(f"note_sourced:{parent_def.key}[{basis}:{period}]: cascade "
                     f"{got.rung_used}={got.value} NOT applied — the model answered this line "
                     f"({len(llm_answered)} row(s)); the declared cascade does not overrule it")
@@ -1679,6 +1733,10 @@ def _fill_by_cascade(parent_def, kids: list, by_key: dict, doc: DocumentModel,
         target_row.confidence.flags.append(f"cascade_rung:{got.rung_used}")
         _flag_absent_terms(rung_def, got, target_row, basis, period, ctx,
                            where=f"note_sourced:{parent_def.key}[{basis}:{period}]")
+        _flag_undeducted(parent_def, got, target_row, basis, period, known, defs or {}, ctx,
+                         where=f"note_sourced:{parent_def.key}[{basis}:{period}]")
+        _carry_review(doc, got, target_row, basis, period, ctx,
+                      where=f"note_sourced:{parent_def.key}[{basis}:{period}]")
         # Per SLOT, not per row: one basis may be read out of the face's captions and another
         # printed as a line of its own. See `CascadeRung.carved_from_face`.
         from app.services.rollups import CARVED_FROM_FACE
@@ -1691,6 +1749,155 @@ def _fill_by_cascade(parent_def, kids: list, by_key: dict, doc: DocumentModel,
                 f"-> {got.value} from {len(got.inputs)} term(s)")
         filled += 1
     return filled
+
+
+#: The flag the review queue selects a doubtful line on.
+REVIEW_FLAG = "low_mapping_confidence"
+#: On a computed line's slot (and, with the slot, on its row) whose figure rests on a part that is
+#: in review: `part_in_review:<part>`.
+PART_IN_REVIEW = "part_in_review"
+#: On a slot whose rung left out a deduction another rung of the line makes, while the filing
+#: prints a figure for it: `not_deducted:<term>:<amount>`.
+NOT_DEDUCTED = "not_deducted"
+
+
+def _in_review(row: LineItem, basis: str, period: str) -> bool:
+    """Whether this row's figure for the slot is one a reviewer has been asked to look at: the slot
+    says so, or a part it was computed from was; or the ROW says so — a row's flag stands for its
+    every slot, except a whole-PDF row's, which says so slot by slot."""
+    ev = _slot(row, basis, period)
+    if ev is None or ev.value is None:
+        return False
+    flags = ev.confidence.flags or ()
+    if REVIEW_FLAG in flags or any(f.startswith(PART_IN_REVIEW + ":") for f in flags):
+        return True
+    return REVIEW_FLAG in (row.confidence.flags or ()) and not whole_pdf_rules.is_model_row(row)
+
+
+def _carry_review(doc: DocumentModel, got, row: LineItem, basis: str, period: str, ctx, *,
+                  where: str) -> None:
+    """A PART IN REVIEW PUTS THE LINE IT ADDS UP TO IN REVIEW, naming the part.
+
+    The finding (securities_level3:part_review_not_on_cp_and_orphan): a Level 3 figure not on the
+    page it cited went to review on its own row, while Securities (CP), computed from it, read as
+    settled — and CP is the line a reader looks at. Every term the rung READ is asked — a `min` or
+    `max` rung's figure rests on each term it compared, as CP_ZERO's 0 rests on the overshoot
+    residual it was compared with; only a term that repeated a row already counted is not — so the
+    flag follows the figure up through each computed line: the Level 3 total, the residual, then
+    CP and LTP.
+    """
+    doubtful = []
+    for entry in getattr(got, "inputs", None) or ():
+        ref = entry.get("ref")
+        if (not ref or entry.get("duplicate_of_row") or entry.get("part_is_the_totals_own_row")
+                or ref in doubtful):
+            continue
+        if any(li.canonical_key == ref and _in_review(li, basis, period)
+               for li in doc.line_items):
+            doubtful.append(str(ref))
+    if not doubtful:
+        return
+    slot = _slot(row, basis, period)
+    for ref in doubtful:
+        flag = f"{PART_IN_REVIEW}:{ref}"
+        if slot is not None and flag not in slot.confidence.flags:
+            slot.confidence.flags.append(flag)
+        tagged = f"{flag}:{basis}:{period}"
+        if tagged not in row.confidence.flags:
+            row.confidence.flags.append(tagged)
+    if slot is not None and REVIEW_FLAG not in slot.confidence.flags:
+        slot.confidence.flags.append(REVIEW_FLAG)
+    if REVIEW_FLAG not in row.confidence.flags:
+        row.confidence.flags.append(REVIEW_FLAG)
+    ctx.log(f"{where}: goes to review — computed from {', '.join(doubtful)}, in review")
+
+
+def _reaches(ref: str, target: str, defs: dict, depth: int = 4) -> bool:
+    """Whether the line `ref` is `target` or is computed from it, through the configured terms."""
+    if ref == target:
+        return True
+    item = defs.get(ref)
+    if item is None or depth <= 0:
+        return False
+    terms = [t for rung in (getattr(item, "cascade", None) or ()) for t in (rung.terms or ())]
+    terms += list(getattr(item, "terms", None) or ())
+    return any(getattr(t, "ref", None) and _reaches(t.ref, target, defs, depth - 1)
+               for t in terms)
+
+
+def _flag_undeducted(parent_def, got, row: LineItem, basis: str, period: str, known: dict,
+                     defs: dict, ctx, *, where: str) -> None:
+    """THE FACE FALLBACK DEDUCTS NOTHING, AND NOW SAYS SO WHEN THERE WAS SOMETHING TO DEDUCT.
+
+    Securities (CP)'s FROM_THE_FACE rung reads the printed face row alone, while CP_INTERMEDIATE
+    takes Level 3 out of the note figures (`Term.flag_when_absent`: missing_level_3). Where the
+    face rung answers and the filing does print a Level 3 figure for the slot, that figure is in
+    the published CP. WHETHER IT SHOULD BE DEDUCTED THERE is the spec owner's question
+    (docs/HKEX_Securities_Other_Financial_Assets_Extraction_Logic_Clean.md has no face fallback),
+    so the figure is left exactly as it is: the slot goes to review naming the Level 3 figure.
+
+    Generic: a deduction term of another rung that declares `flag_when_absent`, which the rung that
+    answered does not reach (directly, or through a line computed from it — CP_ZERO reaches Level 3
+    through the overshoot residual), with a nonzero figure in the column.
+    """
+    used = next((r for r in parent_def.cascade or () if r.id == got.rung_used), None)
+    if used is None:
+        return
+    mine = [t.ref for t in (used.terms or ()) if getattr(t, "ref", None)]
+    slot = _slot(row, basis, period)
+    for rung in parent_def.cascade or ():
+        if rung is used:
+            continue
+        for t in rung.terms or ():
+            if not (getattr(t, "ref", None) and getattr(t, "flag_when_absent", "")
+                    and int(t.sign or 1) < 0):
+                continue
+            if any(_reaches(m, t.ref, defs) for m in mine):
+                continue
+            amount = known.get(t.ref)
+            if amount is None or Decimal(str(amount)) == 0:
+                continue
+            flag = f"{NOT_DEDUCTED}:{t.ref}:{amount}"
+            if slot is not None:
+                for f in (flag, REVIEW_FLAG):
+                    if f not in slot.confidence.flags:
+                        slot.confidence.flags.append(f)
+            for f in (f"{flag}:{basis}:{period}", REVIEW_FLAG):
+                if f not in row.confidence.flags:
+                    row.confidence.flags.append(f)
+            ctx.log(f"{where}: rung {got.rung_used} does not deduct {t.ref} ({amount}), which "
+                    f"rung {rung.id} deducts — the figure stands and goes to review")
+
+
+def _model_read_the_printed_whole(rung, got, answered: list, basis: str, period: str) -> bool:
+    """Whether the model's figure for the slot is THE PRINTED ROW an outranking rung splits.
+
+    `CascadeRung.outranks_printed` says the rung's figure stands over the PRINTED one: PetroChina's
+    face 'Short-term borrowings' 138,783 takes in 92,828 of current portion, note 29 splits it, and
+    ST Bank Loans Payable is the 45,955. On the rules route the face row is bound and the rung
+    outranks it. A model that answers the line with that same printed 138,783 has read the same
+    row — its figure is the printed one, not another reading — so the rung outranks it too, on
+    every route, instead of deferring to it while CPLTD Bank fills the 92,828 a second time. Only
+    where the model's figure IS the whole the rung's terms split (their sum); any other answer is
+    the model's own reading and stands.
+    """
+    if rung is None or not getattr(rung, "outranks_printed", False):
+        return False
+    base = [e for e in getattr(got, "inputs", None) or ()
+            if e.get("ref") and e.get("role") != "adjustment" and not e.get("duplicate_of_row")]
+    if len(base) < 2:
+        return False
+    try:
+        whole = sum((abs(Decimal(str(e.get("value")))) for e in base), Decimal(0))
+    except (InvalidOperation, ValueError, TypeError):
+        return False
+    if whole == 0:
+        return False
+    for li in answered:
+        ev = _slot(li, basis, period)
+        if ev is None or ev.value is None or abs(Decimal(str(ev.value))) != whole:
+            return False
+    return True
 
 
 def _flag_absent_terms(rung, got, row, basis: str, period: str, ctx, *, where: str) -> None:
@@ -1984,6 +2191,8 @@ def _fill_childless_internal(all_items, children_of: dict[str, list], by_key: di
             _write(row, basis, period, ev.value,
                    unit_ctx=_unit_of_terms(getattr(ev, "inputs", None), by_key, basis, period))
             row.confidence.flags.append(f"computed_from_config:{ev.rung_used or 'terms'}")
+            _carry_review(doc, ev, row, basis, period, ctx,
+                          where=f"note_sourced:{item.key}[{basis}:{period}]")
             wrote.append(f"{basis}/{period}={ev.value}")
             # …AND A LATER LINE OF THIS PASS SEES IT, which is what declared order promises. The
             # column's figures were collected once, before the pass, so a line naming one computed
@@ -2147,6 +2356,7 @@ def _deduct_from_printed(parent_def, rung, got, carriers: list, by_key: dict, de
     target_row.confidence.flags.append(
         f"{REMAINDER_OF_PRINTED}:{basis}:{period}:{printed}-{got.value}={remainder}")
     target_row.confidence.flags.append(f"cascade_rung:{got.rung_used}")
+    _carry_review(doc, got, target_row, basis, period, ctx, where=where)
     display = _cascade_display(got, parent_def, defs)
     parts = _cascade_inputs(got, display["op"], by_key, defs, sources, cells)
     for inp in parts:
@@ -2500,16 +2710,20 @@ def _settle_against_the_face(doc: DocumentModel, ctx: PipelineContext, all_items
                 return got
         return None
 
-    # A FACE ROW is printed and derived from nothing, and carries a key of this set.
+    # A FACE ROW is printed and derived from nothing, and carries a key of this set — or, on the
+    # whole-PDF route, is the model's reading of one printed row (`_read_off_one_row`): its trail
+    # is the citation of that row, not arithmetic, and it is the printed figure on that route. It
+    # was not taken for one, so this step found no face row there and settled nothing (finding
+    # fix_matrix:settlement_deducted_in).
     face = [li for li in doc.line_items
-            if li.canonical_key in defs and not li.derivation and not li.is_computed
+            if li.canonical_key in defs and _printed_face_row(li)
             and _is_face_item(li, doc)
             and any(ev.provenance is not None for ev in li.values.values())]
     cells = note_sourced.note_cells(doc)
 
     def is_face_part(key: str) -> bool:
         rows = by_key.get(key, ())
-        return bool(rows) and all(not r.derivation and not r.is_computed for r in rows)
+        return bool(rows) and all(_printed_face_row(r) for r in rows)
 
     def row_pieces(trail: dict | None, owner: str | None, seen: set[str], basis: str,
                    period: str, listed_by: str) -> list[_Piece]:
@@ -2824,7 +3038,7 @@ def _settle_against_the_face(doc: DocumentModel, ctx: PipelineContext, all_items
         home = section(key)
         if not getattr(item, "in_output", True) or not home.startswith("bs_"):
             continue
-        rows = [li for li in by_key.get(key, ()) if li.derivation]
+        rows = [li for li in by_key.get(key, ()) if li.derivation and not _read_off_one_row(li)]
         if not rows:
             continue
         mine = family(key)
@@ -3018,6 +3232,28 @@ def _settle_against_the_face(doc: DocumentModel, ctx: PipelineContext, all_items
                             f"{piece.amount} is printed on the face in {face_row.canonical_key} "
                             f"({str(face_row.source_label)[:60]!r}, {rel}) — the line's "
                             f"calculation runs without it: {before} -> {after}")
+
+
+def _read_off_one_row(li: LineItem) -> bool:
+    """Whether this is a whole-PDF row whose every figure the model read off ONE printed row —
+    its trail a citation (`whole_pdf:<check>`, one input), not a sum and not arithmetic. None of
+    the other routes writes such a row (`whole_pdf_rules.is_model_row`)."""
+    if not whole_pdf_rules.is_model_row(li) or li.is_computed or not li.derivation:
+        return False
+    for trail in li.derivation.values():
+        if not isinstance(trail, dict):
+            return False
+        if not str(trail.get("method") or "").startswith("whole_pdf:"):
+            return False
+        if len([i for i in trail.get("inputs") or () if i.get("counted", True)]) != 1:
+            return False
+    return True
+
+
+def _printed_face_row(li: LineItem) -> bool:
+    """A row this step settles against: printed and derived from nothing — or read off one
+    printed row by the whole-PDF model (`_read_off_one_row`)."""
+    return not li.is_computed and (not li.derivation or _read_off_one_row(li))
 
 
 def _deducted_in(rows, ref: str, slot: str) -> bool:

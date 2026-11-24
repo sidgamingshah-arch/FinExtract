@@ -5,22 +5,38 @@ IN THE PIPELINE ONLY WHEN THE SWITCH IS ON (`core.pipeline.pipeline_for`): with
 `extraction.whole_pdf_to_model` off, the run assembles `default_pipeline()` and this stage is not
 in it, so a run is what it was.
 
-On, it runs straight after the page classifier. It sends the chosen pages as the PDF file itself,
-in parts within the request's limits, asks every part for the template's lines a few dozen at a
-time, checks each figure against the page it cites in the PDF's own text, and writes one row per
-line and basis. The stages that rebuild rows from the page, read note tables and map captions are
-then skipped (`KEPT_STAGES` names what still runs); units, signs and the checks run on the model's
-figures as they do on the rules'.
+On, it runs straight after the extraction (`core.pipeline.whole_pdf_pipeline` says why there).
+It sends the chosen pages as the PDF file itself, in parts within the request's limits, asks every
+part for the template's lines a few dozen at a time, checks each figure against the page it cites
+in the PDF's own text, and writes one row per line and basis.
+
+EVERY FIGURE IS FOUND AGAIN IN THE RULES' READING OF ITS PAGE AND CHECKED THERE
+(`services.whole_pdf_locate`): the face row or note row that prints it, its column, its unit, or the
+sentence it is stated in. The answer then meets the checks every model answer is held to
+(`services.answer_checks`: a vetoed face caption, a derivative, a policy note, a 其中 row added to
+its row, one printed figure twice, a sentence in another currency, a note row in another scale), and
+the ones only a column can answer: the year and the basis the figure is filed under, the column a
+Level 3 part reads, and one printed balance-sheet row on one line. A refused figure is not written
+and its row says why; two parts holding one note row are settled as on the line-item route.
+
+Those rows REPLACE the face rows the rules read; the rules' rows are set aside on `PipelineContext.whole_pdf_rules_rows`, and the note
+tables the rules read stay in `doc.notes`. The stages that map captions onto lines, and the ones
+that only make sense over the rules' own face rows, are then skipped (`KEPT_STAGES` names what
+still runs); units, signs, the note-sourced fill and the checks run on the model's figures as they
+do on the rules'.
 
 IT NEVER LEAVES A RUN WITH NOTHING. A provider that cannot be sent a file, a first request that
-fails (the one that also fills the prompt cache), or a run where no request succeeds, leaves the
-document untouched and the rules route reads the filing; the run log says why, in one line
-starting `whole_pdf:fallback`.
+fails (the run's smallest, which also fills the prompt cache), a run where no request succeeds, or
+a statement whose own lines no request answered in a part holding its face pages, leaves the
+document as the extraction left it and the rules route carries on from there; the run log says
+why, in one line starting `whole_pdf:fallback`. Every request is asked again once when it fails,
+and as two halves when its reply is cut off (`_request`).
 """
 from __future__ import annotations
 
 import re
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass, field, replace
 from decimal import Decimal
 
 import app.adapters  # noqa: F401 - registers configured LLM adapters
@@ -37,26 +53,65 @@ from app.core.models.enums import (
 from app.core.models.geometry import Provenance
 from app.core.models.line_item import ExtractedValue, LineItem
 from app.core.stage import PipelineContext
-from app.ports.llm import complete_with_room, takes_documents
+from app.ports.llm import ROOM_CEILING, complete_with_room, cut_off, takes_documents
 from app.ports.registry import registry
 from app.services import derivation
 from app.services import whole_pdf as W
+from app.services import whole_pdf_locate as L
 from app.services.buckets import PRINTED_ON_FLAG
 
-#: What still runs once the model has read the file. Every other stage works on rows the rules
-#: rebuilt from the page or on note tables, and there are none: they are skipped, and the run log
-#: names each one.
+#: What still runs once the model has read the file. The test for each stage is the same two
+#: questions: does it need the note tables (which this route now keeps), and is it safe beside face
+#: rows the model wrote — that is, it writes no figure onto a line the model answered, and it does
+#: not read the rules' face-row mapping, which this route never makes. Every other stage is
+#: skipped, and the run log names each one.
+#:
+#: SKIPPED, and why — each needs what this route does not have, or would overrule the model:
+#:   map_line_items, residual  map the rules' face captions onto lines; the model's rows are on
+#:                             their lines already, and the rules' rows are set aside.
+#:   line_item_llm             the rules route's own model call; this route has asked its question.
+#:   assemble_components       adds up rows the line-item call declared as components; none exist.
+#:   gap_closing, row_suggestions  place rows that ended the run unplaced: there are none.
+#:   face_mapping_contract     audits the face-caption mapping, which this route does not make.
+#:   note_tag_gate             zeroes a line whose face row prints no note reference — and the
+#:                             model's rows carry none, so it would zero the model's figures.
 KEPT_STAGES = frozenset({
-    "ingest", "integrity", "language_detect", "classify", "whole_pdf",
+    "ingest", "integrity", "language_detect", "classify",
+    # Ran before this stage (`core.pipeline.whole_pdf_pipeline`): it read the note tables this
+    # route keeps and the face rows it sets aside. Named so the set says everything that ran.
+    "extract",
+    "whole_pdf",
     "normalize",            # the statements' units, and the template's sign rules
+    # THE NOTE-TO-FACE LINKS, from the note references the face rows carry. Writes links and a
+    # row's reconciliation role, never a figure. The model's rows carry no note reference today,
+    # so it links nothing yet; it is kept so a model row that is given one (from the rules' row it
+    # was found on) is linked as on the rules route — which is what `note_sections` narrows a
+    # part's notes by, and what reconcile ties.
+    "link_notes",
     # THE CONFIGURED CASCADES, on the model's parts: a derived line (Sales (Revenues), the
     # depreciation lines, the related-party lines…) is not asked — its figure is its cascade's,
     # computed from the internal parts the model read, by the same rungs as on the rules route.
-    # With no note tables `note_sourced` reads nothing of its own; it resolves the parents.
+    # WITH THE NOTE TABLES it also reads its declared notes, and fills a part the model left empty
+    # from the rules' own reading — a blank Level 3 column read as 0 (`blank_column_is_nil`), the
+    # parts of a request that failed — while a part the model answered keeps the model's figure
+    # (`_llm_holds`, asked of every row the model wrote for the line), and a note figure the model
+    # placed on another line is not read a second time (`services.whole_pdf_rules`). It also
+    # attaches the disclosures' quoted note text (`line_disclosure.attach`).
     "note_sourced",
+    # THE CLASSIFIED CONTINGENT-LIABILITY NARRATIVE for the Disclosures screen, from the note
+    # tables and the page text. It writes `doc.contingent_liabilities` and no line item at all.
+    "contingent_liabilities",
     # One printed figure the model put on two lines (two parts reading one note row), settled as
     # on the rules route — the figures now carry the boxes it compares.
     "shared_figures",
+    # THE NOTES' OWN ARITHMETIC (a note block that does not add up) and, where a face row is
+    # linked to a note, the note-to-face tie. It writes a report and a reconciled figure beside the
+    # face figure, never over it; confidence reads the untied ones.
+    "reconcile",
+    # WHICH NOTES ARE PUBLISHED — the ones the face points to. With no note reference on the
+    # model's rows nothing is pruned (its own "no evidence to prune on" rule), so the Notes screen
+    # shows every note read; once model rows carry references it prunes as on the rules route.
+    "prune_notes",
     "confidence",
     "structural",           # the template's checks, on the model's figures
     "disclosure_reading",   # reads page text; has its own switch
@@ -91,43 +146,60 @@ class WholePdfStage:
 
         off = set(getattr(ctx, "sections_off", None) or ())
         try:
-            pages, why = W.pages_to_send(doc, choice=str(ex.whole_pdf_pages),
-                                         included_pages=getattr(ctx, "included_pages", None),
-                                         sections_off=off)
-            parts, dropped = W.build_parts(
-                ctx.raw_bytes, pages, max_pages=int(ex.whole_pdf_pages_per_request),
-                max_request_bytes=int(ex.whole_pdf_max_request_mb) * 1024 * 1024)
+            # A statement a person switched off on the Page Scope screen is not asked for either.
+            plan = W.plan(doc, ctx.raw_bytes, ctx.line_items, choice=str(ex.whole_pdf_pages),
+                          max_pages=int(ex.whole_pdf_pages_per_request),
+                          max_request_bytes=int(ex.whole_pdf_max_request_mb) * 1024 * 1024,
+                          lines_per_request=int(ex.whole_pdf_lines_per_request),
+                          included_pages=getattr(ctx, "included_pages", None), sections_off=off)
         except Exception as exc:  # noqa: BLE001 - a file that will not cut is read by the rules
             return _fallback(doc, ctx, f"the PDF could not be cut into parts: "
                                        f"{type(exc).__name__}: {str(exc)[:120]}")
+        pages, parts, dropped, lines, chunks = (plan.pages, plan.parts, plan.dropped, plan.lines,
+                                                plan.chunks)
         if dropped:
             ctx.log(f"whole_pdf:pages_not_sent(larger than a request)="
                     f"{','.join(str(p + 1) for p in dropped)}")
         if not parts:
             return _fallback(doc, ctx, "no page fits in one request")
-        # A statement a person switched off on the Page Scope screen is not asked for either.
-        lines = [it for it in W.lines_to_ask(ctx.line_items) if W.statement_of(it) not in off]
-        chunks = W.chunk_lines(lines, int(ex.whole_pdf_lines_per_request))
         if not chunks:
             return _fallback(doc, ctx, "the line-item set names no line to ask for")
-        ctx.log(f"whole_pdf:plan pages={sum(len(p.pages) for p in parts)} of {len(doc.pages)} "
-                f"({why}) parts={len(parts)} "
+        first = chunks[plan.first_chunk()]
+        ctx.log(f"whole_pdf:plan pages={len(pages)} of {len(doc.pages)} "
+                f"({plan.why}) parts={len(parts)} "
+                f"pages_per_part={','.join(str(len(p.pages)) for p in parts)} "
+                f"faces_in_every_part={len(plan.carried)} "
                 f"sizes_mb={','.join(f'{p.b64_bytes / 1048576:.1f}' for p in parts)} "
                 f"lines={len(lines)} requests={len(parts) * len(chunks)} "
-                f"provider={provider.id}")
+                f"first={first.statement}({len(first)} lines) provider={provider.id}")
 
         documents = [W.as_document(part, i + 1) for i, part in enumerate(parts)]
-        replies = self._ask(ctx, provider, parts, documents, chunks)
-        if replies is None:
+        asked = self._ask(ctx, provider, plan, documents)
+        if asked is None:
             return _fallback(doc, ctx, "the first request failed (see the line above)")
+        replies = asked.replies
         if not replies:
             return _fallback(doc, ctx, "no request succeeded")
+        lost_statement, lost = _lost_lines(doc, plan, asked)
+        if lost:
+            ctx.log(f"whole_pdf:lines_lost={len(lost)} (no request that asked them succeeded) "
+                    f"keys={','.join(lost)}")
+        if lost_statement:
+            return _fallback(doc, ctx, lost_statement)
 
         try:
             texts = W.read_pages(ctx.raw_bytes, pages)
             readings, units, unknown, unreadable = _readings(doc, parts, chunks, replies, texts)
-            merged = W.merge(readings)
-            rows = _rows(doc, ctx.line_items, merged, provider.id)
+            # EVERY FIGURE FOUND AGAIN IN THE RULES' READING OF ITS PAGE, AND CHECKED there — the
+            # checks every model answer is held to, and the column it is printed in — while the
+            # rules' face rows are still the document's (`services.whole_pdf_locate`).
+            judge = L.Judge(doc, ctx, ctx.line_items, texts, log=ctx.log)
+            readings = judge.judge(readings)
+            merged = W.merge(readings, {item.key: item for item in ctx.line_items.items},
+                             faces={W._statement_value(p) for p in doc.pages
+                                    if p.kind == PageKind.FACE and W._statement_value(p)})
+            judge.settle(merged)
+            rows = _rows(doc, ctx.line_items, merged, provider.id, judge)
             text_rows, refused = _text_rows(doc, ctx.line_items, parts, chunks, replies, texts,
                                             provider.id, ctx.log)
             rows += text_rows
@@ -136,6 +208,11 @@ class WholePdfStage:
                                        f"{type(exc).__name__}: {str(exc)[:120]}")
         if not rows:
             return _fallback(doc, ctx, "the model found none of the template's lines")
+        # THE MODEL'S ROWS REPLACE THE RULES' FACE ROWS, AND ONLY THOSE. What `extract` read off
+        # the face is set aside, as it read it, for a later stage to find a model figure in the
+        # rules' reading of its page; the note tables it read stay in `doc.notes`, so the stages
+        # kept below read the notes exactly as on the rules route.
+        ctx.whole_pdf_rules_rows = list(doc.line_items)
         doc.line_items = rows
 
         statuses: dict[str, int] = {}
@@ -145,24 +222,42 @@ class WholePdfStage:
         ctx.mapping_strategy = "whole_pdf"
         ctx.mapping_strategy_reason = (
             f"the PDF itself was sent to the model ({provider.id}): {len(parts)} part(s), "
-            f"{sum(len(p.pages) for p in parts)} pages; row reconstruction and mapping skipped")
+            f"{sum(len(p.pages) for p in parts)} pages; the model's rows replace the rules' face "
+            f"rows and caption mapping is skipped; the note tables the rules read are kept")
+        disputed = sum(1 for r in merged.values()
+                       if any(f.startswith(W.PARTS_DISAGREE) for f in r.flags))
+        off_face = sum(1 for r in merged.values() if W.FACE_LINE_OFF_FACE in r.flags)
         ctx.whole_pdf = {
-            "pages_sent": [p + 1 for part in parts for p in part.pages],
+            "pages_sent": [p + 1 for p in pages],
             "pages_not_sent": [p + 1 for p in dropped],
+            "pages_in_every_part": [p + 1 for p in plan.carried],
+            "pages_per_part": [len(p.pages) for p in parts],
             "parts": len(parts), "requests": len(parts) * len(chunks),
-            "requests_answered": len(replies), "lines_asked": len(lines),
+            "first_request": {"statement": first.statement, "lines": len(first)},
+            "requests_answered": len(replies), "requests_sent": asked.calls,
+            "retries": asked.retries, "halved": asked.halved,
+            "requests_failed": asked.failed, "lines_lost": lost,
+            "slots_disputed": disputed, "face_lines_off_a_statement_page": off_face,
+            "lines_asked": len(lines),
             "lines_answered": len(answered), "figures": len(merged),
             "checks": statuses, "units": units,
             "texts": len(text_rows), "texts_refused": refused,
             "unknown_keys": sorted(unknown), "unreadable_amounts": unreadable,
+            # What finding each figure in the rules' reading came to, and what the checks did.
+            "checked": dict(sorted(judge.counts.items())),
+            # What the rules read, kept beside the model's reading.
+            "rules_face_rows": len(ctx.whole_pdf_rules_rows), "notes_kept": len(doc.notes),
         }
         ctx.only_stages = KEPT_STAGES
         ctx.log(f"whole_pdf:read lines={len(answered) + len(text_rows)} of {len(lines)} "
                 f"figures={len(merged)} texts={len(text_rows)} texts_refused={refused} "
                 f"checks={','.join(f'{k}:{v}' for k, v in sorted(statuses.items()))} "
-                f"units={units or '?'} unknown_keys={len(unknown)} unreadable={unreadable}")
-        ctx.log("whole_pdf:extraction_skipped — the stages that rebuild rows, read note tables "
-                "and map captions do not run; units, signs and the checks run on these figures")
+                f"units={units or '?'} unknown_keys={len(unknown)} unreadable={unreadable} "
+                f"slots_disputed={disputed} face_lines_off_a_statement_page={off_face}")
+        ctx.log(f"whole_pdf:rules_rows_set_aside={len(ctx.whole_pdf_rules_rows)} "
+                f"notes_kept={len(doc.notes)} — the model's rows replace the rules' face rows; "
+                f"caption mapping does not run; units, signs, the note-sourced fill and the "
+                f"checks run on these figures")
         return doc
 
     @staticmethod
@@ -184,59 +279,202 @@ class WholePdfStage:
             return None, f"provider {provider_id} cannot be sent a file"
         return provider, None
 
-    def _ask(self, ctx, provider, parts, documents, chunks):
-        """Every (part, lines) request, the first of each part on its own — it writes the part to
-        the provider's prompt cache for the others — then the rest of the part
-        `llm_parallel_requests` at a time. None when the run's first request fails: the file
-        itself was refused, or the provider is not answering, and the rules read the filing."""
+    def _ask(self, ctx, provider, plan, documents) -> _Asked | None:
+        """Every (part, lines) request, in the plan's order (`services.whole_pdf.Plan.order`): the
+        SMALLEST request of each part on its own — it writes the part to the provider's prompt
+        cache for the others, and the run's first one answers quickest whether the gateway is up
+        and takes the file — then the rest of the part `llm_parallel_requests` at a time, the
+        largest first. None when the run's first request fails, after its retry: the file itself
+        was refused, or the provider is not answering, and the rules read the filing.
+
+        EACH REQUEST (`_request`) IS ASKED AGAIN ONCE when it fails for any reason but a cut-off
+        reply. A reply CUT OFF at its budget is asked again with twice the room where that is
+        within `ports.llm.ROOM_CEILING` (`complete_with_room`); a larger request — the balance
+        sheet's 213 lines are budgeted 32,000 tokens, its income statement's 24,564 — is asked
+        again as two halves, each half the same way, at most `_MAX_HALVINGS` deep. It was raised
+        at once, so a cut-off balance sheet in part 1 sent the whole run to the rules (finding
+        cut_off_not_retried_for_statements).
+        """
         width = max(1, int(getattr(ctx.settings.extraction, "llm_parallel_requests", 1) or 1))
-        replies: dict[tuple[int, int], W.WholePdfReply] = {}
-        total = len(parts) * len(chunks)
+        parts, chunks = plan.parts, plan.chunks
+        asked = _Asked()
+        order = plan.order()
+        total = len(order)
         done = 0
 
-        def ask(pi: int, ci: int):
+        def call(pi: int, lines: W.Chunk):
+            budget = W.max_tokens_for(len(lines))
             message = {"role": "user", "documents": [documents[pi]],
-                       "content": W.question(chunks[ci], parts[pi], pi + 1, len(parts))}
-            return complete_with_room(provider, system=W.SYSTEM, messages=[message],
-                                      response_schema=W.WholePdfReply,
-                                      max_tokens=W.max_tokens_for(len(chunks[ci])))
+                       "content": W.question(lines, parts[pi], pi + 1, len(parts),
+                                             ctx.line_items, carried=len(plan.carried))}
+            if 2 * budget <= ROOM_CEILING:
+                return complete_with_room(provider, system=W.SYSTEM, messages=[message],
+                                          response_schema=W.WholePdfReply, max_tokens=budget)
+            return provider.complete_structured(system=W.SYSTEM, messages=[message],
+                                                response_schema=W.WholePdfReply,
+                                                max_tokens=budget)
 
-        def settle(pi: int, ci: int, call) -> bool:
+        def request(pi: int, ci: int) -> list[_Piece]:
+            return _request(call, pi, chunks[ci])
+
+        def settle(pi: int, ci: int, pieces: list[_Piece]) -> bool:
             nonlocal done
             done += 1
-            try:
-                reply, meta = call()
-            except Exception as exc:  # noqa: BLE001 - one request's failure is reported, not raised
-                ctx.llm_failures += 1
-                ctx.log(f"whole_pdf:request_failed part={pi + 1} lines={len(chunks[ci])} "
-                        f"({W.statement_of(chunks[ci][0])}) "
-                        f"error={type(exc).__name__}: {str(exc)[:200]}")
-                ctx.emit_step(done, total, "whole-PDF requests")
-                return False
-            _account(ctx, meta)
-            replies[(pi, ci)] = reply
-            ctx.log(f"whole_pdf:request part={pi + 1} lines={len(chunks[ci])} "
-                    f"({W.statement_of(chunks[ci][0])}) answered={len(reply.lines)} "
-                    f"tokens_in={meta.get('input_tokens', 0)} "
-                    f"cached={meta.get('cached_input_tokens', 0)} "
-                    f"out={meta.get('output_tokens', 0)}")
+            ok = False
+            for piece in pieces:
+                for line in piece.notes:
+                    ctx.log(line)
+                asked.calls += piece.calls
+                asked.retries += piece.retried
+                asked.halved += piece.halved
+                ctx.llm_failures += piece.failed_calls
+                where = (f"part={pi + 1} lines={len(piece.lines)} ({piece.lines.statement})"
+                         + (f" half of {len(chunks[ci])}" if len(piece.lines) < len(chunks[ci])
+                            else ""))
+                if piece.error is not None:
+                    exc = piece.error
+                    ctx.log(f"whole_pdf:request_failed {where} "
+                            f"error={type(exc).__name__}: {str(exc)[:200]}")
+                    asked.failed.append({"part": pi + 1, "statement": piece.lines.statement,
+                                         "lines": [it.key for it in piece.lines],
+                                         "error": f"{type(exc).__name__}: {str(exc)[:200]}"})
+                    continue
+                ok = True
+                reply, meta = piece.reply, piece.meta or {}
+                _account(ctx, meta)
+                held = asked.replies.get((pi, ci))
+                if held is None:
+                    asked.replies[(pi, ci)] = reply
+                else:                              # the halves of one request, as one reply
+                    held.lines.extend(reply.lines)
+                    held.units = held.units or reply.units
+                asked.answered.setdefault(pi, set()).update(it.key for it in piece.lines)
+                ctx.log(f"whole_pdf:request {where} answered={len(reply.lines)} "
+                        f"tokens_in={meta.get('input_tokens', 0)} "
+                        f"cached={meta.get('cached_input_tokens', 0)} "
+                        f"out={meta.get('output_tokens', 0)}")
             ctx.emit_step(done, total, "whole-PDF requests")
-            return True
+            return ok
 
         for pi in range(len(parts)):
-            first_ok = settle(pi, 0, lambda pi=pi: ask(pi, 0))
+            mine = [ci for p, ci in order if p == pi]
+            first_ok = settle(pi, mine[0], request(pi, mine[0]))
             if pi == 0 and not first_ok:
                 return None
-            rest = list(range(1, len(chunks)))
+            rest = mine[1:]
             if width == 1:
                 for ci in rest:
-                    settle(pi, ci, lambda pi=pi, ci=ci: ask(pi, ci))
+                    settle(pi, ci, request(pi, ci))
                 continue
             with ThreadPoolExecutor(max_workers=width) as pool:
-                futures = [(ci, pool.submit(ask, pi, ci)) for ci in rest]
+                futures = [(ci, pool.submit(request, pi, ci)) for ci in rest]
                 for ci, fut in futures:          # settled in plan order, whatever finishes first
-                    settle(pi, ci, fut.result)
-        return replies
+                    settle(pi, ci, fut.result())
+        return asked
+
+
+#: How many times a cut-off request is halved, at most: 213 lines -> 107 -> 54 -> 27, the last
+#: budgeted 6,964 tokens, within `ROOM_CEILING`'s doubling.
+_MAX_HALVINGS = 3
+
+
+@dataclass
+class _Piece:
+    """What one request (or one half of it) came to: its lines, and its reply or its error, with
+    the log lines to write in plan order."""
+    lines: W.Chunk
+    reply: W.WholePdfReply | None = None
+    meta: dict | None = None
+    error: BaseException | None = None
+    notes: list[str] = field(default_factory=list)
+    calls: int = 0
+    failed_calls: int = 0
+    retried: int = 0
+    halved: int = 0
+
+
+@dataclass
+class _Asked:
+    """Every reply, keyed (part, chunk) — the halves of a chunk as one — and what was lost."""
+    replies: dict[tuple[int, int], W.WholePdfReply] = field(default_factory=dict)
+    failed: list[dict] = field(default_factory=list)
+    answered: dict[int, set[str]] = field(default_factory=dict)   # part -> keys a reply covered
+    calls: int = 0
+    retries: int = 0
+    halved: int = 0
+
+
+def _request(call, pi: int, lines: W.Chunk, depth: int = 0) -> list[_Piece]:
+    """One request, asked again once on a failure, or as two halves on a cut-off reply. Runs in a
+    worker thread: it writes nothing to the run, it returns what happened."""
+    piece = _Piece(lines=lines)
+    for attempt in (1, 2):
+        piece.calls += 1
+        try:
+            piece.reply, piece.meta = call(pi, lines)
+            return [piece]
+        except Exception as exc:  # noqa: BLE001 - reported by `settle`, never raised
+            piece.failed_calls += 1
+            if cut_off(exc):
+                if len(lines) > 1 and depth < _MAX_HALVINGS:
+                    first, second = lines.halves()
+                    piece.notes.append(
+                        f"whole_pdf:cut_off part={pi + 1} lines={len(lines)} ({lines.statement}) "
+                        f"budget={W.max_tokens_for(len(lines))} — asked again as two halves of "
+                        f"{len(first)} and {len(second)} lines")
+                    halves = _request(call, pi, first, depth + 1) + _request(call, pi, second,
+                                                                              depth + 1)
+                    halves[0].notes[:0] = piece.notes
+                    halves[0].calls += piece.calls
+                    halves[0].failed_calls += piece.failed_calls
+                    halves[0].halved += 1
+                    return halves
+                piece.error = exc
+                return [piece]
+            if attempt == 1:
+                piece.retried += 1
+                piece.notes.append(f"whole_pdf:request_retry part={pi + 1} lines={len(lines)} "
+                                   f"({lines.statement}) error={type(exc).__name__}: "
+                                   f"{str(exc)[:200]} — asked once more")
+                continue
+            piece.error = exc
+    return [piece]
+
+
+def _lost_lines(doc, plan, asked: _Asked) -> tuple[str | None, list[str]]:
+    """`(why the rules must read the filing, or None; the lines no successful request asked)`.
+
+    A STATEMENT NEVER LOSES ITS LINES SILENTLY. A statement's own lines are lost when no request
+    that asked them succeeded in a part holding that statement's face pages — then the filing is
+    read by the rules route, the reason in the run log. It was only part 1's first request whose
+    failure sent the run back; a later one that failed (part 1's income statement, say) left that
+    statement's lines blank with a log line (finding partial_failure_blanks_no_fallback). Every
+    other line lost (a note's, a part's) is named in the run log and in `ctx.whole_pdf`; the rules
+    fill the note parts the model left empty (`note_sourced`, `services.whole_pdf_rules`).
+    """
+    answered = asked.answered
+    lost = sorted(it.key for it in plan.lines
+                  if not any(it.key in keys for keys in answered.values()))
+    faces: dict[str, set[int]] = {}
+    for p in doc.pages:
+        st = W._statement_value(p)
+        if p.kind == PageKind.FACE and st in W.FACE_STATEMENTS:
+            faces.setdefault(st, set()).add(int(p.index))
+    for statement in W.FACE_STATEMENTS:
+        holders = [pi for pi, part in enumerate(plan.parts)
+                   if faces.get(statement, set()) & set(part.pages)]
+        if not holders:
+            continue
+        own = [it.key for chunk in plan.chunks if chunk.statement == statement
+               for it in chunk if not W.is_part(it)]
+        gone = [k for k in own if not any(k in answered.get(pi, ()) for pi in holders)]
+        if gone:
+            failed = sorted({f["part"] for f in asked.failed if f["statement"] == statement})
+            return (f"the {statement.replace('_', ' ')}'s lines were lost: {len(gone)} of "
+                    f"{len(own)} were asked in no request that succeeded in a part holding its "
+                    f"face pages (part {', '.join(str(pi + 1) for pi in holders)}; failed in "
+                    f"part {', '.join(map(str, failed)) or '?'})"), lost
+    return None, lost
 
 
 def _fallback(doc, ctx, reason: str):
@@ -467,7 +705,8 @@ def _as_read(item, r: W.Reading, flags: list) -> tuple[Decimal, bool]:
     return value, True
 
 
-def _citation(r, page: int, kind: str, producer: str, page_kind, provenance) -> dict:
+def _citation(r, page: int, kind: str, producer: str, page_kind, provenance,
+              verdict: L.Verdict | None = None) -> dict:
     """The figure's trail, in the shape a model's citation on the rules route records
     (`stages.line_item_llm`), so the Workspace's inspector says where it was read and lists each
     printed row it was read from, each clickable to its page: the row itself, or the rows a sum
@@ -475,32 +714,66 @@ def _citation(r, page: int, kind: str, producer: str, page_kind, provenance) -> 
 
     `printed_in` says whether the page is a statement or a note: this route reads no note tables,
     so it has no note number to give, and without it a figure read in a note would be worded as
-    read "on the face" (`api.routes.documents._citation_reading`)."""
+    read "on the face" (`api.routes.documents._citation_reading`).
+
+    WHAT THE CHECKS DID IS IN THE TRAIL TOO (`services.whole_pdf_locate`): each input's value is
+    the figure AS PRINTED, a row put into the statements' scale says so beside it, and a row the
+    checks refused is listed, not counted, with the rule that refused it — so the trail adds up to
+    the figure written and shows the row that was left out."""
     printed_in = "face" if page_kind == PageKind.FACE else "notes"
 
-    def entry(label: str, value, box, label_box) -> dict:
+    def entry(label: str, value, box, label_box, counted: bool = True) -> dict:
         prov = Provenance(page_index=page, bbox=box, value_bbox=box, label_bbox=label_box,
                           text_snippet=label or None, source_kind=kind, producer=producer)
         return {"label": label or r.caption or r.key, "value": str(value), "note": None,
-                "counted": True, "printed_in": printed_in,
+                "counted": counted, "printed_in": printed_in,
                 "provenance": prov.model_dump(mode="json")}
 
+    rows = verdict.printed_rows if verdict is not None and r.rows else r.rows
+    boxes = verdict.row_boxes if verdict is not None and r.rows else r.row_boxes
+    written = verdict.rows if verdict is not None and r.rows else r.rows
+    scales = verdict.scales if verdict is not None else []
+    result = verdict.value if verdict is not None else r.amount
+
+    def converted(inp: dict, printed, i: int) -> dict:
+        # A ROW PUT INTO THE STATEMENTS' SCALE counts its converted figure, and the trail says what
+        # was printed and in which units (`services.derivation`'s "rescaled" reading).
+        scale = scales[i] if i < len(scales) else None
+        if scale is not None and str(inp["value"]) != str(printed):
+            inp["printed"] = str(printed)
+            inp["rescaled"] = {"from": scale[0], "to": scale[1]}
+        return inp
+
     if r.rows:
-        inputs = [entry(c, a, *(r.row_boxes[i] if i < len(r.row_boxes) else (None, None)))
-                  for i, (c, a) in enumerate(r.rows)]
+        inputs = [converted(entry(c, written[i][1] if i < len(written) else a,
+                                  *(boxes[i] if i < len(boxes) else (None, None))), a, i)
+                  for i, (c, a) in enumerate(rows)]
     else:
-        inputs = [{**entry(r.caption, r.amount, r.box, r.label_box),
-                   "provenance": provenance.model_dump(mode="json")}]
-    counted = [i["label"] for i in inputs]
+        inputs = [converted({**entry(r.caption, result, r.box, r.label_box),
+                             "provenance": provenance.model_dump(mode="json")}, r.amount, 0)]
+    for bad in (verdict.dropped if verdict is not None else ()):
+        refused = entry(bad.get("caption") or "", bad.get("amount"), None, None, counted=False)
+        refused["refused"] = bad.get("refused")
+        refused["why"] = bad.get("why")
+        inputs.append(refused)
+    counted = [i["label"] for i in inputs if i.get("counted")]
+    flags = [f"{FLAG}:{r.check.status}"] + list(verdict.flags if verdict is not None else ())
     return derivation.build(
         method=f"whole_pdf:{r.check.status}", formula=" + ".join(counted), inputs=inputs,
-        result=r.amount, flags=[f"{FLAG}:{r.check.status}"],
+        result=result, flags=flags,
         display={"op": "sum" if r.rows else "first",
                  "combine": "component" if r.rows else "whole"})
 
 
-def _rows(doc, line_item_set, merged: dict, provider_id: str) -> list[LineItem]:
-    """One row per (line, basis), in the set's order, holding its current and prior figures."""
+def _rows(doc, line_item_set, merged: dict, provider_id: str,
+          judge: L.Judge | None = None) -> list[LineItem]:
+    """One row per (line, basis), in the set's order, holding its current and prior figures.
+
+    THE FIGURE WRITTEN IS THE CHECKED ONE (`judge`, `services.whole_pdf_locate`): in the
+    statements' scale, without the rows the checks refused. A line whose every figure for a basis
+    was refused, or withheld because a sibling part holds its note money, still gets its row — with
+    no figure, and the flags that say why — so the reason is on the line and not only in the log.
+    """
     by_key = {item.key: item for item in line_item_set.items}
     order = {item.key: i for i, item in enumerate(line_item_set.items)}
     kinds = {p.index: p.kind for p in doc.pages}
@@ -508,6 +781,10 @@ def _rows(doc, line_item_set, merged: dict, provider_id: str) -> list[LineItem]:
     groups: dict[tuple[str, str], list[W.Reading]] = {}
     for (key, basis, _period), reading in merged.items():
         groups.setdefault((key, basis), []).append(reading)
+    empty = [slot for slot in (judge.row_flags if judge is not None else {})
+             if slot not in groups]
+    for slot in empty:
+        groups[slot] = []
 
     out: list[LineItem] = []
     for ordinal, ((key, basis), group) in enumerate(
@@ -522,17 +799,32 @@ def _rows(doc, line_item_set, merged: dict, provider_id: str) -> list[LineItem]:
                        else LineRole.LINE,
                        printed_in=PrintedIn.FACE if face else PrintedIn.NOTES)
         scores = []
+        refs: dict[str, object] = {}
+        review = False
         for r in group:
+            verdict = judge.verdicts.get(id(r)) if judge is not None else None
             flags = [FLAG, f"{FLAG}:{r.check.status}"]
             if r.check.note:
                 flags.append(f"{FLAG}:{r.check.status}:{r.check.note}")
             for other in r.others:
                 flags.append(f"{FLAG}:other_reading:{other}")
-            if r.rows:
+            # What the merge found: two parts disputing the slot, or a statement line kept off a
+            # page that is not a statement's (`services.whole_pdf.merge`).
+            flags.extend(f"{FLAG}:{f}" for f in r.flags)
+            # What the checks found (`services.whole_pdf_locate`).
+            flags.extend(f for f in (verdict.flags if verdict is not None else ()) if f not in flags)
+            shown = verdict.printed_rows if verdict is not None and r.rows else r.rows
+            if shown:
                 flags.append(f"{FLAG}:sum_of_rows:" + " + ".join(
-                    f"{c or '?'} {a}" for c, a in r.rows))
-            score = _SCORE.get(r.check.status, 0.3) - (0.2 if r.others else 0.0)
+                    f"{c or '?'} {a}" for c, a in shown))
+            score = _SCORE.get(r.check.status, 0.3) - (0.2 if r.others or r.review else 0.0)
             scores.append(score)
+            # IN REVIEW SLOT BY SLOT as well as on the row, so a line computed from this one is
+            # put in review for the slot that is in doubt (`stages.note_sourced._carry_review`).
+            doubtful = r.check.status in _REVIEWED or bool(r.others) or r.review
+            if doubtful:
+                flags.append(REVIEW_FLAG)
+            review = review or doubtful
             page = r.check.page if r.check.page is not None else 0
             kind = "model_pdf" if source.get(page) is None else f"model_pdf:{source[page]}"
             producer = f"whole_pdf:{provider_id}"
@@ -543,22 +835,42 @@ def _rows(doc, line_item_set, merged: dict, provider_id: str) -> list[LineItem]:
                                     source_kind=kind, producer=producer)
             if not r.box:
                 flags.append(f"{FLAG}:not_placed_on_page")
-            value, settled = _as_read(item, r, flags)
+            # The figure the checks kept, in the statements' scale (the model's where none ran).
+            checked = r if verdict is None or verdict.unchecked else replace(
+                r, amount=verdict.value, rows=list(verdict.rows), row_boxes=list(verdict.row_boxes))
+            value, settled = _as_read(item, checked, flags)
             row.set_value(ExtractedValue(
                 basis=Basis(r.basis), period_label=r.period, column_period=r.period,
                 period_display=r.period_end or None,
-                value_raw=Decimal(r.amount), value=value, sign_normalised=settled,
+                value_raw=Decimal(checked.amount), value=value, sign_normalised=settled,
                 provenance=provenance,
                 confidence=ConfidenceVector(mapping=max(0.0, score), method="llm",
                                             flags=flags)))
             row.derivation = derivation.record(
                 row.derivation, basis=r.basis, period_label=r.period,
-                derivation=_citation(r, page, kind, producer, kinds.get(page), provenance))
+                derivation=_citation(r, page, kind, producer, kinds.get(page), provenance,
+                                     None if verdict is None or verdict.unchecked else verdict))
+            # THE NOTE REFERENCES THE FACE PRINTS beside the row the figure was found on, so the
+            # links, the note-to-face ties and the published notes work as on the rules route.
+            for ref in (verdict.note_refs if verdict is not None else ()):
+                refs.setdefault(str(getattr(ref, "raw", ref)), ref)
+            # A ROW A CHECK REFUSED IS NAMED ON THE LINE as well as on its figure.
+            for f in (verdict.flags if verdict is not None else ()):
+                if f.startswith(L.REFUSED) and f not in row.confidence.flags:
+                    row.confidence.flags.append(f)
+        row.note_refs = list(refs.values())
+        if not row.note_number:
+            row.note_number = next((v.note_number for r in group
+                                    if (v := judge.verdicts.get(id(r)) if judge else None)
+                                    and v.note_number), None)
         row.confidence.method = MappingMethod.LLM.value
         row.confidence.mapping = max(0.0, min(scores)) if scores else 0.0
         row.confidence.flags.append(FLAG)
+        for f in (judge.row_flags.get((key, basis), ()) if judge is not None else ()):
+            if f not in row.confidence.flags:
+                row.confidence.flags.append(f)
         _printed_on(row, item, on_face=face)
-        if any(r.check.status in _REVIEWED or r.others for r in group):
+        if review:
             row.confidence.flags.append(REVIEW_FLAG)
         out.append(row)
     return out

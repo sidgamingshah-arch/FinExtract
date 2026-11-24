@@ -236,12 +236,16 @@ def test_every_described_knob_is_actually_settable(client):
 def test_every_knob_has_a_place_on_the_screen(client):
     """The Settings screen is laid out from these descriptors: a tab, a section, a one-line
     summary, and the switch a knob is read under. A knob with no place would land on a catch-all
-    tab; one whose switch names nothing, or a value that switch cannot take, would never show."""
+    tab; one whose switch names nothing, or a value that switch cannot take, would never show.
+
+    Two tabs hold knobs: "route" (how a filing is read: the route picker and each route's own
+    options) and "advanced" (everything else, the rarely changed groups folded)."""
     body = client.get("/api/v1/settings", headers=_admin(client)).json()
     fields = {f["key"]: f for f in body["extraction_fields"]}
 
     for key, f in fields.items():
-        assert f["tab"] in ("model", "focus", "reading", "mapping"), key
+        assert f["tab"] in ("route", "advanced"), key
+        assert isinstance(f["folded"], bool), key
         assert f["summary"] and len(f["summary"]) <= 200, key
         when = f["shown_when"]
         if when is None:
