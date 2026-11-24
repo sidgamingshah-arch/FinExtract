@@ -2,10 +2,11 @@
 as the shipped config makes it ("statements" pages, 100 pages a request), the stand-in answering
 from a SCRIPT (`tests.whole_pdf_standin`).
 
-What it shows: the first request is the smallest; both parts carry the 17 statement faces and the
-auditor's report (pages 147-149) is sent, so the Accountant, which the report alone prints, is
-read and checked on its page; and the Securities family (Find 1, Level 3, the LTP parts) is one
-request. Every figure is the script's — what the pipeline does with an answer, never what a model
+What it shows: the first request is the smallest; both parts holding the notes carry the 17
+statement faces, and a third holds the statement faces alone, where the statements' face lines are
+asked; the auditor's report (pages 147-149) is sent, so the Accountant, which the report alone
+prints, is read and checked on its page; and the Securities family (Find 1, Level 3, the LTP
+parts) is one request. Every figure is the script's — what the pipeline does with an answer, never what a model
 would answer. One run, about 40 seconds.
 """
 from __future__ import annotations
@@ -43,10 +44,14 @@ def _asked(rec):
 def test_the_first_request_is_the_smallest(run):
     _doc, ctx, rec = run
     asked = _asked(rec)
-    assert len(asked) == 14 and all(c.get("scripted") for c in asked)
+    # 5 requests to each part holding the notes (the three statements' lines read from the notes
+    # or anywhere in one), and the three statements to the faces alone.
+    assert len(asked) == 13 and all(c.get("scripted") for c in asked)
     sizes = [len(c["line_keys"]) for c in asked]
     assert sizes[0] == min(sizes) == 10 and ctx.whole_pdf["first_request"]["statement"] == (
         "statement_setup")
+    assert sorted(len(c["line_keys"]) for c in asked if c["documents"][0]["part"] == 3
+                  ) == [81, 107, 208]
 
 
 def test_both_parts_carry_the_faces_and_the_auditors_report_is_sent(run):
@@ -57,10 +62,13 @@ def test_both_parts_carry_the_faces_and_the_auditors_report_is_sent(run):
         d = c["documents"][0]
         held[d["part"]] = set(d["report_pages"])
     faces = {p - 1 for p in ctx.whole_pdf["pages_in_every_part"]}
-    assert sorted(held) == [1, 2] and len(faces) == 17
+    assert sorted(held) == [1, 2, 3] and len(faces) == 17
     assert all(faces <= pages for pages in held.values())
     assert [len(pages) for _n, pages in sorted(held.items())] == ctx.whole_pdf["pages_per_part"]
     assert {146, 147, 148} <= held[1] and not {146, 147, 148} & held[2]
+    # The statements alone: the 17 faces and the report's pages, which 688008's classifier calls
+    # faces of no statement.
+    assert held[3] == faces | {146, 147, 148}
     assert not ctx.whole_pdf["pages_not_sent"]
 
 

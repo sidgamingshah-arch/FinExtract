@@ -764,7 +764,16 @@ below is not in it. **On**, the run assembles `whole_pdf_pipeline()` — the sam
    parts cut from the original (`services/whole_pdf.py::build_parts`): at most
    `whole_pdf_pages_per_request` pages and `whole_pdf_max_request_mb` a part, in even parts, and
    **every part carries the statement faces**, so a note in the second part is read with the
-   statements in view — the other pages are cut into smaller parts to make room, never dropped. **The model is asked for every `extracted` line, whatever its `route`** — the face, the
+   statements in view — the other pages are cut into smaller parts to make room, never dropped.
+   **The statements' face lines are asked once**, in a last part that holds the statement faces
+   and nothing else (`faces_only`, the "statements alone"): each statement's whole list of
+   `[read from the statement]` lines in one request there. The parts holding the notes are asked
+   every other line, the three statements' notes/anywhere lines together in one request
+   (`STATEMENTS_REST`, `Plan.ask`). Where nothing would be left to ask the notes parts (a set
+   whose lines are all face lines, such as Ind AS), no statements-alone part is made and every
+   part is asked every line. A statements-alone request that fails, whole or in part, is asked
+   again in the notes part holding most of its pages (`Plan.second_part`); one cut off at every
+   halving is not. **The model is asked for every `extracted` line, whatever its `route`** — the face, the
    note tables, anywhere in the report or the narrative, as the rules route asks them
    (`line_item_requests.asked_about`) — the internal `sub__` parts a cascade adds up and the text
    lines (a phrase or prose) included, and for the total the filing prints of every `calculated`
@@ -782,7 +791,12 @@ below is not in it. **On**, the run assembles `whole_pdf_pipeline()` — the sam
    parts its residual reaches), and the question lists them under "Added together": one printed
    holding goes into at most one of them. Each line is sent with its **whole definition** (it was
    cut at 240 characters), and where its `exclude_hints` name captions the definition does not, a
-   "Not this line: …" sentence rendered from them (`definition_of`, `hint_caption`). The model answers a figure line with its figures —
+   "Not this line: …" sentence rendered from them (`definition_of`, `hint_caption`). A sentence
+   several lines of one request share is sent once, as a numbered rule the lines point to
+   (`shared_sentences`); "answer with an empty sources list" is said as "leave it out", and a
+   sentence that only repeats the question's own leave-it-out rule is not sent (`for_this_route`,
+   `row_as_read`). A checker over the five reference filings finds none of the 4,173 deciding
+   clauses lost (`tests/test_the_whole_pdf_question_keeps_every_deciding_clause.py`). The model answers a figure line with its figures —
    basis, period, the amount as printed, the page of the file it read it on, the caption, and
    the printed rows of a figure that is a sum of rows — and a text line with its words and the
    pages they are on.
@@ -844,14 +858,42 @@ row, each with its own figure and box), so the Workspace's inspector says "read 
 place (a scanned page, a figure not printed as one word) keeps its page and is flagged
 `whole_pdf:not_placed_on_page`.
 
-**Signs, as the rules route sets them.** A balance-sheet or income-statement figure is given as
-printed and `normalize` orients it by its caption, as it does a face row. A **cash-flow** figure
-keeps the model's own sign — the prompt asks for a payment as a negative, and a caption flip
-written for the unsigned figure a CSRC statement prints would turn it back — and a printed row
-captioned with a payment word (支付, 购建, 偿还, 分配股利) is an outflow, negative whether or not the
-model said so; each row of a sum by its own caption (`stages/whole_pdf.py::_as_read`). A part read
-in the notes, and a note's, covenant's or setup line, are written as read: no statement's rules or
-checks apply to them, as on the rules route, where `note_sourced` writes them after `normalize`.
+**Signs, as the rules route sets them.** A figure found on a cell the rules read ends with the
+sign the rules give THAT cell on THAT line (`stages/whole_pdf.py::_RulesSigns`): a copy of the
+rules' rows, each row the figure was found on filed on the model's line, goes through `normalize`
+itself — the printed sign, "Less:"/"Add:", the line's flip and contra rules, a 其中 row under a row
+printed as an unsigned expense, the CAS outflow blocks (现金流入小计 … 现金流出小计) — and the sign it
+comes out with is the figure's, settled. A cell in a note, for a statement's own line, is turned to
+the face's convention as the rules' note-to-face split turns it (1966's lease interest, printed
+1,490 in note 7, is -1,490 because the face prints finance costs (1,492,343)). In a sum each row
+takes its own cell's sign, except a row the model gave against its printed sign where the rules
+leave that sign alone: that is the model taking the row out, and it stands. A figure found on no
+cell keeps the route's own rule: a cash-flow figure keeps the model's sign, and a row captioned as a
+payment (支付 the verb, never 股份支付, a share-based payment; 购建, 偿还, 分配股利) is negative; any
+other is oriented by `normalize` as a face row is. This replaced a caption regex that negated
+688008's indirect-method 股份支付 add-back, charged 300319's parent 其中：利息费用 credit and wrote
+1966's note-7 lease interest positive. A part read in the notes, and a note's, covenant's or setup
+line, are written as read: no statement's rules or checks apply to them, as on the rules route,
+where `note_sourced` writes them after `normalize`. The payment rule also counts 股份支付 or 股权支付 followed
+by (的)现金 as a payment (回购股份支付的现金, a share buy-back), so only the noun is an add-back.
+
+**A line the model leaves empty takes the rules' figure** (`services/whole_pdf_rules.py::
+fill_from_rules`, at the end of the stage). The rules' face rows set aside on the context are put,
+on a quiet copy of the context, through the rules' own mapping, residual and `normalize`, so each
+figure is the one the rules route publishes, with its sign settled. Every slot (line, basis,
+period) of a line the run asked that no model row holds is filled from it, on a row of its own
+flagged `whole_pdf:rules_reading`, in the statement's scale and the model's unit for that basis.
+Never filled: a slot a model row holds (even where the rules read another figure), a printed cell
+the model already put on any line (inside a sum or a whole; by cell, else by page and amount),
+and a part withheld because a sibling holds its note money. A slot whose model figure the checks
+refused is filled only if a fresh copy of the same checks passes the rules' own cell. Figures with
+no column heading take the heading the rules read for their year on their page
+(`whole_pdf:period_display_from_rules`), which is what gives Periods and Statement Date. The log
+line is `whole_pdf:rules_fill`, the counts are in `ctx.whole_pdf["filled_from_rules"]`. Note-row
+lines (a "Yes" a note row says) are not filled: this route leaves notes unmapped. Measured with
+scripted answers (no model): 佳明's blanks went from 115 to 1 and China SCE's from 56 to 0, and
+every filled slot equals rules-only; the structural checks on both now match rules-only.
+
 **Measured** on 688411 (the filing of run 11033486) with a stand-in that answers every question
 from the rules route's own figures, as the prompt asks: the template's checks came out as the rules
 route's, 58 passing of 93 and none failing, on the statement pages (2 parts, 14 requests) and on
@@ -900,7 +942,13 @@ called): 94 to 176 pages sent (3 to 10 of them the auditor's report), one or two
 94 pages and 2.7 MB, 7 or 14 requests as before; the largest question, the balance sheet's, is
 201,147 characters (about 52,000 estimated tokens) where it was 70,043, and the largest request an
 estimated 195,000 to 282,000 input tokens (the app's text estimate plus 1,600 a page for its
-picture) where it was 140,000 to 228,000.
+picture) where it was 140,000 to 228,000. With the face lines asked in the statements alone
+and shared sentences sent once: 8 or 13 requests (18 on a filing sent in four parts); the
+largest request an estimated 152,278 (kaming) to 239,539 (1966) input tokens, 15-22% under the
+figures above; the whole run 1.33 to 2.43 million, under both earlier plans on all five; the
+question text sent fresh on every request 131,566 tokens where it was 232,720. A filing that fit
+in one part (300319) is now sent in two, so it writes one more document to the cache: its
+weighted cost rises 2.3%.
 
 ## Progress reporting
 

@@ -305,6 +305,14 @@ class Verdict:
     note_refs: list = field(default_factory=list)       # off the rules' face row(s) it was read on
     note_number: str = ""                               # …and their note number, where one
     unchecked: bool = False                             # no check ran; only flags were added
+    # Where each cited row was found, by its citation entry's "at": the rules' cell a kept entry
+    # stands on, which `stages.whole_pdf` takes that figure's sign from.
+    places: list = field(default_factory=list)
+
+    def place_of(self, entry: dict) -> Place | None:
+        """The place a kept citation entry was found at, or None."""
+        at = int(entry.get("at") or 0)
+        return self.places[at] if 0 <= at < len(self.places) else None
 
 
 def _detected_unit(ctx, doc):
@@ -731,7 +739,7 @@ class Judge:
             value=value, rows=written if r.rows else [], row_boxes=kept_boxes if r.rows else [],
             printed_rows=printed_kept if r.rows else [], dropped=dropped, flags=flags,
             review=review, kept=kept, scales=scales, note_refs=refs,
-            note_number=next(iter(numbers)) if len(numbers) == 1 else "")
+            note_number=next(iter(numbers)) if len(numbers) == 1 else "", places=places)
         return r
 
     def _statement_scale(self, basis: str) -> Decimal:

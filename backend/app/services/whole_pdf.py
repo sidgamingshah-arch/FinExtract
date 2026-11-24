@@ -203,9 +203,13 @@ def _auditor_runs(raw: bytes, starts: list[int], faces: set[int]) -> list[int]:
 
 @dataclass
 class Part:
-    """One file sent: the pages it holds (0-based, of the original), in order, and its bytes."""
+    """One file sent: the pages it holds (0-based, of the original), in order, and its bytes.
+
+    `faces_only`: the statements alone (`Plan`, `statement_pages`) — the part a statement's
+    [read from the statement] lines are asked in, with the rest of that statement's lines."""
     pages: list[int]
     pdf: bytes
+    faces_only: bool = False
 
     @property
     def b64_bytes(self) -> int:
@@ -500,7 +504,32 @@ _ENVELOPE_BYTES = 32 * 1024
 @dataclass
 class Plan:
     """What a run sends: the pages and why, the parts, the faces every part carries, the lines
-    and the requests they are asked in."""
+    and the requests they are asked in.
+
+    A STATEMENT'S [read from the statement] LINES ARE ASKED ONCE, AGAINST THE STATEMENTS ALONE
+    (`face_keys`, the part `faces_only`). A balance sheet's 180 face lines were asked in every
+    part, each part carrying the faces beside half the notes, so the same face pages were read for
+    them twice and their definitions — 42,052 of the balance-sheet question's 52,373 estimated
+    tokens on the HK set — sent twice, in the run's largest requests. Now:
+
+    * the `faces_only` part holds every page the classifier calls a statement face and nothing
+      else (7 to 20 pages on the reference filings), and is asked each statement's WHOLE line
+      list (`face_statements`) — every line of it, so the model still puts each printed row on
+      exactly one line and the rows no line describes into the section's "other" line, with the
+      printed totals beside them;
+    * the parts that hold the notes are asked every line but those face lines: the statements'
+      lines read from the notes or anywhere (Trade Receivables(Gross) off the 应收账款 breakdown,
+      the printed totals, which may be read either side), all three statements' in one request
+      (`STATEMENTS_REST`), and the notes' and the other sections' requests as before. They still
+      carry the faces, so a note is read with its statement in view.
+
+    Measured on the five reference filings (no model; `tests/test_the_whole_pdf_question_keeps_
+    every_deciding_clause.py`): 688008's largest request 197,882 estimated input tokens -> 154,719
+    (140,020 before 01d4a34), its whole run 2,183,151 -> 1,663,775 in 13 requests instead of 14,
+    and the question text paid fresh on every request 232,720 -> 131,566.
+
+    A statement no face page was found of is asked where the notes are, whole, as before.
+    """
     pages: list[int]
     why: str
     parts: list[Part]
@@ -509,21 +538,111 @@ class Plan:
     lines: list
     chunks: list[Chunk]
     overhead_bytes: int
+    #: The lines asked only in the `faces_only` parts: the [read from the statement] lines of
+    #: `face_statements`' requests. Empty when there is no such part.
+    face_keys: frozenset = frozenset()
+    #: The statements whose whole request the `faces_only` parts are asked.
+    face_statements: frozenset = frozenset()
+
+    def ask(self, pi: int, ci: int) -> Chunk:
+        """The lines of chunk `ci` that part `pi` is asked: a `faces_only` part a face statement's
+        whole request and nothing else; another part every other request, the face statements'
+        own lines but their face lines in one (`STATEMENTS_REST`). Every line of the chunk where
+        the plan has no `faces_only` part."""
+        chunk = self.chunks[ci]
+        if not self.face_keys:
+            return chunk
+        empty = Chunk([], chunk.statement)
+        if self.parts[pi].faces_only:
+            return chunk if chunk.statement in self.face_statements else empty
+        return empty if chunk.statement in self.face_statements else chunk
+
+    def requests(self) -> int:
+        return len(self.order())
+
+    def second_part(self) -> int | None:
+        """Where a statement's request to the statements alone is asked again when it fails
+        (`stages.whole_pdf`): the part holding the notes that holds most of the `faces_only`
+        pages — every carried face where the faces are carried — or None when none holds any."""
+        alone = {p for part in self.parts if part.faces_only for p in part.pages}
+        held = [(len(alone & set(part.pages)), -pi) for pi, part in enumerate(self.parts)
+                if not part.faces_only]
+        best = max(held, default=(0, 0))
+        return -best[1] if best[0] else None
 
     def first_chunk(self) -> int:
         """THE SMALLEST REQUEST GOES FIRST (finding whole_pdf_no_room_retry_and_first_request_
         gate): it writes the part to the provider's prompt cache for the others, and it is the one
         whose failure sends the run to the rules — so it should be the quickest to answer, not the
-        213-line balance sheet that waited up to 2 x 600 s before the fallback could start."""
-        return min(range(len(self.chunks)), key=lambda i: (len(self.chunks[i]), i))
+        213-line balance sheet that waited up to 2 x 600 s before the fallback could start. This
+        is the first part's."""
+        return self._first(0)
+
+    def _first(self, pi: int) -> int:
+        asked = [ci for ci in range(len(self.chunks)) if self.ask(pi, ci)]
+        return min(asked or range(len(self.chunks)),
+                   key=lambda i: (len(self.ask(pi, i)), i))
 
     def order(self) -> list[tuple[int, int]]:
         """Every (part, chunk) request in the order it is sent: each part's smallest request on
-        its own, then the rest of that part, the largest first so the slowest starts soonest."""
-        first = self.first_chunk()
-        rest = sorted((i for i in range(len(self.chunks)) if i != first),
-                      key=lambda i: (-len(self.chunks[i]), i))
-        return [(pi, ci) for pi in range(len(self.parts)) for ci in [first, *rest]]
+        its own, then the rest of that part, the largest first so the slowest starts soonest. A
+        chunk that asks a part no line is not sent to it."""
+        out: list[tuple[int, int]] = []
+        for pi in range(len(self.parts)):
+            sizes = {ci: len(self.ask(pi, ci)) for ci in range(len(self.chunks))}
+            first = self._first(pi)
+            rest = sorted((ci for ci, n in sizes.items() if n and ci != first),
+                          key=lambda ci: (-sizes[ci], ci))
+            out.extend((pi, ci) for ci in ([first] if sizes.get(first) else []) + rest)
+        return out
+
+
+#: THE STATEMENTS' LINES READ FROM THE NOTES OR ANYWHERE, asked in one request of each part that
+#: holds the notes, once their face lines go to the statements alone (`Plan`). A request never
+#: mixed two statements' lines, so the model would put each printed row on exactly one line and
+#: the rows no line describes into the section's "other" line — rules about a statement's FACE
+#: rows, and no face line, no "other" line, is in this request. Asked one statement at a time they
+#: were three requests of 22, 14 and 6 lines on the HK set, each sending the 64 to 94 pages of its
+#: part again. The question still heads each statement's lines with its name (`question`).
+STATEMENTS_REST = "statements_read_from_the_notes"
+
+
+def statements_rest(chunks: list[Chunk], statements, keys, per_request: int) -> list[Chunk]:
+    """What the parts holding the notes are asked of these statements once their face lines
+    (`keys`) go to the statements alone: their other lines, all the statements' in one request
+    (`STATEMENTS_REST`), at most `per_request` a request."""
+    rest = [it for chunk in chunks if chunk.statement in statements for it in chunk
+            if it.key not in keys]
+    per = max(1, int(per_request))
+    return [Chunk(rest[i:i + per], STATEMENTS_REST) for i in range(0, len(rest), per)]
+
+
+def statement_pages(doc, pages: list[int]) -> list[int]:
+    """Every page sent that the classifier calls a statement face, whether or not it named the
+    statement: a continuation it did not name (000709's 利润分配 rows of the statement of changes
+    in equity, page 93) is a face all the same."""
+    sent = set(pages)
+    return sorted(int(p.index) for p in doc.pages
+                  if int(p.index) in sent and p.kind == PageKind.FACE)
+
+
+def face_keys(chunks: list[Chunk], statements: set[str], item_set=None) -> frozenset:
+    """The lines asked against the statements alone, and there only: the [read from the
+    statement] lines of these statements' own requests.
+
+    With `item_set`, NEVER ONE PART OF A FAMILY WITHOUT THE OTHERS (`families`): a part read off
+    the face whose cascade also adds a part read from the notes stays where the notes are, with
+    its siblings, so the "Added together" rule still sees the whole group in one request. (None of
+    the shipped sets has such a family in a statement's request today.)"""
+    keys = {it.key for chunk in chunks if chunk.statement in statements for it in chunk
+            if str(getattr(it.route, "value", it.route) or "") == "face"}
+    if item_set is not None:
+        family = families(item_set, [it for chunk in chunks for it in chunk])
+        members: dict[str, set[str]] = {}
+        for key, root in family.items():
+            members.setdefault(root, set()).add(key)
+        keys = {k for k in keys if k not in family or members[family[k]] <= keys}
+    return frozenset(keys)
 
 
 def plan(doc, raw: bytes, item_set, *, choice: str, max_pages: int, max_request_bytes: int,
@@ -534,6 +653,11 @@ def plan(doc, raw: bytes, item_set, *, choice: str, max_pages: int, max_request_
     DEFINITIONS make the largest question (the HK balance sheet's, 213 lines) about 200,000
     characters, near `REQUEST_OVERHEAD_BYTES` on its own, so the room a part leaves for its text is
     the largest question's own size (UTF-8, as the body is sent), the system text and an envelope.
+
+    Then the parts that hold the pages sent (`build_parts`, the faces carried in each), and, where
+    some pages sent are statement faces and some are not, THE STATEMENTS ALONE as a part of their
+    own, sent last (`Plan`): the run's first request stays the first notes part's smallest, which
+    answers quickest whether the provider takes the file.
     """
     off = set(sections_off or ())
     lines = [it for it in lines_to_ask(item_set) if statement_of(it) not in off]
@@ -549,8 +673,35 @@ def plan(doc, raw: bytes, item_set, *, choice: str, max_pages: int, max_request_
                                  max_request_bytes=max_request_bytes, carry=carry,
                                  overhead_bytes=overhead)
     carried = carry if len(parts) > 1 and all(set(carry) <= set(p.pages) for p in parts) else []
+    keys: frozenset = frozenset()
+    whole: frozenset = frozenset()
+    statements = statement_pages(doc, [p for p in pages if p not in set(dropped)])
+    if parts and statements and len(statements) < len(pages) - len(dropped):
+        found = {_statement_value(p) for p in doc.pages
+                 if int(p.index) in set(statements) and _statement_value(p)}
+        whole = frozenset(found & set(FACE_STATEMENTS))
+        keys = face_keys(chunks, whole, item_set)
+        rest = statements_rest(chunks, whole, keys, lines_per_request) if keys else []
+        if keys and not rest and all(c.statement in whole for c in chunks):
+            # NOTHING WOULD BE LEFT TO ASK THE PARTS HOLDING THE NOTES (the Ind AS set: its 111
+            # lines are all read from the statements): the run's first request would not be the
+            # first part's, and the stage's first-request gate — that request fails, the rules
+            # read the filing at once — would never fire, so a provider that is down was asked 12
+            # times before the run fell back. Nothing is split off: the plan is the one before.
+            keys = frozenset()
+        if keys:
+            alone, _ = build_parts(raw, statements, max_pages=max_pages,
+                                   max_request_bytes=max_request_bytes, overhead_bytes=overhead)
+            for part in alone:
+                part.faces_only = True
+            parts = parts + alone
+            if not alone:
+                keys = frozenset()
+        if keys:
+            chunks = chunks + rest
     return Plan(pages=pages, why=why, parts=parts, dropped=dropped, carried=carried, lines=lines,
-                chunks=chunks, overhead_bytes=overhead)
+                chunks=chunks, overhead_bytes=overhead, face_keys=keys,
+                face_statements=whole if keys else frozenset())
 
 
 # ── the question and the reply ─────────────────────────────────────────────────────────────────
@@ -681,7 +832,11 @@ def hint_caption(hint: str) -> list[tuple[str, str]]:
 def not_this_line(item, definition: str = "") -> str:
     """A "Not this line: …" sentence for the captions the line's `exclude_hints` rule out that its
     definition does not already name, or "" — the rules route vetoes them by pattern
-    (`mapping.excluded`), and the model was never told."""
+    (`mapping.excluded`), and the model was never told.
+
+    Written short, as every caption costs every request that asks the line: "Not this line: rows
+    captioned “A”, “B”; captions beginning “C”; captions containing “D”." — the same three kinds
+    `hint_caption` reads ("is" the whole caption, "begins", "contains")."""
     said = definition.casefold()
     found: dict[str, list[str]] = {"is": [], "begins": [], "contains": []}
     for hint in getattr(item, "exclude_hints", None) or ():
@@ -689,43 +844,168 @@ def not_this_line(item, definition: str = "") -> str:
             if caption.casefold() not in said and caption not in found[how]:
                 found[how].append(caption)
     phrases = []
-    for how, lead in (("is", "a row captioned"), ("begins", "a row whose caption begins"),
-                      ("contains", "a row whose caption contains")):
+    for how, lead in (("is", "rows captioned"), ("begins", "captions beginning"),
+                      ("contains", "captions containing")):
         if found[how]:
-            phrases.append(f"{lead} " + " or ".join(f"“{c}”" for c in found[how]))
+            phrases.append(f"{lead} " + ", ".join(f"“{c}”" for c in found[how]))
     return f"Not this line: {'; '.join(phrases)}." if phrases else ""
+
+
+# ── the question's size ────────────────────────────────────────────────────────────────────────
+#
+# THE DEFINITIONS ARE SENT WHOLE (`definition_of`), and they are most of every request's text: on
+# the HK set the balance sheet's 208 lines are 46,827 of its question's 52,373 estimated tokens.
+# Three things make that smaller without taking a word of what decides a line out of it:
+#
+# * A SENTENCE SEVERAL LINES OF ONE REQUEST SHARE IS SENT ONCE (`shared_sentences`), in a block of
+#   numbered rules before the lines, and each line cites it by number where the sentence stood:
+#   "Where the amount is only part of a larger row the balance sheet prints, … do not split it out
+#   of that row." is in 27 balance-sheet definitions, "It is one of the lines this template's rollup
+#   adds into Total Current Liabilities." in 28, the fixed-asset classes' "Take the class at the
+#   amount the balance sheet carries it: …" in 8.
+# * THE RULES ROUTE'S REPLY WORDS ARE SAID IN THIS ROUTE'S (`for_this_route`): a definition is
+#   written for the line-item model route's reply, which lists the rows it read as "sources", so
+#   224 of its sentences say "answer with an empty sources list". This reply has no sources list:
+#   a line not printed is left out (`SYSTEM`). Where that is all a sentence says — "Where the
+#   balance sheet prints no such row, answer with an empty sources list." — it restates `SYSTEM`'s
+#   "Leave out a line the report does not print" and is not sent (`_RESTATES_SYSTEM`); where it is
+#   the end of a condition ("…the fixed asset lines already carry net amounts: …"), the condition
+#   is kept and only the reply words change.
+# * The "Not this line" sentence is written short (`not_this_line`).
+
+#: A sentence end inside a definition: ". " before anything but a lower-case letter, so "e.g. the"
+#: stays one sentence. Splitting there and joining with one space gives the text back exactly
+#: (`definition_of` has already folded its whitespace).
+_SENTENCE_END = re.compile(r"(?<=[.。])\s(?![a-z])")
+#: The other route's reply words, and this route's for the same thing.
+_SOURCES_LIST = re.compile(r"([Aa])nswer (this line )?with an empty sources list")
+#: A sentence that says nothing but what `SYSTEM` says of every line: leave it out when it is not
+#: printed.
+_RESTATES_SYSTEM = re.compile(
+    r"Where (?:the (?:balance sheet|statement|section|filing) prints no such row|no such row is "
+    r"printed), leave it out\.")
+#: A sentence shorter than this (estimated tokens) is not worth a citation: "[R12]" is about three.
+_SHARED_MIN_TOKENS = 12
+
+
+def for_this_route(definition: str) -> str:
+    """The definition with the rules route's reply words said in this route's, and without the
+    sentences that only restate `SYSTEM`'s "leave out a line the report does not print"."""
+    text = _SOURCES_LIST.sub(lambda m: ("L" if m.group(1) == "A" else "l")
+                             + ("eave this line out" if m.group(2) else "eave it out"), definition)
+    return " ".join(s for s in sentences(text) if not _RESTATES_SYSTEM.fullmatch(s))
+
+
+def sentences(text: str) -> list[str]:
+    """The definition's sentences, in order; `" ".join` of them is the text again."""
+    return [s for s in _SENTENCE_END.split(text) if s]
+
+
+def _tokens(text: str) -> int:
+    from app.services.line_item_llm import estimated_tokens
+
+    return estimated_tokens(text)
+
+
+def shared_sentences(definitions: list[str]) -> list[str]:
+    """The sentences two or more of these definitions hold, worth a citation
+    (`_SHARED_MIN_TOKENS`), in the order they first appear — the request's numbered rules."""
+    seen: dict[str, int] = {}
+    for text in definitions:
+        for s in dict.fromkeys(sentences(text)):
+            seen[s] = seen.get(s, 0) + 1
+    return [s for s, n in seen.items() if n > 1 and _tokens(s) >= _SHARED_MIN_TOKENS]
+
+
+def cite_shared(definition: str, rules: dict[str, int]) -> str:
+    """The definition with each sentence in `rules` written as its number, "[R3]", where it
+    stood."""
+    return " ".join(f"[R{rules[s]}]" if s in rules else s for s in sentences(definition))
+
+
+_RULE = re.compile(r"^R(\d+)\. (.*)$")
+_CITED = re.compile(r"\[R(\d+)\]")
+
+
+def row_as_read(text: str, key: str) -> str:
+    """What a question says of one line: its row, from its key to its end, with every "[Rn]" it
+    cites written out as the rule — the text the model reads for that line. "" when the question
+    does not ask it."""
+    rules: dict[str, str] = {}
+    row = ""
+    for line in text.splitlines():
+        m = _RULE.match(line)
+        if m:
+            rules[m.group(1)] = m.group(2)
+        elif line.startswith(f"- {key}: "):
+            row = line
+    return _CITED.sub(lambda m: rules.get(m.group(1), m.group(0)), row)
 
 
 def question(lines: list, part: Part, part_number: int, part_count: int,
              item_set=None, carried: int = 0) -> str:
-    """The request's text: what the file holds, then the lines asked, one per row, then the parts
-    the template adds together (`sibling_groups`, with `item_set`)."""
-    where = (f"The PDF file holds {len(part.pages)} pages of the report"
-             + (f" (part {part_number} of {part_count}; the other parts are sent separately — "
-                "answer from this part only"
-                + ("; every part holds the statements themselves, the notes are split between "
-                   "the parts" if carried else "") + ")" if part_count > 1 else "") + ".")
+    """The request's text: what the file holds, the rules several of its lines share, then the
+    lines asked, one per row, then the parts the template adds together (`sibling_groups`, with
+    `item_set`).
+
+    Each line's definition is its whole definition (`definition_of`), said for this route
+    (`for_this_route`), with each sentence it shares with another line of the request cited by
+    number (`shared_sentences`, `cite_shared`). Expanding the citations gives back every sentence
+    `for_this_route` kept, in its place — `tests/test_the_whole_pdf_question_keeps_every_
+    deciding_clause.py` checks it line by line."""
+    if part.faces_only:
+        where = (f"The PDF file holds the {len(part.pages)} pages of the report that print the "
+                 f"financial statements themselves, without their notes"
+                 + (f" (part {part_number} of {part_count}; the notes are in the other parts, "
+                    "sent separately — answer from this part only)" if part_count > 1 else "")
+                 + ". A line these pages do not print, leave out: the lines read from the notes "
+                   "are asked again with the notes.")
+    else:
+        where = (f"The PDF file holds {len(part.pages)} pages of the report"
+                 + (f" (part {part_number} of {part_count}; the other parts are sent separately "
+                    "— answer from this part only"
+                    + ("; every part holds the statements themselves, the notes are split "
+                       "between the parts" if carried else "") + ")" if part_count > 1 else "")
+                 + ".")
     statement = (getattr(lines, "statement", "") or (statement_of(lines[0]) if lines else "")
                  ).replace("_", " ")
+    definitions = [for_this_route(definition_of(item)) for item in lines]
+    shared = shared_sentences(definitions)
+    rules = {s: i for i, s in enumerate(shared, start=1)}
     rows = []
-    for item in lines:
+    for item, definition in zip(lines, definitions):
         marks = [m for m in (
             "TOTAL" if item.type == "calculated" else "",
             "TEXT" if is_text(item) else "",
             f"PART of {item.parent}" if is_part(item) and item.parent else
             ("PART" if is_part(item) else ""),
             _READ_FROM.get(str(getattr(item.route, "value", item.route) or ""), "")) if m]
-        definition = definition_of(item)
+        definition = cite_shared(definition, rules)
         rows.append(f"- {item.key}: {item.label or item.key}"
                     + (f" [{'; '.join(marks)}]" if marks else "")
                     + (f" — {definition}" if definition else ""))
+    common = ("Rules several lines share — a definition below that cites [R1] says what R1 says, "
+              "where the citation stands, for that line:\n"
+              + "\n".join(f"R{i}. {s}" for i, s in enumerate(shared, start=1)) + "\n\n"
+              if shared else "")
     groups = sibling_groups(item_set, lines) if item_set is not None else []
     added = ("\n\nAdded together — the template sums each group below into the line it names, so "
              "one printed holding or row goes into at most one part of a group, never into two, "
              "even where two of their definitions could each describe it:\n"
              + "\n".join(f"Into {line}: {', '.join(keys)}." for line, keys in groups)
              if groups else "")
-    return (f"{where}\n\nTemplate lines ({statement}):\n" + "\n".join(rows) + added
+    if getattr(lines, "statement", "") == STATEMENTS_REST:
+        heads = [statement_of(item).replace("_", " ") for item in lines]
+        body = ("These are the statements' lines read from the notes or anywhere in the report; "
+                "the statements' other lines are asked with the statements alone, separately.")
+        for i, (head, row) in enumerate(zip(heads, rows)):
+            if i == 0 or head != heads[i - 1]:
+                body += f"\n\nTemplate lines ({head}):"
+            body += "\n" + row
+        listed = body
+    else:
+        listed = f"Template lines ({statement}):\n" + "\n".join(rows)
+    return (f"{where}\n\n{common}{listed}" + added
             + "\n\nAnswer every line above that the report prints; leave out the rest.")
 
 

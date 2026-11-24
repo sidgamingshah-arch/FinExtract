@@ -9,6 +9,13 @@ rule, Level 3's "a total row that prints that column blank or nil reads 0" and i
 whole_pdf_definitions_truncated, prompt_truncated_selectors_absent). The rules route vetoes the
 captions an `exclude_hints` regex names; the model was never told them.
 
+WHOLE, AS THE MODEL READS IT. A sentence several lines of one request share is sent once, as a
+numbered rule, and each line cites it where it stood; the rules route's reply words ("answer with an
+empty sources list") are said in this route's ("leave it out"), and a sentence that says only that
+is not sent, as `SYSTEM` says it of every line (`for_this_route`, `shared_sentences`). So a line's
+definition is checked here as the model reads it: its row with each citation written out
+(`row_as_read`), which is the whole definition said for this route, word for word.
+
 What is measured here is the question's TEXT, built from the shipped HK set. No model is called.
 """
 from __future__ import annotations
@@ -47,9 +54,27 @@ def test_every_asked_line_is_sent_with_its_whole_definition(hk):
     cut = 0
     for chunk, text in zip(chunks, questions, strict=True):
         for item in chunk:
-            assert _whole(item) in text, item.key
+            row = W.row_as_read(text, item.key)
+            assert W.for_this_route(W.definition_of(item)) in row, item.key
+            assert "[R" not in row.split(" — ", 1)[-1], item.key      # every citation written out
             cut += len(_whole(item)) > 240
     assert cut > 400            # the lines that lost their tail before: 452 of 519 at HEAD
+
+
+def test_only_the_reply_words_change_and_only_restatements_of_the_system_text_go(hk):
+    """`for_this_route` takes out nothing but the sentences that say only "where it is not printed,
+    leave it out", and changes nothing but the other route's reply words."""
+    for item in W.lines_to_ask(hk):
+        whole = W.definition_of(item)
+        said = W.for_this_route(whole)
+        kept = W.sentences(said)
+        reworded = (whole.replace("answer with an empty sources list", "leave it out")
+                    .replace("Answer with an empty sources list", "Leave it out")
+                    .replace("answer this line with an empty sources list", "leave this line out"))
+        assert [s for s in W.sentences(reworded) if s in kept] == kept, item.key   # order kept
+        gone = [s for s in W.sentences(reworded) if s not in kept]
+        assert all(W._RESTATES_SYSTEM.fullmatch(s) for s in gone), (item.key, gone)
+        assert "sources list" not in said, item.key
 
 
 @pytest.mark.parametrize("key,sentence", [
@@ -67,7 +92,7 @@ def test_the_sentences_past_240_characters_reach_the_model(hk, key, sentence):
     assert sentence in whole and whole.index(sentence) > 240, "the sentence was past the cut"
     chunks, questions = _questions(hk)
     text = next(q for c, q in zip(chunks, questions, strict=True) if key in {i.key for i in c})
-    row = next(line for line in text.splitlines() if line.startswith(f"- {key}:"))
+    row = W.row_as_read(text, key)
     assert sentence in row and not row.endswith("…")
 
 
@@ -90,7 +115,7 @@ def test_an_exclude_hint_is_read_as_captions_or_not_at_all(hint, read):
 def test_what_the_hints_rule_out_is_said_where_the_definition_does_not_say_it(hk):
     by_key = {item.key: item for item in hk.items}
     buildings = W.definition_of(by_key["bs_nca__buildings"])
-    assert "Not this line: a row captioned “其他无形资产”" in buildings
+    assert "Not this line: rows captioned “其他无形资产”, " in buildings
     # A caption the definition already names is not said again: Sales' face part names 营业收入
     # and 营业总收入 in its own words.
     face = by_key["sub__face_principal_revenue"]
@@ -102,13 +127,16 @@ def test_what_the_hints_rule_out_is_said_where_the_definition_does_not_say_it(hk
 
 
 def test_the_whole_definitions_stay_within_the_providers_limits(hk):
-    """The largest question (the balance sheet's, 208 lines) is about 200,000 characters, an
-    estimated 52,000 tokens; with a 100-page part (about 160,000 page-image and 60,000 text
-    tokens) that is far inside a one-million-token window, and the request's size budget is
-    grown to the question's own size, so a part is cut to leave it room (`Plan.overhead_bytes`)."""
+    """The largest question (the balance sheet's, 208 lines) was about 200,000 characters, an
+    estimated 52,373 tokens; with its shared sentences sent once and the other route's reply words
+    gone it is about 170,000 characters, 45,159 tokens. With a 100-page part (about 160,000
+    page-image and 60,000 text tokens) that is far inside a one-million-token window, and the
+    request's size budget is grown to the question's own size, so a part is cut to leave it room
+    (`Plan.overhead_bytes`)."""
     _chunks, questions = _questions(hk)
     widest = max(questions, key=len)
-    assert 150_000 < len(widest) < 300_000
+    assert 120_000 < len(widest) < 300_000
+    assert estimated_tokens(widest) < 47_000             # 52,373 before the shared rules
     assert estimated_tokens(widest) + estimated_tokens(W.SYSTEM) < 100_000
     for text in questions:
         assert len(text.encode("utf-8")) + len(W.SYSTEM.encode("utf-8")) < 1024 * 1024

@@ -154,12 +154,17 @@ def _of(provider, statement, part=None):
 
 
 def test_the_first_request_is_the_smallest(run):
-    """The US GAAP set's requests are 47 (balance sheet), 45, 37 and 28 (cash flow) lines."""
+    """The US GAAP set's requests are 47 (balance sheet), 45, 37 and 28 (cash flow) lines. The
+    balance sheet, the one statement the synthetic filing prints a face of, is asked against its
+    face alone, in a part of its own sent last (`services.whole_pdf.Plan`); the part holding the
+    notes goes first, its smallest request first, then the largest."""
     provider = _Provider()
     doc, ctx = run(provider)
     sizes = [len(c["keys"]) for c in provider.calls]
     assert provider.calls[0]["statement"] == "cash flow" and sizes[0] == min(sizes)
-    assert sizes[1:] == sorted(sizes[1:], reverse=True)          # then the largest first
+    first_part = [len(c["keys"]) for c in provider.calls if c["part"] == 1]
+    assert first_part[1:] == sorted(first_part[1:], reverse=True)     # then the largest first
+    assert [(c["part"], c["statement"]) for c in provider.calls][-1] == (2, "balance sheet")
     assert ctx.whole_pdf["first_request"] == {"statement": "cash_flow", "lines": sizes[0]}
     assert any("first=cash_flow(" in line for line in ctx.logs if line.startswith("whole_pdf:plan"))
     assert _value(doc, "bs_ca__cash_and_cash_equivalents") == "1200"
@@ -182,7 +187,7 @@ def test_a_request_that_fails_is_asked_once_more(run):
     assert len(_of(provider, "balance sheet")) == 2
     assert _value(doc, "bs_ca__cash_and_cash_equivalents") == "1200"
     assert ctx.whole_pdf["retries"] == 1 and ctx.llm_failures == 1
-    assert any(line.startswith("whole_pdf:request_retry part=1") for line in ctx.logs)
+    assert any(line.startswith("whole_pdf:request_retry part=2") for line in ctx.logs)
     assert ctx.whole_pdf["requests_failed"] == [] and ctx.whole_pdf["lines_lost"] == []
 
 
@@ -225,7 +230,7 @@ def test_a_cut_off_reply_too_large_to_double_is_asked_as_two_halves(run):
     assert _value(doc, "bs_ca__cash_and_cash_equivalents") == "1200"
     assert _value(doc, "bs_ca__total_assets", "prior") == "4250"
     assert ctx.whole_pdf["halved"] == 1 and ctx.whole_pdf["lines_lost"] == []
-    assert any(line.startswith("whole_pdf:cut_off part=1 lines=47 (balance_sheet)")
+    assert any(line.startswith("whole_pdf:cut_off part=2 lines=47 (balance_sheet)")
                and "two halves of 23 and 24" in line for line in ctx.logs)
 
 
@@ -250,13 +255,46 @@ def test_the_halving_has_a_bound(run):
 
 
 def test_a_statement_answered_in_another_part_holding_its_face_is_not_lost(run):
-    """Two parts, the balance sheet carried in both: part 1's balance-sheet request fails, part 2
-    answers it from the same face, so the statement keeps its lines and the run goes on."""
+    """Two parts holding the notes, the balance sheet carried in both, and the balance sheet alone
+    as part 3, where its face lines are asked. Its request there fails, after its retry: it is
+    asked again, whole, in part 1, which holds the same face, so the statement keeps its lines and
+    the run goes on."""
     provider = _Provider(fail=lambda call, nth: RuntimeError("HTTP 500")
-                         if call["statement"] == "balance sheet" and call["part"] == 1 else None)
+                         if call["statement"] == "balance sheet" and call["part"] == 3 else None)
     doc, ctx = run(provider, whole_pdf_pages_per_request=3)
-    assert ctx.whole_pdf["parts"] == 2 and ctx.whole_pdf["pages_in_every_part"] == [2]
+    assert ctx.whole_pdf["parts"] == 3 and ctx.whole_pdf["pages_in_every_part"] == [2]
+    assert ctx.whole_pdf["pages_per_part"] == [3, 3, 1]
     assert _fell_back(ctx) is None
-    assert [f["part"] for f in ctx.whole_pdf["requests_failed"]] == [1]
+    assert [f["part"] for f in ctx.whole_pdf["requests_failed"]] == [3]
+    assert [(c["part"], len(c["keys"])) for c in _of(provider, "balance sheet")
+            ] == [(3, 47), (3, 47), (1, 47)]
+    assert any(line.startswith("whole_pdf:asked_again part=1 lines=47 (balance_sheet)")
+               for line in ctx.logs)
     assert ctx.whole_pdf["lines_lost"] == []
     assert _value(doc, "bs_ca__cash_and_cash_equivalents") == "1200"
+
+
+def test_a_half_of_a_statements_request_that_fails_is_asked_again_where_the_notes_are(run):
+    """The balance sheet's request to the statements alone (part 3) is cut off and asked as two
+    halves; the first half answers, the second fails after its retry. Its face lines are asked
+    nowhere else, so that half is asked again in part 1, which holds the same face — the
+    statement keeps every line and the run is not sent to the rules for 24 lines one retry away.
+    (Before 01d4a34's request-size change every part was asked them, so another part covered a
+    half that failed in one.)"""
+    def fail(call, nth):
+        if call["statement"] != "balance sheet" or call["part"] != 3:
+            return None
+        if len(call["keys"]) > 30:
+            return _cut_off_error()
+        return RuntimeError("HTTP 500") if len(call["keys"]) == 24 else None   # 23 answers
+
+    provider = _Provider(fail=fail)
+    doc, ctx = run(provider, whole_pdf_pages_per_request=3)
+    sheet = [(c["part"], len(c["keys"])) for c in _of(provider, "balance sheet")]
+    assert _fell_back(ctx) is None, _fell_back(ctx)
+    assert sheet == [(3, 47), (3, 23), (3, 24), (3, 24), (1, 24)]
+    assert ctx.whole_pdf["lines_lost"] == []
+    assert any(line.startswith("whole_pdf:asked_again part=1 lines=24 (balance_sheet)")
+               for line in ctx.logs)
+    assert _value(doc, "bs_ca__cash_and_cash_equivalents") == "1200"
+    assert _value(doc, "bs_ca__total_assets", "prior") == "4250"

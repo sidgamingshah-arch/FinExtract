@@ -11,6 +11,9 @@ statement faces in every part (`services.whole_pdf.pages_to_send`, `report_pages
   read there was read with no statement in view (finding parts_and_merge_prefer_face_for_note_
   parts). Every part now carries the faces; the parts are cut smaller to make room, and no page is
   dropped.
+* The statements' own [read from the statement] lines are asked once, against the statement faces
+  alone, a part of its own sent last (`Plan.face_keys`): the parts holding the notes carry the
+  faces still, and are asked every other line.
 
 Measured on the five reference filings (classified, no model), and on small synthetic files.
 """
@@ -38,10 +41,13 @@ TEMPLATES = BACKEND / "app" / "sample" / "templates"
 AUDITOR = {"688008_montage_2024_prc": range(147, 150), "000709_hesteel_2024_prc": range(79, 82),
            "300319_maijie_2024_prc": range(95, 98), "hkex_1966_ar": range(92, 102),
            "hkex_kaming_2025_26": range(54, 62)}
-#: Parts before (54+53, 63+63, 91, 83+83, 51+50) and after; the faces each part carries.
-PARTS = {"688008_montage_2024_prc": ([64, 63], 17), "000709_hesteel_2024_prc": ([73, 73], 17),
-         "300319_maijie_2024_prc": ([94], 0), "hkex_1966_ar": ([94, 93], 11),
-         "hkex_kaming_2025_26": ([58, 58], 7)}
+#: Parts before (54+53, 63+63, 91, 83+83, 51+50) and after: the parts holding the notes, the faces
+#: each of them carries, and the part that holds the statement faces alone (every page classified a
+#: face, a continuation it did not name included: 000709's p93, 688008's report pages 145-149).
+PARTS = {"688008_montage_2024_prc": ([64, 63], 17, 20),
+         "000709_hesteel_2024_prc": ([73, 73], 17, 18),
+         "300319_maijie_2024_prc": ([94], 0, 20), "hkex_1966_ar": ([94, 93], 11, 11),
+         "hkex_kaming_2025_26": ([58, 58], 7, 7)}
 #: What one page costs a request as a picture, as the audit estimated it (the text is counted by
 #: the app's own estimator); the window the requests are measured against.
 IMAGE_TOKENS_PER_PAGE = 1_600
@@ -100,13 +106,17 @@ def test_every_part_carries_the_faces_and_no_page_is_dropped(classified, hk, ste
     doc, raw = classified(stem)
     plan = W.plan(doc, raw, hk, choice="statements", max_pages=100,
                   max_request_bytes=20 * 1024 * 1024, lines_per_request=250)
-    sizes, carried = PARTS[stem]
-    assert [len(p.pages) for p in plan.parts] == sizes and len(plan.carried) == carried
+    sizes, carried, alone = PARTS[stem]
+    notes = [p for p in plan.parts if not p.faces_only]
+    assert [len(p.pages) for p in notes] == sizes and len(plan.carried) == carried
+    assert [len(p.pages) for p in plan.parts if p.faces_only] == [alone]
+    assert plan.parts[-1].faces_only                       # sent last
     assert not plan.dropped and all(len(p.pages) <= 100 for p in plan.parts)
-    assert sorted({p for part in plan.parts for p in part.pages}) == plan.pages
+    assert sorted({p for part in notes for p in part.pages}) == plan.pages
     faces = W.face_pages(doc, plan.pages)
     assert all(set(faces) <= set(part.pages) for part in plan.parts)
-    assert plan.carried == (faces if len(plan.parts) > 1 else [])
+    assert plan.parts[-1].pages == W.statement_pages(doc, plan.pages)
+    assert plan.carried == (faces if len(notes) > 1 else [])
 
 
 @pytest.mark.parametrize("stem", sorted(PARTS))
@@ -120,7 +130,7 @@ def test_every_request_stays_within_the_providers_limits(classified, hk, stem):
     text = {i: estimated_tokens(pdf[i].get_text("text") or "") for i in plan.pages}
     system = len(W.SYSTEM.encode("utf-8"))
     for pi, ci in plan.order():
-        part, chunk = plan.parts[pi], plan.chunks[ci]
+        part, chunk = plan.parts[pi], plan.ask(pi, ci)
         question = W.question(chunk, part, pi + 1, len(plan.parts), hk, len(plan.carried))
         body = part.b64_bytes + len(question.encode("utf-8")) + system
         assert body + 32 * 1024 <= 20 * 1024 * 1024
@@ -128,6 +138,37 @@ def test_every_request_stays_within_the_providers_limits(classified, hk, stem):
         tokens = (estimated_tokens(W.SYSTEM) + estimated_tokens(question)
                   + sum(text[p] for p in part.pages) + IMAGE_TOKENS_PER_PAGE * len(part.pages))
         assert tokens <= WINDOW_TOKENS, (pi, chunk.statement, tokens)
+
+
+#: The largest request and the whole run, estimated as above: before 01d4a34 (definitions cut at
+#: 240 characters, nothing carried), at 01d4a34 (whole definitions, faces in every part, every line
+#: asked in every part), and the ceiling now — the statements' face lines asked once against the
+#: faces alone, a sentence several lines share sent once (`services.whole_pdf.Plan`, `question`).
+SIZES = {
+    "688008_montage_2024_prc": ((140_020, 1_719_268), (197_882, 2_183_151), (160_000, 1_700_000)),
+    "000709_hesteel_2024_prc": ((171_085, 2_149_033), (227_868, 2_626_293), (190_000, 2_000_000)),
+    "300319_maijie_2024_prc": ((227_916, 1_512_553), (270_661, 1_644_377), (235_000, 1_400_000)),
+    "hkex_1966_ar": ((220_491, 2_831_722), (282_702, 3_335_155), (245_000, 2_500_000)),
+    "hkex_kaming_2025_26": ((141_933, 1_760_015), (195_441, 2_160_590), (160_000, 1_600_000))}
+
+
+@pytest.mark.parametrize("stem", sorted(SIZES))
+def test_the_requests_are_back_near_their_size_before_the_whole_definitions(classified, hk, stem):
+    doc, raw = classified(stem)
+    plan = W.plan(doc, raw, hk, choice="statements", max_pages=100,
+                  max_request_bytes=20 * 1024 * 1024, lines_per_request=250)
+    pdf = fitz.open(stream=raw, filetype="pdf")
+    text = {i: estimated_tokens(pdf[i].get_text("text") or "") for i in plan.pages}
+    sizes = []
+    for pi, ci in plan.order():
+        part = plan.parts[pi]
+        question = W.question(plan.ask(pi, ci), part, pi + 1, len(plan.parts), hk,
+                              len(plan.carried))
+        sizes.append(estimated_tokens(W.SYSTEM) + estimated_tokens(question)
+                     + sum(text[p] for p in part.pages) + IMAGE_TOKENS_PER_PAGE * len(part.pages))
+    (_old_max, old_run), (head_max, head_run), (cap_max, cap_run) = SIZES[stem]
+    assert max(sizes) <= cap_max < head_max
+    assert sum(sizes) <= cap_run < min(old_run, head_run)
 
 
 # ── synthetic files ────────────────────────────────────────────────────────────────────────────

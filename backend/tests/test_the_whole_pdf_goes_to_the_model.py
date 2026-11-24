@@ -37,13 +37,13 @@ def _set(name: str = "output_csv_usgaap_line_items.json"):
                               resolve=True)
 
 
-def _pdf(pages: list[list[str]]) -> bytes:
+def _pdf(pages: list[list[str]], fontname: str = "helv") -> bytes:
     doc = fitz.open()
     for lines in pages:
         page = doc.new_page()
         y = 72
         for text in lines:
-            page.insert_text((40, y), text, fontsize=9)
+            page.insert_text((40, y), text, fontsize=9, fontname=fontname)
             y += 16
     return doc.tobytes()
 
@@ -378,9 +378,16 @@ def test_the_model_reads_the_file_and_the_extraction_is_skipped(run):
     sent = fitz.open(stream=__import__("base64").b64decode(provider.sent[0]["documents"][0]["data"]),
                      filetype="pdf")
     assert sent.page_count == 2
-    # The rows are the model's, one per line and basis, on the template's keys.
-    by_key = {li.canonical_key: li for li in doc.line_items}
+    # The rows are the model's, one per line and basis, on the template's keys — and a line the
+    # model left out is the rules' reading of it, on a row of its own
+    # (`services.whole_pdf_rules.fill_from_rules`): here the "other current assets" row.
+    from app.services.whole_pdf_rules import RULES_FLAG, is_model_row
+
+    by_key = {li.canonical_key: li for li in doc.line_items if is_model_row(li)}
     assert set(by_key) == set(_Scripted.TABLE)
+    others = [li for li in doc.line_items if not is_model_row(li)]
+    assert others and all(RULES_FLAG in li.confidence.flags
+                          and li.canonical_key not in _Scripted.TABLE for li in others)
     cash = by_key["bs_ca__cash_and_cash_equivalents"]
     assert {v.period_label: str(v.value_raw) for v in cash.values.values()} == {
         "current": "1200", "prior": "1000"}
@@ -913,18 +920,25 @@ def test_a_part_read_in_the_notes_is_written_as_read_and_on_no_statement():
 
 
 def test_through_the_pipeline_a_note_part_keeps_its_line_and_a_payment_its_sign(monkeypatch):
-    """End to end on the HK set with the captions a CSRC filing prints: the payment the model gives
+    """End to end on the HK set with the page a CSRC filing prints: the payment the model gives
     negative stays negative (the caption flip does not turn it back), the one it gives unsigned is
-    negated by its payment caption, and a part read in the notes is not taken off its line."""
+    negated — both as the rules sign those cells, by the outflow block (经营活动现金流入小计 …
+    现金流出小计) they are printed in (`stages.whole_pdf._RulesSigns`) — and a part read in the notes
+    is not taken off its line. The page printed English captions and no subtotal rows before, where
+    the rules themselves would publish both payments positive; the figure now takes the sign the
+    rules give its cell, so the page prints what a CSRC statement prints."""
     from app.core.models.enums import Basis
     from app.schemas.loader import load_template
     from app.services.documents import run_extraction
     from app.services.working_view import build_working_view
 
-    face = ["CONSOLIDATED CASH FLOW STATEMENT", "                         2024         2023",
-            "Cash received from customers   5,590,092,584.18   5,313,062,352.40",
-            "Cash paid to suppliers         4,096,524,862.28   4,789,822,198.38",
-            "Cash paid to employees           305,704,606.29     181,551,856.61"]
+    face = ["CONSOLIDATED CASH FLOW STATEMENT", "合并现金流量表",
+            "                         2024         2023",
+            "销售商品、提供劳务收到的现金   5,590,092,584.18   5,313,062,352.40",
+            "经营活动现金流入小计   5,590,092,584.18   5,313,062,352.40",
+            "购买商品、接受劳务支付的现金   4,096,524,862.28   4,789,822,198.38",
+            "支付给职工以及为职工支付的现金   305,704,606.29   181,551,856.61",
+            "经营活动现金流出小计   4,402,229,468.57   4,971,374,054.99"]
     note = ["Notes to the consolidated financial statements", "Financial assets at FVTOCI",
             "Current FVTOCI financial assets   1,500   1,200"]
     answers = {
@@ -954,7 +968,7 @@ def test_through_the_pipeline_a_note_part_keeps_its_line_and_a_payment_its_sign(
     hk = _set("output_csv_hk_line_items.json")
     tpl = load_template(json.loads((TEMPLATES / "output_csv_hk_v1_template.json")
                                    .read_text(encoding="utf-8")))
-    doc, ctx = run_extraction(_pdf([face, note]), filename="cf.pdf",
+    doc, ctx = run_extraction(_pdf([face, note], fontname="china-s"), filename="cf.pdf",
                               ontology=build_working_view(hk), template=tpl, line_items=hk)
 
     def value(key):

@@ -159,15 +159,23 @@ def test_a_slot_the_model_answered_on_its_other_row_is_not_written_again(run):
     """The stage writes one row per line AND BASIS; `note_sourced` looked one row up per key (the
     company's, the last) and found no group slot on it, so the rules wrote the group's revenue a
     second time. Each answered slot now has exactly one figure, the model's; a slot the model left
-    empty (the prior year) is the rules', on a row of their own."""
+    empty (the prior year) is the rules', on a row of their own — the figure the rules route reads
+    for it on these pages. (On these pages that is the company's note: the face rows the rules fill
+    beside the model's now carry their note references, as the model's rows do, and with no income
+    statement page in scope the rules route narrows the revenue part to it — 368,574,249.45 where a
+    whole run, and the rules route on the whole filing, read the group's 2,278,141,066.50.)"""
     from app.services.whole_pdf_rules import RULES_FLAG
+    from tests.test_whole_pdf_lines_the_model_skips_are_the_rules import _rules_only
 
     doc, ctx, _rec = _fill_and_keep(run)
     for basis, figure in (("consolidated", "3628769555.93"), ("standalone", "547176613.67")):
         held = _figures(doc, REVENUE, basis, "current")
         assert [(r.confidence.method, v) for r, v in held] == [("llm", Decimal(figure))], basis
+    with pytest.MonkeyPatch.context() as mp:
+        rules_doc, _ctx = _rules_only(mp, STEM, PAGES)
     prior = _figures(doc, REVENUE, "consolidated", "prior")
-    assert [v for _r, v in prior] == [Decimal("2278141066.50")]
+    assert [v for _r, v in prior] == [v for _r, v in _figures(rules_doc, REVENUE, "consolidated",
+                                                              "prior")]
     assert RULES_FLAG in prior[0][0].confidence.flags and prior[0][0].confidence.method != "llm"
     # No model row carries a slot the rules wrote.
     for r in rows_of(doc, REVENUE):
@@ -233,8 +241,10 @@ def test_a_request_that_fails_leaves_its_parts_to_the_rules_not_to_the_face_fall
                                          for line in ctx.logs)
     row, ev = slot(doc, FVTPL)
     assert row.confidence.method != "llm" and Decimal(str(ev.value)) == Decimal("1783494750.68")
-    cp_flags = {f for r in rows_of(doc, CP) for f in r.confidence.flags}
-    assert "cascade_rung:CP_INTERMEDIATE" in cp_flags and "cascade_rung:FROM_THE_FACE" not in cp_flags
+    # The group's slot, by its own rung (the company's, which the script did not answer, is the
+    # rules' face row and resolves FROM_THE_FACE, as on the rules route).
+    rungs = [ln for ln in ctx.logs if ln.startswith(f"note_sourced:{CP}[consolidated:current]: rung ")]
+    assert rungs and all(" rung CP_INTERMEDIATE " in ln for ln in rungs), rungs
     assert _value(doc, CP) == Decimal("1783494750.68")
 
 

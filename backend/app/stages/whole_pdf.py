@@ -23,7 +23,9 @@ Those rows REPLACE the face rows the rules read; the rules' rows are set aside o
 tables the rules read stay in `doc.notes`. The stages that map captions onto lines, and the ones
 that only make sense over the rules' own face rows, are then skipped (`KEPT_STAGES` names what
 still runs); units, signs, the note-sourced fill and the checks run on the model's figures as they
-do on the rules'.
+do on the rules'. A slot the model left empty takes the rules' published figure: the fill runs
+mapping, residual and normalize over a copy of the set-aside rows, inside this stage
+(`services.whole_pdf_rules.fill_from_rules`), never as stages of the run.
 
 IT NEVER LEAVES A RUN WITH NOTHING. A provider that cannot be sent a file, a first request that
 fails (the run's smallest, which also fills the prompt cache), a run where no request succeeds, or
@@ -164,13 +166,14 @@ class WholePdfStage:
             return _fallback(doc, ctx, "no page fits in one request")
         if not chunks:
             return _fallback(doc, ctx, "the line-item set names no line to ask for")
-        first = chunks[plan.first_chunk()]
+        first = plan.ask(0, plan.first_chunk())
         ctx.log(f"whole_pdf:plan pages={len(pages)} of {len(doc.pages)} "
                 f"({plan.why}) parts={len(parts)} "
                 f"pages_per_part={','.join(str(len(p.pages)) for p in parts)} "
                 f"faces_in_every_part={len(plan.carried)} "
+                f"statements_alone_parts={sum(1 for p in parts if p.faces_only)} "
                 f"sizes_mb={','.join(f'{p.b64_bytes / 1048576:.1f}' for p in parts)} "
-                f"lines={len(lines)} requests={len(parts) * len(chunks)} "
+                f"lines={len(lines)} requests={plan.requests()} "
                 f"first={first.statement}({len(first)} lines) provider={provider.id}")
 
         documents = [W.as_document(part, i + 1) for i, part in enumerate(parts)]
@@ -199,7 +202,10 @@ class WholePdfStage:
                              faces={W._statement_value(p) for p in doc.pages
                                     if p.kind == PageKind.FACE and W._statement_value(p)})
             judge.settle(merged)
-            rows = _rows(doc, ctx.line_items, merged, provider.id, judge)
+            # THE SIGN EACH FIGURE ENDS WITH is the one the rules give the cell it was found on,
+            # decided on the rules' own rows while they are still the document's (`_RulesSigns`).
+            signs = _rules_signs(doc, ctx, merged, judge)
+            rows = _rows(doc, ctx.line_items, merged, provider.id, judge, signs)
             text_rows, refused = _text_rows(doc, ctx.line_items, parts, chunks, replies, texts,
                                             provider.id, ctx.log)
             rows += text_rows
@@ -232,7 +238,7 @@ class WholePdfStage:
             "pages_not_sent": [p + 1 for p in dropped],
             "pages_in_every_part": [p + 1 for p in plan.carried],
             "pages_per_part": [len(p.pages) for p in parts],
-            "parts": len(parts), "requests": len(parts) * len(chunks),
+            "parts": len(parts), "requests": plan.requests(),
             "first_request": {"statement": first.statement, "lines": len(first)},
             "requests_answered": len(replies), "requests_sent": asked.calls,
             "retries": asked.retries, "halved": asked.halved,
@@ -258,6 +264,11 @@ class WholePdfStage:
                 f"notes_kept={len(doc.notes)} — the model's rows replace the rules' face rows; "
                 f"caption mapping does not run; units, signs, the note-sourced fill and the "
                 f"checks run on these figures")
+        # A SLOT THE MODEL LEFT EMPTY TAKES THE RULES' PUBLISHED FIGURE, on a row of its own — never
+        # one the model holds or a printed figure it placed (`whole_pdf_rules.fill_from_rules`).
+        from app.services.whole_pdf_rules import fill_from_rules
+        ctx.whole_pdf["filled_from_rules"] = fill_from_rules(doc, ctx, judge,
+                                                             [it.key for it in lines])
         return doc
 
     @staticmethod
@@ -315,7 +326,7 @@ class WholePdfStage:
                                                 max_tokens=budget)
 
         def request(pi: int, ci: int) -> list[_Piece]:
-            return _request(call, pi, chunks[ci])
+            return _request(call, pi, plan.ask(pi, ci))
 
         def settle(pi: int, ci: int, pieces: list[_Piece]) -> bool:
             nonlocal done
@@ -329,8 +340,8 @@ class WholePdfStage:
                 asked.halved += piece.halved
                 ctx.llm_failures += piece.failed_calls
                 where = (f"part={pi + 1} lines={len(piece.lines)} ({piece.lines.statement})"
-                         + (f" half of {len(chunks[ci])}" if len(piece.lines) < len(chunks[ci])
-                            else ""))
+                         + (f" half of {len(plan.ask(pi, ci))}"
+                            if len(piece.lines) < len(plan.ask(pi, ci)) else ""))
                 if piece.error is not None:
                     exc = piece.error
                     ctx.log(f"whole_pdf:request_failed {where} "
@@ -356,20 +367,54 @@ class WholePdfStage:
             ctx.emit_step(done, total, "whole-PDF requests")
             return ok
 
+        failed_alone: dict[int, dict[str, object]] = {}
+
+        def settled(pi: int, ci: int, pieces: list[_Piece]) -> bool:
+            ok = settle(pi, ci, pieces)
+            if parts[pi].faces_only:
+                # THE LINES OF EVERY PIECE THAT FAILED for any reason but a cut-off reply — the
+                # whole request, or one half of it when the other half answered: a half lost here
+                # was lost to the statement, as no other part is asked its face lines.
+                lost = failed_alone.setdefault(ci, {})
+                for p in pieces:
+                    if p.error is not None and not cut_off(p.error):
+                        lost.update((it.key, it) for it in p.lines if it.key not in lost)
+            return ok
+
         for pi in range(len(parts)):
             mine = [ci for p, ci in order if p == pi]
-            first_ok = settle(pi, mine[0], request(pi, mine[0]))
+            if not mine:
+                continue
+            first_ok = settled(pi, mine[0], request(pi, mine[0]))
             if pi == 0 and not first_ok:
                 return None
             rest = mine[1:]
             if width == 1:
                 for ci in rest:
-                    settle(pi, ci, request(pi, ci))
+                    settled(pi, ci, request(pi, ci))
                 continue
             with ThreadPoolExecutor(max_workers=width) as pool:
                 futures = [(ci, pool.submit(request, pi, ci)) for ci in rest]
                 for ci, fut in futures:          # settled in plan order, whatever finishes first
-                    settle(pi, ci, fut.result())
+                    settled(pi, ci, fut.result())
+        # A STATEMENT'S REQUEST TO THE STATEMENTS ALONE THAT FAILED, after its retry, is asked once
+        # more, whole, in the part holding the notes that carries most of those faces
+        # (`Plan.second_part`): its face lines are asked nowhere else, and a statement answered in
+        # no part holding its face sends the whole run to the rules (`_lost_lines`). Not one that
+        # was cut off at every halving: the same lines would be cut off again. Only the lines that
+        # failed: a half that answered is not asked twice.
+        for ci, lost in failed_alone.items():
+            alt = plan.second_part()
+            if alt is None or not lost:
+                continue
+            again = W.Chunk(list(lost.values()), chunks[ci].statement)
+            ctx.log(f"whole_pdf:asked_again part={alt + 1} lines={len(again)} "
+                    f"({again.statement}) — "
+                    + ("its" if len(again) == len(chunks[ci])
+                       else f"{len(again)} of the {len(chunks[ci])} lines of its")
+                    + " request to the statements alone failed")
+            total += 1
+            settle(alt, ci, _request(call, alt, again))
         return asked
 
 
@@ -661,31 +706,273 @@ def _printed_on(row: LineItem, item, *, on_face: bool = False) -> None:
 #: filled on the rules route AFTER normalize, so normalize never sees it; here it is written as read.
 _NORMALISED_STATEMENTS = frozenset({"balance_sheet", "profit_and_loss", "cash_flow"})
 
-#: THE PAYMENT WORDS OF A CAS CASH-FLOW CAPTION, the ones the prompt lists: a row captioned with one
-#: is an outflow, and a CSRC statement prints its outflows unsigned under 现金流出小计.
-_CAS_OUTFLOW = re.compile(r"支付|购建|購建|偿还|償還|分配股利")
+#: A CAS CASH-FLOW CAPTION THAT PAYS, for a figure found in no cell the rules read (see `_as_read`):
+#: the payment words the prompt lists, 支付 only where it is the verb. 股份支付 is a share-based
+#: PAYMENT — a noun, and in the indirect method an add-back printed positive (688008 p227:
+#: 58,848,996.62 / 122,677,641.08) — and the bare 支付 negated it (finding signs_share_based_payment).
+#: But 股份/股权 followed by 支付 (的)现金 is the verb again: 回购股份支付的现金 (a share buy-back) and
+#: 购买少数股东股权支付的现金 (a minority stake bought) are payments.
+_CAS_PAYMENT = re.compile(r"(?<!股份)(?<!股权)(?<!股權)支付|(?:股份|股权|股權)支付(?=的?[现現]金)"
+                          r"|购建|購建|偿还|償還|分配股利")
+
+#: The flags `normalize` writes when a sign rule moved a figure, copied from the rules' cell.
+_RULE_FLAGS = ("sign_rule:", "sign_normalised")
 
 
-def _as_read(item, r: W.Reading, flags: list) -> tuple[Decimal, bool]:
+def _sign_of(value) -> int:
+    if value is None:
+        return 0
+    value = Decimal(value)
+    return (value > 0) - (value < 0)
+
+
+class _RulesSigns:
+    """THE SIGN THE RULES GIVE A PRINTED CELL, FOR A LINE — one sign decision for both routes.
+
+    Every figure the model gives is found again among the cells the rules read
+    (`services.whole_pdf_locate`). The sign it is written with is the sign the rules route would
+    publish for that same cell on that same line, and it is taken from the rules' own code, run on
+    the rules' own rows: a copy of the rows `extract` read, each row the model's figure was found on
+    filed on the model's line, put through `NormalizeStage` — the printed sign, the "Less:"/"Add:"
+    captions, the line's flip and contra rules, a 其中 breakdown of a row printed as an unsigned
+    expense, the CAS outflow blocks (现金流入小计 … 现金流出小计). Nothing of it is written back: the
+    copy is read for each cell's sign and thrown away.
+
+    WHY. The route used a caption regex in place of these, and it disagreed with the rules three
+    ways (all measured with correct SCRIPTED answers, not a model's):
+
+      * 688008 p227, the indirect method's 股份支付 (+58,848,996.62 / +122,677,641.08): any caption
+        holding 支付 was negated, so Other Non-Cash Adjs(Oper) came out -131,336,664.28 /
+        -126,327,845.36 for the rules' -13,638,671.04 / 119,027,436.80, and the indirect rollup
+        and section reconciliation failed by 117,697,993.24 / 245,355,282.16.
+      * 300319 p104, the parent's prior 其中：利息费用 printed -757,766.20 under 财务费用: the rules
+        publish +757,766.20 (`sign_rule:as_printed_under_unsigned_expense` — a printed credit under
+        an unsigned expense), but the model's row has no parent row, so normalize charged it.
+      * 1966 p184, lease interest read in note 7 (1,490 / 20,162): the rules' note-to-face split
+        writes a component in the face's convention (finance costs printed (1,492,343)), -1,490 /
+        -20,162; the route wrote the note's +1,490 / +20,162.
+
+    A CELL IN A NOTE, for a statement's own line, is written as the rules' split writes it
+    (`map_ontology._split_from_disclosure`): the note's printed figure turned to the face's
+    convention when a face row citing the note is accounted for by the note's rows in the other
+    orientation (`map_ontology._orientation_accounting_for`, the split's own test), and then put
+    through normalize as the split row is. A note no face row is accounted for by decides nothing.
+
+    WHAT THE COPY CANNOT KNOW is the rules' mapping of a row the model did not cite. One case
+    matters: a 其中 row's parent is "printed as an unsigned expense" when its caption matches its
+    line's flip rule (财务费用 → Net Interest Income(Expense)), so a parent the model did not cite is
+    filed on the line whose flip rule its caption matches — the line normalize reads it on.
+    """
+
+    def __init__(self, doc, ctx, merged: dict, judge: L.Judge | None):
+        # (rules row id, line, column key) / (note table id, statement) -> (sign, rule flags)
+        self.cells: dict[tuple, tuple[int, list[str]]] = {}
+        self.orientations: dict[tuple[int, str], int] = {}
+        self._doc = doc
+        self._tol = Decimal(str(getattr(getattr(getattr(ctx, "settings", None), "extraction",
+                                                None), "recon_abs_tolerance", 1.0)))
+        self._statement_of = None
+        located: list[tuple[object, str]] = []       # (rules face row, line)
+        notes: list[tuple[object, str, str]] = []    # (note cell, line, statement)
+        items = {it.key: it for it in getattr(getattr(ctx, "line_items", None), "items", ()) or ()}
+        for r in merged.values():
+            verdict = judge.verdicts.get(id(r)) if judge is not None else None
+            item = items.get(r.key)
+            if verdict is None or verdict.unchecked or item is None:
+                continue
+            statement = W.statement_of(item)
+            if statement not in _NORMALISED_STATEMENTS:
+                continue
+            for entry in verdict.kept:
+                place = verdict.place_of(entry)
+                if place is None or place.cell is None:
+                    continue
+                if place.kind in ("face", "page"):
+                    located.append((place.cell.row, r.key))
+                elif place.kind == "note" and not W.is_part(item):
+                    notes.append((place.cell, r.key, statement))
+        if located or notes:
+            self._decide(ctx, located, notes)
+
+    # ── the copy, and normalize on it ──
+
+    def orientation(self, cell, statement: str) -> int:
+        """1 or -1: how the rules' split turns this note cell's table to the face's convention, for
+        a line of `statement`; 0 when no face row citing the note is accounted for by it."""
+        table = cell.table
+        key = (id(table), statement)
+        if key in self.orientations:
+            return self.orientations[key]
+        from app.services.buckets import statement_resolver
+        from app.stages.map_ontology import _cited_notes, _orientation_accounting_for
+
+        number = str(getattr(table, "note_number", "") or "")
+        found = 0
+        if number:
+            if self._statement_of is None:
+                self._statement_of = statement_resolver(self._doc)
+            kinds = {p.index: p.kind for p in self._doc.pages}
+            faces = [li for li in self._doc.line_items
+                     if number in _cited_notes([li]) and self._statement_of(li) == statement
+                     and any(ev.provenance is not None
+                             and kinds.get(ev.provenance.page_index) == PageKind.FACE
+                             for ev in li.values.values())]
+            # The cell's own table first, then every table of its note — the split's order.
+            groups = [[table], [t for t in self._doc.notes
+                                if str(getattr(t, "note_number", "") or "") == number]]
+            for group in groups if faces else ():
+                detail = [it for t in group for it in t.items
+                          if it.values and it.role is LineRole.LINE]
+                if not detail:
+                    continue
+                ways = set()
+                for face in faces:
+                    way, short = _orientation_accounting_for(face, {"note": detail}, self._tol)
+                    if way and not short:
+                        ways.add(way)
+                if len(ways) == 1:
+                    found = ways.pop()
+                    break
+        self.orientations[key] = found
+        return found
+
+    def _decide(self, ctx, located, notes) -> None:
+        from types import SimpleNamespace
+        from uuid import uuid4
+
+        from app.stages.normalize import NormalizeStage
+
+        doc = self._doc
+        keys_of: dict = {}
+        for row, key in located:
+            keys_of.setdefault(row.id, [])
+            if key not in keys_of[row.id]:
+                keys_of[row.id].append(key)
+        parents = {li.parent_id for li in doc.line_items if getattr(li, "parent_id", None)}
+        flips = []
+        for m in getattr(getattr(ctx, "ontology", None), "mappings", None) or ():
+            for raw in getattr(getattr(m, "sign_rule", None), "flip_if_label_matches", None) or ():
+                try:
+                    flips.append((m.canonical_key, re.compile(raw, re.IGNORECASE)))
+                except re.error:
+                    continue
+
+        def copy(row, key, *, keep_id: bool):
+            c = row.model_copy(deep=True)
+            if not keep_id:
+                c.id = uuid4()
+            c.canonical_key = key
+            return c
+
+        rows, mine = [], {}
+        # IN THE RULES' ORDER: a CAS outflow block is the rows between two printed subtotals.
+        for li in doc.line_items:
+            base = copy(li, None, keep_id=True)
+            if li.id in parents:
+                # A PARENT ROW keeps its id, which its 其中 rows point at, and is filed on the line
+                # whose flip rule its caption matches — see the class docstring. Its own figure is
+                # not read, and it is kept out of the statement's unsigned-expense vote.
+                base.canonical_key = next((k for k, rx in flips
+                                           if rx.search(li.source_label or "")), None)
+                if base.canonical_key:
+                    for ev in base.values.values():
+                        ev.sign_normalised = True
+            rows.append(base)
+            for key in keys_of.get(li.id, ()):
+                rows.append(copy(li, key, keep_id=False))
+                mine[(li.id, key)] = rows[-1]
+        split = {}
+        for cell, key, statement in notes:
+            way = self.orientation(cell, statement)
+            if not way or (id(cell.row), key, cell.key) in split:
+                continue
+            # THE SPLIT ROW the rules write for this note cell: the note's figure in the face's
+            # convention, `value_raw` the note's own, settled where it was turned.
+            row = LineItem(source_label=cell.caption or key, canonical_key=key, role=LineRole.LINE)
+            ev = cell.ev.model_copy(deep=True)
+            printed = ev.value_raw if ev.value_raw is not None else ev.value
+            ev.value_raw = printed
+            ev.value = None if printed is None else Decimal(printed) * way
+            ev.sign_normalised = bool(ev.sign_normalised) or way < 0
+            row.values = {cell.key: ev}
+            rows.append(row)
+            split[(id(cell.row), key, cell.key)] = (row, way)
+        before = {id(ev): list(ev.confidence.flags) for li in rows for ev in li.values.values()}
+        quiet = SimpleNamespace(
+            log=lambda *_a, **_k: None, ontology=getattr(ctx, "ontology", None),
+            template_def=getattr(ctx, "template_def", None), template=getattr(ctx, "template", None),
+            us_10k_filing=bool(getattr(ctx, "us_10k_filing", False)),
+            line_items=None, raw_bytes=b"")     # no units to read, no measures to stamp
+        NormalizeStage().run(doc.model_copy(update={"line_items": rows, "notes": []}), quiet)
+
+        def read(ev, extra=()):
+            added = [f for f in ev.confidence.flags
+                     if f not in before.get(id(ev), ()) and f.startswith(_RULE_FLAGS)]
+            value = ev.value if ev.value is not None else ev.value_raw
+            return _sign_of(value), [*extra, *added]
+
+        for (rid, key), row in mine.items():
+            for ck, ev in row.values.items():
+                self.cells[("face", rid, key, ck)] = read(ev)
+        for (cid, key, ck), (row, way) in split.items():
+            for ev in row.values.values():
+                self.cells[("note", cid, key, ck)] = read(
+                    ev, [f"{FLAG}:note_to_face_convention:{way}"])
+
+    def sign(self, place, key: str) -> tuple[int, int, list[str]] | None:
+        """`(the rules' sign, the printed sign, the rules' flags)` for the cell a figure was found
+        at, on line `key`; None for a figure the rules read no cell for."""
+        cell = getattr(place, "cell", None)
+        if cell is None:
+            return None
+        if place.kind in ("face", "page"):
+            got = self.cells.get(("face", cell.row.id, key, cell.key))
+        elif place.kind == "note":
+            got = self.cells.get(("note", id(cell.row), key, cell.key))
+        else:
+            got = None
+        if got is None:
+            return None
+        printed = cell.ev.value_raw if getattr(cell.ev, "value_raw", None) is not None \
+            else cell.ev.value
+        return got[0], _sign_of(printed), got[1]
+
+
+def _rules_signs(doc, ctx, merged: dict, judge) -> _RulesSigns | None:
+    """`_RulesSigns` for the run, or None — and the run log says why — when it cannot be built: the
+    figures are then signed as for a figure found on no cell, never lost."""
+    try:
+        return _RulesSigns(doc, ctx, merged, judge)
+    except Exception as exc:  # noqa: BLE001 - a sign decision that fails falls back, it is logged
+        ctx.log(f"whole_pdf:rules_signs_unavailable {type(exc).__name__}: {str(exc)[:160]} — "
+                f"every figure is signed as for one found on no cell the rules read")
+        return None
+
+
+def _as_read(item, r: W.Reading, flags: list, verdict: L.Verdict | None = None,
+             signs: _RulesSigns | None = None) -> tuple[Decimal, bool]:
     """The figure to write, and whether its sign is SETTLED — `ExtractedValue.sign_normalised`,
     which every sign rule in `normalize` honours and leaves alone.
 
-    TWO KINDS OF FIGURE ARE SETTLED:
+    A FIGURE FOUND ON A CELL THE RULES READ ENDS WITH THE SIGN THE RULES GIVE THAT CELL ON THIS LINE
+    (`_RulesSigns`), and is settled: normalize's decision for it was already taken, on the rules'
+    own row. In a sum each row is signed by its own cell — except a row the model gave the opposite
+    of the sign it is printed with, where the rules leave the printed sign alone: that is the model
+    taking the row out of the sum (`services.whole_pdf_locate.Judge.judge_one`), and it stands.
 
-      * A CASH-FLOW FIGURE carries the model's own sign: the prompt asks for a payment as a
-        negative even where a CSRC statement prints it unsigned. normalize's caption flips were
-        written for the unsigned figure the page prints — on the rules route the outflow block
-        (现金流入小计 … 现金流出小计) negates those — so they turned the model's negative back
-        positive. MEASURED on 688411 (海博思创, the filing of run 11033486), answers given as the
-        prompt asks: 购买商品、接受劳务支付的现金 came out +4,096,524,862.28 against the rules
-        route's -4,096,524,862.28. The block rule needs the printed subtotal rows, which this route
-        does not keep, so the caption takes its place: a printed row captioned with a payment word
-        (`_CAS_OUTFLOW`) is an outflow, negative whether or not the model remembered to say so —
-        each row of a sum by its own caption, so an "other" line netting a receipt and a payment
-        keeps the receipt.
-      * A FIGURE NO STATEMENT'S RULES APPLY TO (see `_printed_on`): a part read in the notes, a
-        note's, covenant's or setup line. Written as the page prints it; a cascade applies its own
-        signs to a part, as it does to the note figure `note_sourced` reads on the rules route.
+    A FIGURE FOUND ON NO CELL THE RULES READ keeps what the route did before:
+
+      * A CASH-FLOW FIGURE carries the model's own sign, settled: the prompt asks for a payment as a
+        negative even where a CSRC statement prints it unsigned, and normalize's caption flips
+        (written for the unsigned figure) turned it back positive — 688411's 购买商品、接受劳务支付的
+        现金 came out +4,096,524,862.28 against the rules' -4,096,524,862.28. A row captioned as a
+        payment (`_CAS_PAYMENT`) is negative whether or not the model remembered to say so; each
+        row of a sum by its own caption, so an "other" line netting a receipt keeps the receipt.
+      * Any other statement's figure is normalized as a face row is (not settled).
+
+    A FIGURE NO STATEMENT'S RULES APPLY TO (see `_printed_on`): a part read in the notes, a note's,
+    covenant's or setup line, is written as the page prints it, settled; a cascade applies its own
+    signs to a part, as it does to the note figure `note_sourced` reads on the rules route.
     """
     amount = Decimal(r.amount)
     if item is None:
@@ -694,13 +981,45 @@ def _as_read(item, r: W.Reading, flags: list) -> tuple[Decimal, bool]:
     if statement not in _NORMALISED_STATEMENTS or (W.is_part(item) and not r.on_face):
         flags.append(f"{FLAG}:as_read")
         return amount, True
-    if statement != "cash_flow":
-        return amount, False
+    cash_flow = statement == "cash_flow"
     if r.rows and sum((a for _c, a in r.rows), Decimal(0)) == amount:
-        value = sum(((-a if a > 0 and _CAS_OUTFLOW.search(c or "") else a) for c, a in r.rows),
-                    Decimal(0))
+        figures = list(r.rows)
     else:
-        value = -amount if amount > 0 and _CAS_OUTFLOW.search(r.caption or "") else amount
+        figures = [(r.caption, amount)]
+    entries = (list(verdict.kept) if verdict is not None and not verdict.unchecked
+               and signs is not None else [])
+    if len(entries) != len(figures):
+        entries = []                              # not one place per figure: none is used
+    value, located, moved = Decimal(0), 0, []
+    for i, (caption, figure) in enumerate(figures):
+        got = signs.sign(verdict.place_of(entries[i]), item.key) if entries else None
+        if got is not None:
+            rules, printed, rule_flags = got
+            model = _sign_of(figure)
+            if not rules or (r.rows and model and printed == rules and model == -printed):
+                if rules:
+                    flags.append(f"{FLAG}:row_sign_kept:{caption or '?'} {figure}")
+                written = figure
+            else:
+                written = abs(figure) * rules
+            located += 1
+            for f in rule_flags:
+                if f not in flags:
+                    flags.append(f)
+        elif cash_flow and figure > 0 and _CAS_PAYMENT.search(caption or ""):
+            written = -figure
+        else:
+            written = figure
+        if written != figure:
+            moved.append(f"{caption or '?'} {figure}->{written}")
+        value += written
+    if located:
+        flags.append(f"{FLAG}:sign_of_rules_cell" if located == len(figures)
+                     else f"{FLAG}:sign_of_rules_cell:{located}_of_{len(figures)}")
+        flags.extend(f"{FLAG}:sign_moved:{m}" for m in moved)
+        return value, True
+    if not cash_flow:
+        return amount, False
     flags.append(f"{FLAG}:cas_outflow_negated" if value != amount else f"{FLAG}:sign_as_read")
     return value, True
 
@@ -766,7 +1085,7 @@ def _citation(r, page: int, kind: str, producer: str, page_kind, provenance,
 
 
 def _rows(doc, line_item_set, merged: dict, provider_id: str,
-          judge: L.Judge | None = None) -> list[LineItem]:
+          judge: L.Judge | None = None, signs: _RulesSigns | None = None) -> list[LineItem]:
     """One row per (line, basis), in the set's order, holding its current and prior figures.
 
     THE FIGURE WRITTEN IS THE CHECKED ONE (`judge`, `services.whole_pdf_locate`): in the
@@ -838,7 +1157,14 @@ def _rows(doc, line_item_set, merged: dict, provider_id: str,
             # The figure the checks kept, in the statements' scale (the model's where none ran).
             checked = r if verdict is None or verdict.unchecked else replace(
                 r, amount=verdict.value, rows=list(verdict.rows), row_boxes=list(verdict.row_boxes))
-            value, settled = _as_read(item, checked, flags)
+            value, settled = _as_read(item, checked, flags,
+                                      None if verdict is None or verdict.unchecked else verdict,
+                                      signs)
+            # A SIGN RULE THE RULES' CELL WAS PUT THROUGH is named on the row too, as normalize
+            # names it on the rules route.
+            for f in flags:
+                if f.startswith(_RULE_FLAGS) and f not in row.confidence.flags:
+                    row.confidence.flags.append(f)
             row.set_value(ExtractedValue(
                 basis=Basis(r.basis), period_label=r.period, column_period=r.period,
                 period_display=r.period_end or None,
