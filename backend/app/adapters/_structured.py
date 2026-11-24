@@ -106,6 +106,8 @@ def request_timeout(settings, messages) -> float:
     — the model reads every page before it answers — and so does one carrying the whole report as
     text (`long_read`), for the same reason: measured on 湖北能源 2024, the balance-sheet batch of
     the report requests failed with ReadTimeout at 120 seconds and its lines fell to the rules.
+    The note router's one call is marked the same way (`services.note_router.route`): on the same
+    filing it failed with ReadTimeout at 120 seconds and every line kept only its configured notes.
     Every other request waits `llm.timeout_seconds`, as before."""
     llm = settings.llm
     if any(m.get("documents") or m.get("long_read") for m in messages or ()):

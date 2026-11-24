@@ -1076,6 +1076,30 @@ def sums_line_items(item) -> bool:
     return list(getattr(src, "row_caption_any", None) or ()) == [r"\S"]
 
 
+# AN ACCOUNTING-POLICY NOTE STATES HOW A BALANCE IS MEASURED, NOT WHAT IT IS. A mainland report
+# prints its policies as chapter 五「重要会计政策及会计估计」 and its balances in chapter 七; an
+# HKEX report prints "Material accounting policies" (重大會計政策) as one note. Both name every
+# class of financial asset in their sub-headings, so a by-meaning line finds them — and their
+# prose reads as rows: 688411 五、11「金融资产转移的确认依据及计量方法」 ends a line on the list
+# marker "(3)", which was read as −3 and published as current FVTOCI financial assets.
+_POLICY_CHAPTER = re.compile(r"会计政策|會計政策|accounting\s+polic", re.I)
+_POLICY_NOTE = re.compile(
+    r"^\W*(?:\d+\W*)?(?:summary\s+of\s+)?(?:material|significant|principal)\s+accounting\s+polic"
+    r"|^\W*(?:\d+\W*)?(?:重大|主要|重要)(?:會計|会计)政策", re.I)
+
+
+def is_policy_note(tables) -> bool:
+    """Whether a run of one note's tables is an ACCOUNTING-POLICY note: its chapter is the
+    policies chapter (CAS 五、重要会计政策及会计估计), or its first heading is the policies note
+    (HKFRS "Material accounting policies"). Such a note is not a balance a line adds up."""
+    tables = list(tables or ())
+    if not tables:
+        return False
+    if any(_POLICY_CHAPTER.search(str(getattr(t, "chapter_title", "") or "")) for t in tables):
+        return True
+    return bool(_POLICY_NOTE.search(str(getattr(tables[0], "title", "") or "")))
+
+
 def readable_tables(item, notes) -> set[int]:
     """The TABLES a by-meaning line may read: every table in an unbroken run of one note number,
     where some table of that run carries a heading the line's terms cover.
@@ -1094,6 +1118,8 @@ def readable_tables(item, notes) -> set[int]:
     number = None
 
     def close():
+        if run and is_policy_note(run):
+            return
         if run and any(heading_covered(item, str(getattr(t, "title", "") or "")) for t in run):
             out.update(id(t) for t in run)
 

@@ -31,8 +31,10 @@ class LlmMessage(TypedDict):
     # never forwards it.
     cache: NotRequired[bool]
     # A LONG READ: the message carries the WHOLE annual report as text, so the model reads every
-    # page before it answers, as it does a file. The request waits `llm.document_timeout_seconds`
-    # rather than `llm.timeout_seconds` (`adapters._structured.request_timeout`). Like `cache`, an
+    # page before it answers, as it does a file — or it is the note router's one call over every
+    # heading and every line, whose reply is as long as the set. The request waits
+    # `llm.document_timeout_seconds` rather than `llm.timeout_seconds`
+    # (`adapters._structured.request_timeout`). Like `cache`, an
     # adapter sends `role` and `content` only and never forwards it.
     long_read: NotRequired[bool]
     # FILES SENT BEFORE THIS MESSAGE'S TEXT, in order. Only an adapter whose class says

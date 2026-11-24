@@ -245,8 +245,13 @@ def route(provider, line_item_set, notes, *, focus=None) -> tuple[dict[str, list
         # the provider's calls (`scripts/llm_standin.py`) names a call by the module that made it.
         reply, meta = provider.complete_structured(
             system=SYSTEM,
+            # A LONG READ (`ports.llm.LlmMessage.long_read`): one reply names notes for every
+            # line asked about — about five hundred on the HK set — and measured on 湖北能源 2024
+            # it failed with ReadTimeout at the 120-second question timeout, so every line kept
+            # only its configured notes. It waits `llm.document_timeout_seconds` instead.
             messages=[{"role": "user",
-                       "content": json.dumps(request, ensure_ascii=False, indent=1)}],
+                       "content": json.dumps(request, ensure_ascii=False, indent=1),
+                       "long_read": True}],
             response_schema=NoteRouterReply,
             max_tokens=max_tokens(len(lines)),
         )

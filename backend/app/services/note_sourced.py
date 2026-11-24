@@ -369,6 +369,7 @@ def select_rows(item, notes, periods: set[str] | None = None,
     by_column = column is not None
 
     hits: list[NoteRowHit] = []
+    across = _broken_down_across_fragments(notes, counts)
     for table in notes or ():
         title = getattr(table, "title", "") or ""
         # The note NUMBER is offered to the title patterns too, because a filing whose note headings
@@ -417,7 +418,7 @@ def select_rows(item, notes, periods: set[str] | None = None,
         block_periods = any(str(getattr(r, "period_hint", "") or "")
                             for r in (getattr(table, "items", None) or ()))
         rows_here = list(getattr(table, "items", None) or ())
-        broken_down = _broken_down(rows_here, counts)
+        broken_down = _broken_down(rows_here, counts) | across.get(id(table), set())
         # A NOTE THAT SPLITS CURRENT FROM NON-CURRENT. Where the table prints this part's own
         # portion row, that row is the part's reading and the line items are not; where it prints
         # only the other side's, the line items are read less it. `forced` carries the sign each
@@ -659,18 +660,106 @@ def select_rows(item, notes, periods: set[str] | None = None,
 _BREAKDOWN_GROUP = re.compile(r"^\s*(?:其中|of\s+which|including)\b", re.IGNORECASE)
 
 
+def _row_figures(row) -> dict:
+    """A row's figures by (basis, period label), matrix columns left out."""
+    out: dict = {}
+    for ev in (getattr(row, "values", None) or {}).values():
+        value = ev.value if getattr(ev, "value", None) is not None else getattr(
+            ev, "value_raw", None)
+        if value is None or getattr(ev, "column_index", None) is not None:
+            continue
+        key = (str(getattr(getattr(ev, "basis", None), "value", "") or ""),
+               str(getattr(ev, "period_label", "") or ""))
+        out[key] = Decimal(str(value))
+    return out
+
+
+def _broken_down_across_fragments(notes, counts) -> dict[int, set[int]]:
+    """Rows (by table, by index) whose 其中 breakdown is printed in the NEXT fragment of the note.
+
+    A page break splits a note into fragments, and `_broken_down` reads one fragment at a time.
+    301577 美信 2024 七、2 prints 以公允价值计量且其变动计入当期损益的金融资产 25,020,357.93 /
+    15,002,157.53 as the last row of page 158, and its 其中：信托计划 25,020,357.93 and
+    结构性存款 15,002,157.53 at the top of page 159; the parent and its breakdown were both read,
+    and the current year's securities came to 65,042,873.39 for a face of 25,020,357.93.
+
+    ACROSS A BREAK ONLY WHERE THE BREAKDOWN ADDS UP. The last row of one fragment is the parent
+    of the 其中 rows that open the next fragment of the SAME note number only when those rows
+    reach its figure in every column it prints — the break is a weaker witness than the indent,
+    so the arithmetic is required here where `_broken_down` merely uses it to end a group.
+    """
+    out: dict[int, set[int]] = {}
+    prev = None
+    for table in notes or ():
+        number = str(getattr(table, "note_number", "") or "")
+        before = prev
+        prev = table
+        if (before is None or not number
+                or str(getattr(before, "note_number", "") or "") != number):
+            continue
+        above = list(getattr(before, "items", None) or ())
+        below = list(getattr(table, "items", None) or ())
+        if not above or not below:
+            continue
+        parent = above[-1]
+        if _BREAKDOWN_GROUP.match(str(getattr(parent, "group_hint", "") or "")):
+            continue
+        wanted = _row_figures(parent)
+        if not wanted:
+            continue
+        summed: dict = {}
+        counted = False
+        for row in below:
+            if not _BREAKDOWN_GROUP.match(str(getattr(row, "group_hint", "") or "")):
+                break
+            counted = counted or _matches_any(str(getattr(row, "raw_label", "") or ""), counts)
+            for k, v in _row_figures(row).items():
+                summed[k] = summed.get(k, Decimal(0)) + v
+            if all(summed.get(k) == v for k, v in wanted.items()):
+                if counted:
+                    out.setdefault(id(before), set()).add(len(above) - 1)
+                break
+    return out
+
+
 def _broken_down(rows, counts) -> set[int]:
-    """Indices of rows followed by a 其中 / "of which" breakdown that this line also reads."""
+    """Indices of rows followed by a 其中 / "of which" breakdown that this line also reads.
+
+    A BREAKDOWN ENDS WHERE IT ADDS UP TO ITS ROW. The row reader carries a 其中 heading down the
+    table until something else replaces it, so the next row of the table's own level can arrive
+    inside the group: 诚志股份 2024 七、2 prints
+
+        以公允价值计量且其变动计入当期损益的金融资产    1,372,158,938.52   200,023,277.01
+          其中：其他                                   1,372,158,938.52   200,023,277.01
+        指定以公允价值计量且其变动计入当期损益的金融资产                      550,468,453.20
+          其中：其他                                                         550,468,453.20
+
+    and the second parent row was read as a breakdown row of the first, so the line counted it
+    AND its own breakdown: 1,300,960,183.41 for a note whose total is 750,491,730.21. Once the rows
+    under a parent have reached its figure in every column it prints, the breakdown is complete,
+    and the next row is a row of the table's own level — a new parent if a breakdown follows it.
+    A parent whose breakdown never adds up to it (one that lists only some of its components)
+    keeps every following 其中 row, as before.
+    """
+    figures = _row_figures
     out: set[int] = set()
     parent: int | None = None
+    parent_figures: dict = {}
+    summed: dict = {}
+
+    def complete() -> bool:
+        return bool(parent_figures) and all(summed.get(k) == v for k, v in parent_figures.items())
+
     for i, row in enumerate(rows):
         group = str(getattr(row, "group_hint", "") or "")
-        if _BREAKDOWN_GROUP.match(group):
+        if _BREAKDOWN_GROUP.match(group) and not (parent is not None and complete()):
             if parent is not None and _matches_any(str(getattr(row, "raw_label", "") or ""),
                                                    counts):
                 out.add(parent)
+            for k, v in figures(row).items():
+                summed[k] = summed.get(k, Decimal(0)) + v
             continue
-        parent = i
+        parent, parent_figures, summed = i, figures(row), {}
     return out
 
 

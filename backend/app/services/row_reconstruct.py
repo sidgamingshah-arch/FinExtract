@@ -6255,6 +6255,8 @@ def _name_note_columns(items: list[LineItem], placed_at: dict[int, _Placed],
                 ev.column_period = used.columns[j].period
                 if _is_placed_amount(p.word, fmt):
                     edges.setdefault(j, []).append(p.word.bbox.x1)
+        if not value_bands:
+            _file_by_the_header(items, placed_at, used, log=log, page_index=page_index)
         for li in items:
             li.printed_columns = list(used.headings)
             if li.values:
@@ -6274,6 +6276,64 @@ def _name_note_columns(items: list[LineItem], placed_at: dict[int, _Placed],
             ev.column_heading = text
             ev.column_period = _joined_heading_period(text, newest)
     return None
+
+
+_POSITIONAL_LABEL = re.compile(r"(?:current|prior|col\d+)")
+
+
+def _file_by_the_header(items: list[LineItem], placed_at: dict[int, _Placed],
+                        used: HeaderModel, *, log=None, page_index: int | None = None) -> None:
+    """File a figure placed BY ORDER under the period its printed column states.
+
+    A section with no value bands of its own places each row's figures in printed order — the
+    first is "current", the second "prior" — and only afterwards is the header (its own, or one
+    carried from the page before) fitted to the figures by position. Where that header names a
+    figure's column with a period, the header is the better witness: 301577 美信 七、2 prints
+    交易性金融资产 across a page break, and on page 159 结构性存款 has one figure, under 期初余额.
+    By order it was "current", and 25,020,357.93 + 15,002,157.53 became the current year's
+    breakdown. It is filed "prior" now — the period of the column it stands in.
+
+    Only where the header states each period over ONE column (期末余额 | 期初余额). A header with
+    two columns per period (账面余额 and 坏账准备 under each year) names a measure as well, and a
+    bare "prior" would lose it; there the figures keep their order. A row whose figures would then
+    share a slot keeps them as they were.
+    """
+    stated = [c.period for c in used.columns]
+    single = {p for p in _PERIODS_FILED if stated.count(p) == 1}
+    if not single:
+        return
+    for li in items:
+        moves: dict[int, str] = {}
+        for ev in li.values.values():
+            p = placed_at.get(id(ev))
+            if p is None or p.fact is not ev or p.col is not None:
+                continue
+            j = used.cell_of(_xc(p.word))
+            period = used.columns[j].period if j is not None else None
+            label = ev.period_label or ""
+            if (period in single and label != period
+                    and _POSITIONAL_LABEL.fullmatch(label)):
+                moves[id(ev)] = period
+        if not moves:
+            continue
+        after = [(ev.basis, moves.get(id(ev), ev.period_label)) for ev in li.values.values()]
+        if len(set(after)) != len(after):
+            if log:
+                log(f"extract:page={page_index}:header_period_not_applied"
+                    f"({str(li.source_label or '')[:40]!r},slot_shared)")
+            continue
+        kept = list(li.values.values())
+        li.values.clear()
+        for ev in kept:
+            if id(ev) in moves:
+                old, ev.period_label = ev.period_label, moves[id(ev)]
+                if log:
+                    log(f"extract:page={page_index}:period_from_header("
+                        f"{str(li.source_label or '')[:40]!r},{old}->{ev.period_label})")
+            li.set_value(ev)
+
+
+_PERIODS_FILED = ("current", "prior")
 
 
 def _heading_parts(text: str) -> list[str]:

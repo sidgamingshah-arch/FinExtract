@@ -294,3 +294,25 @@ def test_the_router_is_told_which_lines_are_parts_of_one_figure(shipped):
     assert "are PARTS of one figure" in text
     assert "one part's note is never another's" in text
     assert "are one subject" not in text            # the example that invited the merge
+
+
+def test_the_router_call_waits_the_long_timeout(shipped):
+    """湖北能源 2024: "note_router FAILED ReadTimeout" at the 120-second question timeout. One reply
+    names notes for every line asked about, so the call is a long read and waits
+    `llm.document_timeout_seconds`."""
+    from types import SimpleNamespace
+
+    from app.adapters._structured import request_timeout
+
+    seen = []
+
+    class Recorder:
+        def complete_structured(self, *, system, messages, response_schema, **_):
+            seen.append(messages)
+            return response_schema.model_validate({"routes": []}), {}
+
+    note_router.route(Recorder(), shipped, _notes(), focus={SUB})
+    assert seen and seen[0][0].get("long_read") is True
+    settings = SimpleNamespace(llm=SimpleNamespace(timeout_seconds=120,
+                                                   document_timeout_seconds=600))
+    assert request_timeout(settings, seen[0]) == 600
