@@ -762,7 +762,12 @@ below is not in it. **On**, the run assembles `whole_pdf_pipeline()` — the sam
    AUDITOR'S REPORT", "一、审计报告") up to each set of statements, found in the PDF's own text; the
    Accountant and the auditor's opinion are printed nowhere else. They go as one or more PDF
    parts cut from the original (`services/whole_pdf.py::build_parts`): at most
-   `whole_pdf_pages_per_request` pages and `whole_pdf_max_request_mb` a part, in even parts, and
+   `whole_pdf_pages_per_request` pages (600 as shipped, what Claude reads a request on a
+   1,000,000-token window) and `whole_pdf_max_request_mb` a part, and no more than the model's
+   window holds with a whole reply's room (`llm.context_window_tokens` less
+   `llm.max_output_tokens`, 1,000,000 and 128,000 as shipped; each page put at its text and, an
+   upper bound, 4,800 tokens for its picture, `page_tokens`; faces that leave no room for one more
+   page are not carried, and a page the window cannot hold is not sent), in even parts, and
    **every part carries the statement faces**, so a note in the second part is read with the
    statements in view — the other pages are cut into smaller parts to make room, never dropped.
    **The statements' face lines are asked once**, in a last part that holds the statement faces
@@ -810,8 +815,13 @@ below is not in it. **On**, the run assembles `whole_pdf_pipeline()` — the sam
    of that part, the largest first, `llm_parallel_requests` at a time, and each later part the
    same way (`services/whole_pdf.py::Plan.order`). A request that fails is asked once more; a
    reply cut off at its budget is asked again with twice the room where that is within
-   `ports/llm.py::ROOM_CEILING`, and otherwise — the balance sheet is budgeted 32,000 tokens — as
-   two halves, at most three times halved (`stages/whole_pdf.py::_request`).
+   `ports/llm.py::ROOM_CEILING` (16,000: what the 600-second wait delivers at about 27 tokens a
+   second), and otherwise as two halves, at most three times halved
+   (`stages/whole_pdf.py::_request`). A request's first budget is 220 tokens a line and 1,024 more,
+   up to the model's reply limit (`llm.max_output_tokens`, 128,000 as shipped): the HK balance
+   sheet's 208 lines are budgeted 46,784 where they were capped at 32,000. The real bound on a long
+   reply is the wait, `llm.document_timeout_seconds` (600 as shipped, at most 900). On a window
+   under 1,000,000 tokens a part holds at most 100 pages, what Claude reads a request there.
 4. The stage writes one row per line and basis, with `printed_in` from the page's kind and the
    statement it is on stamped on it (`printed_on:<statement>`, read before the page by
    `buckets.statement_resolver`: a face line's statement; none for a part read in the notes or a
@@ -948,7 +958,17 @@ largest request an estimated 152,278 (kaming) to 239,539 (1966) input tokens, 15
 figures above; the whole run 1.33 to 2.43 million, under both earlier plans on all five; the
 question text sent fresh on every request 131,566 tokens where it was 232,720. A filing that fit
 in one part (300319) is now sent in two, so it writes one more document to the cache: its
-weighted cost rises 2.3%.
+weighted cost rises 2.3%. At 600 pages a part (the defaults since a 1,000,000-token window was
+made the shipped limit), the notes go in ONE part on 688008, 000709 and kaming, so a run is 8
+requests where it was 13: the whole run 6.7-12.8% under 100 pages a part, its weighted cost after
+caching 7.8-12.7% under, and the largest request 1.6 to 1.8 times larger (249,618 to 309,985
+estimated tokens with 1,600 a picture). 300319 fit in one part already and is unchanged; 1966's
+176 pages are put at 978,203 tokens at the window check's 4,800 a picture, before its question,
+over the 872,000 the window leaves beside a reply, so it stays in two parts, 13 requests, as
+before. Sending every page (`whole_pdf_pages
+= "all"`, three filings), the notes go in two parts instead of three, 13 requests instead of 18,
+4-7% fewer tokens; the largest request is at most 800,389 at 4,800 a picture (1966), inside the
+872,000 the window leaves beside a reply.
 
 ## Progress reporting
 

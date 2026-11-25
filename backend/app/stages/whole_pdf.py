@@ -135,6 +135,19 @@ _SCORE = {"on_page": 0.9, "parts_on_page": 0.85, "moved": 0.8, "nil": 0.75, "no_
 _REVIEWED = frozenset({"not_found", "no_text"})
 
 
+#: The most PDF pages Claude reads in one request on a window under a million tokens (600 on one).
+_PAGES_UNDER_A_MILLION = 100
+
+
+def _model_limits(ctx) -> tuple[int, int]:
+    """`(window, reply limit)` — the model's `llm.context_window_tokens` and `llm.max_output_tokens`
+    (1,000,000 and 128,000 as shipped), the reply limit never more than half the window."""
+    llm = getattr(ctx.settings, "llm", None)
+    window = int(getattr(llm, "context_window_tokens", 1_000_000) or 1_000_000)
+    room = int(getattr(llm, "max_output_tokens", W.DEFAULT_OUTPUT_TOKENS)
+               or W.DEFAULT_OUTPUT_TOKENS)
+    return window, min(room, window // 2)
+
 class WholePdfStage:
     name = "whole_pdf"
 
@@ -147,13 +160,21 @@ class WholePdfStage:
             return _fallback(doc, ctx, refused)
 
         off = set(getattr(ctx, "sections_off", None) or ())
+        window, room = _model_limits(ctx)
+        max_pages = int(ex.whole_pdf_pages_per_request)
+        if window < 1_000_000 and max_pages > _PAGES_UNDER_A_MILLION:
+            # Claude reads at most 100 PDF pages a request on a window under a million tokens.
+            ctx.log(f"whole_pdf:pages_per_request {max_pages} -> {_PAGES_UNDER_A_MILLION} "
+                    f"(llm.context_window_tokens={window} is under 1,000,000)")
+            max_pages = _PAGES_UNDER_A_MILLION
         try:
             # A statement a person switched off on the Page Scope screen is not asked for either.
             plan = W.plan(doc, ctx.raw_bytes, ctx.line_items, choice=str(ex.whole_pdf_pages),
-                          max_pages=int(ex.whole_pdf_pages_per_request),
+                          max_pages=max_pages,
                           max_request_bytes=int(ex.whole_pdf_max_request_mb) * 1024 * 1024,
                           lines_per_request=int(ex.whole_pdf_lines_per_request),
-                          included_pages=getattr(ctx, "included_pages", None), sections_off=off)
+                          included_pages=getattr(ctx, "included_pages", None), sections_off=off,
+                          max_input_tokens=window - room)
         except Exception as exc:  # noqa: BLE001 - a file that will not cut is read by the rules
             return _fallback(doc, ctx, f"the PDF could not be cut into parts: "
                                        f"{type(exc).__name__}: {str(exc)[:120]}")
@@ -174,7 +195,8 @@ class WholePdfStage:
                 f"statements_alone_parts={sum(1 for p in parts if p.faces_only)} "
                 f"sizes_mb={','.join(f'{p.b64_bytes / 1048576:.1f}' for p in parts)} "
                 f"lines={len(lines)} requests={plan.requests()} "
-                f"first={first.statement}({len(first)} lines) provider={provider.id}")
+                f"first={first.statement}({len(first)} lines) provider={provider.id} "
+                f"window={window} reply_limit={room}")
 
         documents = [W.as_document(part, i + 1) for i, part in enumerate(parts)]
         asked = self._ask(ctx, provider, plan, documents)
@@ -300,9 +322,11 @@ class WholePdfStage:
 
         EACH REQUEST (`_request`) IS ASKED AGAIN ONCE when it fails for any reason but a cut-off
         reply. A reply CUT OFF at its budget is asked again with twice the room where that is
-        within `ports.llm.ROOM_CEILING` (`complete_with_room`); a larger request — the balance
-        sheet's 213 lines are budgeted 32,000 tokens, its income statement's 24,564 — is asked
-        again as two halves, each half the same way, at most `_MAX_HALVINGS` deep. It was raised
+        within `ports.llm.ROOM_CEILING` (`complete_with_room`) — what the wait can deliver — and
+        the model's reply limit; a larger request is asked again as two halves, each half the same
+        way, at most `_MAX_HALVINGS` deep. A request's first budget runs to the model's reply limit
+        (`llm.max_output_tokens`, 128,000 as shipped): the HK balance sheet's 208 lines are
+        budgeted 46,784 tokens where they were capped at 32,000. It was raised
         at once, so a cut-off balance sheet in part 1 sent the whole run to the rules (finding
         cut_off_not_retried_for_statements).
         """
@@ -313,17 +337,25 @@ class WholePdfStage:
         total = len(order)
         done = 0
 
+        _window, room = _model_limits(ctx)
+
         def call(pi: int, lines: W.Chunk):
-            budget = W.max_tokens_for(len(lines))
+            budget = W.max_tokens_for(len(lines), room)
             message = {"role": "user", "documents": [documents[pi]],
                        "content": W.question(lines, parts[pi], pi + 1, len(parts),
                                              ctx.line_items, carried=len(plan.carried))}
-            if 2 * budget <= ROOM_CEILING:
+            # ASKED AGAIN WITH TWICE THE ROOM ONLY WHERE THE WAIT CAN DELIVER IT: `ROOM_CEILING`,
+            # 16,000 — a reply comes at about 27 tokens a second (8,000 took most of five minutes,
+            # `llm.document_timeout_seconds`), so a doubled retry past it would time out, not
+            # finish, and a timeout is not halved. A larger request cut off goes to halves.
+            if 2 * budget <= min(room, ROOM_CEILING):
                 return complete_with_room(provider, system=W.SYSTEM, messages=[message],
                                           response_schema=W.WholePdfReply, max_tokens=budget)
             return provider.complete_structured(system=W.SYSTEM, messages=[message],
                                                 response_schema=W.WholePdfReply,
                                                 max_tokens=budget)
+
+        call.budget = lambda lines: W.max_tokens_for(len(lines), room)
 
         def request(pi: int, ci: int) -> list[_Piece]:
             return _request(call, pi, plan.ask(pi, ci))
@@ -449,6 +481,12 @@ class _Asked:
     halved: int = 0
 
 
+def _budget(call, lines: W.Chunk) -> int:
+    """The reply budget `call` gives `lines` — the run's reply limit's (`_ask`'s `call.budget`)."""
+    budget = getattr(call, "budget", None)
+    return budget(lines) if callable(budget) else W.max_tokens_for(len(lines))
+
+
 def _request(call, pi: int, lines: W.Chunk, depth: int = 0) -> list[_Piece]:
     """One request, asked again once on a failure, or as two halves on a cut-off reply. Runs in a
     worker thread: it writes nothing to the run, it returns what happened."""
@@ -465,7 +503,7 @@ def _request(call, pi: int, lines: W.Chunk, depth: int = 0) -> list[_Piece]:
                     first, second = lines.halves()
                     piece.notes.append(
                         f"whole_pdf:cut_off part={pi + 1} lines={len(lines)} ({lines.statement}) "
-                        f"budget={W.max_tokens_for(len(lines))} — asked again as two halves of "
+                        f"budget={_budget(call, lines)} — asked again as two halves of "
                         f"{len(first)} and {len(second)} lines")
                     halves = _request(call, pi, first, depth + 1) + _request(call, pi, second,
                                                                               depth + 1)

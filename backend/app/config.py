@@ -122,13 +122,25 @@ class LlmSettings(BaseModel):
     # Bounded, so a value no model can serve fails at startup naming the field instead of being
     # sent to the gateway on every call.
     max_tokens: int = Field(default=32768, ge=256, le=262144)
+    # THE MODEL'S OWN LIMITS: how much one request may hold (input and reply together) and the most
+    # a reply may be. The shipped model (Claude Opus 4.7, through the gateway) reads a 1,000,000-
+    # token window and writes at most 128,000 tokens; the gateway's own answer to a larger
+    # allocation was "This model supports at most 128000 completion tokens". They bound what the
+    # whole-PDF route sends: a part of the file is cut smaller when its pages and its question
+    # would not leave a whole reply's room in the window (`services.whole_pdf.build_parts`), and a
+    # whole-PDF reply budget, and the room a cut-off reply is asked again with, go up to
+    # `max_output_tokens` (`services.whole_pdf.max_tokens_for`, `ports.llm.complete_with_room`).
+    # On a model with a smaller window set both lower — and `whole_pdf_pages_per_request` to 100,
+    # the most pages Claude reads a request on a window under a million.
+    context_window_tokens: int = Field(default=1_000_000, ge=16_000, le=10_000_000)
+    max_output_tokens: int = Field(default=128_000, ge=1_024, le=262_144)
     # SECONDS ONE ATTEMPT MAY WAIT FOR A REPLY, AT MOST 120. It was 600: one stalled request held
     # its lines for ten minutes and then lost them (Madrigal's 10-K, ReadTimeout on the eight
     # current-liability lines). Capped rather than merely defaulted, so a larger value fails at
     # startup naming the field instead of silently waiting longer.
     timeout_seconds: int = Field(default=120, ge=1, le=120)
     # …EXCEPT A REQUEST THAT CARRIES THE PDF ITSELF (`extraction.whole_pdf_to_model`): the model
-    # reads every page sent — up to a hundred, text and picture — before it writes a word, and the
+    # reads every page sent — up to 600, text and picture — before it writes a word, and the
     # first request of a run also fills the prompt cache with them. Those requests wait this long;
     # every other request still waits `timeout_seconds`. Read by the four adapters through
     # `adapters._structured.request_timeout`. 600 (it was 300): a statement's lines go in one
@@ -578,8 +590,9 @@ class ExtractionSettings(BaseModel):
     whole_pdf_pages: Literal["statements", "all"] = "statements"
     # The most pages one request carries; a longer selection is sent in consecutive parts, each
     # asked every line. Claude reads at most 600 pages a request, and 100 on a model whose window
-    # is under a million tokens.
-    whole_pdf_pages_per_request: int = Field(default=100, ge=1, le=600)
+    # is under a million tokens. 600, for the shipped 1,000,000-token window: a part is cut smaller
+    # still where its pages would not fit the window (`llm.context_window_tokens`).
+    whole_pdf_pages_per_request: int = Field(default=600, ge=1, le=600)
     # The largest request the provider takes, in megabytes, counting the PDF in base64. A part
     # over it is halved. Claude's own API takes 32 MB; Amazon Bedrock is lower, hence 20.
     whole_pdf_max_request_mb: int = Field(default=20, ge=1, le=128)

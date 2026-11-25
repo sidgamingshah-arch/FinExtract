@@ -153,6 +153,13 @@ model = "us.anthropic.claude-opus-4-7"   # the Bedrock model id, exactly as the 
 # times with the same 4,096,000. 32768 clears every callee's own default — the largest is
 # run_analysis's 4096 (services/analysis_llm.py) — so nothing is truncated by the change.
 max_tokens = 32768
+# THE MODEL'S OWN LIMITS (the shipped Claude Opus 4.7): a 1,000,000-token window and at most 128,000
+# tokens a reply. A whole-PDF part is cut smaller where its pages and question would not leave a
+# whole reply's room in the window, and a whole-PDF reply, and a cut-off one asked again, may run to
+# max_output_tokens. On a model with a smaller window, set both lower and
+# extraction.whole_pdf_pages_per_request to 100 (Claude reads at most 100 PDF pages a request there).
+context_window_tokens = 1000000
+max_output_tokens = 128000
 timeout_seconds = 120   # one attempt's wait for a reply; at most 120 (the field refuses more)
 # A REQUEST THAT CARRIES THE PDF ITSELF (extraction.whole_pdf_to_model) waits this long, at most 900.
 # 600, not 300: a statement's lines now go in one request, and on 688411 (the filing of run
@@ -275,7 +282,7 @@ document_reader_pages = "scanned" # scanned (in place of OCR) | all (in place of
 # falls back and the rules read the filing exactly as with this off.
 whole_pdf_to_model = true
 whole_pdf_pages = "statements"    # statements (the classifier's statement and notes pages) | all
-whole_pdf_pages_per_request = 100 # a longer selection goes in parts; Claude: 600 a request, 100 under a 1M window
+whole_pdf_pages_per_request = 600 # a longer selection goes in parts; Claude: 600 a request on a 1M window, 100 under it
 whole_pdf_max_request_mb = 20     # the largest request, the PDF counted in base64; Claude's API takes 32, Bedrock less
 whole_pdf_lines_per_request = 250 # template lines one request asks about, at most: a statement's whole list in one request
 # HOW MANY REQUESTS ARE SENT AT ONCE: the line-item figure requests and the whole-PDF requests

@@ -76,10 +76,22 @@ STATEMENT_ORDER = ("balance_sheet", "profit_and_loss", "cash_flow", "notes",
 #: larger request cut off is asked again as two halves instead (`stages.whole_pdf`, `halves`).
 _TOKENS_PER_LINE = 220
 _TOKENS_RESERVE = 1_024
-#: …at most this: a statement's whole line list is asked in one request (202 lines on the HK
-#: balance sheet), and most of its lines are not printed and cost nothing. The longest reply
-#: measured, a balance sheet asked 60 lines at a time, was 3,878 tokens.
-_TOKENS_CEILING = 32_000
+#: …at most the model's reply limit (`llm.max_output_tokens`, this when none is given): a
+#: statement's whole line list is asked in one request (208 lines on the HK balance sheet, a
+#: budget of 46,784), and most of its lines are not printed and cost nothing. The longest reply
+#: measured, a balance sheet asked 60 lines at a time, was 3,878 tokens. It was 32,000, which cut
+#: the balance sheet's budget below its lines' and sent a cut-off one straight to two halves.
+DEFAULT_OUTPUT_TOKENS = 128_000
+
+#: What one page costs the model besides its text, FOR THE WINDOW CHECK: Claude reads each page of
+#: a PDF as its text AND a picture of it. An upper bound, on purpose — a part estimated under the
+#: window that is over it in fact is refused, and the statement goes to the rules: 4,800 is the
+#: most a page is put at in these docs (1,500 to 4,800 a page), and newer models read pictures at
+#: a higher resolution, up to about that many tokens a picture. (The request-size measurements use
+#: 1,600, a typical page's picture.) A page's text is `line_item_llm.estimated_tokens` of its text
+#: layer, which over-counts rather than under. Lower it once a run's logged input tokens show the
+#: real cost of a page.
+PAGE_PICTURE_TOKENS = 4_800
 
 
 # ── which pages, in which parts ────────────────────────────────────────────────────────────────
@@ -245,14 +257,20 @@ def balanced(pages: list[int], max_pages: int) -> list[list[int]]:
 
 
 def build_parts(raw: bytes, pages: list[int], *, max_pages: int, max_request_bytes: int,
-                carry=(), overhead_bytes: int = REQUEST_OVERHEAD_BYTES
-                ) -> tuple[list[Part], list[int]]:
+                carry=(), overhead_bytes: int = REQUEST_OVERHEAD_BYTES,
+                max_input_tokens: int | None = None, tokens_of: dict[int, int] | None = None,
+                overhead_tokens: int = 0) -> tuple[list[Part], list[int]]:
     """The chosen pages as PDF files, each within the request's limits, and the pages that could
     not be sent at all (a single page larger than a whole request).
 
     Cut into as few parts of at most `max_pages` as will do, of even size (`balanced`); a part
     whose file in base64, with the request's text (`overhead_bytes`), is over `max_request_bytes`
     is halved until it fits.
+
+    THE MODEL'S WINDOW TOO, where `max_input_tokens` is given: a part whose pages (`tokens_of`, from
+    `page_tokens`) and question (`overhead_tokens`) are estimated over it is halved the same way —
+    so 600 pages a part on a 1,000,000-token window never sends a request the window cannot hold
+    with a whole reply's room (`llm.context_window_tokens` less `llm.max_output_tokens`).
 
     `carry`: PAGES EVERY PART HOLDS — the statement faces (`face_pages`), so a note read in the
     second part is read with the statements in view (finding parts_and_merge_prefer_face_for_note_
@@ -267,8 +285,17 @@ def build_parts(raw: bytes, pages: list[int], *, max_pages: int, max_request_byt
     max_pages = max(1, int(max_pages))
     carried = sorted({int(p) for p in carry} & set(pages))
     rest = [p for p in pages if p not in set(carried)]
-    if carried and (not rest or len(carried) >= max_pages):
-        carried, rest = [], list(pages)          # nothing to carry them beside, or no room
+
+    def cost(held) -> int:
+        return sum((tokens_of or {}).get(p, PAGE_PICTURE_TOKENS) for p in held) + overhead_tokens
+
+    windowed = bool(max_input_tokens) and tokens_of is not None
+    if carried and (not rest or len(carried) >= max_pages
+                    or (windowed and cost(carried) + min(cost([p]) - overhead_tokens for p in rest)
+                        > max_input_tokens)):
+        # Nothing to carry them beside, or no room: by pages, or in the model's window, where the
+        # faces and the question leave no room for one more page.
+        carried, rest = [], list(pages)
     parts: list[Part] = []
     dropped: list[int] = []
     src = fitz.open(stream=raw, filetype="pdf")
@@ -285,8 +312,21 @@ def build_parts(raw: bytes, pages: list[int], *, max_pages: int, max_request_byt
             finally:
                 out.close()
 
+        def over_window(held: list[int]) -> bool:
+            return windowed and cost(held) > max_input_tokens
+
         def fit(chunk: list[int], with_carried: bool) -> None:
             held = sorted(set(chunk) | set(carried)) if with_carried else list(chunk)
+            if over_window(held):
+                if len(chunk) > 1:
+                    mid = len(chunk) // 2          # halved before it is cut: no file is built
+                    fit(chunk[:mid], with_carried)
+                    fit(chunk[mid:], with_carried)
+                elif with_carried:
+                    fit(chunk, False)              # the page alone, without the faces
+                else:
+                    dropped.append(chunk[0])       # one page the window cannot hold
+                return
             part = Part(pages=held, pdf=make(held))
             if part.b64_bytes + overhead_bytes <= max_request_bytes:
                 parts.append(part)
@@ -492,8 +532,28 @@ def chunk_lines(lines: list, per_request: int, item_set=None) -> list[Chunk]:
     return chunks
 
 
-def max_tokens_for(n_lines: int) -> int:
-    return min(_TOKENS_CEILING, _TOKENS_RESERVE + max(1, n_lines) * _TOKENS_PER_LINE)
+def max_tokens_for(n_lines: int, ceiling: int = DEFAULT_OUTPUT_TOKENS) -> int:
+    """A request's reply budget: room for each line asked, at most `ceiling` — the model's reply
+    limit (`llm.max_output_tokens`)."""
+    return min(int(ceiling), _TOKENS_RESERVE + max(1, n_lines) * _TOKENS_PER_LINE)
+
+
+def page_tokens(raw: bytes, pages: list[int]) -> dict[int, int]:
+    """`{page: estimated input tokens}` — each page's text layer (`estimated_tokens`) and its
+    picture (`PAGE_PICTURE_TOKENS`). A scanned page is its picture alone."""
+    import fitz
+
+    from app.services.line_item_llm import estimated_tokens
+
+    out: dict[int, int] = {}
+    doc = fitz.open(stream=raw, filetype="pdf")
+    try:
+        for p in pages:
+            text = doc[p].get_text("text") if 0 <= p < doc.page_count else ""
+            out[p] = estimated_tokens(text or "") + PAGE_PICTURE_TOKENS
+    finally:
+        doc.close()
+    return out
 
 
 #: What a request carries beside its file and its question: the reply schema the adapter adds to
@@ -646,7 +706,8 @@ def face_keys(chunks: list[Chunk], statements: set[str], item_set=None) -> froze
 
 
 def plan(doc, raw: bytes, item_set, *, choice: str, max_pages: int, max_request_bytes: int,
-         lines_per_request: int, included_pages=None, sections_off=None) -> Plan:
+         lines_per_request: int, included_pages=None, sections_off=None,
+         max_input_tokens: int | None = None) -> Plan:
     """The run's request plan, from the classified pages and the line-item set.
 
     The lines first, because the questions' size is part of each request's size: THE WHOLE
@@ -658,20 +719,32 @@ def plan(doc, raw: bytes, item_set, *, choice: str, max_pages: int, max_request_
     some pages sent are statement faces and some are not, THE STATEMENTS ALONE as a part of their
     own, sent last (`Plan`): the run's first request stays the first notes part's smallest, which
     answers quickest whether the provider takes the file.
+
+    `max_input_tokens`: what one request may hold besides its reply's room (`llm.context_window_
+    tokens` less `llm.max_output_tokens`); a part estimated over it is cut smaller (`build_parts`).
     """
     off = set(sections_off or ())
     lines = [it for it in lines_to_ask(item_set) if statement_of(it) not in off]
     chunks = chunk_lines(lines, lines_per_request, item_set)
-    widest = max((len(question(c, Part(pages=list(range(max(1, int(max_pages)))), pdf=b""),
-                               2, 2, item_set, carried=1).encode("utf-8")) for c in chunks),
-                 default=0)
+    from app.services.line_item_llm import estimated_tokens
+
+    asked_texts = [question(c, Part(pages=list(range(max(1, int(max_pages)))), pdf=b""),
+                            2, 2, item_set, carried=1) for c in chunks]
+    widest = max((len(t.encode("utf-8")) for t in asked_texts), default=0)
+    widest_tokens = max((estimated_tokens(t) for t in asked_texts), default=0)
     overhead = max(REQUEST_OVERHEAD_BYTES, widest + len(SYSTEM.encode("utf-8")) + _ENVELOPE_BYTES)
     pages, why = pages_to_send(doc, choice=choice, included_pages=included_pages,
                                sections_off=off, raw=raw)
     carry = face_pages(doc, pages)
+    window = {}
+    if max_input_tokens:
+        # What a request holds beside its pages: the widest question, the system text, and the
+        # envelope (its bytes counted as tokens, which is more than it is).
+        window = dict(max_input_tokens=int(max_input_tokens), tokens_of=page_tokens(raw, pages),
+                      overhead_tokens=widest_tokens + estimated_tokens(SYSTEM) + _ENVELOPE_BYTES)
     parts, dropped = build_parts(raw, pages, max_pages=max_pages,
                                  max_request_bytes=max_request_bytes, carry=carry,
-                                 overhead_bytes=overhead)
+                                 overhead_bytes=overhead, **window)
     carried = carry if len(parts) > 1 and all(set(carry) <= set(p.pages) for p in parts) else []
     keys: frozenset = frozenset()
     whole: frozenset = frozenset()
@@ -691,7 +764,8 @@ def plan(doc, raw: bytes, item_set, *, choice: str, max_pages: int, max_request_
             keys = frozenset()
         if keys:
             alone, _ = build_parts(raw, statements, max_pages=max_pages,
-                                   max_request_bytes=max_request_bytes, overhead_bytes=overhead)
+                                   max_request_bytes=max_request_bytes, overhead_bytes=overhead,
+                                   **window)
             for part in alone:
                 part.faces_only = True
             parts = parts + alone

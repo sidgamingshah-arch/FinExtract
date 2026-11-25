@@ -256,10 +256,19 @@ def test_the_question_says_every_part_holds_the_statements():
                                                 W.Part(pages=[0], pdf=b""), 2, 2)
 
 
-def test_the_shipped_page_limit_is_unchanged():
-    """The parts are cut smaller, not larger: the configured 100 pages a request stands."""
+def test_the_shipped_limits_are_a_million_token_window_and_600_pages():
+    """The shipped model's limits: 600 pages a request (what Claude reads on a 1,000,000-token
+    window), a 1,000,000-token window and 128,000-token replies — the code's defaults and
+    config.toml alike."""
     import tomllib
 
+    from app.config import ExtractionSettings, LlmSettings
+
     shipped = tomllib.loads((BACKEND / "config.toml").read_text(encoding="utf-8"))
-    assert shipped["extraction"]["whole_pdf_pages_per_request"] == 100
+    assert shipped["extraction"]["whole_pdf_pages_per_request"] == 600
+    assert shipped["llm"]["context_window_tokens"] == 1_000_000
+    assert shipped["llm"]["max_output_tokens"] == 128_000
+    assert ExtractionSettings().whole_pdf_pages_per_request == 600
+    assert (LlmSettings().context_window_tokens, LlmSettings().max_output_tokens) == (
+        1_000_000, 128_000)
     assert os.path.exists(BACKEND / "config.toml")

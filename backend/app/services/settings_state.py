@@ -697,16 +697,47 @@ _DOCUMENT_CONTEXT_MARKER = "_llm_document_context_v2"
 # A pre-marker "none" is read as the default this release ships, said in the log, and saved with
 # the marker; a "none" chosen from now on is saved with the marker and read as it is.
 _REQUEST_GROUPING_MARKER = "_llm_request_grouping_v2"
+# AND FOR `whole_pdf_pages_per_request`, whose default moved from 100 to 600 when the shipped
+# model's 1,000,000-token window was made the default (`llm.context_window_tokens`). A stored 100
+# from before is the old default, saved by the every-knob save or "Restore defaults"; re-applied as
+# written it would keep those deployments at 100 pages a part. Read as the shipped default, said in
+# the log, and saved with the marker; a 100 chosen from now on is read as it is.
+_PAGES_PER_REQUEST_MARKER = "_whole_pdf_pages_per_request_v2"
+_OLD_PAGES_PER_REQUEST = 100
 #: The marker each setting is saved beside — see `set_extraction_config`.
 _MARKERS = {"llm_document_context": _DOCUMENT_CONTEXT_MARKER,
-            "llm_request_grouping": _REQUEST_GROUPING_MARKER}
+            "llm_request_grouping": _REQUEST_GROUPING_MARKER,
+            "whole_pdf_pages_per_request": _PAGES_PER_REQUEST_MARKER}
 
 
 def _read_as_saved(stored: dict) -> dict:
     """The stored extraction overrides, each value saved before its setting moved read as what it
     meant when it was saved — and that reading saved, with its marker, so it is made once and the
     table says what applies."""
-    return _grouping_as_saved(_context_as_saved(stored))
+    return _pages_as_saved(_grouping_as_saved(_context_as_saved(stored)))
+
+
+def _pages_as_saved(stored: dict) -> dict:
+    """A pre-marker 100 pages a request read as the number this release ships."""
+    value = stored.get("whole_pdf_pages_per_request")
+    try:
+        old = value is not None and float(value) == _OLD_PAGES_PER_REQUEST
+    except (TypeError, ValueError):
+        old = False
+    if not old or stored.get(_PAGES_PER_REQUEST_MARKER):
+        return stored
+    shipped = (_EXTRACTION_DEFAULTS or {}).get("whole_pdf_pages_per_request")
+    if shipped is None or float(shipped) == _OLD_PAGES_PER_REQUEST:
+        return stored
+    import logging
+    logging.getLogger(__name__).warning(
+        "extraction.whole_pdf_pages_per_request: the stored value 100 was saved when 100 was the "
+        "default (the Settings screen saves every setting whenever one is changed), so it is read, "
+        "and saved, as the shipped default %s, for the model's 1,000,000-token window. Choose 100 "
+        "again on the Settings screen for a model with a smaller window.", shipped)
+    _persist(SCOPE_EXTRACTION, {"whole_pdf_pages_per_request": shipped,
+                                _PAGES_PER_REQUEST_MARKER: True})
+    return {**stored, "whole_pdf_pages_per_request": shipped, _PAGES_PER_REQUEST_MARKER: True}
 
 
 def _grouping_as_saved(stored: dict) -> dict:

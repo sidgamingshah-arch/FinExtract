@@ -545,7 +545,9 @@ def test_a_statement_is_asked_in_one_request_by_default():
     chunks = W.chunk_lines(hk, per)
     assert len(chunks) == len({W.statement_of(it) for it in hk})
     assert max(len(c) for c in chunks) > 60
-    assert W.max_tokens_for(len(chunks[0])) <= 32_000
+    # Each request's reply budget is its lines' whole room, under the model's 128,000-token limit.
+    assert all(W.max_tokens_for(len(c)) == 1_024 + 220 * len(c) <= W.DEFAULT_OUTPUT_TOKENS
+               for c in chunks)
 
 
 def test_revenue_is_computed_from_the_parts_the_model_read_by_its_cascade():

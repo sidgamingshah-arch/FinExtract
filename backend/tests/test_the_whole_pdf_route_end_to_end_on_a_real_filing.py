@@ -1,6 +1,8 @@
 """THE WHOLE-PDF REQUESTS ON A REAL FILING, end to end (688008, 澜起科技, CAS, 256 pages): the run
-as the shipped config makes it ("statements" pages, 100 pages a request), the stand-in answering
-from a SCRIPT (`tests.whole_pdf_standin`).
+with "statements" pages at 100 pages a request — the setting for a model whose window is under a
+million tokens, where the notes go in two parts — the stand-in answering from a SCRIPT
+(`tests.whole_pdf_standin`). The shipped 600 pages a request, on the 1,000,000-token window, is
+the last test's run: the notes in one part.
 
 What it shows: the first request is the smallest; both parts holding the notes carry the 17
 statement faces, and a third holds the statement faces alone, where the statements' face lines are
@@ -34,7 +36,8 @@ def run(tmp_path_factory):
         ACCOUNTANT: {"text": FIRM, "pages": [149]}}}
     with pytest.MonkeyPatch.context() as mp:
         return run_whole_pdf(mp, tmp_path_factory.mktemp("e2e"), STEM, script,
-                             whole_pdf_pages="statements")
+                             whole_pdf_pages="statements",
+                             extraction={"whole_pdf_pages_per_request": 100})
 
 
 def _asked(rec):
@@ -88,3 +91,30 @@ def test_the_securities_family_is_one_request(run):
     assert all(set(FAMILY) <= set(c["line_keys"]) for c in holding)
     _row, ev = slot(_doc, "bs_ca__secur_and_other_fincl_assets_cp")
     assert ev is not None and str(ev.value) == "1783494750.68"
+
+
+def test_at_the_shipped_600_pages_the_notes_go_in_one_part(tmp_path):
+    """The shipped defaults (600 pages a request, a 1,000,000-token window): 688008's 110 pages go
+    as one part holding the notes and the statements alone, 8 requests where 100 pages a request
+    makes 13 — the first still the smallest, the Securities family still one request, the
+    Accountant still read off the auditor's report."""
+    from app.config import ExtractionSettings
+
+    shipped = ExtractionSettings().whole_pdf_pages_per_request
+    assert shipped == 600
+    script = {"units": "元", "lines": {
+        "sub__fa_cp_fvtpl_note_total": [script_figure("1783494750.68", page=182, caption="合计")],
+        ACCOUNTANT: {"text": FIRM, "pages": [149]}}}
+    with pytest.MonkeyPatch.context() as mp:
+        doc, ctx, rec = run_whole_pdf(mp, tmp_path, STEM, script, whole_pdf_pages="statements",
+                                      extraction={"whole_pdf_pages_per_request": shipped})
+    asked = _asked(rec)
+    assert ctx.whole_pdf["pages_per_part"] == [110, 20] and len(asked) == 8
+    sizes = [len(c["line_keys"]) for c in asked]
+    assert sizes[0] == min(sizes) and ctx.whole_pdf["first_request"]["statement"] == (
+        "statement_setup")
+    holding = [c for c in asked if "sub__fa_cp_fvtpl_note_total" in c["line_keys"]]
+    assert len(holding) == 1 and set(FAMILY) <= set(holding[0]["line_keys"])
+    assert any("window=1000000 reply_limit=128000" in line for line in ctx.logs)
+    row = next(r for r in doc.line_items if r.canonical_key == ACCOUNTANT)
+    assert next(iter(row.values.values())).value_text == FIRM
