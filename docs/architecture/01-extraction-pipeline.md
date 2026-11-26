@@ -904,6 +904,38 @@ lines (a "Yes" a note row says) are not filled: this route leaves notes unmapped
 scripted answers (no model): 佳明's blanks went from 115 to 1 and China SCE's from 56 to 0, and
 every filled slot equals rules-only; the structural checks on both now match rules-only.
 
+**A filled face figure is not counted twice beside the note pieces the model gave for it.** The
+model can answer a face figure as its note pieces: 000709's CPLTD Bank 9,936,568,335.00 (note 七、26)
+with 一年内到期的非流动负债 18,040,355,658.70 left empty, or 688008's allowance 1,944,451.99 with the
+gross left empty, where the CAS rules publish the face NET on the gross. Filled whole, the face
+counted that money twice. So:
+- `whole_pdf_rules.settle_against_model_pieces`, the first thing `note_sourced` does (signs are
+  final there, and nothing has read the filled rows yet), takes off a filled face row the model's
+  pieces of it. A piece is a model figure on another template line, in the same slot, read from the
+  face row's own note: the note it cites, or, on a face that cites none (000709, 300319), a note whose
+  tables print the face figure. Its cell must lie in a block of that note that adds up to the face
+  figure, so a table that prints every face row once (300319's 流动性风险 table) gives no piece.
+  The amount comes from the template's own arithmetic for the line's section total, so pieces count
+  with the sign the section gives them (gross = net + |allowance|). A settled slot keeps the printed
+  figure as `value_raw`, is flagged `whole_pdf:rules_reading_less_model:<line>=<amount>` and goes to
+  review. Where the pieces reach the whole figure, the slot is left empty and the pieces are flagged
+  `whole_pdf:pieces_reach_the_rules_reading`. A line whose own cascade already subtracts its part
+  (Trade and other payables) is left alone. Sub__ parts and lines `carve_note_figures` will carve
+  are never pieces.
+- A piece the rules split out of a face cell (`split_from:<X>`, 1966's lease interest out of finance
+  costs) is not filled for a slot where the model holds X, because the model's X already holds it.
+  Where X is empty and the model gave the piece on its carved line, X takes the remainder plus that
+  piece, which is the face cell whole (`whole_pdf:rules_split_filled_whole`).
+- `whole_pdf_rules.review_beside_a_difference`, called from `structural`, flags for review each
+  filled figure in a section whose reconciliation shows any difference, even one that passes.
+  Flags only; no check status moves.
+
+None of this runs on the rules route, where no row carries `whole_pdf:rules_reading`. Measured with
+scripted answers on the five reference filings, every case that came out wrong now gives the printed
+figure. bs_cl now passes with 0 on 000709, 300319 and China SCE, and so does bs_ca on 000709 and
+688008. 1966's finance costs are now the face cell (1,492,343) / (921,124), p102. Rules-only did not
+move. The review flag is set on the row, so both years of a settled line go to review.
+
 **Measured** on 688411 (the filing of run 11033486) with a stand-in that answers every question
 from the rules route's own figures, as the prompt asks: the template's checks came out as the rules
 route's, 58 passing of 93 and none failing, on the statement pages (2 parts, 14 requests) and on

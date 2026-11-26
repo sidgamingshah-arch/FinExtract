@@ -111,6 +111,13 @@ class StructuralStage:
             if section_hit:
                 li.confidence.flags.append(FLAG_SECTION)
 
+        # ON THE WHOLE-PDF ROUTE, a figure the rules filled in a section that does not add up goes
+        # to review, however small the difference — a flag only; no status moves
+        # (`services.whole_pdf_rules.review_beside_a_difference`). No row carries the rules-fill
+        # flag on any other route, so it does nothing there.
+        from app.services.whole_pdf_rules import review_beside_a_difference
+        review_beside_a_difference(doc, report, ctx)
+
         cov = coverage(rows)
         ctx.log(f"structural:evaluated={len(report.evaluated())} "
                 f"failed={len(report.failures())} not_evaluable={len(report.skipped())} "

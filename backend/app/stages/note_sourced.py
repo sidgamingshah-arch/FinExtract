@@ -39,6 +39,11 @@ class NoteSourcedStage(Stage):
     name = "note_sourced"
 
     def run(self, doc: DocumentModel, ctx: PipelineContext) -> DocumentModel:
+        # ON THE WHOLE-PDF ROUTE, a face row the rules filled is first settled against the pieces
+        # of it the model gave on other lines (`whole_pdf_rules.settle_against_model_pieces`) —
+        # here, because the signs are final now (`normalize` has run) and nothing below has read
+        # the filled rows yet. A no-op on every other route: there are no filled rows.
+        whole_pdf_rules.settle_against_model_pieces(doc, ctx)
         line_item_set = getattr(ctx, "line_items", None)
         items = _declared_items(line_item_set)
         if not items:

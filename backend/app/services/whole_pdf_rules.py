@@ -37,7 +37,12 @@ side of not counting one figure twice. The caption is the model's own words and 
 THE FACE AND SETUP LINES THE MODEL LEFT EMPTY are filled here too (`fill_from_rules`, called once by
 the stage): the rules' face rows, set aside unmapped, are mapped and signed as the rules route maps
 and signs them, and each slot of an asked line no model row holds takes the rules' published figure,
-under the same three guards (see the section "the lines the model left empty" below).
+under the same three guards (see the section "the lines the model left empty" below). Two more keep
+a filled face figure from being counted beside the model's own reading of it: a face cell the rules
+split out of its note is filled as one unit (`_split_slot`), and a filled face row is settled
+against the pieces of it the model gave on other lines (`settle_against_model_pieces`, called by
+`stages.note_sourced`). A filled figure in a section that does not add up goes to review
+(`review_beside_a_difference`, called by `stages.structural`).
 
 EVERY FUNCTION HERE IS A NO-OP ON EVERY OTHER ROUTE: each reads only rows the whole-PDF stage
 wrote (`ROW_FLAG`) or set aside (`PipelineContext.whole_pdf_rules_rows`), and a run with none — the
@@ -403,12 +408,98 @@ def drop_cited_prose(hits: list, figures: dict, key: str, scale=None, log=None) 
 # (`services.whole_pdf_locate.Judge`, on the rules' cell): a caption the checks veto for the line,
 # a figure in another column, is not put back by the rules. A part withheld because a sibling part
 # holds its note money (`llm_note_row_withheld`) is not filled at all.
+#
+# ONE FACE CELL THE RULES SPLIT IS FILLED AS ONE UNIT, slot by slot (`_Splits`). Where the rules
+# itemise a face cell out of its note (`stages.map_ontology.MapOntologyStage._split_from_disclosure`),
+# they publish the cell as a REMAINDER on its own line plus each piece on a line of its own, all
+# flagged `split_from:<line>`, and they count every piece. The model answers the same cell the other
+# way: the face row whole, with any piece a `carved_from_face` line takes from the note shown but
+# counted nowhere. Filled slot by slot, the two ways mix. Measured with scripted answers on China
+# SCE 1966 (finance costs (1,492,343) / (921,124), note 7 lease interest 1,490 / 20,162):
+#
+#   * the model gave the face row whole, the lease piece was filled beside it: net interest
+#     -1,493,833, over by 1,490 (and 20,162 in the prior year);
+#   * the model gave the lease interest on its carved line and left the face row out, the
+#     remainder -1,490,853 was filled: net interest short by the carved 1,490, counted nowhere.
+#
+# So: where the model holds the split line's slot, no piece split from it is filled in that slot
+# (the model's figure is the face cell's whole); where the slot is empty and the model holds a piece
+# on a line that will be carved, the split line takes the face cell's whole — the remainder plus
+# those pieces' rules figures — flagged `SPLIT_WHOLE_FLAG`.
 
 #: On a model figure that carried no column heading, given the rules' heading for its year — what
 #: the export's Periods and Statement Date are read from.
 PERIOD_FLAG = f"{ROW_FLAG}:period_display_from_rules"
 _REFUSED = f"{ROW_FLAG}:refused:"
 _WITHHELD = "llm_note_row_withheld"
+#: The flag the review queue selects a doubtful line on (`stages.whole_pdf.REVIEW_FLAG`).
+REVIEW_FLAG = "low_mapping_confidence"
+#: On a split line filled with the face cell's whole, because the model holds a carved piece of it:
+#: `whole_pdf:rules_split_filled_whole:<piece line>=<the rules' figure for it>`.
+SPLIT_WHOLE_FLAG = f"{ROW_FLAG}:rules_split_filled_whole"
+_SPLIT_FROM = "split_from:"
+_DECOMPOSED_FROM = "note_decomposed_from:"
+_RESIDUAL_OF_SPLIT = "note_residual_to_face_item"
+
+
+def _slot_of(row, basis: str, period: str):
+    """The figure `row` holds for `basis`/`period`, or None."""
+    return _held(row, basis, period)
+
+
+def _statement_pages(doc) -> set[int]:
+    from app.core.models.enums import PageKind
+
+    return {int(getattr(p, "index", -1)) for p in (getattr(doc, "pages", None) or ())
+            if getattr(p, "kind", None) is PageKind.FACE}
+
+
+def _would_be_carved(row, ev, defs: dict, statement_pages: set[int]) -> bool:
+    """Whether `stages.note_sourced.carve_note_figures` will carve this figure: a line that declares
+    `carved_from_face`, on a row that is not a face row, read off any page but a statement's — the
+    figure is then shown on its line and added into no total. Asked before the carve has run."""
+    from app.core.models.enums import PrintedIn
+    from app.services.rollups import CARVED_FROM_FACE, SETTLED_FROM_FACE
+
+    flags = getattr(getattr(ev, "confidence", None), "flags", None) or ()
+    if CARVED_FROM_FACE in flags:
+        return True
+    item = defs.get(str(getattr(row, "canonical_key", "") or ""))
+    if item is None or not getattr(item, "carved_from_face", False):
+        return False
+    if getattr(row, "printed_in", None) is PrintedIn.FACE or SETTLED_FROM_FACE in flags:
+        return False
+    page = _page(getattr(ev, "provenance", None))
+    return page is not None and page not in statement_pages
+
+
+class _Splits:
+    """The rules' rows split out of one face cell, by the line the cell was printed for:
+    `{line: (rows split from it, the face row they were split from or None)}`."""
+
+    def __init__(self, published):
+        self.rows: dict[str, list] = {}
+        self.whole: dict[str, object] = {}
+        for row in published:
+            for flag in row.confidence.flags or ():
+                flag = str(flag)
+                if flag.startswith(_SPLIT_FROM):
+                    self.rows.setdefault(flag[len(_SPLIT_FROM):], []).append(row)
+                elif flag.startswith(_DECOMPOSED_FROM):
+                    self.whole[flag[len(_DECOMPOSED_FROM):]] = row
+
+    def of(self, row) -> str | None:
+        """The line `row`'s figure was split out of, or None."""
+        for flag in row.confidence.flags or ():
+            if str(flag).startswith(_SPLIT_FROM):
+                return str(flag)[len(_SPLIT_FROM):]
+        return None
+
+    def pieces(self, line: str) -> list:
+        return [r for r in self.rows.get(line, ()) if r.canonical_key != line]
+
+    def remainder(self, line: str):
+        return next((r for r in self.rows.get(line, ()) if r.canonical_key == line), None)
 
 
 def rules_published_rows(doc, ctx, rules_rows) -> list:
@@ -539,7 +630,8 @@ def fill_from_rules(doc, ctx, judge=None, asked=None) -> dict:
     texts the refused-slot check reads. A no-op off the whole-PDF route: it reads only the rows the
     stage set aside (`ctx.whole_pdf_rules_rows`)."""
     out = {"slots": 0, "rows": 0, "lines": 0, "kept_for_the_model": 0,
-           "placed_by_the_model": 0, "refused_by_the_checks": 0, "period_headings": 0}
+           "placed_by_the_model": 0, "refused_by_the_checks": 0, "period_headings": 0,
+           "split_inside_the_models_whole": 0, "split_filled_whole": 0}
     rules_rows = getattr(ctx, "whole_pdf_rules_rows", None)
     if not rules_rows:
         return out
@@ -582,7 +674,9 @@ def fill_from_rules(doc, ctx, judge=None, asked=None) -> dict:
             f"row(s) of {out['lines']} line(s) — kept for the model: "
             f"{out['kept_for_the_model']} held by it, {out['placed_by_the_model']} it placed on "
             f"a line, {out['refused_by_the_checks']} the checks refuse; column headings from the "
-            f"rules: {out['period_headings']}")
+            f"rules: {out['period_headings']}; split face cells: "
+            f"{out['split_inside_the_models_whole']} piece slot(s) inside the model's whole, "
+            f"{out['split_filled_whole']} filled with the cell's whole")
     return out
 
 
@@ -635,6 +729,9 @@ def _fills(doc, ctx, judge, asked, rules_rows, published, out: dict) -> list:
         printed.setdefault(spot, []).extend(cells)
     placed = model_figures(doc, printed)
     check = _RulesCheck(doc, ctx, rules_rows, judge)
+    splits = _Splits(published)
+    defs = {i.key: i for i in (getattr(getattr(ctx, "line_items", None), "items", None) or ())}
+    statement_pages = _statement_pages(doc)
 
     fills = []
     for row in published:
@@ -642,13 +739,32 @@ def _fills(doc, ctx, judge, asked, rules_rows, published, out: dict) -> list:
         if not key or (asked is not None and key not in asked) or key in withheld:
             continue
         keep = []
-        for ck, ev in (row.values or {}).items():
+        for ck, ev in list((row.values or {}).items()):
             if ev.value is None:
                 continue
             basis, period = _basis(ev), str(ev.period_label or "")
             if (basis, period) in held.get(key, ()):
                 out["kept_for_the_model"] += 1
                 continue
+            line = splits.of(row)
+            if line is not None:
+                verdict = _split_slot(doc, splits, line, row, ev, basis, period, held, defs,
+                                      statement_pages)
+                if verdict is _INSIDE_THE_MODELS_WHOLE:
+                    out["split_inside_the_models_whole"] += 1
+                    ctx.log(f"whole_pdf:rules_fill:{key}[{basis}:{period}]: rules row "
+                            f"{row.source_label!r} {ev.value} NOT filled — the rules split it out "
+                            f"of {line}'s face cell, and the model holds {line} for this slot, "
+                            f"which is the cell's whole")
+                    continue
+                if verdict is not None:
+                    ev, pieces = verdict
+                    row.values[ck] = ev
+                    out["split_filled_whole"] += 1
+                    ctx.log(f"whole_pdf:rules_fill:{key}[{basis}:{period}]: the face cell's whole "
+                            f"{ev.value}, not the rules' remainder — the model holds "
+                            f"{', '.join(f'{k} ({v})' for k, v in pieces)} on a line that is "
+                            f"carved from the face, so that piece is counted nowhere else")
             prov = getattr(ev, "provenance", None)
             page = _page(prov)
             amount = ev.value_raw if ev.value_raw is not None else ev.value
@@ -687,5 +803,590 @@ def _fills(doc, ctx, judge, asked, rules_rows, published, out: dict) -> list:
                 ev.confidence.flags.append(RULES_FLAG)
         if RULES_FLAG not in row.confidence.flags:
             row.confidence.flags.append(RULES_FLAG)
+        for ev in row.values.values():
+            for flag in ev.confidence.flags:
+                if ((str(flag).startswith(SPLIT_WHOLE_FLAG) or flag == REVIEW_FLAG)
+                        and flag not in row.confidence.flags):
+                    row.confidence.flags.append(flag)
         fills.append(row)
     return fills
+
+
+#: `_split_slot`'s answer for a piece the model's figure already holds.
+_INSIDE_THE_MODELS_WHOLE = object()
+
+
+def _split_slot(doc, splits: _Splits, line: str, row, ev, basis: str, period: str, held: dict,
+                defs: dict, statement_pages: set[int]):
+    """How one slot of a rules row split out of `line`'s face cell is filled — see the section
+    comment above. None: as the rules publish it. `_INSIDE_THE_MODELS_WHOLE`: not at all. Else
+    `(figure, [(piece line, the rules' figure for it), …])`: the face cell's whole, for the
+    remainder's slot."""
+    remainder = splits.remainder(line)
+    rest = _slot_of(remainder, basis, period) if remainder is not None else None
+    if row.canonical_key != line:
+        if (basis, period) not in held.get(line, ()):
+            return None
+        # THE MODEL HOLDS THE SPLIT LINE: its figure is the face cell's whole (the line's own
+        # definition says so) — unless it is the rules' remainder to the unit, the model having
+        # itemised the cell the rules' way, when the pieces are what makes it whole.
+        mine = model_row_holding(doc, line, basis, period)
+        got = _slot_of(mine, basis, period) if mine is not None else None
+        if (got is not None and rest is not None and got.value is not None
+                and abs(Decimal(str(got.value))) == abs(Decimal(str(rest.value)))):
+            return None
+        return _INSIDE_THE_MODELS_WHOLE
+    carved = []
+    for piece in splits.pieces(line):
+        pkey = str(piece.canonical_key or "")
+        mine = model_row_holding(doc, pkey, basis, period)
+        if mine is None or not _would_be_carved(mine, _slot_of(mine, basis, period), defs,
+                                                statement_pages):
+            continue
+        figure = _slot_of(piece, basis, period)
+        if figure is not None and figure.value is not None:
+            carved.append((pkey, Decimal(str(figure.value))))
+    if not carved:
+        return None
+    whole = Decimal(str(ev.value)) + sum((v for _k, v in carved), Decimal(0))
+    face = splits.whole.get(line)
+    printed = _slot_of(face, basis, period) if face is not None else None
+    new = ev.model_copy(deep=True)
+    if printed is not None and Decimal(str(printed.value)) == whole:
+        # THE FACE CELL ITSELF: its page, its box, its heading — the figure is the one it prints.
+        new.value, new.value_raw, new.derived = printed.value, printed.value_raw, False
+        new.provenance = printed.provenance.model_copy(deep=True) if printed.provenance else None
+        new.unit_ctx = printed.unit_ctx.model_copy(deep=True)
+        new.period_display = printed.period_display or new.period_display
+    else:
+        new.value = new.value_raw = whole
+        new.derived = True
+        new.confidence.flags.append(REVIEW_FLAG)
+    for pkey, amount in carved:
+        new.confidence.flags.append(f"{SPLIT_WHOLE_FLAG}:{pkey}={amount}")
+    return new, carved
+
+
+# ── a filled face row whose note pieces the model already gave ───────────────────────────────────
+#
+# THE MODEL CAN READ A FACE FIGURE AS ITS NOTE PIECES and put them on lines of their own, leaving
+# the line the rules put the face row on empty — and the fill then put the face figure back whole
+# beside the pieces, the cell guard never seeing it (the model placed NOTE cells, the fill read the
+# FACE cell). Measured with scripted answers, every figure as the filing prints it:
+#
+#   * 000709 一年内到期的非流动负债 18,040,355,658.70 (p83): the model gave CPLTD Bank 9,936,568,335.00
+#     from note 七、26 (p150); CPLTD Other was filled whole, and total current liabilities came out
+#     156,558,553,893.43 against the printed 146,621,985,558.43.
+#   * 1966 borrowings 9,817,976 (p105), the model's other loans 1,666,788 from note 30 (p219);
+#     佳明 bank and other loans 5,401,406, its other loans 374,150 from note 21 (p126); 300319
+#     短期借款 269,920,984.10, its 票据贴现 128,387,402.95 from note 七、22 (p160).
+#   * 688008 应收账款 387,791,885.96 (p150), the NET figure the CAS rules publish on Trade
+#     Receivables(Gross): the model gave the allowance -1,944,451.99 from note 七、5 (p184), the
+#     gross was filled with the net, and the allowance came off twice — 1,944,451.99 short, inside
+#     the checks' 0.1% tolerance, so nothing said so.
+#
+# So a filled face row's slot is SETTLED against the model's figures that are pieces of it, once
+# the signs are final (`settle_against_model_pieces`, called by `stages.note_sourced` before any
+# cascade reads the row): a model figure on ANOTHER line, same basis and period, read from THIS face
+# row's own note — the note it cites, or, where it cites none, the note tables that print its
+# figure — and counted in the same section total as the line. "Read from" is asked of the note cell
+# the figure sits on (`_note_cells`, `_on_cell`, as `model_figures` asks), and only of the page and
+# amount where it cannot be put on one cell and every cell of that amount there is the face row's
+# note's: a figure from the next note on a shared page is not a piece. "Counted" is asked of the
+# template's own arithmetic (`services.rollups.evaluate`), so a piece counts with the sign the
+# section gives it — an allowance counted negative makes the gross the net plus the allowance.
+#
+# AND THE CELL MUST LIE IN A BLOCK OF ITS NOTE THAT ADDS UP TO THE FACE FIGURE (`_NoteBlocks`): a
+# run of rows of the cell's column, the cell's row among them, that sums to it (七、26's four rows to
+# 18,040,355,658.70; 佳明 note 18's nine rows to 126,739, its total row unread), or the cell's own
+# row printing the face figure and the figure the two make (账面余额 | 坏账准备 | 账面价值). The note
+# number alone is not enough, measured with scripted answers:
+#
+#   * a table that prints the carrying amount of EVERY face row of a section — 300319 note 十一、2
+#     (流动性风险, p176), 十二、1 (fair values) — is in the fallback "own note" of each of them: the
+#     model's trade payables 840,284,135.50 cited there withheld the filled 应付票据 587,870,376.36,
+#     and total current liabilities came out 587,870,376.36 short;
+#   * a cited sub-reference reaches its parent note (`LineItem.cited_notes_among`): 佳明 'Finance
+#     costs 8(a)' reaches the one table numbered 8, and the model's sales commission 82,132 from
+#     8(c) was taken out of finance costs (107,818 settled to 25,686);
+#   * two face rows of a section can cite one note (China SCE note 29: other payables and accruals,
+#     and contract liabilities).
+#
+# In none of those does the cell lie in a run that adds up to the face figure.
+#
+# The slot then takes the face figure LESS the pieces, flagged `LESS_MODEL_FLAG` with each piece and
+# sent to review; where the pieces reach or pass the face figure the slot is left empty and the
+# pieces are sent to review (`PIECES_REACH_FLAG`). Not settled, and logged: a line whose own
+# cascade takes its note's part out of the printed row (`deducts_from_printed`, Trade and other
+# payables), a line the template itself computes from those pieces (its own rollup resolves —
+# Inventories less its classes, cash less its pledged deposits), an internal part, and a piece on a
+# line that will be carved from the face (counted nowhere, so nothing to take out).
+
+#: On a filled figure the model's own pieces of its face row were taken out of:
+#: `whole_pdf:rules_reading_less_model:<line>=<the model's figure>`, one per piece.
+LESS_MODEL_FLAG = f"{RULES_FLAG}_less_model"
+#: On a model figure whose face row was NOT filled, because the model's pieces of it reach or pass
+#: the face figure: `whole_pdf:pieces_reach_the_rules_reading:<the face row's line>`.
+PIECES_REACH_FLAG = f"{ROW_FLAG}:pieces_reach_the_rules_reading"
+
+
+def _template_dict(ctx) -> dict | None:
+    template = getattr(ctx, "template_def", None) or getattr(ctx, "template", None)
+    if hasattr(template, "model_dump"):
+        template = template.model_dump(mode="json")
+    return template if isinstance(template, dict) else None
+
+
+def _section_totals(template_def: dict) -> dict[str, str]:
+    """`{line: the closing total of its own template section}` — the total no other total of the
+    section feeds, among the section's sums that add the section's own lines only (current assets,
+    not total assets).
+
+    A line is given the total of the section it is DECLARED in before any other that reaches it: a
+    residual rollup can list lines of another section (Other Reserves lists Interest Payable and
+    Perpetual Bond), and reached first through it they were given equity's total."""
+    from app.services.rollups import calculated_nodes
+
+    nodes = calculated_nodes(template_def)
+    out: dict[str, str] = {}
+    declared: dict[str, str] = {}
+    for statement in template_def.get("statements", []) or []:
+        for section in statement.get("sections") or []:
+            members = [section, *(section.get("children") or [])]
+            keys = {n.get("canonical_key") for n in members if n.get("canonical_key")}
+            totals = []
+            for node in members:
+                key, rollup = node.get("canonical_key"), node.get("rollup") or {}
+                kids = rollup.get("children") or []
+                if (key in nodes and kids and not rollup.get("reported_total_key")
+                        and node.get("role") in ("subtotal", "total")
+                        and all(k in keys for k in kids)):
+                    totals.append(key)
+            fed = {k for t in totals for k in (nodes[t].get("rollup") or {}).get("children") or ()}
+            for total in [t for t in totals if t not in fed]:
+                reach, todo = set(), [total]
+                while todo:
+                    for kid in (nodes.get(todo.pop(), {}).get("rollup") or {}).get("children") or ():
+                        if kid not in reach:
+                            reach.add(kid)
+                            todo.append(kid)
+                for key in reach:
+                    (declared if key in keys else out).setdefault(key, total)
+    out.update(declared)
+    return out
+
+
+class _Section:
+    """One (basis, period)'s section arithmetic as `services.rollups` does it, over the figures the
+    checks collect (`structural_checks.collect_values`) — with some figures moved or taken out, to
+    ask what a fill and the model's pieces do to a total."""
+
+    def __init__(self, template_def, doc, basis: str, period: str, carved: set[str]):
+        from app.services.structural_checks import collect_values
+
+        self.template = template_def
+        self.slot = (basis, period)
+        self.values = collect_values(doc.line_items)
+        self.carved = carved
+        self.swept = set()
+        rows: dict[str, list] = {}
+        for li in doc.line_items:
+            if li.canonical_key and _held(li, basis, period) is not None:
+                rows.setdefault(li.canonical_key, []).append(li)
+        self.swept = {k for k, rs in rows.items()
+                      if all(str(getattr(r.confidence, "method", "") or "") == "residual"
+                             for r in rs)}
+
+    def figure(self, key: str) -> Decimal | None:
+        return self.values.get(key, self.slot)
+
+    def move(self, key: str, delta: Decimal, *, gone: int = 0) -> None:
+        """Change `key`'s figure by `delta` (one contributing row fewer per `gone`)."""
+        per = self.values.values.setdefault(key, {})
+        count = self.values.contributors.setdefault(key, {})
+        left = count.get(self.slot, 0) - gone
+        if gone and left <= 0:
+            per.pop(self.slot, None)
+            count.pop(self.slot, None)
+            return
+        per[self.slot] = per.get(self.slot, Decimal(0)) + delta
+        count[self.slot] = max(left, 1)
+
+    def shown(self, total: str, line: str, moves=()) -> tuple[float | None, bool]:
+        """`(the total as the grid would show it, whether the template computes the line)` with
+        `moves` applied: `[(key, delta, rows gone)]`. The line is computed where its own rollup
+        resolves to a figure that is not the one its rows give it."""
+        from app.services.rollups import evaluate
+
+        saved = {key: (dict(self.values.values.get(key, {})),
+                       dict(self.values.contributors.get(key, {}))) for key, *_ in moves}
+        try:
+            for key, delta, gone in moves:
+                self.move(key, delta, gone=gone)
+
+            def reported(key):
+                v = self.figure(key)
+                return None if v is None else float(v)
+
+            calc = evaluate(self.template, reported, carved=lambda k: k in self.carved,
+                            swept=lambda k: k in self.swept,
+                            signed=lambda k: (k, self.slot) in self.values.signed)
+            got = calc.get(total)
+            mine = calc.get(line)
+            own = reported(line)
+            computed = (mine is not None and mine.computable
+                        and (own is None or abs(float(mine.value) - own) >= 0.005))
+            return (got.value if got is not None and got.computable else None), computed
+        finally:
+            for key, (per, count) in saved.items():
+                self.values.values[key] = per
+                self.values.contributors[key] = count
+
+
+def _as_printed(ev) -> Decimal | None:
+    if ev is None:
+        return None
+    raw = getattr(ev, "value_raw", None)
+    raw = raw if raw is not None else getattr(ev, "value", None)
+    try:
+        return Decimal(str(raw)) if raw is not None else None
+    except (InvalidOperation, ValueError, TypeError):
+        return None
+
+
+class _NoteBlocks:
+    """Each rules note cell's place — its note, its table's rows, its row and its column — to ask
+    whether a model figure on it lies in a block of its note that adds up to a face figure (see the
+    section comment above)."""
+
+    def __init__(self, doc):
+        from app.services.note_sourced import cell_of
+
+        self.at: dict[tuple, tuple] = {}
+        for table in getattr(doc, "notes", None) or ():
+            items = list(getattr(table, "items", None) or ())
+            for index, item in enumerate(items):
+                for column, ev in (getattr(item, "values", None) or {}).items():
+                    cell = cell_of(getattr(ev, "provenance", None))
+                    if cell is not None:
+                        self.at.setdefault(cell, (table, items, index, column))
+        #: `{cell: note number}`.
+        self.notes = {cell: str(getattr(table, "note_number", "") or "")
+                      for cell, (table, *_rest) in self.at.items()}
+
+    def adds_up(self, cell, face) -> bool:
+        """Whether `cell` lies in a block of its table that adds up to `face` (as printed, either
+        sign): a run of rows of its column, its own row among them, summing to it; or its own row
+        printing `face` in another column beside the figure the two make (a gross, its allowance,
+        the net)."""
+        hit = self.at.get(cell)
+        target = _amount(face)
+        if hit is None or not target:
+            return False
+        _table, items, mine, column = hit
+        figures = [_as_printed((getattr(item, "values", None) or {}).get(column)) or Decimal(0)
+                   for item in items]
+        sums = [Decimal(0)]
+        for figure in figures:
+            sums.append(sums[-1] + figure)
+        if any(abs(sums[end + 1] - sums[start]) == target
+               for start in range(mine + 1) for end in range(mine, len(figures))):
+            return True
+        piece = abs(figures[mine])
+        across = [abs(v) for k, ev in (getattr(items[mine], "values", None) or {}).items()
+                  if k != column and (v := _as_printed(ev)) is not None]
+        return target in across and (target + piece in across or abs(target - piece) in across)
+
+
+def _cells_by_note(doc) -> tuple[dict, _NoteBlocks]:
+    """`({(page, amount): [(cell, corner)]}, the cells' places)` over the rules' note tables."""
+    return _note_cells(doc), _NoteBlocks(doc)
+
+
+def _cells_of(prov, amount, printed: dict) -> list | None:
+    """The note cell a printed figure sits on, else — no box, no cell near it — every cell of its
+    page and amount. None where there is none."""
+    page, value = _page(prov), _amount(amount)
+    if page is None or not value:
+        return None
+    cells = printed.get((page, value), [])
+    cell = _on_cell(cells, _box_corner(prov))
+    if cell is not None:
+        return [cell]
+    return [c for c, _corner in cells] or None
+
+
+def _read_from(row, ev, printed: dict) -> list | None:
+    """The note cells a model figure may have been read from — each row of a sum, or the figure
+    itself; every one of them must be a piece for the figure to be one."""
+    trail = (getattr(row, "derivation", None) or {}).get(f"{_basis(ev)}:{ev.period_label}")
+    inputs = [inp for inp in ((trail or {}).get("inputs") or ())
+              if isinstance(inp, dict) and inp.get("counted", True)
+              and not inp.get("canonical_key")]
+    found: list = []
+    for inp in inputs:
+        amount = inp.get("printed") if inp.get("printed") is not None else inp.get("value")
+        cells = _cells_of(inp.get("provenance"), amount, printed)
+        if cells is None:
+            break
+        found += cells
+    else:
+        if inputs:
+            return found
+    raw = ev.value_raw if ev.value_raw is not None else ev.value
+    return _cells_of(getattr(ev, "provenance", None), raw, printed)
+
+
+def _own_notes(row, ev, printed: dict, note_at: dict) -> set[str]:
+    """The face row's own note: the notes it cites; where it cites none that the rules read (a CAS
+    face whose 附注 column was not read, a citation no note table is numbered as), every note whose
+    tables print its figure."""
+    from app.core.models.line_item import base_note_number
+    from app.services.note_sourced import same_note
+
+    cited = list(row.cited_notes())
+    cited += [b for b in (base_note_number(t) for t in cited) if b]
+    read = set(note_at.values()) - {""}
+    if any(same_note(t, n) for t in cited for n in read):
+        return set(cited)
+    value = _amount(ev.value_raw if ev.value_raw is not None else ev.value)
+    return {note_at[cell] for (_page, amount), cells in printed.items() if amount == value
+            for cell, _corner in cells if note_at.get(cell)}
+
+
+def _a_piece(cell, own: set[str], face, blocks: _NoteBlocks, same_note) -> bool:
+    """Whether the note cell a model figure sits on is a piece of a face figure: of the face row's
+    own note, and inside a block of it that adds up to the face figure (`_NoteBlocks.adds_up`)."""
+    note = blocks.notes.get(cell)
+    return (bool(note) and any(same_note(o, note) for o in own)
+            and blocks.adds_up(cell, face))
+
+
+def _deducts_own_part(item) -> bool:
+    return any(getattr(rung, "deducts_from_printed", False)
+               for rung in (getattr(item, "cascade", None) or ()))
+
+
+def _quantum(*values) -> Decimal:
+    """The finest decimal place any of `values` is printed to."""
+    exps = [Decimal(str(v)).as_tuple().exponent for v in values if v is not None]
+    exps = [e for e in exps if isinstance(e, int)]
+    return Decimal(1).scaleb(min(exps)) if exps else Decimal("0.01")
+
+
+def settle_against_model_pieces(doc, ctx) -> dict:
+    """Take the model's pieces of each filled face row out of its filled figure — see the section
+    comment above. Run once the signs are final and before anything reads the filled rows
+    (`stages.note_sourced`). A no-op off the whole-PDF route: it reads only the rows
+    `fill_from_rules` wrote (`RULES_FLAG`, face rows) beside the model's."""
+    from app.core.models.enums import PrintedIn
+    from app.services.note_sourced import same_note
+
+    out = {"slots_less_model": 0, "slots_left_empty": 0}
+    fills = [li for li in doc.line_items
+             if RULES_FLAG in (li.confidence.flags or ()) and not is_model_row(li)
+             and li.canonical_key and getattr(li, "printed_in", None) is PrintedIn.FACE]
+    models = [li for li in doc.line_items if is_model_row(li) and li.canonical_key]
+    template_def = _template_dict(ctx)
+    if not fills or not models or not template_def:
+        return out
+    try:
+        return _settle(doc, ctx, fills, models, template_def, same_note, out)
+    except Exception as exc:  # noqa: BLE001 - nothing is half-written: each slot is set at once
+        ctx.log(f"whole_pdf:rules_less_model_unavailable {type(exc).__name__}: "
+                f"{str(exc)[:160]} — the filled rows stay as the rules read them")
+        return out
+
+
+def _settle(doc, ctx, fills, models, template_def, same_note, out: dict) -> dict:
+    from app.services.rollups import calculated_nodes
+
+    totals = _section_totals(template_def)
+    template_keys = set(calculated_nodes(template_def)) | set(totals)
+    defs = {i.key: i for i in (getattr(getattr(ctx, "line_items", None), "items", None) or ())}
+    statement_pages = _statement_pages(doc)
+    printed, blocks = _cells_by_note(doc)
+    note_at = blocks.notes
+    claimed: set[int] = set()
+    sections: dict[tuple[str, str], _Section] = {}
+    told: set[str] = set()
+
+    def section(basis: str, period: str) -> _Section:
+        if (basis, period) not in sections:
+            carved = set()
+            for li in doc.line_items:
+                ev = _held(li, basis, period)
+                if ev is not None and li.canonical_key and _would_be_carved(li, ev, defs,
+                                                                            statement_pages):
+                    carved.add(li.canonical_key)
+            sections[(basis, period)] = _Section(template_def, doc, basis, period, carved)
+        return sections[(basis, period)]
+
+    for row in fills:
+        key = str(row.canonical_key)
+        total = totals.get(key)
+        if total is None or key.startswith("sub__"):
+            continue
+        if _deducts_own_part(defs.get(key)):
+            if key not in told:
+                told.add(key)
+                ctx.log(f"whole_pdf:rules_less_model:{key}: not settled here — its own cascade "
+                        f"takes its note's part out of the printed row")
+            continue
+        for ck, ev in list((row.values or {}).items()):
+            if ev.value is None or not ev.value:
+                continue
+            basis, period = _basis(ev), str(ev.period_label or "")
+            own = _own_notes(row, ev, printed, note_at)
+            if not own:
+                continue
+            face = ev.value_raw if ev.value_raw is not None else ev.value
+            pieces = []
+            for model in models:
+                other = str(model.canonical_key)
+                if other == key or other.startswith("sub__") or other not in template_keys:
+                    continue
+                got = _held(model, basis, period)
+                if got is None or not got.value or id(got) in claimed:
+                    continue
+                if _would_be_carved(model, got, defs, statement_pages):
+                    continue
+                cells = _read_from(model, got, printed)
+                if cells and all(_a_piece(cell, own, face, blocks, same_note) for cell in cells):
+                    pieces.append((model, got))
+            if not pieces:
+                continue
+            settled = _less_the_pieces(section(basis, period), total, key, ev, pieces)
+            if settled is None:
+                continue
+            figure, counted, why = settled
+            if why:
+                ctx.log(f"whole_pdf:rules_less_model:{key}[{basis}:{period}]: not settled — {why}")
+                continue
+            listed = ", ".join(f"{m.canonical_key} {g.value}" for m, g in counted)
+            claimed.update(id(g) for _m, g in counted)
+            sec = section(basis, period)
+            if figure == 0 or (figure < 0) != (Decimal(str(ev.value)) < 0):
+                del row.values[ck]
+                sec.move(key, -Decimal(str(ev.value)), gone=1)
+                for model, got in counted:
+                    for flags in (got.confidence.flags, model.confidence.flags):
+                        for flag in (f"{PIECES_REACH_FLAG}:{key}", REVIEW_FLAG):
+                            if flag not in flags:
+                                flags.append(flag)
+                out["slots_left_empty"] += 1
+                ctx.log(f"whole_pdf:rules_less_model:{key}[{basis}:{period}]: rules row "
+                        f"{row.source_label!r} {ev.value} NOT filled — the model's pieces of it "
+                        f"({listed}) reach or pass it; sent to review")
+                continue
+            sec.move(key, figure - Decimal(str(ev.value)))
+            before = ev.value
+            ev.value = figure
+            for flag in [f"{LESS_MODEL_FLAG}:{m.canonical_key}={g.value}" for m, g in counted] \
+                    + [REVIEW_FLAG]:
+                if flag not in ev.confidence.flags:
+                    ev.confidence.flags.append(flag)
+            for flag in (LESS_MODEL_FLAG, REVIEW_FLAG):
+                if flag not in row.confidence.flags:
+                    row.confidence.flags.append(flag)
+            out["slots_less_model"] += 1
+            ctx.log(f"whole_pdf:rules_less_model:{key}[{basis}:{period}]: rules row "
+                    f"{row.source_label!r} {before} less the model's pieces of it from its note "
+                    f"({listed}) = {figure}; sent to review")
+        if not row.values:
+            doc.line_items[:] = [li for li in doc.line_items if li is not row]
+    if out["slots_less_model"] or out["slots_left_empty"]:
+        ctx.log(f"whole_pdf:rules_less_model settled {out['slots_less_model']} filled slot(s) "
+                f"against the model's note pieces; left {out['slots_left_empty']} empty")
+    return out
+
+
+def _less_the_pieces(sec: _Section, total: str, key: str, ev, pieces):
+    """`(the slot's figure less the pieces, the pieces the section counts, why not)` — or None
+    where no piece is counted in the line's section total. The figure is solved from the template's
+    own arithmetic: with it, the total is what it is with the face figure alone and no piece."""
+    face = Decimal(str(ev.value))
+    with_all, _line = sec.shown(total, key)
+    at_zero, _line = sec.shown(total, key, [(key, -face, 0)])
+    if with_all is None or at_zero is None:
+        return None
+    step = (with_all - at_zero) / float(face)
+    if abs(step) < 1e-9:
+        return None                      # the line is not counted in this total
+
+    def without(chosen):
+        return sec.shown(total, key, [(str(m.canonical_key), -Decimal(str(g.value)), 1)
+                                      for m, g in chosen])[0]
+
+    counted = [(m, g) for m, g in pieces
+               if (w := without([(m, g)])) is not None and abs(with_all - w) >= 0.005]
+    if not counted:
+        return None
+    alone = without(counted)
+    if alone is None:
+        return None
+    quantum = _quantum(face, *(g.value for _m, g in counted))
+    figure = (face - Decimal(str((with_all - alone) / step))).quantize(quantum)
+    then, computed = sec.shown(total, key, [(key, figure - face, 0)])
+    if computed:
+        return figure, counted, "the template computes the line from those pieces itself"
+    if then is None or abs(then - alone) >= 0.005:
+        return figure, counted, (f"the section does not add the pieces back as a remainder "
+                                 f"would ({then} against {alone})")
+    return figure, counted, ""
+
+
+# ── a filled figure in a section that does not add up ────────────────────────────────────────────
+#
+# A SECTION THAT DOES NOT ADD UP WHILE IT HOLDS A FIGURE THE RULES FILLED is shown to a reviewer,
+# however small the difference: the checks pass a section within 0.1% (`services.structural_checks.
+# TOLERANCE_REL`), and on a large balance sheet that hides a filled figure that counts a piece twice
+# or misses one (688008's 1,944,451.99 in 9.46bn). Only a review flag on the filled figures: no
+# check's status moves, and no other route is touched (no row there carries `RULES_FLAG`).
+
+#: `whole_pdf:rules_reading_in_a_section_that_differs:<section>:<basis>:<period>:<difference>`.
+SECTION_DIFFERS_FLAG = f"{ROW_FLAG}:rules_reading_in_a_section_that_differs"
+
+
+def review_beside_a_difference(doc, report, ctx) -> int:
+    """Flag for review every rules-filled figure (`RULES_FLAG`) of a section whose reconciliation
+    shows any difference, passed or failed, in that figure's slot. Returns the figures flagged.
+    Called by `stages.structural` once the checks have run; a no-op where no row carries the
+    flag."""
+    fills = [li for li in doc.line_items
+             if li.canonical_key and RULES_FLAG in (li.confidence.flags or ())]
+    if not fills or report is None:
+        return 0
+    flagged = 0
+    for res in getattr(report, "results", None) or ():
+        if getattr(res, "kind", "") != "section_reconciliation" or res.difference is None:
+            continue
+        try:
+            difference = Decimal(str(res.difference))
+        except (InvalidOperation, ValueError, TypeError):
+            continue
+        if difference == 0:
+            continue
+        details = res.details or {}
+        basis, period = str(details.get("basis") or ""), str(details.get("period_label") or "")
+        keys = set(details.get("components") or ()) | {details.get("target")}
+        name = str(details.get("section") or res.rule_id.split(":", 1)[-1])
+        flag = f"{SECTION_DIFFERS_FLAG}:{name}:{basis}:{period}:{difference}"
+        hit = []
+        for li in fills:
+            if li.canonical_key not in keys:
+                continue
+            ev = _held(li, basis, period)
+            if ev is None:
+                continue
+            for flags in (ev.confidence.flags, li.confidence.flags):
+                for f in (flag, REVIEW_FLAG):
+                    if f not in flags:
+                        flags.append(f)
+            hit.append(li.canonical_key)
+        if hit:
+            flagged += len(hit)
+            ctx.log(f"whole_pdf:rules_reading_review: {res.rule_id}[{basis}:{period}] "
+                    f"{res.status} with a difference of {difference} while it holds figures the "
+                    f"rules filled — sent to review: {', '.join(sorted(set(hit)))}")
+    return flagged

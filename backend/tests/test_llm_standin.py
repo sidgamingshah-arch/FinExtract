@@ -2,9 +2,7 @@
 the gateway parses them, lints the context and classifies misses. No PDF needed."""
 from __future__ import annotations
 
-import importlib.util
 import json
-import sys
 from pathlib import Path
 
 import pytest
@@ -12,12 +10,11 @@ import pytest
 from app.adapters.bedrock_gateway_llm import BedrockGatewayLlmProvider
 from app.adapters._structured import strip_fences
 from app.services.line_item_llm import LineItemReply
+from tests.whole_pdf_standin import standin_module
 
-_PATH = Path(__file__).resolve().parent.parent / "scripts" / "llm_standin.py"
-_spec = importlib.util.spec_from_file_location("llm_standin", _PATH)
-standin = importlib.util.module_from_spec(_spec)
-sys.modules.setdefault("llm_standin", standin)  # pydantic resolves the module's annotations by name
-_spec.loader.exec_module(standin)
+# The one copy every test file shares: pydantic resolves the module's annotations by name through
+# sys.modules, so a second copy loaded beside a registered one builds models the first rejects.
+standin = standin_module()
 
 SYSTEM = "You locate figures."
 
