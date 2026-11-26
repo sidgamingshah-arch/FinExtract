@@ -131,10 +131,13 @@ def test_the_row_carries_the_dispute_and_goes_to_review(hk, items):
                       _r(FACE_LINE, "700", NOTE_P, 1)], items)
     rows = {row.canonical_key: row for row in _rows(doc, hk, merged, "scripted")}
     level3 = rows[LEVEL_3]
-    assert REVIEW_FLAG in level3.confidence.flags
+    # In review ON THE SLOT the dispute is about (`services.review_state`), not on the row.
     flags = next(iter(level3.values.values())).confidence.flags
+    assert REVIEW_FLAG in flags and REVIEW_FLAG not in level3.confidence.flags
     assert f"{FLAG}:{W.PARTS_DISAGREE}:9185@p210(part 1):9178@p255(part 2)" in flags
-    assert level3.confidence.mapping < 0.8                         # below auto-accept
+    assert next(iter(level3.values.values())).confidence.mapping < 0.8   # below auto-accept
+    assert level3.confidence.mapping < 0.8                 # its one figure is its best figure
     land = rows[FACE_LINE]
-    assert REVIEW_FLAG in land.confidence.flags
-    assert f"{FLAG}:{W.FACE_LINE_OFF_FACE}" in next(iter(land.values.values())).confidence.flags
+    land_flags = next(iter(land.values.values())).confidence.flags
+    assert REVIEW_FLAG in land_flags and REVIEW_FLAG not in land.confidence.flags
+    assert f"{FLAG}:{W.FACE_LINE_OFF_FACE}" in land_flags

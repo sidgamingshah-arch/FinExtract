@@ -57,7 +57,7 @@ from app.core.models.line_item import ExtractedValue, LineItem
 from app.core.stage import PipelineContext
 from app.ports.llm import ROOM_CEILING, complete_with_room, cut_off, takes_documents
 from app.ports.registry import registry
-from app.services import derivation
+from app.services import derivation, review_state
 from app.services import whole_pdf as W
 from app.services import whole_pdf_locate as L
 from app.services.buckets import PRINTED_ON_FLAG
@@ -121,9 +121,10 @@ KEPT_STAGES = frozenset({
 })
 
 #: On every row and figure this route writes.
-FLAG = "whole_pdf"
-#: The flag the review queue selects a doubtful line on (as `stages.line_item_llm._review`).
-REVIEW_FLAG = "low_mapping_confidence"
+FLAG = review_state.MODEL_FLAG
+#: The flag the review queue selects a doubtful figure on — on the figure's SLOT here, never on the
+#: row for it (`services.review_state`).
+REVIEW_FLAG = review_state.REVIEW_FLAG
 
 #: How far each check's outcome is trusted, as the figure's mapping confidence. Below
 #: `extraction.auto_accept_confidence` (0.80) a figure shows as a weak match.
@@ -704,6 +705,8 @@ def _text_rows(doc, line_item_set, parts, chunks, replies, texts, provider_id: s
                                       source_kind="model_pdf",
                                       producer=f"whole_pdf:{provider_id}")))
             row.confidence.method = MappingMethod.LLM.value
+            # A text line is served by its ROW (`api.routes.extractions._text_facts`): this score
+            # is the one a reader sees, and a narrative the model wrote is in review by it.
             row.confidence.mapping = 0.6 if flag.startswith(NARRATIVE_FLAG) else 0.9
             row.confidence.flags += [FLAG, flag]
             _printed_on(row, item)
@@ -1157,7 +1160,6 @@ def _rows(doc, line_item_set, merged: dict, provider_id: str,
                        printed_in=PrintedIn.FACE if face else PrintedIn.NOTES)
         scores = []
         refs: dict[str, object] = {}
-        review = False
         for r in group:
             verdict = judge.verdicts.get(id(r)) if judge is not None else None
             flags = [FLAG, f"{FLAG}:{r.check.status}"]
@@ -1176,12 +1178,12 @@ def _rows(doc, line_item_set, merged: dict, provider_id: str,
                     f"{c or '?'} {a}" for c, a in shown))
             score = _SCORE.get(r.check.status, 0.3) - (0.2 if r.others or r.review else 0.0)
             scores.append(score)
-            # IN REVIEW SLOT BY SLOT as well as on the row, so a line computed from this one is
-            # put in review for the slot that is in doubt (`stages.note_sourced._carry_review`).
+            # IN REVIEW SLOT BY SLOT, and only on the slot: the doubt is this one figure's, so a
+            # line computed from this one is put in review for that slot alone
+            # (`stages.note_sourced._carry_review`), and the row's other year is not touched.
             doubtful = r.check.status in _REVIEWED or bool(r.others) or r.review
             if doubtful:
                 flags.append(REVIEW_FLAG)
-            review = review or doubtful
             page = r.check.page if r.check.page is not None else 0
             kind = "model_pdf" if source.get(page) is None else f"model_pdf:{source[page]}"
             producer = f"whole_pdf:{provider_id}"
@@ -1228,13 +1230,14 @@ def _rows(doc, line_item_set, merged: dict, provider_id: str,
                                     if (v := judge.verdicts.get(id(r)) if judge else None)
                                     and v.note_number), None)
         row.confidence.method = MappingMethod.LLM.value
-        row.confidence.mapping = max(0.0, min(scores)) if scores else 0.0
+        # THE ROW'S SCORE IS ITS BEST FIGURE'S: each slot keeps its own score, and a row score is
+        # read only by displays that are row-level. The minimum made the whole row weak, both years,
+        # for one doubtful figure; the row is weak now only when every figure is.
+        row.confidence.mapping = max(0.0, max(scores)) if scores else 0.0
         row.confidence.flags.append(FLAG)
         for f in (judge.row_flags.get((key, basis), ()) if judge is not None else ()):
             if f not in row.confidence.flags:
                 row.confidence.flags.append(f)
         _printed_on(row, item, on_face=face)
-        if review:
-            row.confidence.flags.append(REVIEW_FLAG)
         out.append(row)
     return out

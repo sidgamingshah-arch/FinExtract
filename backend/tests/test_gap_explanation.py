@@ -383,9 +383,10 @@ def test_the_mismatch_card_names_the_row_that_explains_it():
               if c["type"] != "unmapped" and c is not card and c is not prior]
     assert others and all(c["explained_by"] is None for c in others)
     assert cards["chk-calc-consolidated-pl_total_income"]["explained_by"] is None
-    # The review payload gains no top-level key.
+    # The review payload gains no top-level key (`weak_slots` is the figures-in-review count,
+    # not the explanation's).
     assert set(review) == {"run_id", "checks", "tabs", "summary", "judgements", "coverage",
-                           "remap_targets", "weak_mappings"}
+                           "remap_targets", "weak_mappings", "weak_slots"}
 
 
 def test_explanations_never_touch_a_findings_identity():

@@ -408,14 +408,47 @@ def test_the_model_reads_the_file_and_the_extraction_is_skipped(run):
 
 
 def test_a_figure_the_page_does_not_print_goes_to_review(run):
+    """IN REVIEW ON ITS SLOT, not on its row (`services.review_state`): the doubt is the figure's."""
+    from app.services import review_state
+
     provider = _Scripted()
     provider.TABLE = {**_Scripted.TABLE,
                       "bs_ca__inventories": [("current", "777", 1)]}    # not on the page
     doc, ctx = run(provider)
     inv = next(li for li in doc.line_items if li.canonical_key == "bs_ca__inventories")
-    assert "low_mapping_confidence" in inv.confidence.flags
-    assert inv.confidence.mapping < get_settings().extraction.auto_accept_confidence
+    (slot,) = inv.values.values()
+    assert "low_mapping_confidence" in slot.confidence.flags
+    assert slot.confidence.mapping < get_settings().extraction.auto_accept_confidence
+    assert "low_mapping_confidence" not in inv.confidence.flags
+    assert review_state.in_review(inv, "consolidated", "current")
     assert ctx.whole_pdf["checks"].get("not_found") == 1
+
+
+def test_one_years_doubt_puts_that_year_in_review_and_not_the_other(run):
+    """The case the user reported: a line went to review for BOTH years when only one was in doubt.
+    Cash's current figure is not on the page it cites, its prior figure is. The current slot is in
+    review at its own 0.3; the prior slot carries no review flag and keeps its own 0.9 through the
+    confidence stage; the row carries no bare review flag, and its score is its best figure's."""
+    from app.services import review_state
+
+    provider = _Scripted()
+    provider.TABLE = {**_Scripted.TABLE,
+                      "bs_ca__cash_and_cash_equivalents": [("current", "777", 1),
+                                                           ("prior", "1000", 1)]}
+    doc, _ctx = run(provider)
+    cash = next(li for li in doc.line_items
+                if li.canonical_key == "bs_ca__cash_and_cash_equivalents")
+    slots = {v.period_label: v for v in cash.values.values()}
+    assert "whole_pdf:not_found" in slots["current"].confidence.flags
+    assert "low_mapping_confidence" in slots["current"].confidence.flags
+    assert slots["current"].confidence.mapping == pytest.approx(0.3)
+    assert "whole_pdf:on_page" in slots["prior"].confidence.flags
+    assert "low_mapping_confidence" not in slots["prior"].confidence.flags
+    assert slots["prior"].confidence.mapping == pytest.approx(0.9)        # after `confidence`
+    assert "low_mapping_confidence" not in cash.confidence.flags
+    assert cash.confidence.mapping == pytest.approx(0.9)
+    assert review_state.in_review(cash, "consolidated", "current")
+    assert not review_state.in_review(cash, "consolidated", "prior")
 
 
 @pytest.mark.parametrize("case", ["stub", "no_files", "first_request_fails"])
@@ -602,6 +635,22 @@ def test_the_question_says_where_to_read_each_line_and_marks_parts_and_texts():
     assert "TEXT" in text
 
 
+def _served_text_rows(doc) -> dict:
+    """The run's text lines as a reader is served them: the template's supplemental rows built from
+    the run (`api.routes.extractions._build_supplemental_rows`), each annotated with its review
+    state as `GET /documents/{id}/run` serves it (`services.review_state.annotate`)."""
+    from app.api.routes.extractions import _build_supplemental_rows, _serialize_rows
+    from app.services import review_state
+
+    # The US GAAP pair, whose set these runs read (`_set`), and whose template declares the lines.
+    template = json.loads((TEMPLATES / "output_csv_usgaap_v1_template.json")
+                          .read_text(encoding="utf-8"))
+    rows = _build_supplemental_rows(template_def=template, base_rows=_serialize_rows(doc),
+                                    disclosures=[], entity_name=None, doc_model=doc, ctx=None,
+                                    options={})
+    return {r["canonical_key"]: r for r in review_state.annotate(rows, 0.80)}
+
+
 def test_a_text_line_is_written_where_the_page_prints_it_and_refused_where_it_does_not(run):
     class _Text(_Scripted):
         def complete_structured(self, *, system, messages, response_schema, temperature=0.0,
@@ -622,6 +671,11 @@ def test_a_text_line_is_written_where_the_page_prints_it_and_refused_where_it_do
     name = texts.get("notes_audit__auditor")
     assert name is not None and "llm_text:page 1" in name.confidence.flags
     assert [v.value_text for v in name.values.values()] == ["Example Corp"]
+    # AS SERVED: a text line reaches a reader as its template line's row, carrying the text row's
+    # score (`api.routes.extractions._text_facts`). Copied off its page at 0.9, it is in no review.
+    served = _served_text_rows(doc)["notes_audit__auditor"]
+    assert served["mapping_confidence"] == pytest.approx(0.9)
+    assert served["review_slots"] == [] and served["values"][0]["in_review"] is False
     assert "notes_audit__opinion_type" not in texts                 # not printed: refused
     assert ctx.whole_pdf["texts_refused"] == 1
 
@@ -653,6 +707,15 @@ def test_a_narrative_is_checked_as_the_rules_route_checks_one(run):
     narrative = texts.get("notes_contingencies__narrative")
     assert narrative is not None and "llm_prose:pages 2" in narrative.confidence.flags
     assert [v.provenance.page_index for v in narrative.values.values()] == [1]   # the balance sheet
+    # AS SERVED, a narrative the model wrote is in review by its row's 0.6: it is not words the
+    # filing prints (`api.routes.extractions._text_facts`, `services.review_state`).
+    from app.services.review_state import CAPTION_SCORE
+
+    served = _served_text_rows(doc)["notes_contingencies__narrative"]
+    assert served["mapping_confidence"] == pytest.approx(0.6)
+    assert served["review_slots"] == ["consolidated/current"]
+    assert served["values"][0]["in_review"] is True
+    assert served["values"][0]["review_reasons"][:1] == [CAPTION_SCORE]
     assert "notes_related__narrative" not in texts          # 7,777 is printed on no page it cites
     assert any("notes_related__narrative: narrative REFUSED (llm_prose_number_not_on_page"
                in line for line in ctx.logs)

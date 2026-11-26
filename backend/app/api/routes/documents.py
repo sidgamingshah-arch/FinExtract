@@ -18,7 +18,7 @@ from app.api.deps import db, object_store, output_locale
 from app.ports.object_store import LocalObjectStore
 from app.security import Permission, Principal, Role, current_principal, require
 from app.services.documents import analyze_document, content_hash
-from app.services import review_lines
+from app.services import review_lines, review_state
 from app.services.page_scope import normalise_kind, scope_counts
 from app.services.periods import (
     bases_present, basis_values as _basis_values_of, concept_value as _concept_value,
@@ -3431,6 +3431,9 @@ def _build_review(rows: list[dict], filename: str, locale: str = "en",
     # no finding" tile would absorb every weakly-mapped line and certify it clean. Neither is a
     # queue, and neither is entitled to the improvement.
     weak_mappings: set[int] = set()
+    # THE FIGURES IN REVIEW among those lines, counted per slot (`services.review_state`): a line
+    # one year of which is in doubt is one line and one figure, not two.
+    weak_slots = 0
     # WHETHER THIS RUN HAS A TEMPLATE AT ALL is `template_def is None` and nothing else — the same
     # spelling `_build_statement` gates its no-template fallback on, so the grid and the queue cannot
     # disagree about it. It is deliberately not "are there any declared keys": a pinned definition
@@ -3467,18 +3470,18 @@ def _build_review(rows: list[dict], filename: str, locale: str = "en",
         key = r.get("canonical_key")
         from app.stages.face_mapping_contract import is_unclassified_face_key
         engine_unclassified = is_unclassified_face_key(key)
-        conf = r.get("mapping_confidence")
-        flags = r.get("flags") or []
         first = (r.get("values") or [{}])[0]
         val = first.get("value")
         where = f"{filename} · {_prov_label(first.get('provenance'))}"
-        # Whether the MAPPING is weak, spelled once. It raises no card — see `weak_mappings` — but
-        # it is counted, because two other surfaces must not report better data because this queue
-        # stopped asking.
-        weak = ("low_mapping_confidence" in flags
-                or (isinstance(conf, (int, float)) and conf < _low_conf_threshold()))
+        # Whether the line is IN REVIEW, spelled once (`services.review_state.line_weak`): any of
+        # its figures is — its own doubt, on its slot, or a doubt about the caption, which is every
+        # slot — or it is a blank line with a doubt about the row. It raises no card — see
+        # `weak_mappings` — but it is counted, because two other surfaces must not report better
+        # data because this queue stopped asking.
+        weak = review_state.line_weak(r, _low_conf_threshold())
         if key and weak and not engine_unclassified:
             weak_mappings.add(i)
+            weak_slots += len(review_state.row_review(r, _low_conf_threshold())["slots"])
         # REACHES NO LINE IN THE OUTPUT — one category, two ways in. Either nothing claimed the
         # caption, or something claimed it for a concept THIS TEMPLATE DOES NOT DECLARE, and from the
         # output's point of view those are the same fact: an extracted face figure that appears on no
@@ -3694,6 +3697,9 @@ def _build_review(rows: list[dict], filename: str, locale: str = "en",
         # lapse because this queue narrowed) and the header tile (so a weakly-mapped line is not
         # counted as carrying no finding). Both read it from here.
         "weak_mappings": len(weak_mappings),
+        # …and the FIGURES in review among them, each a (line, basis, period) — what the Workspace
+        # marks on its cell. A count of lines above, of figures here.
+        "weak_slots": weak_slots,
         "summary": {"open": counts["open"] + counts["stale"] + counts["conflict"],
                     "accepted": counts["accepted"], "stale": counts["stale"],
                     "conflict": counts["conflict"], "passed": passed},
@@ -3795,8 +3801,10 @@ def get_document_run(document_id: str, run_id: str | None = Query(None),
             # Whether the run's template ships its own workbook to export into (ICON's Company v3
             # workbook): the Export screen offers that format only when it does.
             "workbook_export": has_workbook(template_def),
-            # The rows as every other reader serves them (a formula line evaluated again).
-            "result": {**run.result, "rows": rows}}
+            # The rows as every other reader serves them (a formula line evaluated again), each
+            # value saying whether it is in review and why (`services.review_state.annotate`) —
+            # read from the flags on every serve and never stored, so it cannot go stale.
+            "result": {**run.result, "rows": review_state.annotate(rows, _low_conf_threshold())}}
 
 
 def _narrative_in_force(run, rows: list[dict], credit: dict | None = None,
@@ -4379,6 +4387,9 @@ def remap_review_row(document_id: str, body: RemapBody, locale: str = Depends(ou
 
     key = (body.canonical_key or "").strip()
     target = matches[0]
+    # Asked BEFORE the method is overwritten below: a whole-PDF model row's slot doubts are about
+    # its figures in the PDF, which a re-map does not answer.
+    model_row = review_state.is_model_row(target.get("flags"), target.get("mapping_method"))
     prior = target.get("canonical_key") or ""
     if prior == key:
         raise HTTPException(status_code=409,
@@ -4421,7 +4432,11 @@ def remap_review_row(document_id: str, body: RemapBody, locale: str = Depends(ou
     remap_event = _append_correction(
         result, action="remap", slot=ref, before=prior, after=key,
         reason=target["remap"]["reason"], by=target["remap"]["by"])
-    for v in target.get("values") or []:
+    # A RE-MAP ANSWERS THE CAPTION. On a rules row (or a fill row) a slot's doubt was raised under
+    # the old key — its section's gap, a settlement against the old line — so it goes with the old
+    # mapping. A whole-PDF model row's slot doubt is about the figure in the PDF (not on the page it
+    # cites), and stands whatever the key: its slots keep their flags and their own scores.
+    for v in (target.get("values") or []) if not model_row else []:
         conf = v.get("confidence")
         if isinstance(conf, dict):
             v["confidence"] = {**conf, "mapping": 1.0 if key else conf.get("mapping"),
@@ -4910,6 +4925,10 @@ def export_document(
     export_template = _template_for_run(session, run)
     structural, live = _structural_for_run(session, run, rows, export_template)
     coverage = _coverage_block(run, export_template, locale, structural=structural, live=live)
+    # THE FIGURES IN REVIEW, per slot (`services.review_state.annotate`), for the JSON and the two
+    # spreadsheet layouts below. The CSV and the template's own workbook, branched above, show no
+    # review state, as before: neither has a place for it that a reader of their columns expects.
+    rows = review_state.annotate(rows, _low_conf_threshold())
     if fmt == "json":
         data = build_rows_json(rows, filename=doc.filename or "document",
                                disclosures=run.result.get("disclosures", []),
@@ -5823,7 +5842,8 @@ def _build_matrix_statement(rows: list[dict], statement_type: str, filename: str
     for r, raw_cells in (_matrix_rows(rows, basis) if declared else []):
         cells = {name: _to_num(v.get("value")) for name, v in raw_cells.items()}
         prov = next((v.get("provenance") for v in raw_cells.values() if v.get("provenance")), None)
-        cat, pct = _conf_cat(r.get("mapping_confidence"))
+        shown = review_state.shown_score(r)
+        cat, pct = _conf_cat(shown)
         label = r.get("source_label") or ""
         out.append({
             "id": r.get("canonical_key") or f"eq:{len(out)}:{label[:40]}",
@@ -5831,7 +5851,7 @@ def _build_matrix_statement(rows: list[dict], statement_type: str, filename: str
             # A row whose every figure lands in a "total" column is the statement's own subtotal.
             "kind": "subtotal" if _looks_like_equity_total(label) else "item",
             "note": r.get("note"), "note2": None, "status": None,
-            "confidence": {"cat": cat, "pct": pct} if r.get("mapping_confidence") else None,
+            "confidence": {"cat": cat, "pct": pct} if shown else None,
             "editable": False, "formula": None,
             "inspector": _inspector(r, {"value": next(iter(cells.values()), None),
                                         "provenance": prov}),
@@ -6682,8 +6702,33 @@ def _build_statement(rows: list[dict], template_def: dict | None, statement_type
         cur, prior = _cur_prior(r, basis)
         # WHERE A MODEL'S CITATION READ THIS FIGURE — the face, or a note — when its trail is one.
         reading = _citation_reading(r.get("derivation") or {}, basis) if trail_row else None
-        cat, pct = _conf_cat(min((x.get("mapping_confidence") or 0) for x in group)
-                             if len(group) > 1 else r.get("mapping_confidence"))
+        # The line's one score, as every row-level display shows it: its weakest figure's where a
+        # figure carries its own (`services.review_state.shown_score`) — a whole-PDF row stores
+        # its best figure's.
+        cat, pct = _conf_cat(min((review_state.shown_score(x) or 0) for x in group)
+                             if len(group) > 1 else review_state.shown_score(r))
+        # IN REVIEW PER COLUMN (`services.review_state`): a figure's own doubt marks its cell, a
+        # caption's marks both. Beside it each column's confidence — the figure's own score where
+        # it carries one (the whole-PDF route's), else its row's.
+        review_on, review_why, slot_conf = {}, {}, {}
+        for period in ("current", "prior"):
+            why: list[str] = []
+            scores = []
+            for x in group:
+                v = slot_for(x, basis, period)
+                if not isinstance(v, dict) or v.get("value") is None:
+                    continue
+                vconf = v.get("confidence") or {}
+                own = review_state.own_score(vconf.get("flags"))
+                score = vconf.get("mapping") if own else x.get("mapping_confidence")
+                if isinstance(score, (int, float)):
+                    scores.append(score)
+                found = review_state.slot_review(x, v, _low_conf_threshold())
+                if found:
+                    why += [w for w in (*found, *review_state.reason_flags(vconf.get("flags")))
+                            if w not in why]
+            review_on[period], review_why[period] = bool(why), why
+            slot_conf[period] = _conf_cat(min(scores)) if scores else ("med", None)
         # An edit to the consolidated figures does not make the standalone ones edited.
         edited_row = next((x for x in group if _edited_for(x, basis)), None)
         edited = edited_row is not None
@@ -6859,6 +6904,14 @@ def _build_statement(rows: list[dict], template_def: dict | None, statement_type
             # mapping confidence, and the inspector printed "60% confidence" over a figure nothing
             # had scored. The screen already renders the badge only when this key is present.
             "confidence": ({"cat": cat, "pct": pct} if pct is not None else None),
+            # Per column: whether the figure is in review, why (the reasons, then the figure's own
+            # reason flags), and its own confidence. `confidence` above stays the row's.
+            "review1": review_on["current"], "review2": review_on["prior"],
+            "review_why": ({p: w for p, w in review_why.items() if w} or None),
+            "confidence1": ({"cat": slot_conf["current"][0], "pct": slot_conf["current"][1]}
+                            if slot_conf["current"][1] is not None else None),
+            "confidence2": ({"cat": slot_conf["prior"][0], "pct": slot_conf["prior"][1]}
+                            if slot_conf["prior"][1] is not None else None),
             "editable": True,
             "origin": "manual" if edited else "extracted",
             # Why a figure was overridden, per period — kept beside the number it explains.

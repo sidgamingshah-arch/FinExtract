@@ -284,7 +284,8 @@ a persisted rule catalog:
 reaches no line of the output, whether because nothing claimed the caption or because it was
 claimed for a concept the run's template declares nowhere. It serves the tabs (with the
 check types each selects), the summary counts, `weak_mappings` (lines whose mapping is weak:
-counted, never carded), the coverage block, the in-force judgements and `remap_targets`; the
+counted, never carded) and `weak_slots` (the figures in review on those lines, per
+`services/review_state.py`), the coverage block, the in-force judgements and `remap_targets`; the
 printed row that explains a card's difference travels ON the card (`explained_by`, and
 `remap.explains` on that row's own card), recomputed per read, so the payload gains no top-level
 key. The accounting kinds are `balance`, `equity_tie`, `structural`, `calculated_mismatch` and

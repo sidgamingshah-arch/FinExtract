@@ -453,6 +453,15 @@ def _demo_weak_mappings(statements: dict) -> int:
                if review_lines.is_statement_line(r) and str(r.get("conf") or "") == "low")
 
 
+def _demo_weak_slots(statements: dict) -> int:
+    """The FIGURES in review among `_demo_weak_mappings`' lines — the count the real route serves as
+    ``weak_slots``. The sample's band is a row's (its caption's), so it holds every figure the line
+    shows: the current and the prior one where each is printed."""
+    rows = [r for s in statements.values() for r in s["rows"]]
+    return sum(sum(1 for v in (r.get("v1"), r.get("v2")) if v is not None) for r in rows
+               if review_lines.is_statement_line(r) and str(r.get("conf") or "") == "low")
+
+
 def _demo_lines_with_no_finding(statements: dict, checks: list[dict]) -> int:
     """The sample's statement LINES that no served finding names.
 
@@ -510,15 +519,17 @@ def _demo_review_payload(checks: list[dict], tabs: list[dict], statements: dict 
                          locale: str) -> dict:
     """The sample review payload, ONE construction for both branches.
 
-    The greenfield branch and the seeded branch write the same nine keys, and the pair of them is
+    The greenfield branch and the seeded branch write the same keys, and the pair of them is
     where a key added to the real route quietly reaches only one of the sample's two shapes — which
-    is what happened to ``weak_mappings``. Spelled once so a reader adding the tenth cannot miss one.
+    is what happened to ``weak_mappings`` (and ``weak_slots`` is added here for that reason). Spelled
+    once so a reader adding the next one cannot miss one.
     """
     if statements is None:
         statements = DEMO["statements"]
     return {"run_id": "", "checks": checks, "tabs": tabs,
             "summary": _demo_review_summary(checks, statements=statements),
             "weak_mappings": _demo_weak_mappings(statements),
+            "weak_slots": _demo_weak_slots(statements),
             "judgements": {"orphaned": []},
             # No run means no rows to re-map, so the sample offers no targets — the same reason
             # every sample check carries `remap: None`.

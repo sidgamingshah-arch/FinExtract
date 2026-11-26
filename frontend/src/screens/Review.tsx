@@ -807,6 +807,14 @@ export default function ReviewScreen() {
           }}
         >
           <b style={{ color: color.ink }}>{data.weak_mappings}</b> {t("r.weakMappings")}
+          {/* Per FIGURE as well as per line: one year of a line can be in doubt and the other
+              not, and the Workspace marks the cell that is. Absent on an older payload. */}
+          {(data.weak_slots ?? 0) > 0 && (
+            <>
+              {" "}
+              <b style={{ color: color.ink }}>{data.weak_slots}</b> {t("r.weakSlots")}
+            </>
+          )}
         </div>
       )}
 

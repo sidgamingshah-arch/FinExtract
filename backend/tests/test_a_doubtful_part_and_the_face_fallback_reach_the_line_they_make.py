@@ -130,7 +130,11 @@ def test_cp_and_ltp_computed_from_it_are_in_review_and_name_what_they_rest_on(do
     for key in (CP, LTP):
         flags = _slot_flags(doc, key)
         assert REVIEW in flags and f"part_in_review:{RESIDUAL}" in flags, (key, flags)
-        assert any(REVIEW in r.confidence.flags for r in rows_of(doc, key))
+        # The row names the slot in a breadcrumb; it carries no bare review flag, which would
+        # put the row's other slots in review too (`services.review_state`).
+        assert any(f"part_in_review:{RESIDUAL}:consolidated:current" in r.confidence.flags
+                   for r in rows_of(doc, key))
+        assert not any(REVIEW in r.confidence.flags for r in rows_of(doc, key))
     assert any(f"note_sourced:{CP}[consolidated:current]: goes to review" in line
                for line in ctx.logs)
 
@@ -219,7 +223,9 @@ def test_the_face_fallback_names_the_level_3_it_does_not_deduct(shipped):
     cp = next(li for li in doc.line_items if li.canonical_key == CP)
     slot_flags = next(ev.confidence.flags for ev in cp.values.values())
     assert f"not_deducted:{L3}:300000" in slot_flags and REVIEW in slot_flags
-    assert REVIEW in cp.confidence.flags
+    # On the row, the breadcrumb that names the slot; no bare review flag.
+    assert f"not_deducted:{L3}:300000:consolidated:current" in cp.confidence.flags
+    assert REVIEW not in cp.confidence.flags
     assert any("does not deduct" in line and "CP_INTERMEDIATE" in line for line in ctx.logs)
 
 

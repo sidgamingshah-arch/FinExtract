@@ -211,7 +211,11 @@ def test_a_the_face_row_less_the_models_piece_from_its_own_note(runs):
         assert ev.value == Decimal(rest), period
         assert ev.value_raw == Decimal(face)                 # what the face prints, kept
         assert f"{WR.LESS_MODEL_FLAG}:{CPLTD_BANK}={piece}" in ev.confidence.flags
-        assert WR.REVIEW_FLAG in ev.confidence.flags and WR.REVIEW_FLAG in row.confidence.flags
+        # In review ON THE SLOT that was settled; the row carries the breadcrumb only, so a
+        # line computed from its other year is not put in review by it.
+        assert WR.REVIEW_FLAG in ev.confidence.flags
+        assert WR.REVIEW_FLAG not in row.confidence.flags
+        assert WR.LESS_MODEL_FLAG in row.confidence.flags
         assert _shown(doc, period)[TCL] == _shown(rules_doc, period)[TCL], period
     assert any(ln.startswith(f"whole_pdf:rules_less_model:{CPLTD_OTHER}[consolidated:current]")
                and "= 8103787323.70" in ln for ln in ctx.logs)
@@ -247,8 +251,12 @@ def test_pieces_that_reach_the_face_figure_leave_the_slot_empty_and_go_to_review
     _row, ev = _filled(doc, ST_BANK, "current")
     assert ev is None
     (model,) = _model(doc, ST_OTHER)
+    # The piece's slot is in review; the model's row has the breadcrumb and no review flag.
+    piece = next(v for v in model.values.values() if v.period_label == "current")
+    assert f"{WR.PIECES_REACH_FLAG}:{ST_BANK}" in piece.confidence.flags
+    assert WR.REVIEW_FLAG in piece.confidence.flags
     assert f"{WR.PIECES_REACH_FLAG}:{ST_BANK}" in model.confidence.flags
-    assert WR.REVIEW_FLAG in model.confidence.flags
+    assert WR.REVIEW_FLAG not in model.confidence.flags
     assert any(ln.startswith(f"whole_pdf:rules_less_model:{ST_BANK}[consolidated:current]")
                and "NOT filled" in ln for ln in ctx.logs)
     # The prior year has no piece: its face row is filled whole.
@@ -572,7 +580,9 @@ def test_a_filled_figure_in_a_section_with_any_difference_goes_to_review(runs):
     row, ev = _filled(doc, GROSS, "current")
     assert ev.value == Decimal("387791885.96")
     flag = f"{WR.SECTION_DIFFERS_FLAG}:bs_ca:consolidated:current:1944451.99"
-    assert flag in ev.confidence.flags and WR.REVIEW_FLAG in row.confidence.flags
+    # On the slot of that column; the row names the slot in the breadcrumb, without review.
+    assert flag in ev.confidence.flags and WR.REVIEW_FLAG in ev.confidence.flags
+    assert flag in row.confidence.flags and WR.REVIEW_FLAG not in row.confidence.flags
     assert any(ln.startswith("whole_pdf:rules_reading_review: section_reconciliation:bs_ca")
                for ln in ctx.logs)
     # With the settlement the section adds up, and nothing is flagged for it.

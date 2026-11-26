@@ -70,6 +70,11 @@ class PipelineContext:
     # `doc.line_items`. Kept so a figure the model read can be found in the rules' reading of its
     # page. None on every other run, and on a whole-PDF run that fell back to the rules.
     whole_pdf_rules_rows: list | None = None
+    # SET ON THE CONTEXT OF THE WHOLE-PDF ROUTE'S COPY OF THE RULES' READING
+    # (`services.whole_pdf_rules.rules_published_rows`), never on a run's own: the rules' residual
+    # gaps on that copy describe the rules' itemisation, so `stages.residual` records them on their
+    # slot without sending them to review. False everywhere else.
+    rules_copy: bool = False
 
     def log(self, message: str) -> None:
         self.logs.append(message)

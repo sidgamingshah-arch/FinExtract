@@ -52,6 +52,8 @@ from __future__ import annotations
 
 from decimal import Decimal, InvalidOperation
 
+from app.services import review_state as _review_state
+
 #: The flag `stages.whole_pdf` puts on every row it writes (`stages.whole_pdf.FLAG`; a test pins
 #: the two together). Spelled here so this module does not import the stage.
 ROW_FLAG = "whole_pdf"
@@ -432,8 +434,9 @@ def drop_cited_prose(hits: list, figures: dict, key: str, scale=None, log=None) 
 PERIOD_FLAG = f"{ROW_FLAG}:period_display_from_rules"
 _REFUSED = f"{ROW_FLAG}:refused:"
 _WITHHELD = "llm_note_row_withheld"
-#: The flag the review queue selects a doubtful line on (`stages.whole_pdf.REVIEW_FLAG`).
-REVIEW_FLAG = "low_mapping_confidence"
+#: The flag the review queue selects a doubtful figure on — on the SLOT in doubt
+#: (`services.review_state`). A row flag means every slot of the row: the rules' caption doubt.
+REVIEW_FLAG = _review_state.REVIEW_FLAG
 #: On a split line filled with the face cell's whole, because the model holds a carved piece of it:
 #: `whole_pdf:rules_split_filled_whole:<piece line>=<the rules' figure for it>`.
 SPLIT_WHOLE_FLAG = f"{ROW_FLAG}:rules_split_filled_whole"
@@ -522,6 +525,11 @@ def rules_published_rows(doc, ctx, rules_rows) -> list:
     quiet.only_stages = None
     quiet.whole_pdf = None
     quiet.whole_pdf_rules_rows = None
+    # A COPY, NOT THE OUTPUT: the rules' residual gap describes the rules' own itemisation of a
+    # section, which is not what the whole-PDF output holds. On this context residual records the
+    # gap on its slot without sending it to review; `review_beside_a_difference` asks the output's
+    # own check of that section and column instead.
+    quiet.rules_copy = True
     for stage in (MapOntologyStage(), ResidualStage(), NormalizeStage()):
         view = stage.run(view, quiet)
     return list(view.line_items)
@@ -803,10 +811,13 @@ def _fills(doc, ctx, judge, asked, rules_rows, published, out: dict) -> list:
                 ev.confidence.flags.append(RULES_FLAG)
         if RULES_FLAG not in row.confidence.flags:
             row.confidence.flags.append(RULES_FLAG)
+        # The split-whole breadcrumb is named on the row as well; the slot's review flag is NOT
+        # copied there — it is that slot's doubt, and on a fill row (not a model row) a row flag
+        # means every slot. A caption doubt of the rules' reading the copy carries stays on the
+        # row: it is this row's caption, so every slot's by nature.
         for ev in row.values.values():
             for flag in ev.confidence.flags:
-                if ((str(flag).startswith(SPLIT_WHOLE_FLAG) or flag == REVIEW_FLAG)
-                        and flag not in row.confidence.flags):
+                if str(flag).startswith(SPLIT_WHOLE_FLAG) and flag not in row.confidence.flags:
                     row.confidence.flags.append(flag)
         fills.append(row)
     return fills
@@ -1270,10 +1281,12 @@ def _settle(doc, ctx, fills, models, template_def, same_note, out: dict) -> dict
                 del row.values[ck]
                 sec.move(key, -Decimal(str(ev.value)), gone=1)
                 for model, got in counted:
-                    for flags in (got.confidence.flags, model.confidence.flags):
-                        for flag in (f"{PIECES_REACH_FLAG}:{key}", REVIEW_FLAG):
-                            if flag not in flags:
-                                flags.append(flag)
+                    # In review on the piece's slot; on the model's row, only the breadcrumb.
+                    for flag in (f"{PIECES_REACH_FLAG}:{key}", REVIEW_FLAG):
+                        if flag not in got.confidence.flags:
+                            got.confidence.flags.append(flag)
+                    if f"{PIECES_REACH_FLAG}:{key}" not in model.confidence.flags:
+                        model.confidence.flags.append(f"{PIECES_REACH_FLAG}:{key}")
                 out["slots_left_empty"] += 1
                 ctx.log(f"whole_pdf:rules_less_model:{key}[{basis}:{period}]: rules row "
                         f"{row.source_label!r} {ev.value} NOT filled — the model's pieces of it "
@@ -1286,9 +1299,10 @@ def _settle(doc, ctx, fills, models, template_def, same_note, out: dict) -> dict
                     + [REVIEW_FLAG]:
                 if flag not in ev.confidence.flags:
                     ev.confidence.flags.append(flag)
-            for flag in (LESS_MODEL_FLAG, REVIEW_FLAG):
-                if flag not in row.confidence.flags:
-                    row.confidence.flags.append(flag)
+            # The settled slot is in review; the row carries the breadcrumb only, so a line
+            # computed from its other year is not put in review by it.
+            if LESS_MODEL_FLAG not in row.confidence.flags:
+                row.confidence.flags.append(LESS_MODEL_FLAG)
             out["slots_less_model"] += 1
             ctx.log(f"whole_pdf:rules_less_model:{key}[{basis}:{period}]: rules row "
                     f"{row.source_label!r} {before} less the model's pieces of it from its note "
@@ -1346,18 +1360,70 @@ def _less_the_pieces(sec: _Section, total: str, key: str, ev, pieces):
 
 #: `whole_pdf:rules_reading_in_a_section_that_differs:<section>:<basis>:<period>:<difference>`.
 SECTION_DIFFERS_FLAG = f"{ROW_FLAG}:rules_reading_in_a_section_that_differs"
+#: On a filled figure that carries the rules' residual gap (or plug) for its section and column, the
+#: output's own reconciliation of which is missing or skipped — the doubt stands, on this slot:
+#: `whole_pdf:rules_gap_unchecked:<section>:<basis>:<period>`.
+GAP_UNCHECKED_FLAG = f"{ROW_FLAG}:rules_gap_unchecked"
+#: …and where the output's own reconciliation of that section and column adds up to the cent — the
+#: breadcrumb only, not review: `whole_pdf:rules_gap_answered_by_the_output:<section>:<basis>:<period>`.
+GAP_ANSWERED_FLAG = f"{ROW_FLAG}:rules_gap_answered_by_the_output"
+#: The rules' residual gap or plug on a slot (`stages.residual`): `<kind>:<section>:<basis>|<period>=<d>`.
+_RULES_GAP = ("unallocated_gap:", "residual_plug_suspected:")
+
+
+def _rules_gaps(ev, basis: str, period: str) -> list[str]:
+    """The sections whose rules' gap or plug the filled figure `ev` carries for its own column."""
+    out = []
+    for flag in (ev.confidence.flags or ()):
+        flag = str(flag)
+        if not flag.startswith(_RULES_GAP):
+            continue
+        _kind, _, rest = flag.partition(":")
+        section, _, col = rest.partition(":")
+        col = col.split("=", 1)[0]
+        if section and col == f"{basis}|{period}" and section not in out:
+            out.append(section)
+    return out
+
+
+def _to_review(ev, row, flag: str) -> bool:
+    """`flag` + REVIEW_FLAG on the slot, `flag` alone on the row (it names the slot). Whether the
+    slot was not in review by this flag before."""
+    new = flag not in ev.confidence.flags
+    for f in (flag, REVIEW_FLAG):
+        if f not in ev.confidence.flags:
+            ev.confidence.flags.append(f)
+    if flag not in row.confidence.flags:
+        row.confidence.flags.append(flag)
+    return new
 
 
 def review_beside_a_difference(doc, report, ctx) -> int:
     """Flag for review every rules-filled figure (`RULES_FLAG`) of a section whose reconciliation
-    shows any difference, passed or failed, in that figure's slot. Returns the figures flagged.
-    Called by `stages.structural` once the checks have run; a no-op where no row carries the
-    flag."""
+    shows any difference, passed or failed, in that figure's slot — on that SLOT: the difference is
+    one column's. Returns the figures flagged. Called by `stages.structural` once the checks have
+    run; a no-op where no row carries the flag.
+
+    A FILLED FIGURE ALSO CARRIES THE RULES' OWN RESIDUAL GAP for its section and column, when the
+    rules' reading did not itemise that section to its printed subtotal (`stages.residual`, on the
+    rules' copy, where it goes to no review). That gap is about the rules' itemisation, not the
+    figures the output holds, so the OUTPUT'S check of the same section and column answers it:
+    evaluated with no difference, the slot keeps a breadcrumb and is not in review; with a
+    difference, it is in review by the rule above; not evaluated (no result, or skipped), the
+    doubt stands and the slot goes to review naming it. Sections are matched by name, exactly.
+
+    THE LIMIT: this runs in `stages.structural`, AFTER the cascades of `stages.note_sourced`, so a
+    line a cascade computes from a filled figure cannot see an inherited gap that goes to review
+    here (`review_state.in_review` asks the flags when the cascade runs). No configured cascade
+    takes such a figure today: a gap or plug lands only on a section's subtotals, the total of its
+    residual, and the residual itself, and no cascade term names one of them.
+    `tests/test_a_review_flag_sits_on_the_figure_in_doubt.py` fails if one ever does."""
     fills = [li for li in doc.line_items
              if li.canonical_key and RULES_FLAG in (li.confidence.flags or ())]
     if not fills or report is None:
         return 0
     flagged = 0
+    evaluated: dict[tuple[str, str, str], Decimal] = {}
     for res in getattr(report, "results", None) or ():
         if getattr(res, "kind", "") != "section_reconciliation" or res.difference is None:
             continue
@@ -1365,12 +1431,14 @@ def review_beside_a_difference(doc, report, ctx) -> int:
             difference = Decimal(str(res.difference))
         except (InvalidOperation, ValueError, TypeError):
             continue
-        if difference == 0:
-            continue
         details = res.details or {}
         basis, period = str(details.get("basis") or ""), str(details.get("period_label") or "")
-        keys = set(details.get("components") or ()) | {details.get("target")}
         name = str(details.get("section") or res.rule_id.split(":", 1)[-1])
+        if str(getattr(res, "status", "") or "") != "skipped":
+            evaluated[(name, basis, period)] = difference
+        if difference == 0:
+            continue
+        keys = set(details.get("components") or ()) | {details.get("target")}
         flag = f"{SECTION_DIFFERS_FLAG}:{name}:{basis}:{period}:{difference}"
         hit = []
         for li in fills:
@@ -1379,14 +1447,44 @@ def review_beside_a_difference(doc, report, ctx) -> int:
             ev = _held(li, basis, period)
             if ev is None:
                 continue
-            for flags in (ev.confidence.flags, li.confidence.flags):
-                for f in (flag, REVIEW_FLAG):
-                    if f not in flags:
-                        flags.append(f)
+            _to_review(ev, li, flag)
             hit.append(li.canonical_key)
         if hit:
             flagged += len(hit)
             ctx.log(f"whole_pdf:rules_reading_review: {res.rule_id}[{basis}:{period}] "
                     f"{res.status} with a difference of {difference} while it holds figures the "
                     f"rules filled — sent to review: {', '.join(sorted(set(hit)))}")
+    unchecked: list[str] = []
+    answered: list[str] = []
+    for li in fills:
+        for ev in list((li.values or {}).values()):
+            if ev.value is None:
+                continue
+            basis, period = _basis(ev), str(ev.period_label or "")
+            for section in _rules_gaps(ev, basis, period):
+                where = f"{section}:{basis}:{period}"
+                difference = evaluated.get((section, basis, period))
+                if difference is None:
+                    if _to_review(ev, li, f"{GAP_UNCHECKED_FLAG}:{where}"):
+                        flagged += 1
+                        unchecked.append(f"{li.canonical_key}[{basis}:{period}]")
+                elif difference == 0:
+                    flag = f"{GAP_ANSWERED_FLAG}:{where}"
+                    for flags in (ev.confidence.flags, li.confidence.flags):
+                        if flag not in flags:
+                            flags.append(flag)
+                    answered.append(f"{li.canonical_key}[{basis}:{period}]")
+                elif not any(str(f).startswith(f"{SECTION_DIFFERS_FLAG}:{where}:")
+                             for f in ev.confidence.flags):
+                    # The section differs in this column, and the figure is not among the ones
+                    # its check names: the doubt the rules' gap raised is still unanswered.
+                    if _to_review(ev, li, f"{SECTION_DIFFERS_FLAG}:{where}:{difference}"):
+                        flagged += 1
+                        unchecked.append(f"{li.canonical_key}[{basis}:{period}]")
+    if unchecked:
+        ctx.log(f"whole_pdf:rules_gap_review: the rules' reading left a gap in a section the "
+                f"output does not check in that column — sent to review: {', '.join(unchecked)}")
+    if answered:
+        ctx.log(f"whole_pdf:rules_gap_answered: the rules' gap is answered by the output's own "
+                f"check of the section, which adds up: {', '.join(answered)}")
     return flagged

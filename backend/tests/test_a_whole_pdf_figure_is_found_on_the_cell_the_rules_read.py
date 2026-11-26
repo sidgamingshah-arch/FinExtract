@@ -92,7 +92,16 @@ def _judge(doc, shipped):
 
 
 def test_the_flags_are_the_stages_own():
-    assert L.FLAG == stage.FLAG and L.REVIEW_FLAG == stage.REVIEW_FLAG
+    """One spelling of each: the route's flag, and the review flag every writer imports from
+    `services.review_state` (the checks here write none of their own — `Verdict.review` goes onto
+    the slot through the stage)."""
+    from app.services import review_state, whole_pdf_rules
+    from app.stages import note_sourced
+
+    assert L.FLAG == stage.FLAG == review_state.MODEL_FLAG
+    assert (stage.REVIEW_FLAG == whole_pdf_rules.REVIEW_FLAG == note_sourced.REVIEW_FLAG
+            == review_state.REVIEW_FLAG)
+    assert not hasattr(L, "REVIEW_FLAG")
 
 
 def test_an_identical_citation_takes_the_next_printed_row_of_that_amount(shipped):

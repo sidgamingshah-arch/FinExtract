@@ -163,7 +163,7 @@ def test_real_review_and_export_from_extraction(client):
     # Review queue derives from the real rows.
     rev = client.get(f"/api/v1/documents/{doc_id}/review").json()
     assert set(rev) == {"run_id", "checks", "tabs", "summary", "judgements", "coverage",
-                        "remap_targets", "weak_mappings"}
+                        "remap_targets", "weak_mappings", "weak_slots"}
     assert rev["tabs"][0]["label"] == "All"
     assert rev["summary"]["open"] + rev["summary"]["passed"] >= 1
 

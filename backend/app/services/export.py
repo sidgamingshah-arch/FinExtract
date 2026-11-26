@@ -14,6 +14,7 @@ import json
 from app.sample.demo import CONF_PCT
 from app.services.periods import CURRENT, PRIOR, concept_value, split_current_prior, summable
 from app.services.review_lines import is_statement_line
+from app.services.review_state import shown_score
 
 # Statement titles for the formatted export, localized like the rest of the app. Line-item
 # labels come from the TEMPLATE's label_i18n, so the export is fully template-driven.
@@ -239,18 +240,27 @@ def build_rows_json(rows: list[dict], *, filename: str, disclosures: list[dict] 
                 "canonical_key": r.get("canonical_key"),
                 "note": r.get("note"),
                 "mapping_method": r.get("mapping_method"),
-                "mapping_confidence": r.get("mapping_confidence"),
+                # The line's one score as a row-level reader shows it: its weakest figure's where
+                # a figure carries its own (`services.review_state.shown_score`).
+                "mapping_confidence": shown_score(r),
                 "flags": r.get("flags") or [],
                 "formula": r.get("formula"),
                 "edited": bool(r.get("edited")),
                 # What a sum of note transactions was added up from, and the note text quoted.
                 **({"disclosure": r["disclosure"]} if r.get("disclosure") else {}),
+                # WHICH FIGURES ARE IN REVIEW, per slot, and whether the caption itself is in
+                # doubt (every slot) — `services.review_state.annotate`, where the rows carry it.
+                **({"review_slots": r.get("review_slots") or [],
+                    "review_row": bool(r.get("review_row"))} if "review_slots" in r else {}),
                 "values": [
                     {"period": v.get("period_label"), "basis": v.get("basis"),
                      "value": v.get("value"), "source": _prov_str(v.get("provenance")),
                      # What a figure that is not money is in — "USD per share", "shares
                      # (thousands)" — where the document's units would mislabel it.
-                     **({"measure": v["measure"], "unit": v.get("unit")} if not_money(v) else {})}
+                     **({"measure": v["measure"], "unit": v.get("unit")} if not_money(v) else {}),
+                     **({"in_review": bool(v.get("in_review")),
+                         "review_reasons": list(v.get("review_reasons") or [])}
+                        if "in_review" in v else {})}
                     for v in (r.get("values") or [])
                 ],
             }
@@ -351,12 +361,13 @@ def build_rows_xlsx(rows: list[dict], *, filename: str, scale: float = 1.0) -> b
                "Current", "Prior", "Formula", "Source"]
     ws.append(headers)
     formula_col = headers.index("Formula") + 1
+    current_col = headers.index("Current") + 1
     for i, r in enumerate(rows, start=1):
         values = r.get("values") or []
         cur_v, prior_v = split_current_prior(values)
         current = (cur_v or {}).get("value")
         prior = (prior_v or {}).get("value")
-        conf = r.get("mapping_confidence")
+        conf = shown_score(r)
         ws.append([
             i,
             r.get("source_label", ""),
@@ -368,6 +379,13 @@ def build_rows_xlsx(rows: list[dict], *, filename: str, scale: float = 1.0) -> b
             r.get("formula") or "",                       # edited-item formula, if any
             _prov_str(values[0].get("provenance")) if values else "",
         ])
+        # A FIGURE IN REVIEW SAYS SO ON ITS OWN CELL, as a comment, so the columns a downstream
+        # reader parses do not move (`services.review_state.annotate`, where the rows carry it).
+        for col, served in ((current_col, cur_v), (current_col + 1, prior_v)):
+            if (served or {}).get("in_review"):
+                from openpyxl.comments import Comment
+                ws.cell(ws.max_row, col).comment = Comment(
+                    _in_review_text(served), "FinExtract")
         # The formula is carried for AUDIT, as the analyst typed it — it is not a live cell.
         # openpyxl promotes any string starting with "=" to a real formula, and this one's
         # references are canonical line-item keys resolved server-side (services/formula.py), not
@@ -1335,8 +1353,7 @@ def _emit_nodes(ws, nodes, by_key, period_cols, first_val, conf_col, src_col, lo
                 cell.font = Font(bold=True)
 
         if row is not None:
-            confs = [x.get("mapping_confidence") for x in group
-                     if isinstance(x.get("mapping_confidence"), (int, float))]
+            confs = [c for x in group if isinstance(c := shown_score(x), (int, float))]
             conf = min(confs) if confs else None
             ws.cell(r, conf_col, f"{round(conf * 100)}%" if conf is not None else "")
             # Every page a contributing line came from, so the source column stays truthful for
@@ -1371,6 +1388,8 @@ def _emit_nodes(ws, nodes, by_key, period_cols, first_val, conf_col, src_col, lo
             quoted = disclosure_text(row)
             if quoted:
                 notes.append(quoted)
+            # Which of the line's figures are in review, per slot, and why.
+            notes += _review_notes(group)
             notes += calc_notes
             if notes:
                 from openpyxl.comments import Comment
@@ -1390,6 +1409,26 @@ def _emit_nodes(ws, nodes, by_key, period_cols, first_val, conf_col, src_col, lo
                 ws.cell(r, c).fill = total_fill
         r += 1
     return r
+
+
+def _in_review_text(value: dict) -> str:
+    """"In review: <reasons>" for a served value `services.review_state.annotate` marked."""
+    why = ", ".join(str(w) for w in (value.get("review_reasons") or ()))
+    return f"In review: {why}" if why else "In review"
+
+
+def _review_notes(group: list[dict]) -> list[str]:
+    """One "In review [basis/period]: <reasons>" line per figure of the line that is in review."""
+    out: list[str] = []
+    for x in group:
+        for v in x.get("values") or ():
+            if isinstance(v, dict) and v.get("in_review"):
+                why = ", ".join(str(w) for w in (v.get("review_reasons") or ()))
+                line = f"In review [{v.get('basis')}/{v.get('period_label')}]" + (
+                    f": {why}" if why else "")
+                if line not in out:
+                    out.append(line)
+    return out
 
 
 def _apply_units(v, scale: float):

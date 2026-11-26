@@ -17,6 +17,7 @@ from decimal import Decimal
 
 from app.core.models import DocumentModel
 from app.core.stage import PipelineContext
+from app.services import review_state
 
 # THE BALANCE-SHEET IDENTITY'S OPERANDS, as a list of spellings rather than one.
 #
@@ -61,9 +62,15 @@ class ConfidenceStage:
         # Propagate the row's mapping confidence + method onto each of its values, so the
         # confidence vector is complete per value (not just per row) and ``overall`` combines
         # mapping with the validation signal set below.
+        #
+        # A FIGURE THAT CARRIES ITS OWN SCORE KEEPS IT (`services.review_state.own_score`: the
+        # whole-PDF route scores each figure by how it checked against its page). Overwritten with
+        # the row's, a figure found on its page was served at the score of its row's doubtful other
+        # year. No rules figure carries the exact flag, so each still takes its row's score.
         for li in doc.line_items:
             for ev in li.values.values():
-                ev.confidence.mapping = li.confidence.mapping
+                if not review_state.own_score(ev.confidence.flags):
+                    ev.confidence.mapping = li.confidence.mapping
                 ev.confidence.method = li.confidence.method
 
         # A LIST per key, not the last row that claimed it. Two statements in one filing print the

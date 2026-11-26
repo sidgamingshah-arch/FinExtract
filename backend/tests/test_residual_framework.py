@@ -162,8 +162,47 @@ def test_the_residual_is_the_sum_of_its_components_not_a_plug(raw_ontology):
     # …and the section is routed to review: the subtotal row is the section's own claim about
     # itself and would otherwise still read as auto-approvable.
     assert gap in subtotal_row.confidence.flags
-    assert "low_mapping_confidence" in subtotal_row.confidence.flags
+    # IN REVIEW ON THE SLOT THE GAP NAMES (consolidated|current), with the gap's text; the row keeps
+    # the text as before and carries no bare review flag, which would mean every slot.
+    slot = next(iter(subtotal_row.values.values()))
+    assert gap in slot.confidence.flags and "low_mapping_confidence" in slot.confidence.flags
+    assert "low_mapping_confidence" not in subtotal_row.confidence.flags
     assert "residual_review:unallocated_gap" in swept.confidence.flags
+
+
+def test_a_gap_in_one_column_puts_only_that_columns_subtotal_in_review(raw_ontology):
+    """The same 75 gap in the consolidated current column, on a subtotal row that also prints a
+    standalone figure: the standalone slot is not in review for a consolidated gap."""
+    from app.services import review_state
+
+    doc = _current_liabilities("Other taxes payable", unclaimed=25, subtotal=200)
+    subtotal_row = doc.line_items[2]
+    subtotal_row.set_value(ExtractedValue(
+        value=Decimal(90), value_raw=Decimal(90), basis=Basis.STANDALONE,
+        period_label="current", provenance=Provenance(page_index=0)))
+    _run(doc, _ontology(raw_ontology))
+    assert review_state.in_review(subtotal_row, "consolidated", "current")
+    assert not review_state.in_review(subtotal_row, "standalone", "current")
+    standalone = subtotal_row.get_value(Basis.STANDALONE, period_label="current")
+    assert not any(f.startswith("unallocated_gap:") for f in standalone.confidence.flags)
+
+
+def test_on_the_whole_pdf_copy_a_gap_is_recorded_on_its_slot_and_sent_to_no_review(raw_ontology):
+    """`ctx.rules_copy` (the whole-PDF route's copy of the rules' reading): the gap's text on the
+    row and on the slot it names, and no review flag anywhere — the output's own check answers it
+    (`services.whole_pdf_rules.review_beside_a_difference`)."""
+    doc = _current_liabilities("Other taxes payable", unclaimed=25, subtotal=200)
+    ctx = PipelineContext(raw_bytes=b"")
+    ctx.ontology = _ontology(raw_ontology)
+    ctx.mapping_strategy = "deterministic"
+    ctx.rules_copy = True
+    ResidualStage().run(doc, ctx)
+    gap = "unallocated_gap:bs_s3_current_liabilities:consolidated|current=75"
+    subtotal_row = doc.line_items[2]
+    slot = next(iter(subtotal_row.values.values()))
+    assert gap in subtotal_row.confidence.flags and gap in slot.confidence.flags
+    assert "low_mapping_confidence" not in subtotal_row.confidence.flags
+    assert "low_mapping_confidence" not in slot.confidence.flags
 
 
 def test_a_section_that_prints_no_subtotal_is_itemised_but_unreconciled(raw_ontology):

@@ -598,6 +598,18 @@ export interface StatementRow {
    *  calculated line, and on an older payload (which has no prior-year card). */
   queued1?: boolean;
   queued2?: boolean;
+  /** Whether the column's FIGURE is in review (`services.review_state`): its own doubt, or a doubt
+   *  about the caption, which marks both columns. Optional: older payloads have no per-column
+   *  review state, and a row that is not an extracted line has none. */
+  review1?: boolean;
+  review2?: boolean;
+  /** Why, per period ("current" / "prior"): the reason codes, then the figure's own reason flags
+   *  (`whole_pdf:not_found`, a section difference, `part_in_review:<line>`). */
+  review_why?: Record<string, string[]> | null;
+  /** Each column's own confidence — the figure's own score where it carries one (the whole-PDF
+   *  route scores each figure), else its row's. `confidence` stays the row's (the caption). */
+  confidence1?: Confidence | null;
+  confidence2?: Confidence | null;
   /** The printed row nothing mapped whose figures account for this line's difference from the
    *  document in both periods — read-time only: the server recomputes it on every request and
    *  nothing moves until the analyst re-maps the row (POST /review/remap). Null on a calculated
@@ -806,6 +818,12 @@ export interface ExtractionValue {
   period_end?: string | null;
   /** Printed left-to-right position of a matrix statement's component column; null otherwise. */
   column_index?: number | null;
+  /** Whether THIS FIGURE is in review (`services.review_state.annotate`, derived on every serve).
+   *  Optional: a payload served before it existed has none. */
+  in_review?: boolean;
+  /** Why: the reason codes (figure, caption, caption_score, figure_score), then the figure's own
+   *  reason flags. Empty when it is not in review. */
+  review_reasons?: string[];
 }
 export interface ExtractionRow {
   source_label: string;
@@ -816,6 +834,14 @@ export interface ExtractionRow {
   mapping_confidence: number | null;
   flags: string[];
   values: ExtractionValue[];
+  /** The slots of this row in review, as "basis/period". Optional, as `in_review` is. */
+  review_slots?: string[];
+  /** Whether the ROW is in doubt — its caption or mapping, which means every slot. */
+  review_row?: boolean;
+  /** The one score a row-level display shows for the line: the row's own, or its weakest
+   *  figure's where a figure carries a score of its own (`services.review_state.shown_score`).
+   *  `mapping_confidence` is served as stored (a whole-PDF row stores its best figure's). */
+  shown_confidence?: number | null;
 }
 export interface SourceUnits {
   currency: string;
@@ -1802,6 +1828,9 @@ export interface ReviewResponse {
    *  this queue narrowed: the `passed` tile (which excludes these lines) and the commentary's
    *  data-quality caveat. Shown on this screen as a plain sentence, never as a card or a tab. */
   weak_mappings: number;
+  /** The FIGURES in review among those lines, each a (line, basis, period) — marked on their cells
+   *  in the Workspace. Optional: an older payload counts lines only. */
+  weak_slots?: number;
   judgements: { orphaned: OrphanedJudgement[] };
   coverage: CoverageBlock;
   /** Empty when the run named no template — which is also when no card carries an offer, because

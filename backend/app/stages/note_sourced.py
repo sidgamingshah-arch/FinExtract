@@ -30,7 +30,7 @@ from decimal import Decimal, InvalidOperation
 from app.core.models.document import DocumentModel
 from app.core.models.line_item import ExtractedValue, LineItem, base_note_number
 from app.core.stage import PipelineContext, Stage
-from app.services import note_sourced, whole_pdf_rules
+from app.services import note_sourced, review_state, whole_pdf_rules
 from app.services.face_bases import (accepted_from, is_disclosure, note_basis_of, printed_bases,
                                       refuse_unprinted)
 
@@ -1756,11 +1756,11 @@ def _fill_by_cascade(parent_def, kids: list, by_key: dict, doc: DocumentModel,
     return filled
 
 
-#: The flag the review queue selects a doubtful line on.
-REVIEW_FLAG = "low_mapping_confidence"
-#: On a computed line's slot (and, with the slot, on its row) whose figure rests on a part that is
-#: in review: `part_in_review:<part>`.
-PART_IN_REVIEW = "part_in_review"
+#: The flag the review queue selects a doubtful figure on (`services.review_state`).
+REVIEW_FLAG = review_state.REVIEW_FLAG
+#: On a computed line's slot whose figure rests on a part that is in review: `part_in_review:<part>`;
+#: on its row, the breadcrumb `part_in_review:<part>:<basis>:<period>`, which names the slot.
+PART_IN_REVIEW = review_state.PART_IN_REVIEW
 #: On a slot whose rung left out a deduction another rung of the line makes, while the filing
 #: prints a figure for it: `not_deducted:<term>:<amount>`.
 NOT_DEDUCTED = "not_deducted"
@@ -1768,15 +1768,10 @@ NOT_DEDUCTED = "not_deducted"
 
 def _in_review(row: LineItem, basis: str, period: str) -> bool:
     """Whether this row's figure for the slot is one a reviewer has been asked to look at: the slot
-    says so, or a part it was computed from was; or the ROW says so — a row's flag stands for its
-    every slot, except a whole-PDF row's, which says so slot by slot."""
-    ev = _slot(row, basis, period)
-    if ev is None or ev.value is None:
-        return False
-    flags = ev.confidence.flags or ()
-    if REVIEW_FLAG in flags or any(f.startswith(PART_IN_REVIEW + ":") for f in flags):
-        return True
-    return REVIEW_FLAG in (row.confidence.flags or ()) and not whole_pdf_rules.is_model_row(row)
+    says so, or a part it was computed from was; or the ROW says so — a row's flag is a doubt about
+    its caption and stands for its every slot, except a whole-PDF row's, which has no caption.
+    Flags only (`services.review_state.in_review`): a weak caption score is not carried up."""
+    return review_state.in_review(row, basis, period)
 
 
 def _carry_review(doc: DocumentModel, got, row: LineItem, basis: str, period: str, ctx, *,
@@ -1810,10 +1805,11 @@ def _carry_review(doc: DocumentModel, got, row: LineItem, basis: str, period: st
         tagged = f"{flag}:{basis}:{period}"
         if tagged not in row.confidence.flags:
             row.confidence.flags.append(tagged)
+    # In review ON THE SLOT: the doubt is this computed figure's. The row keeps only the tagged
+    # breadcrumb above — a bare row flag would put the row's other slots in review too, and the row
+    # can be a model row holding another line's figure (`carriers[0]`).
     if slot is not None and REVIEW_FLAG not in slot.confidence.flags:
         slot.confidence.flags.append(REVIEW_FLAG)
-    if REVIEW_FLAG not in row.confidence.flags:
-        row.confidence.flags.append(REVIEW_FLAG)
     ctx.log(f"{where}: goes to review — computed from {', '.join(doubtful)}, in review")
 
 
@@ -1867,9 +1863,9 @@ def _flag_undeducted(parent_def, got, row: LineItem, basis: str, period: str, kn
                 for f in (flag, REVIEW_FLAG):
                     if f not in slot.confidence.flags:
                         slot.confidence.flags.append(f)
-            for f in (f"{flag}:{basis}:{period}", REVIEW_FLAG):
-                if f not in row.confidence.flags:
-                    row.confidence.flags.append(f)
+            # The slot is in review; the row carries the breadcrumb naming the slot.
+            if f"{flag}:{basis}:{period}" not in row.confidence.flags:
+                row.confidence.flags.append(f"{flag}:{basis}:{period}")
             ctx.log(f"{where}: rung {got.rung_used} does not deduct {t.ref} ({amount}), which "
                     f"rung {rung.id} deducts — the figure stands and goes to review")
 

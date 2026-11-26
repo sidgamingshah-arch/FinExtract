@@ -50,7 +50,13 @@ function fmtFigure(raw: string | null, loc: string): string {
 function RowLine({ row, t, onPick, loc }: {
   row: ExtractionRow; t: (k: string) => string; onPick: (p: Picked) => void; loc: string;
 }) {
-  const flagged = row.flags?.includes("low_mapping_confidence");
+  // THE ROW'S ⚠ IS THE REVIEW FLAG ON THE ROW, which is a doubt about the caption and means every
+  // figure of the row (`services.review_state`) — except on a whole-PDF model row, which has no
+  // caption: there the row's served `review_row` is false and a flag stored by an older run stood
+  // for one figure, which is marked on that figure below. A weak caption SCORE with no flag is not
+  // marked here, as before; it is marked on each figure below. A payload with no review state
+  // falls back to the row flag alone.
+  const flagged = !!row.flags?.includes("low_mapping_confidence") && (row.review_row ?? true);
   // The model's own stated justification for an LLM-decided row (set by the line-item mapping
   // stage, `map_line_items::_apply_result`), carried as a row flag so it reaches here without a
   // schema change. Shown as a small "why" marker rather than inline text — a rationale sentence would
@@ -74,9 +80,18 @@ function RowLine({ row, t, onPick, loc }: {
         {row.values.map((v, i) => {
           const picked = toPicked(v.provenance, row.source_label);
           const conf = v.confidence;
-          // A value that participates in a failed check (balance / note tie) is flagged so a
-          // doubtful number reads at a glance — per value, not just per row.
+          // THE AMBER COLOUR is the wide test: the figure carries any flag (a failed balance or
+          // note tie among them, and breadcrumbs such as a period read by position) or scores
+          // below 0.75 overall.
           const low = conf && (conf.flags.length > 0 || conf.overall < 0.75);
+          // THE ⚠ MEANS "IN REVIEW", per figure (`services.review_state`): this figure's own doubt,
+          // or its caption's (its flag or its score), which marks every figure of the row. A figure
+          // in a failed check that is not in review keeps the amber colour and its flags in the
+          // tooltip, without the ⚠. A payload served before the review state existed falls back to
+          // the colour's test.
+          const inReview = v.in_review ?? !!low;
+          const reviewTip = v.in_review && v.review_reasons?.length
+            ? `in review: ${v.review_reasons.join(", ")}` : "";
           const confTip = conf
             ? `confidence ${Math.round(conf.overall * 100)}%${conf.flags.length ? " · " + conf.flags.join(", ") : ""}`
             : "";
@@ -96,7 +111,7 @@ function RowLine({ row, t, onPick, loc }: {
               key={i}
               onClick={clickable ? () => onPick(picked!) : undefined}
               role={clickable ? "button" : undefined}
-              title={[v.value != null ? `as printed: ${v.value}` : "", confTip,
+              title={[reviewTip, v.value != null ? `as printed: ${v.value}` : "", confTip,
                        clickable ? "click to show in source" : ""]
                        .filter(Boolean).join(" · ") || undefined}
               style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline",
@@ -104,7 +119,7 @@ function RowLine({ row, t, onPick, loc }: {
             >
               <span style={{ fontSize: 11.5, fontFamily: font.mono, color: low ? color.amberFg : color.ink,
                              borderBottom: clickable ? `1px dashed ${color.indigoBorder2}` : undefined }}>
-                {fmtFigure(v.value, loc)}{low ? " ⚠" : ""}
+                {fmtFigure(v.value, loc)}{inReview ? " ⚠" : ""}
               </span>
               {ref && (
                 <span style={{ fontFamily: font.mono, fontSize: 10, color: clickable ? color.indigo : color.muted2,

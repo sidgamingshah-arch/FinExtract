@@ -199,7 +199,8 @@ function RealPreview({ rows, fmt }: { rows: ExtractionRow[]; fmt: ExportFmt }) {
         source_label: r.source_label,
         canonical_key: r.canonical_key,
         note: r.note,
-        mapping_confidence: r.mapping_confidence,
+        // As the server writes it: the line's weakest figure's score where a figure carries its own.
+        mapping_confidence: r.shown_confidence !== undefined ? r.shown_confidence : r.mapping_confidence,
         values: r.values.map((v) => ({ period: v.period_label, value: v.value, source: provStr(r) })),
       })),
     };
@@ -225,7 +226,8 @@ function RealPreview({ rows, fmt }: { rows: ExtractionRow[]; fmt: ExportFmt }) {
         ))}
       </div>
       {rows.slice(0, 40).map((r, ri) => {
-        const conf = r.mapping_confidence;
+        // The Confidence column as the workbook writes it (`services.review_state.shown_score`).
+        const conf = r.shown_confidence !== undefined ? r.shown_confidence : r.mapping_confidence;
         return (
           <div key={ri} style={{ display: "grid", gridTemplateColumns: cols,
                                   background: ri % 2 ? "#f6f8f6" : "#fff", borderBottom: "1px solid #e6ebe6" }}>

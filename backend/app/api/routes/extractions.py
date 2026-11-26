@@ -2347,7 +2347,18 @@ def get_run(run_id: str, session: Session = Depends(db),
             # best answer available for it and matches what it was actually built from.
             "stages": (run.options or {}).get("stages") or pipeline_stage_names(),
             "log_tail": _log_tail((run.logs or "").splitlines()),
-            "result": run.result}
+            # Each row and value says whether it is in review and why (`services.review_state`),
+            # derived from the stored flags on every serve and never written back.
+            "result": _with_review_state(run.result)}
+
+
+def _with_review_state(result):
+    """The run's result with its rows annotated by `services.review_state.annotate` (a copy)."""
+    if not isinstance(result, dict) or not isinstance(result.get("rows"), list):
+        return result
+    from app.services import review_state
+
+    return {**result, "rows": review_state.annotate(result["rows"])}
 
 
 @router.post("/extractions/{run_id}/cancel",

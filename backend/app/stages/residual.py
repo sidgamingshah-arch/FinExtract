@@ -87,6 +87,7 @@ from app.core.models.enums import LineRole, PrintedIn
 from app.core.models.line_item import ExtractedValue, LineItem
 from app.core.stage import PipelineContext
 from app.services.caption_shape import prose_reasons
+from app.services.review_state import REVIEW_FLAG
 from app.services.statement_sets import SET_NOT_READ_FLAG
 from app.services.han import to_simplified
 from app.services.mapping import (
@@ -1114,6 +1115,30 @@ def _row_values(li) -> dict[str, Decimal]:
     return out
 
 
+def _column_to_review(ctx, li, text: str, col: str) -> None:
+    """Send the figure of column `col` ('<basis>|<period>') of `li` to review for `text` (a gap or a
+    plug the section's reconciliation found in that column). The text is already on the row, as it
+    always was: a breadcrumb, which is not review.
+
+    THE GAP NAMES ITS COLUMN, SO THE REVIEW GOES ON THAT SLOT: the text and `REVIEW_FLAG` on the
+    figure of that column, and no bare review flag on the row — a row flag means every slot, and
+    a standalone subtotal row is not in doubt because the consolidated section has a gap. A row
+    with no figure in that column gets no review from it.
+
+    ON THE WHOLE-PDF ROUTE'S COPY OF THE RULES' READING (`ctx.rules_copy`,
+    `services.whole_pdf_rules.rules_published_rows`) the text goes on the slot and nothing goes to
+    review: the gap describes the rules' itemisation, not the figures the output holds, and
+    `whole_pdf_rules.review_beside_a_difference` asks the output's own check of that section and
+    column instead."""
+    copy = getattr(ctx, "rules_copy", False)
+    for ev in li.values.values():
+        if _col(ev) != col:
+            continue
+        for flag in (text,) if copy else (text, REVIEW_FLAG):
+            if flag not in ev.confidence.flags:
+                ev.confidence.flags.append(flag)
+
+
 def _fact_id(spec: str, doc: DocumentModel, li, ev: ExtractedValue, where: str) -> str:
     """``global_rules.source_fact_id`` composed for one value, in the authored order.
 
@@ -1872,7 +1897,7 @@ class ResidualStage:
                 flag = f"residual_plug_suspected:{res.section}:{col}={diff:.0f}"
                 for li in unsourced or res.rows:
                     li.confidence.flags.append(flag)
-                    li.confidence.flags.append("low_mapping_confidence")
+                    _column_to_review(ctx, li, flag, col)
                 ctx.log(f"residual:{flag} published={total} itemised={swept.get(col, 0.0)}")
 
     def _reconcile(self, doc: DocumentModel, ctx: PipelineContext, ontology, terms: _Terms,
@@ -1963,7 +1988,7 @@ class ResidualStage:
                     # high-confidence until something contradicts it. Without this the gap would
                     # be recorded against the residual only and the section would still read as
                     # auto-approvable.
-                    li.confidence.flags.append("low_mapping_confidence")
+                    _column_to_review(ctx, li, gap, col)
             ctx.log(f"residual:{gap} reported={recon.reported} dedicated={recon.dedicated_total}"
                     f" residual={recon.residual_total} tolerance={recon.tolerance}")
         elif recon.status == "no_reported_subtotal" and terms.no_subtotal_unreconciled:

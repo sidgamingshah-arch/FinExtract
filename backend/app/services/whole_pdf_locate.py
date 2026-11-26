@@ -63,8 +63,6 @@ from app.services import whole_pdf as W
 
 #: The flag every row and figure of the route carries (`stages.whole_pdf.FLAG`; a test pins them).
 FLAG = "whole_pdf"
-#: The flag the review queue selects a doubtful line on.
-REVIEW_FLAG = "low_mapping_confidence"
 #: The prefix of a refusal's flag on the row: `whole_pdf:refused:<rule>:<basis>:<period>:<amount>`.
 REFUSED = f"{FLAG}:refused"
 

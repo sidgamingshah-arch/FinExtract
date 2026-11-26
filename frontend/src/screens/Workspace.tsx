@@ -803,6 +803,10 @@ function OutputRow({
     const shown = period === "current" ? row.v1 : row.v2;
     const printed = showV ? (period === "current" ? row.printed1 : row.printed2) : null;
     const hasRef = printed != null && shown != null;
+    // IN REVIEW, THIS COLUMN ONLY (`services.review_state`): a doubt about one year's figure marks
+    // that year's cell; a doubt about the caption marks both.
+    const inReview = showV && !!(period === "current" ? row.review1 : row.review2);
+    const reviewWhy = inReview ? (row.review_why?.[period] ?? []) : [];
     return (
       <span
         data-testid={showV ? `${period === "current" ? "v1" : "v2"}-${row.id}` : undefined}
@@ -810,7 +814,9 @@ function OutputRow({
         title={[links ? (period === "current"
                           ? "Click to show this figure in the source document"
                           : "Click to show last year's figure in the source document") : "",
-                note ? `Note: ${note}` : ""].filter(Boolean).join(" · ") || undefined}
+                note ? `Note: ${note}` : "",
+                inReview ? `In review${reviewWhy.length ? `: ${reviewWhy.join(", ")}` : ""}` : ""]
+                .filter(Boolean).join(" · ") || undefined}
         style={{ ...colDiv, display: "flex", alignItems: "center", justifyContent: "flex-end",
                  gap: 4, fontFamily: font.mono, fontSize: 12, fontWeight: weight,
                  color: selected && links ? color.indigo : fg,
@@ -818,6 +824,10 @@ function OutputRow({
       >
         {/* A figure carrying a reason why it was overridden says so where the figure is. */}
         {note && <span style={{ color: color.amberFg, fontSize: 10 }}>✎</span>}
+        {inReview && (
+          <span data-testid={`review-${period === "current" ? "v1" : "v2"}-${row.id}`}
+                style={{ color: color.amberFg, fontSize: 10 }}>⚑</span>
+        )}
         <span style={hasRef
           ? { display: "flex", flexDirection: "column", alignItems: "flex-end", lineHeight: 1.15 }
           : { display: "contents" }}>
@@ -1608,13 +1618,18 @@ export default function WorkspaceScreen() {
     activeUnits ? `${t("ws.figuresIn")} ${activeUnits}` : "",
     fxCaption,
   ].filter(Boolean).join("  ·  ");
-  const lowConfCount = d.rows.filter((r) => r.confidence?.cat === "low").length;
+  // A row counts when its caption's confidence is low OR either of its figures is in review
+  // (`review1` / `review2`, per column): a line one year of which is in doubt is a line to look at,
+  // even where its caption mapped well.
+  const lowOrInReview = (r: StatementRow) =>
+    r.confidence?.cat === "low" || !!r.review1 || !!r.review2;
+  const lowConfCount = d.rows.filter(lowOrInReview).length;
   // The filter is only in force while there is something for it to select. A filter left on when a
   // refetch drops the last low-confidence row would otherwise leave an unexplained empty grid.
   const lowOnly = lowFilter && lowConfCount > 0;
   // What the OUTPUT panel lists. The source-viewer column is never filtered: it shows the document
   // as printed, and hiding a printed line there would misrepresent the page.
-  const gridRows = lowOnly ? d.rows.filter((r) => r.confidence?.cat === "low") : d.rows;
+  const gridRows = lowOnly ? d.rows.filter(lowOrInReview) : d.rows;
   // Only the live PDF viewer has pages a zoom could act on. The Excel cell grid and the sample
   // "paper" mock have nothing that would move, so they get no zoom control at all.
   const pdfViewer = usingReal && d.format === "pdf" && !!activeDocumentId;
@@ -1625,12 +1640,18 @@ export default function WorkspaceScreen() {
   const selRowObj = d.rows.find((r) => r.id === sel) ?? d.rows.find((r) => r.inspector);
   const insp = selRowObj?.inspector;
   const isEdited = selRowObj?.status === "edited";
-  const cs = selRowObj?.confidence ? confStyle(selRowObj.confidence.cat) : confStyle("med");
+  // THE FIGURE ON SHOW'S OWN CONFIDENCE where the server sends one per column (`confidence1` /
+  // `confidence2`: the whole-PDF route scores each figure), else the row's.
+  const inspConfObj = (inspPeriod === "current" ? selRowObj?.confidence1 : selRowObj?.confidence2)
+    ?? selRowObj?.confidence;
+  const cs = inspConfObj ? confStyle(inspConfObj.cat) : confStyle("med");
   // The chip's TEXT comes from the served percentage, through the one helper every screen uses;
   // `cs` supplies only its colour. Two spellings of "what confidence does this row have" is how
   // the grid ended up printing a bucket's literal beside the inspector's real figure.
-  const inspConf = confReadout(
-    { cat: selRowObj?.confidence?.cat, pct: selRowObj?.confidence?.pct }, t);
+  const inspConf = confReadout({ cat: inspConfObj?.cat, pct: inspConfObj?.pct }, t);
+  // Whether the figure on show is in review, and why — per column, as `inspQueued` is.
+  const inspReview = !!(inspPeriod === "current" ? selRowObj?.review1 : selRowObj?.review2);
+  const inspReviewWhy = inspReview ? (selRowObj?.review_why?.[inspPeriod] ?? []) : [];
   // Not every row is a figure someone can correct. A KPI is computed (fix its inputs instead), a
   // line mapped to no concept has no address to save against, and an equity movement is a
   // component grid. Offering a control that cannot work is how "editing doesn't work" starts.
@@ -2268,6 +2289,23 @@ export default function WorkspaceScreen() {
                     }}
                   >
                     {inspConf.text} {t("conf.label")}
+                  </span>
+                )}
+                {/* IN REVIEW, for the column on show only: the other year's figure may be fine. */}
+                {inspReview && (
+                  <span
+                    data-testid="inspector-review"
+                    title={inspReviewWhy.join(", ") || undefined}
+                    style={{
+                      fontSize: 10.5,
+                      fontWeight: 600,
+                      padding: "2px 8px",
+                      borderRadius: radius.pill,
+                      background: color.amberBg,
+                      color: color.amberFg,
+                    }}
+                  >
+                    ⚑ {t("ws.inReview")}{inspReviewWhy.length ? `: ${inspReviewWhy.join(", ")}` : ""}
                   </span>
                 )}
                 {/* Where the figure on show came from — extracted, computed from its components,

@@ -239,9 +239,9 @@ informational colour while the queue's mildest finding was the only red thing on
 Two card kinds were retired to that rule. A **weakly-mapped** row raises nothing — a
 mapping's strength is a property of the mapping, shown on the row's own confidence badge in
 the Workspace, and the right answer to a weak match is to match it better rather than to
-bill an analyst for it. It is still *counted*: `weak_mappings` is served beside the findings
-and stated in a sentence on the Relation coverage tab, so narrowing the queue cannot read as the
-data having improved, and both the "lines with no finding" tile and the commentary's
+bill an analyst for it. It is still *counted*: `weak_mappings` (lines) and `weak_slots`
+(figures) are served beside the findings and stated in a sentence on the Relation coverage tab,
+so narrowing the queue cannot read as the data having improved, and both the "lines with no finding" tile and the commentary's
 data-quality caveat still exclude those lines. A **calculated line with no extracted
 components** likewise raises nothing — nothing disagrees with anything — and is reported in
 the coverage band and in the line's own inspector note, which is where an un-checkable

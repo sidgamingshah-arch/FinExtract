@@ -934,7 +934,8 @@ None of this runs on the rules route, where no row carries `whole_pdf:rules_read
 scripted answers on the five reference filings, every case that came out wrong now gives the printed
 figure. bs_cl now passes with 0 on 000709, 300319 and China SCE, and so does bs_ca on 000709 and
 688008. 1966's finance costs are now the face cell (1,492,343) / (921,124), p102. Rules-only did not
-move. The review flag is set on the row, so both years of a settled line go to review.
+move. The review goes on the settled figure's own slot (its line, basis and period), so a year whose
+section adds up stays out of review.
 
 **Measured** on 688411 (the filing of run 11033486) with a stand-in that answers every question
 from the rules route's own figures, as the prompt asks: the template's checks came out as the rules
@@ -952,8 +953,9 @@ whose rows are all on the page and add up (`parts_on_page`); on exactly one othe
 and moved there, the common case being a model citing the printed folio (`moved`); a nil
 (`nil`); a page with no text layer (`no_text`); or not found (`not_found`). `no_text` and
 `not_found`, and a line given two different figures for one slot by two parts, raise
-`low_mapping_confidence` and go to review; a `not_found` figure's confidence is 0.3, below the
-auto-accept bar. Between two parts' readings (`services/whole_pdf.py::merge`) a confirmed one
+`low_mapping_confidence` on that figure's slot and send that one figure to review; a `not_found`
+figure's confidence is 0.3, below the auto-accept bar. The line's other figures stay out of review
+unless they are in doubt themselves (see "Review is per figure" below). Between two parts' readings (`services/whole_pdf.py::merge`) a confirmed one
 wins, then the page the line is read from — a [read from the notes] line prefers a note page, a
 statement's line a statement page; where nothing chooses, part 1's figure is kept and the slot is
 flagged `whole_pdf:parts_disagree:<kept>@p<n>(part i):<other>@p<m>(part j)`. A [read from the
@@ -961,6 +963,22 @@ statement] line kept off a page that is not a statement's is flagged
 `whole_pdf:face_line_not_on_a_statement_page`. Both go to review. The run result's
 `mapping.whole_pdf` counts each outcome, and names every request that failed
 (`requests_failed`) and every line no request answered (`lines_lost`).
+
+**Review is per figure, not per line** (`services/review_state.py`). A slot is one figure: a line,
+a basis and a period. A doubt about a figure (not found on its page, two parts disagree, a fill
+settled against the model's pieces, a section that does not add up for that column, a residual gap
+or plug in that column) is written on that slot's flags. A flag on the ROW means a doubt about the
+caption, which covers every slot of the line. `review_state` is the one place that decides whether
+a slot is in review and why: the cascades ask it by flags, and the queue (`weak_mappings` counts
+lines, `weak_slots` figures), the run and extraction payloads (`review_slots`, `review_row`,
+`in_review`, `review_reasons`, worked out per read and never stored), the statement grid
+(`review1`/`review2`, `review_why`, `confidence1`/`confidence2`) and the JSON and xlsx exports ask
+it by flags and scores. A whole-PDF row's score is its best figure's; a display that shows one
+number per line uses `shown_score`, the weakest figure's own score. A fill row's inherited rules
+gap is checked against the output's own section check for that column: passing at 0.00 leaves only
+the breadcrumb `whole_pdf:rules_gap_answered_by_the_output`, and a missing or skipped check sends
+the slot to review (`whole_pdf:rules_gap_unchecked`). An analyst's save takes a slot out of review
+only when it changes the figure; a revert brings the review back.
 
 **It never leaves a run with nothing.** No line-item set, a file that is not a PDF, the `stub`
 provider, a provider that cannot be sent a file, a first request that fails after its retry (the

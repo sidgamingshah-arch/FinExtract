@@ -3527,6 +3527,11 @@ interface NRunRow {
   role?: string | null;
   values: { basis: string; period_label: string; value: string | null;
             provenance: NProv | null }[];
+  // The review state the server derives on every serve (`services.review_state.annotate`): the
+  // slots in review, and whether the row itself (its caption) is in doubt.
+  flags?: string[];
+  review_slots?: string[];
+  review_row?: boolean;
 }
 interface NRun {
   result: { rows: NRunRow[]; reconciliation?: unknown[] };
@@ -4297,16 +4302,24 @@ test("the third header tile counts the lines the payload says carry no finding, 
    *  label false — an accounting finding names lines and this formula never noticed. */
   const oldFormula = (rev: NReview): number =>
     rows.length - rev.checks.filter((c) => ROW_SHAPED_TYPES.has(c.type)).length;
-  /** The row positions whose MAPPING is weak — excluded from the tile alongside the indicted ones.
+  /** The row positions IN REVIEW — excluded from the tile alongside the indicted ones.
    *
    *  A weak mapping raises no card, so `indicted` cannot see it, and the tile excludes it anyway:
-   *  "no finding names this line" must not be read as "this line is clean". Derived from the flag
-   *  the mapper sets, and cross-checked against the payload's own `weak_mappings` below so the
+   *  "no finding names this line" must not be read as "this line is clean". A line is in review
+   *  when any of its slots is (`review_slots`, per figure), or when it is a blank line whose row is
+   *  in doubt (`review_row`) — the server's `services.review_state.line_weak`, read off the run
+   *  payload, and cross-checked against the review payload's own `weak_mappings` below so the
    *  assumption is stated rather than hoped for. */
   const weakRows = (): Set<number> => {
     const hit = new Set<number>();
     rows.forEach((r, i) => {
-      if (r.canonical_key && (r.flags ?? []).includes("low_mapping_confidence")) hit.add(i);
+      const blank = !r.values.some((v) => v.value != null);
+      // As the queue lists them: a keyed line, not a face row the engine left unclassified (that
+      // one is raised as an unmapped finding instead, whatever its caption scored).
+      const listed = !!r.canonical_key && !r.canonical_key.startsWith("engine_unclassified_face__");
+      if (listed && ((r.review_slots ?? []).length > 0 || (blank && !!r.review_row))) {
+        hit.add(i);
+      }
     });
     return hit;
   };
@@ -4326,10 +4339,10 @@ test("the third header tile counts the lines the payload says carry no finding, 
   };
 
   const before = await apiGet<NReview>(page, `/api/v1/documents/${doc}/review?locale=en`);
-  // The flag is the whole of "weak" on this fixture, which is what lets `passedLines` use it. If the
-  // mapper ever routes a row to weak by SCORE without setting the flag, this fails here rather than
-  // silently shifting the tile arithmetic below.
-  expect(before.weak_mappings, "weak_mappings is not the flagged rows — passedLines is now wrong")
+  // The served review state is the whole of "weak", which is what lets `passedLines` use it. If the
+  // queue ever counts a line the run payload does not mark, this fails here rather than silently
+  // shifting the tile arithmetic below.
+  expect(before.weak_mappings, "weak_mappings is not the lines in review — passedLines is now wrong")
     .toBe(weakRows().size);
   expect(before.summary.passed).toBe(passedLines(before));
   await expect(tile).toContainText(String(before.summary.passed), { timeout: 20_000 });
