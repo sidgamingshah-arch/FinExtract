@@ -20,8 +20,10 @@ returns is labelled `standin-scripted`, and nothing here may be reported as a mo
     doc, ctx, rec = run_whole_pdf(monkeypatch, tmp_path, "688008_montage_2024_prc", script,
                                   pages=range(149, 152))
 
-`pages` (0-based, as the Page Scope screen stores them) narrows what is read AND sent, so a test can
-run on the few pages it is about in a few seconds; None reads the filing the way a run does. Other
+`pages` (0-based, as the Page Scope screen stores them) narrows what THE RULES read, so a test can
+run on the few pages it is about in a few seconds; None reads the filing the way a run does. It
+does not narrow what is sent: the whole-PDF route sends every page and asks every line, whatever
+Page Scope says (`services.whole_pdf.pages_to_send`). Other
 model calls the run makes (the disclosures, the contingent-liability rewrite, the shared-figure
 tie-break) are switched off by default, so the stand-in is asked nothing but the whole-PDF
 requests; pass `extraction={...}` to set them, or any other extraction setting, yourself.
@@ -70,7 +72,7 @@ def filing_path(stem: str) -> Path:
 
 def run_whole_pdf(monkeypatch, out_dir: Path, filing, script: dict, *, pages=None,
                   template: str = HK_TEMPLATE, line_set: str = HK_SET,
-                  whole_pdf_pages: str = "all", extraction: dict | None = None):
+                  extraction: dict | None = None):
     """`run_extraction` on `filing` (a stem under testdata/filings, a path, or PDF bytes) with the
     whole-PDF route on and the stand-in, answering from `script`, as the provider.
 
@@ -94,7 +96,7 @@ def run_whole_pdf(monkeypatch, out_dir: Path, filing, script: dict, *, pages=Non
     rec = standin.Recorder(Path(out_dir), takes_documents=True, whole_pdf_script=script,
                            filing_bytes=raw)
     settings = get_settings()
-    for key, value in {"whole_pdf_to_model": True, "whole_pdf_pages": whole_pdf_pages,
+    for key, value in {"whole_pdf_to_model": True,
                        "llm_disclosures": False, "llm_contingent_liabilities": False,
                        "llm_shared_figure_tiebreak": False, **(extraction or {})}.items():
         monkeypatch.setattr(settings.extraction, key, value)

@@ -634,7 +634,9 @@ def fill_from_rules(doc, ctx, judge=None, asked=None) -> dict:
     column heading the rules' heading for its year. Returns what it did, for `ctx.whole_pdf`.
 
     `asked`: the keys the run asked (`services.whole_pdf.Plan.lines`) — a line not asked (a derived
-    line, a section a person switched off) is not filled. `judge`: the run's `Judge`, whose page
+    line, an intermediate working figure) is not filled. Every line of a section a person switched
+    off on Page Scope is asked on this route, but the rules did not read that section, so it has no
+    rules figure to fill from. `judge`: the run's `Judge`, whose page
     texts the refused-slot check reads. A no-op off the whole-PDF route: it reads only the rows the
     stage set aside (`ctx.whole_pdf_rules_rows`)."""
     out = {"slots": 0, "rows": 0, "lines": 0, "kept_for_the_model": 0,

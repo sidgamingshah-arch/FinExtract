@@ -12,9 +12,19 @@ read them on.
 
 WHAT STAYS FROM THE RULES ROUTE, and why each:
 
-* The page classifier. Cheap, runs before extraction anyway (it is what the Page Scope screen
-  shows), and it chooses the pages worth sending: a third to a half of an annual report is
-  statements and notes, and every page sent costs its text and its picture on every request.
+* EVERY PAGE GOES, AND EVERY LINE IS ASKED (`pages_to_send`, `plan`). Not the pages the page
+  classifier found, and not the pages or sections a person chose on the Page Scope screen: the
+  whole PDF is the object the model reads, so nothing the app read off it first may cut a page or a
+  line from what is sent. A filing whose statements the classifier missed (Vivo Energy Mauritius,
+  where it found none, and the auditor's report was left out) is sent whole like any other. Page
+  Scope changes only what THE RULES read beside the model.
+* The page classifier, BESIDE THE MODEL, cutting no page or line from what is sent: the statement
+  faces it found are carried in every part and asked alone (`build_parts`, `Plan`), a face line
+  read off another page goes to review (`merge`), and each figure is found again in the rules'
+  reading of its page (`services.whole_pdf_locate`). ONE THING IT STILL DECIDES: a face
+  statement's [read from the statement] lines are asked only of the statements-alone part, the
+  pages it calls that statement's face (`Plan.ask`), so a face it misnames is where those lines
+  are read. A known limit, kept for what that part saves.
 * The PDF's own text, as the record a figure is checked against (as the credit-memo tool keeps
   its extract beside the file, ADR-0053 there). Every figure is looked for on the page it cites;
   one that is not there is marked unconfirmed and sent to review, never silently trusted.
@@ -96,87 +106,23 @@ PAGE_PICTURE_TOKENS = 4_800
 
 # ── which pages, in which parts ────────────────────────────────────────────────────────────────
 
-def pages_to_send(doc, *, choice: str, included_pages=None, sections_off=None,
-                  raw: bytes | None = None) -> tuple[list[int], str]:
-    """The page indexes to send, in order, and why those.
+def pages_to_send(doc) -> tuple[list[int], str]:
+    """The page indexes to send, in order, and why those: EVERY PAGE OF THE FILE.
 
-    "statements" sends the pages the next run would read as the Page Scope screen asks it
-    (`page_reading.reader_targets`): the statement faces and notes the classifier found — every
-    page when it found none — narrowed by a person's page selection and the sections they switched
-    off. "all" sends every page, narrowed the same way.
+    Whatever the page classifier found, and whatever is set on the Page Scope screen. It sent the
+    classifier's statement and note pages (`whole_pdf_pages = "statements"`, the default), narrowed
+    by a person's page selection and the sections they switched off, and a guessed auditor's report;
+    `"all"` was narrowed the same way. The whole PDF is what this route sends, so a reading the app
+    made of it first may not decide what the model does not see: on Vivo Energy Mauritius the
+    classifier found no statement and the auditor's report was left out. Page Scope now narrows
+    only the rules' reading (`pdf_extract`), which checks the model's figures, fills the lines the
+    model leaves empty, and reads the filing when the model cannot.
 
-    …AND THE AUDITOR'S REPORT AND THE COVER (`report_pages`), which no reader target includes: the
-    Accountant, the auditor's opinion and the audit-opinion text are printed nowhere else, so
-    without them those lines could only be refused as "not on the page" (finding
-    auditor_pages_not_sent). Added only where no page selection applies — a person who chose pages
-    chose them.
+    The classifier's reading is still used, after and beside: the faces carried in every part and
+    asked alone (`plan`; the face lines are asked only of those faces, `Plan.ask`), and where each
+    figure is looked for (`services.whole_pdf_locate`).
     """
-    from app.services import page_reading
-
-    pages = list(doc.pages)
-    if choice == "all":
-        chosen = page_reading.narrow_targets(pages, included_pages, sections_off)
-        why, base = "all", pages
-    else:
-        chosen = page_reading.reader_targets(pages, included_pages, sections_off)
-        base = page_reading.default_targets(pages)
-        why = ("statements" if any(p.kind in (PageKind.FACE, PageKind.NOTES) for p in pages)
-               else "all(no statement or notes page was classified)")
-    selected = bool(included_pages and page_reading.selection_applies(base, included_pages))
-    if selected:
-        why = "page_scope"
-    out = {int(p.index) for p in chosen}
-    if choice != "all" and not selected:
-        added = {name: [p for p in found if p not in out]
-                 for name, found in report_pages(doc, raw).items()}
-        for name, found in added.items():
-            if found:
-                out.update(found)
-                why += f"; +{name} {','.join(str(p + 1) for p in found)}"
-    if sections_off:
-        why += f"; sections off: {','.join(sorted(sections_off))}"
-    return sorted(out), why
-
-
-#: THE HEADING OF AN AUDITOR'S REPORT, as the corpus prints it: an HKEX report's running header
-#: ("INDEPENDENT AUDITOR'S REPORT 獨立核數師報告", on every page of it; 0857's IFRS set "Independent
-#: auditor's report to the shareholders"), a CSRC report's section heading ("第十节 财务报告
-#: 一、审计报告", on its first page only) and a 10-K's — in any case…
-_AUDITOR_HEADING = re.compile(
-    r"INDEPENDENT\s+AUDITOR[’'`]?S[’']?\s+REPORT|獨立核數師報告|独立核数师报告|"
-    r"[一二三四五六七八九十]\s*[、.．]\s*(?:审计报告|審計報告)|"
-    r"REPORT\s+OF\s+INDEPENDENT\s+REGISTERED\s+PUBLIC\s+ACCOUNTING\s+FIRM", re.IGNORECASE)
-#: …and "AUDITOR'S REPORT" in capitals, as a heading (0857's CAS set: "AUDITOR'S REPORT
-#: (continued)"), never the phrase in a sentence ("the auditor's report").
-_AUDITOR_CAPS = re.compile(r"\bAUDITOR[’'`]?S[’']?\s+REPORT\b")
-#: How far before a statement page an auditor's report may start. The longest in the corpus is
-#: 1966's, ten pages (92-101).
-_AUDITOR_REACH = 15
-
-
-def report_pages(doc, raw: bytes | None) -> dict[str, list[int]]:
-    """The pages, outside the statements and notes, that print lines the template asks for.
-
-    * ``auditor's report`` — every page the classifier calls `AUDITOR_REPORT`, and, as no filing in
-      the corpus is classified so (688008's report pages are faces with no statement, the HKEX
-      filings' are "other"), the pages from the report's heading up to a set of statements: before
-      each run of statement pages, the latest page within `_AUDITOR_REACH` that carries the
-      heading, and the run of pages before that one that carry it too (a running header), read off
-      the PDF's own text. Before EACH run, as a filing that prints two sets of statements (0857: CAS,
-      then IFRS) prints an auditor's report before each.
-    * ``cover`` — every page classified `COVER`. (None of the five reference filings has one: their
-      covers are classified "other" and are not sent. The company's name, the one line a cover
-      would serve, is printed at the head of every statement page.)
-    """
-    pages = list(doc.pages)
-    kinds = {int(p.index): p.kind for p in pages}
-    auditor = sorted(i for i, k in kinds.items() if k == PageKind.AUDITOR_REPORT)
-    cover = sorted(i for i, k in kinds.items() if k == PageKind.COVER)
-    faces = {int(p.index) for p in pages if p.kind == PageKind.FACE and _statement_value(p)}
-    starts = sorted(f for f in faces if f - 1 not in faces)
-    if starts and raw and not auditor:
-        auditor = _auditor_runs(raw, starts, faces)
-    return {"auditor's report": auditor, "cover": [c for c in cover if c not in auditor]}
+    return sorted({int(p.index) for p in doc.pages}), "every page"
 
 
 def _statement_value(page) -> str:
@@ -184,33 +130,6 @@ def _statement_value(page) -> str:
 
     st = getattr(page.statement, "value", page.statement)
     return st if st in ACTIVE_STATEMENTS else ""
-
-
-def _auditor_runs(raw: bytes, starts: list[int], faces: set[int]) -> list[int]:
-    import fitz
-
-    try:
-        pdf = fitz.open(stream=raw, filetype="pdf")
-    except Exception:  # noqa: BLE001 - a file that will not open has no report to find
-        return []
-    try:
-        def heads(i: int) -> bool:
-            top = (pdf.load_page(i).get_text("text") or "")[:600]
-            return bool(_AUDITOR_HEADING.search(top) or _AUDITOR_CAPS.search(top))
-        out: set[int] = set()
-        for first in starts:
-            window = [i for i in range(max(0, first - _AUDITOR_REACH), first)
-                      if i not in faces and 0 <= i < pdf.page_count]
-            latest = next((i for i in reversed(window) if heads(i)), None)
-            if latest is None or any(i in faces for i in range(latest, first)):
-                continue                  # none, or the report of an earlier set of statements
-            start = latest
-            while start - 1 in window and heads(start - 1):
-                start -= 1
-            out.update(i for i in range(start, first) if i not in faces)
-        return sorted(out)
-    finally:
-        pdf.close()
 
 
 @dataclass
@@ -705,10 +624,15 @@ def face_keys(chunks: list[Chunk], statements: set[str], item_set=None) -> froze
     return frozenset(keys)
 
 
-def plan(doc, raw: bytes, item_set, *, choice: str, max_pages: int, max_request_bytes: int,
-         lines_per_request: int, included_pages=None, sections_off=None,
-         max_input_tokens: int | None = None) -> Plan:
+def plan(doc, raw: bytes, item_set, *, max_pages: int, max_request_bytes: int,
+         lines_per_request: int, max_input_tokens: int | None = None) -> Plan:
     """The run's request plan, from the classified pages and the line-item set.
+
+    EVERY PAGE (`pages_to_send`) AND EVERY LINE (`lines_to_ask`), whatever the classifier found and
+    whatever is set on the Page Scope screen: a statement a person switched off there was not asked
+    for either, and is now. The classifier adds the faces carried in every part and the statements
+    alone as a part of their own — and so still decides which pages a face statement's [read from
+    the statement] lines are asked against (`Plan.ask`): the pages it calls that face.
 
     The lines first, because the questions' size is part of each request's size: THE WHOLE
     DEFINITIONS make the largest question (the HK balance sheet's, 213 lines) about 200,000
@@ -723,8 +647,7 @@ def plan(doc, raw: bytes, item_set, *, choice: str, max_pages: int, max_request_
     `max_input_tokens`: what one request may hold besides its reply's room (`llm.context_window_
     tokens` less `llm.max_output_tokens`); a part estimated over it is cut smaller (`build_parts`).
     """
-    off = set(sections_off or ())
-    lines = [it for it in lines_to_ask(item_set) if statement_of(it) not in off]
+    lines = lines_to_ask(item_set)
     chunks = chunk_lines(lines, lines_per_request, item_set)
     from app.services.line_item_llm import estimated_tokens
 
@@ -733,8 +656,7 @@ def plan(doc, raw: bytes, item_set, *, choice: str, max_pages: int, max_request_
     widest = max((len(t.encode("utf-8")) for t in asked_texts), default=0)
     widest_tokens = max((estimated_tokens(t) for t in asked_texts), default=0)
     overhead = max(REQUEST_OVERHEAD_BYTES, widest + len(SYSTEM.encode("utf-8")) + _ENVELOPE_BYTES)
-    pages, why = pages_to_send(doc, choice=choice, included_pages=included_pages,
-                               sections_off=off, raw=raw)
+    pages, why = pages_to_send(doc)
     carry = face_pages(doc, pages)
     window = {}
     if max_input_tokens:

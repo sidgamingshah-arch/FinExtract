@@ -73,6 +73,24 @@ def statements_not_read(unread: list[dict] | None, sections_off=None, pages=None
     return out
 
 
+def sections_left_unread(sections_off, whole_pdf: dict | None = None):
+    """The switched-off sections a run left unread: all of them — less, on a run THE WHOLE-PDF
+    ROUTE READ, the statements the model read. That route sends every page and asks every line
+    whatever is switched off on the Page Scope screen, so a statement switched off there whose lines
+    a request answered was read (`stages.whole_pdf`; `whole_pdf` is the run's `ctx.whole_pdf`,
+    stored as its `mapping.whole_pdf`, and `statements_read` in it names them). One no request
+    answered stays unread.
+
+    A run that carries no `statements_read` keeps every switched-off section: a rules run, a
+    whole-PDF run that fell back to the rules, and a whole-PDF run stored before every line was
+    asked, whose route did not ask a switched-off statement's lines at all."""
+    read = whole_pdf.get("statements_read") if isinstance(whole_pdf, dict) else None
+    if read is None or not sections_off:
+        return sections_off
+    read = set(read)
+    return {s for s in sections_off if s not in read}
+
+
 def page_label(e: dict) -> str:
     """The page as the rest of the product cites it: the printed folio, else the sheet number."""
     return f"p.{e.get('folio') or e.get('page')}"

@@ -205,8 +205,7 @@ def test_end_to_end_the_whole_pdf_route_reads_the_script_and_does_not_fall_back(
     script = {"units": "RMB", "lines": {CASH: [script_figure("2000", page=2, caption="Cash"),
                                                script_figure("1800", page=2, caption="Cash",
                                                              period="prior")]}}
-    out, ctx, rec = run_whole_pdf(monkeypatch, tmp_path, doc.tobytes(), script,
-                                  whole_pdf_pages="all")
+    out, ctx, rec = run_whole_pdf(monkeypatch, tmp_path, doc.tobytes(), script)
     assert not any(line.startswith("whole_pdf:fallback") for line in ctx.logs)
     assert ctx.mapping_strategy == "whole_pdf"
     cash = next(li for li in out.line_items if li.canonical_key == CASH)

@@ -209,13 +209,13 @@ BS, PL, FACE = ((PageKind.FACE, "balance_sheet"), (PageKind.FACE, "profit_and_lo
 
 
 def test_the_plan_sends_the_faces_alone_last_and_a_statement_with_no_face_where_the_notes_are(hk):
-    """A face page the classifier named no statement of is not a reader target, and is not sent
-    (page 4 here); the statements alone are every face page that is sent."""
+    """Every page is sent, the cover and a face page the classifier named no statement of (page 4
+    here) among them; the statements alone are every face page, that one included."""
     doc = _doc([O, BS, BS, FACE, PL, N, N, N])
-    plan = W.plan(doc, _pdf(8), hk, choice="statements", max_pages=100,
-                  max_request_bytes=20 * 1024 * 1024, lines_per_request=250)
-    assert [(p.pages, p.faces_only) for p in plan.parts] == [([1, 2, 4, 5, 6, 7], False),
-                                                              ([1, 2, 4], True)]
+    plan = W.plan(doc, _pdf(8), hk, max_pages=100, max_request_bytes=20 * 1024 * 1024,
+                  lines_per_request=250)
+    assert [(p.pages, p.faces_only) for p in plan.parts] == [(list(range(8)), False),
+                                                              ([1, 2, 3, 4], True)]
     assert plan.face_statements == {"balance_sheet", "profit_and_loss"}
     flow = next(ci for ci, c in enumerate(plan.chunks) if c.statement == "cash_flow")
     assert plan.ask(0, flow) == plan.chunks[flow] and not plan.ask(1, flow)   # no face found
@@ -223,8 +223,10 @@ def test_the_plan_sends_the_faces_alone_last_and_a_statement_with_no_face_where_
 
 
 def test_a_filing_of_faces_only_or_of_notes_only_is_sent_as_before(hk):
-    for kinds in ([O, BS, PL], [O, N, N]):
-        plan = W.plan(_doc(kinds), _pdf(3), hk, choice="statements", max_pages=100,
+    """Nothing to split off: a file that is all statement faces, or has none. (A cover beside the
+    faces is a page that is not a face, so the faces then go alone too.)"""
+    for kinds in ([BS, PL], [O, N, N]):
+        plan = W.plan(_doc(kinds), _pdf(len(kinds)), hk, max_pages=100,
                       max_request_bytes=20 * 1024 * 1024, lines_per_request=250)
         assert not any(p.faces_only for p in plan.parts) and plan.face_keys == frozenset()
         assert all(plan.ask(0, ci) == c for ci, c in enumerate(plan.chunks))
@@ -250,8 +252,8 @@ def test_a_set_of_face_lines_only_keeps_the_runs_first_request_in_the_first_part
     before the run fell back. Nothing is left to ask the notes parts, so nothing is split off: the
     plan is the one before the statements were asked alone."""
     doc = _doc([O, BS, PL, CF, N, N, N])
-    plan = W.plan(doc, _pdf(7), indas, choice="statements", max_pages=100,
-                  max_request_bytes=20 * 1024 * 1024, lines_per_request=250)
+    plan = W.plan(doc, _pdf(7), indas, max_pages=100, max_request_bytes=20 * 1024 * 1024,
+                  lines_per_request=250)
     assert plan.order(), "no request at all"
     assert plan.order()[0][0] == 0                        # the run's first request: part 1's
     assert all(plan.ask(0, ci) for ci in range(len(plan.chunks)))
@@ -266,8 +268,8 @@ def test_a_dead_provider_on_a_set_of_face_lines_only_is_left_after_the_first_req
     from app.stages.whole_pdf import WholePdfStage
 
     doc = _doc([O, BS, PL, CF, N, N, N])
-    plan = W.plan(doc, _pdf(7), indas, choice="statements", max_pages=100,
-                  max_request_bytes=20 * 1024 * 1024, lines_per_request=250)
+    plan = W.plan(doc, _pdf(7), indas, max_pages=100, max_request_bytes=20 * 1024 * 1024,
+                  lines_per_request=250)
     calls = []
 
     class Down:                       # a STAND-IN provider that never answers, not a model

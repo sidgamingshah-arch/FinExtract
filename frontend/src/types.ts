@@ -1420,6 +1420,10 @@ export interface PagesResponse {
   last_run?: ScopeLastRun | null;
   /** True while a run is extracting the document: page changes wait. */
   locked?: boolean;
+  /** The whole PDF goes to the model (`extraction.whole_pdf_to_model`, and a provider that can be
+   *  sent a file): every page is sent and every line asked whatever is chosen here, which then
+   *  changes only what the rules read. False when every run would fall back to the rules. */
+  whole_pdf?: boolean;
   /** Only on the answer to a section edit: typed pages left as they were. */
   kept?: ScopeKept[];
 }

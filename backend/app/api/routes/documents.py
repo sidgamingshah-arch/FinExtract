@@ -2870,7 +2870,7 @@ def _structural_for_run(session: Session, run, rows: list[dict] | None = None,
     """
     from app.schemas.loader import load_template
     from app.services.structural_checks import evaluate_structure, items_of_rows
-    from app.services.unread_pages import statements_not_read
+    from app.services.unread_pages import sections_left_unread, statements_not_read
 
     stored = list((run.result or {}).get("structural") or [])
     template_def = template_def if template_def is not None else _template_for_run(session, run)
@@ -2895,8 +2895,12 @@ def _structural_for_run(session: Session, run, rows: list[dict] | None = None,
     if not (any((r.get("mapping_method") or "") != "supplemental" for r in rows) or unread):
         return [], True
     items = items_of_rows(rows)
-    not_read = statements_not_read(unread, (run.options or {}).get("sections_off"),
-                                   run.result.get("pages") or [])
+    # A switched-off statement a whole-PDF run's model answered was read; a run stored without
+    # `statements_read` (any other run, or one from before) keeps its switched-off sections unread.
+    whole_pdf = (run.result.get("mapping") or {}).get("whole_pdf")
+    not_read = statements_not_read(
+        unread, sections_left_unread((run.options or {}).get("sections_off"), whole_pdf),
+        run.result.get("pages") or [])
     report = evaluate_structure(template, items, ontology=ontology, not_read=not_read)
     return [r.model_dump(mode="json") for r in report.results], True
 
@@ -5017,6 +5021,12 @@ def _build_pages(pages: list[dict], scope: list[int] | None = None,
     A PDF only: a workbook or an image is read sheet by sheet or whole, and nothing on Page Scope
     changes that, so their cards carry `reads: null` and there are no sections. `last_run` is the
     latest run and whether it read the pages as they now are; `locked` while it is running.
+    `whole_pdf`: the whole PDF goes to the model (`extraction.whole_pdf_to_model`, and a provider
+    that can be sent a file, `settings_state.provider_takes_files`), which sends every page and asks
+    every line whatever is chosen here, so the screen says that its choices change only what the
+    rules read. With the switch on and a provider that takes no file (the stub, say) every run falls
+    back to the rules, where Page Scope applies in full, so the flag is off and the screen says
+    nothing different.
 
     WHY EACH PAGE HAS ITS ENTITY: `scope_reason` on every card (`stages.classify._scope_reason`
     lists the rules) and `scope_conflict` where the title and the column headings disagree. A
@@ -5074,7 +5084,21 @@ def _build_pages(pages: list[dict], scope: list[int] | None = None,
             "format": fmt, "sections": sections,
             "read": sum(1 for c in cards if c["reads"]) if paged else None,
             "last_run": last_run,
-            "locked": bool(last_run and last_run.get("status") == "running")}
+            "locked": bool(last_run and last_run.get("status") == "running"),
+            "whole_pdf": paged and _whole_pdf_reads_it()}
+
+
+def _whole_pdf_reads_it() -> bool:
+    """Whether the next run's PDF goes whole to the model: the switch is on AND the configured
+    provider can be sent a file — the stage's own first test (`stages.whole_pdf.WholePdfStage.
+    _provider`), asked the way the Settings screen asks it. Otherwise every run falls back to the
+    rules, and Page Scope decides what is read."""
+    from app.config import get_settings
+    from app.services import settings_state
+
+    if not getattr(get_settings().extraction, "whole_pdf_to_model", False):
+        return False
+    return settings_state.provider_takes_files()
 
 
 def _last_run_info(session: Session, row) -> dict | None:

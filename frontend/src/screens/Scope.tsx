@@ -138,6 +138,11 @@ export default function ScopeScreen() {
   const busy = setSections.isPending || setOverrides.isPending;
   const chosen = sections.find((s) => s.id === chosenId) ?? null;
   const read = data.read ?? data.focused;
+  // THE WHOLE PDF GOES TO THE MODEL (`extraction.whole_pdf_to_model`, and a provider that takes a
+  // file): every page is sent and every line asked, whatever is chosen here, so what this screen
+  // says it reads and switches off is what THE RULES read, and switching every section off does
+  // not stop a run.
+  const wholePdf = paged && !!data.whole_pdf;
   const cardOf = (no: number) => cards.find((c) => c.no === no);
   // The page shown large. On a wide screen there always is one: the chosen section's first page,
   // else the first page a run reads — a report's cover and contents say nothing about its scope.
@@ -260,8 +265,8 @@ export default function ScopeScreen() {
         const name = sectionName(t, id);
         const isChosen = chosenId === id;
         const sub = !s.pages.length ? t("sc.sectionNotFound")
-          : !s.on && id === "notes" ? t("sc.notesOff")
-          : !s.on ? t("sc.sectionOff")
+          : !s.on && id === "notes" ? (wholePdf ? t("sc.notesOffWholePdf") : t("sc.notesOff"))
+          : !s.on ? (wholePdf ? t("sc.sectionOffWholePdf") : t("sc.sectionOff"))
           : fill(t("sc.sectionRead"), { read: s.read.length, pages: s.pages.length });
         return (
           <div key={id} data-testid="scope-section" data-section={id} data-on={String(s.on)}
@@ -399,10 +404,13 @@ export default function ScopeScreen() {
           <Button testid="scope-open-extraction" onClick={() => nav(SCREENS.extraction.path)}>
             {t("sc.openExtraction")}</Button>
         ) : (
-          <Button testid="scope-extract" onClick={extract} disabled={paged && read === 0}
-                  title={paged && read === 0 ? t("sc.blockedNone") : undefined}>
-            {/* A workbook or an image is not read page by page, so it has no count of pages. */}
-            {paged ? fill(t("sc.extractN"), { n: read }) : t("sc.openExtraction")}
+          <Button testid="scope-extract" onClick={extract}
+                  disabled={paged && read === 0 && !wholePdf}
+                  title={paged && read === 0 && !wholePdf ? t("sc.blockedNone") : undefined}>
+            {/* A workbook or an image is not read page by page, so it has no count of pages. With
+                the whole PDF on, every page goes to the model whatever the rules read. */}
+            {wholePdf ? fill(t("sc.extractAll"), { n: data.total })
+              : paged ? fill(t("sc.extractN"), { n: read }) : t("sc.openExtraction")}
           </Button>
         )}
       </div>
@@ -417,15 +425,24 @@ export default function ScopeScreen() {
                     gap: 16, marginBottom: 16, flexWrap: "wrap" }}>
         <div style={{ minWidth: 0, flex: "1 1 360px" }}>
           <h1 style={{ fontSize: 20, fontWeight: 600, marginBottom: 5 }}>{t("sc.title")}</h1>
-          <p style={{ margin: 0, color: color.sec2 }}>{t("sc.subhead")}</p>
+          <p style={{ margin: 0, color: color.sec2 }}>
+            {wholePdf ? t("sc.subheadWholePdf") : t("sc.subhead")}</p>
         </div>
         {paged && (
           <div data-testid="scope-read-count"
                style={{ fontSize: 12.5, fontWeight: 600, color: color.ink }}>
-            {fill(t("sc.readCount"), { read, total: data.total })}
+            {fill(wholePdf ? t("sc.readCountWholePdf") : t("sc.readCount"),
+                  { read, total: data.total })}
           </div>
         )}
       </div>
+      {/* WITH THE WHOLE PDF ON, nothing here cuts what the model is sent: every page goes and
+          every line is asked. Said above the sections, before a person chooses any. */}
+      {wholePdf && (
+        <div style={{ marginTop: -4, marginBottom: 14 }}>
+          <Note testid="scope-whole-pdf">{t("sc.wholePdf")}</Note>
+        </div>
+      )}
       {!paged ? below : (
         <div style={narrow ? undefined : { display: "flex", gap: 18, alignItems: "flex-start" }}>
           <div style={{ flex: 1, minWidth: 0 }}>

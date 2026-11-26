@@ -754,13 +754,31 @@ below is not in it. **On**, the run assembles `whole_pdf_pipeline()` — the sam
    (`PipelineContext.whole_pdf_rules_rows`, set aside unmapped), and so a fallback reads nothing
    twice.
 2. `stages/whole_pdf.py` sends the PDF **file itself** to the model, not text the app read out of
-   it: the pages the classifier found to be statements and notes (`whole_pdf_pages =
-   "statements"`), every page (`"all"`), or the pages a person chose on the Page Scope screen.
-   With "statements" and no page selection, the **auditor's report** goes too
-   (`services/whole_pdf.py::report_pages`): a page classified `AUDITOR_REPORT` or `COVER`, and —
-   since no corpus filing is classified so — the pages from the report's heading ("INDEPENDENT
-   AUDITOR'S REPORT", "一、审计报告") up to each set of statements, found in the PDF's own text; the
-   Accountant and the auditor's opinion are printed nowhere else. They go as one or more PDF
+   it — **every page, and every line is asked** (`services/whole_pdf.py::pages_to_send`, `plan`),
+   whatever the page classifier found and whatever is set on the Page Scope screen. **Page Scope
+   affects only the rules route**: on this route it narrows what the rules read beside the model
+   (`extract`), which checks the model's figures, fills the lines it leaves empty and is the
+   fallback, and the run log says so (`whole_pdf:page_scope_not_applied`). It used to send the
+   pages the classifier found to be statements and notes (`whole_pdf_pages = "statements"`, the
+   default) or every page (`"all"`), either one narrowed by the page selection, and asked no line
+   of a section switched off; with the classifier finding no statement (Vivo Energy Mauritius)
+   the auditor's report was left out. The setting is gone, and a value saved for it is removed at
+   startup (`settings_state.RETIRED_KNOBS`). The classifier's reading is still used beside the
+   model, and cuts no page or line from what is sent: the faces carried in every part and asked
+   alone (below), a face line read off another page sent to review (`merge`), and the rules'
+   reading each figure is found again in. **One thing it still decides**: a face statement's
+   `[read from the statement]` lines are asked only of the statements-alone part, which holds the
+   pages the classifier calls that statement's face. Where it calls the wrong page the balance
+   sheet, those lines are asked against that page, and the parts holding the real one are asked
+   none of them (they are still sent it, and asked the statement's other lines). It is a known
+   limit, kept for what the statements-alone part saves; asking the face lines in every part as
+   well is a person's choice. A page the rules left unread (out of the selection, a section
+   switched off, scanned with no OCR) went to the model, so once a part holding it got a reply it
+   is no longer counted unread; a page whose every part failed, or one larger than a request,
+   stays unread. A switched-off statement whose lines a request answered is checked on the
+   model's figures (`ctx.whole_pdf["statements_read"]`, stored as the run's `mapping.whole_pdf`;
+   `services/unread_pages.py::sections_left_unread`); one no request answered, and any run stored
+   without that key, stays "not read". The pages go as one or more PDF
    parts cut from the original (`services/whole_pdf.py::build_parts`): at most
    `whole_pdf_pages_per_request` pages (600 as shipped, what Claude reads a request on a
    1,000,000-token window) and `whole_pdf_max_request_mb` a part, and no more than the model's
@@ -1015,10 +1033,31 @@ caching 7.8-12.7% under, and the largest request 1.6 to 1.8 times larger (249,61
 estimated tokens with 1,600 a picture). 300319 fit in one part already and is unchanged; 1966's
 176 pages are put at 978,203 tokens at the window check's 4,800 a picture, before its question,
 over the 872,000 the window leaves beside a reply, so it stays in two parts, 13 requests, as
-before. Sending every page (`whole_pdf_pages
-= "all"`, three filings), the notes go in two parts instead of three, 13 requests instead of 18,
-4-7% fewer tokens; the largest request is at most 800,389 at 4,800 a picture (1966), inside the
-872,000 the window leaves beside a reply.
+before.
+
+**Every page, every line (the route now; measured with the shipped stand-in recording the
+requests, no model called, the HK set, 600 pages a part on the 1,000,000-token window).** Before,
+with the shipped "statements": 94 to 176 pages sent of 162 to 270, 8 requests (13 on 1966), the
+largest request an estimated 227,276 to 309,742 input tokens at 1,600 a picture, the whole run 1.33
+to 2.42 million; and a page selection with a section switched off cut it to 5 to 16 pages and 436
+of the 518 lines. Now every filing sends every page — 256 (688008), 208 (000709), 188 (300319), 270
+(1966), 162 (kaming) — in two parts holding the notes, each carrying the statement faces, and the
+statements alone (7 to 22 pages): 13 requests, 518 lines, whatever Page Scope says. The two notes
+parts are what the window check makes of 162 to 270 pages at 4,800 a picture. The largest request
+is an estimated 223,861 (kaming) to 352,146 (1966) tokens at 1,600 a picture (492,661 to 800,146 at
+4,800, inside the 872,000 the window leaves beside a reply), the whole run 2.24 to 3.56 million:
+about 1.5 to 2.3 times the "statements" run, the price of not letting the classifier choose. A
+filing whose pages the classifier called nothing (every page "other") was already sent whole and
+is unchanged: two parts, no faces carried, 14 requests. One on which it found notes pages but no
+statement face — the Vivo Energy Mauritius shape, 54 of 58 sheets sent — sent only those pages
+and no auditor's report, as no statement page told the finder where to look; now it sends every
+page. **On a smaller window the requests grow about 1.5 to 2.5 times** (the same five filings, the
+window check's 4,800 a picture, 100 pages a part on a 200,000-token window, which leaves 136,000
+beside a reply): the window check cuts the parts much smaller, and as every page goes there
+are more of them — 688008 86 requests before -> 217 now, 000709 86 -> 132, 300319 86 -> 166,
+1966 166 -> 246, kaming 193 -> 323. Every request still fits: the largest is an estimated 78,260
+to 100,273 tokens and at most 2.4 MB; the whole run is 6.5 to 18.2 million estimated tokens
+(kaming the most).
 
 ## Progress reporting
 

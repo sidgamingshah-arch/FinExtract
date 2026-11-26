@@ -32,7 +32,7 @@ from app.services.coverage import (
     warning_failures,
 )
 from app.services.structural_checks import evaluate_structure
-from app.services.unread_pages import statements_not_read
+from app.services.unread_pages import sections_left_unread, statements_not_read
 
 FLAG = "structural_mismatch"
 FLAG_WARNING = "structural_warning"
@@ -66,8 +66,11 @@ class StructuralStage:
         ontology = getattr(ctx, "ontology", None)
         # The statements whose pages this run did not read: their relations are skipped as not
         # read and stay in the coverage denominator (services/coverage.py NOT_READ).
-        not_read = statements_not_read(doc.unread_pages, getattr(ctx, "sections_off", None),
-                                       doc.pages)
+        # A switched-off statement the whole-PDF route asked and the model answered is read all
+        # the same (`statements_read` in `ctx.whole_pdf`).
+        off = sections_left_unread(getattr(ctx, "sections_off", None),
+                                   getattr(ctx, "whole_pdf", None))
+        not_read = statements_not_read(doc.unread_pages, off, doc.pages)
         if not_read:
             ctx.log(f"structural:statements_not_read={','.join(sorted(not_read))}")
         report = evaluate_structure(template, doc.line_items, ontology=ontology,

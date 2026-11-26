@@ -1,16 +1,14 @@
-"""WHAT THE WHOLE-PDF ROUTE SENDS: the auditor's report beside the statements and notes, and the
-statement faces in every part (`services.whole_pdf.pages_to_send`, `report_pages`, `build_parts`,
-`plan`).
+"""WHAT THE WHOLE-PDF ROUTE SENDS: every page — the auditor's report among them — and the statement
+faces in every part (`services.whole_pdf.pages_to_send`, `build_parts`, `plan`).
 
 * The auditor's report was never sent, so the Accountant, the auditor's opinion and the audit-
-  opinion text could only be refused as "not on the page" (finding auditor_pages_not_sent). No
-  filing in the corpus is classified `AUDITOR_REPORT` — 688008's report pages are faces with no
-  statement, the HKEX filings' are "other" — so the report is found by its heading before the
-  statements.
-* Four of the five reference filings go in two parts, and the second held notes only, so a note
-  read there was read with no statement in view (finding parts_and_merge_prefer_face_for_note_
-  parts). Every part now carries the faces; the parts are cut smaller to make room, and no page is
-  dropped.
+  opinion text could only be refused as "not on the page" (finding auditor_pages_not_sent). It was
+  then found by its heading before the statements and added to the classifier's pages. Now every
+  page of the file goes, whatever the classifier found (`test_page_scope_does_not_narrow_the_
+  whole_pdf_route.py`), so the report goes with the rest and nothing has to find it.
+* The notes go in two or three parts, and a part that held notes only read a note with no
+  statement in view (finding parts_and_merge_prefer_face_for_note_parts). Every part carries the
+  faces; the parts are cut smaller to make room, and no page is dropped.
 * The statements' own [read from the statement] lines are asked once, against the statement faces
   alone, a part of its own sent last (`Plan.face_keys`): the parts holding the notes carry the
   faces still, and are asked every other line.
@@ -41,13 +39,15 @@ TEMPLATES = BACKEND / "app" / "sample" / "templates"
 AUDITOR = {"688008_montage_2024_prc": range(147, 150), "000709_hesteel_2024_prc": range(79, 82),
            "300319_maijie_2024_prc": range(95, 98), "hkex_1966_ar": range(92, 102),
            "hkex_kaming_2025_26": range(54, 62)}
-#: Parts before (54+53, 63+63, 91, 83+83, 51+50) and after: the parts holding the notes, the faces
-#: each of them carries, and the part that holds the statement faces alone (every page classified a
+#: At 100 pages a request, every page of the file sent: the parts holding the notes, the faces each
+#: of them carries, and the part that holds the statement faces alone (every page classified a
 #: face, a continuation it did not name included: 000709's p93, 688008's report pages 145-149).
-PARTS = {"688008_montage_2024_prc": ([64, 63], 17, 20),
-         "000709_hesteel_2024_prc": ([73, 73], 17, 18),
-         "300319_maijie_2024_prc": ([94], 0, 20), "hkex_1966_ar": ([94, 93], 11, 11),
-         "hkex_kaming_2025_26": ([58, 58], 7, 7)}
+#: (With the classifier's statement and note pages only, they were [64, 63], [73, 73], [94],
+#: [94, 93] and [58, 58].)
+PARTS = {"688008_montage_2024_prc": ([97, 97, 96], 17, 22),
+         "000709_hesteel_2024_prc": ([81, 81, 80], 17, 22),
+         "300319_maijie_2024_prc": ([76, 76, 74], 19, 20), "hkex_1966_ar": ([98, 98, 96], 11, 11),
+         "hkex_kaming_2025_26": ([85, 84], 7, 7)}
 #: What one page costs a request as a picture, as the audit estimated it (the text is counted by
 #: the app's own estimator); the window the requests are measured against.
 IMAGE_TOKENS_PER_PAGE = 1_600
@@ -87,25 +87,22 @@ def classified(tmp_path_factory):
 
 
 @pytest.mark.parametrize("stem", sorted(AUDITOR))
-def test_the_auditors_report_is_sent_beside_the_statements(classified, stem):
+def test_the_auditors_report_is_sent_as_every_page_is(classified, hk, stem):
     doc, raw = classified(stem)
-    before, _ = W.pages_to_send(doc, choice="statements")            # no text: as it was
-    pages, why = W.pages_to_send(doc, choice="statements", raw=raw)
-    report = [p - 1 for p in AUDITOR[stem]]
-    assert not set(report) & set(before)
-    assert set(pages) == set(before) | set(report)
-    assert f"+auditor's report {','.join(str(p) for p in AUDITOR[stem])}" in why
-    # A person's page selection is theirs: nothing is added to it.
-    chosen, why = W.pages_to_send(doc, choice="statements", raw=raw,
-                                  included_pages=set(before[:5]))
-    assert chosen == before[:5] and why == "page_scope"
+    pages, why = W.pages_to_send(doc)
+    assert pages == list(range(len(doc.pages))) and why == "every page"
+    assert {p - 1 for p in AUDITOR[stem]} <= set(pages)
+    plan = W.plan(doc, raw, hk, max_pages=100, max_request_bytes=20 * 1024 * 1024,
+                  lines_per_request=250)
+    assert plan.pages == pages and not plan.dropped
+    assert {p - 1 for p in AUDITOR[stem]} <= {p for part in plan.parts for p in part.pages}
 
 
 @pytest.mark.parametrize("stem", sorted(PARTS))
 def test_every_part_carries_the_faces_and_no_page_is_dropped(classified, hk, stem):
     doc, raw = classified(stem)
-    plan = W.plan(doc, raw, hk, choice="statements", max_pages=100,
-                  max_request_bytes=20 * 1024 * 1024, lines_per_request=250)
+    plan = W.plan(doc, raw, hk, max_pages=100, max_request_bytes=20 * 1024 * 1024,
+                  lines_per_request=250)
     sizes, carried, alone = PARTS[stem]
     notes = [p for p in plan.parts if not p.faces_only]
     assert [len(p.pages) for p in notes] == sizes and len(plan.carried) == carried
@@ -124,8 +121,8 @@ def test_every_request_stays_within_the_providers_limits(classified, hk, stem):
     """Each request's body (the part in base64, its question, the system text) within the
     configured 20 MB, and its estimated input within a one-million-token window's 900,000."""
     doc, raw = classified(stem)
-    plan = W.plan(doc, raw, hk, choice="statements", max_pages=100,
-                  max_request_bytes=20 * 1024 * 1024, lines_per_request=250)
+    plan = W.plan(doc, raw, hk, max_pages=100, max_request_bytes=20 * 1024 * 1024,
+                  lines_per_request=250)
     pdf = fitz.open(stream=raw, filetype="pdf")
     text = {i: estimated_tokens(pdf[i].get_text("text") or "") for i in plan.pages}
     system = len(W.SYSTEM.encode("utf-8"))
@@ -140,23 +137,27 @@ def test_every_request_stays_within_the_providers_limits(classified, hk, stem):
         assert tokens <= WINDOW_TOKENS, (pi, chunk.statement, tokens)
 
 
-#: The largest request and the whole run, estimated as above: before 01d4a34 (definitions cut at
-#: 240 characters, nothing carried), at 01d4a34 (whole definitions, faces in every part, every line
-#: asked in every part), and the ceiling now — the statements' face lines asked once against the
-#: faces alone, a sentence several lines share sent once (`services.whole_pdf.Plan`, `question`).
+#: The largest request and the whole run, estimated as above, at 100 pages a request: before
+#: 01d4a34 (definitions cut at 240 characters, nothing carried) and at 01d4a34 (whole definitions,
+#: faces in every part, every line asked in every part), both on the classifier's statement and note
+#: pages only — and the ceiling now, EVERY PAGE SENT, the statements' face lines asked once against
+#: the faces alone, a sentence several lines share sent once (`services.whole_pdf.Plan`,
+#: `question`). Sending every page costs more than the classifier's pages did (the run 1.03 to 1.76
+#: times 01d4a34's, which sent fewer pages); the ceiling is the measured figure with 2% of room, so a question that grows is
+#: seen.
 SIZES = {
-    "688008_montage_2024_prc": ((140_020, 1_719_268), (197_882, 2_183_151), (160_000, 1_700_000)),
-    "000709_hesteel_2024_prc": ((171_085, 2_149_033), (227_868, 2_626_293), (190_000, 2_000_000)),
-    "300319_maijie_2024_prc": ((227_916, 1_512_553), (270_661, 1_644_377), (235_000, 1_400_000)),
-    "hkex_1966_ar": ((220_491, 2_831_722), (282_702, 3_335_155), (245_000, 2_500_000)),
-    "hkex_kaming_2025_26": ((141_933, 1_760_015), (195_441, 2_160_590), (160_000, 1_600_000))}
+    "688008_montage_2024_prc": ((140_020, 1_719_268), (197_882, 2_183_151), (239_600, 3_626_400)),
+    "000709_hesteel_2024_prc": ((171_085, 2_149_033), (227_868, 2_626_293), (204_600, 3_185_200)),
+    "300319_maijie_2024_prc": ((227_916, 1_512_553), (270_661, 1_644_377), (189_800, 2_951_300)),
+    "hkex_1966_ar": ((220_491, 2_831_722), (282_702, 3_335_155), (254_500, 3_780_000)),
+    "hkex_kaming_2025_26": ((141_933, 1_760_015), (195_441, 2_160_590), (230_200, 2_276_300))}
 
 
 @pytest.mark.parametrize("stem", sorted(SIZES))
-def test_the_requests_are_back_near_their_size_before_the_whole_definitions(classified, hk, stem):
+def test_the_requests_stay_within_their_measured_size(classified, hk, stem):
     doc, raw = classified(stem)
-    plan = W.plan(doc, raw, hk, choice="statements", max_pages=100,
-                  max_request_bytes=20 * 1024 * 1024, lines_per_request=250)
+    plan = W.plan(doc, raw, hk, max_pages=100, max_request_bytes=20 * 1024 * 1024,
+                  lines_per_request=250)
     pdf = fitz.open(stream=raw, filetype="pdf")
     text = {i: estimated_tokens(pdf[i].get_text("text") or "") for i in plan.pages}
     sizes = []
@@ -166,9 +167,8 @@ def test_the_requests_are_back_near_their_size_before_the_whole_definitions(clas
                               len(plan.carried))
         sizes.append(estimated_tokens(W.SYSTEM) + estimated_tokens(question)
                      + sum(text[p] for p in part.pages) + IMAGE_TOKENS_PER_PAGE * len(part.pages))
-    (_old_max, old_run), (head_max, head_run), (cap_max, cap_run) = SIZES[stem]
-    assert max(sizes) <= cap_max < head_max
-    assert sum(sizes) <= cap_run < min(old_run, head_run)
+    _old, _head, (cap_max, cap_run) = SIZES[stem]
+    assert max(sizes) <= cap_max and sum(sizes) <= cap_run
 
 
 # ── synthetic files ────────────────────────────────────────────────────────────────────────────
@@ -194,29 +194,11 @@ O, N = (PageKind.OTHER, None), (PageKind.NOTES, None)
 BS, PL = (PageKind.FACE, "balance_sheet"), (PageKind.FACE, "profit_and_loss")
 
 
-def test_a_csrc_report_is_found_by_its_first_page_heading_and_a_sentence_is_not_a_heading():
-    raw = _pdf([["Directors' report: the auditor's report is on the next pages."],
-                ["第十节 财务报告", "一、审计报告", "我们认为，后附的财务报表…"],
-                ["关键审计事项 …"], ["我们的目标是 …"], ["合并资产负债表"], ["七、合并财务报表项目注释"]])
-    doc = _doc([O, O, O, O, BS, N])
-    assert W.report_pages(doc, raw) == {"auditor's report": [1, 2, 3], "cover": []}
-
-
-def test_each_set_of_statements_brings_its_own_report():
-    """0857 prints a CAS set and an IFRS set, each after its own auditor's report."""
-    raw = _pdf([["AUDITOR'S REPORT", "Opinion"], ["AUDITOR'S REPORT (continued)"],
-                ["BALANCE SHEETS"], ["INCOME STATEMENTS"], ["Notes"],
-                ["Independent auditor's report to the shareholders"],
-                ["Independent auditor's report to the shareholders (continued)"],
-                ["STATEMENT OF FINANCIAL POSITION"], ["Notes"]])
-    doc = _doc([O, O, BS, PL, N, O, O, BS, N])
-    assert W.report_pages(doc, raw)["auditor's report"] == [0, 1, 5, 6]
-
-
-def test_a_classified_report_and_cover_are_sent_without_reading_the_text():
-    doc = _doc([(PageKind.COVER, None), (PageKind.AUDITOR_REPORT, None), BS, N])
-    pages, why = W.pages_to_send(doc, choice="statements")
-    assert pages == [0, 1, 2, 3] and "+auditor's report 2" in why and "+cover 1" in why
+def test_a_report_and_a_cover_go_with_every_other_page_classified_or_not():
+    """The auditor's report and the cover are sent because every page is — a classified one, and
+    one the classifier called "other" (the HKEX filings' report pages), alike."""
+    doc = _doc([(PageKind.COVER, None), (PageKind.AUDITOR_REPORT, None), O, BS, N])
+    assert W.pages_to_send(doc) == ([0, 1, 2, 3, 4], "every page")
 
 
 def test_the_parts_are_cut_smaller_to_carry_the_faces():

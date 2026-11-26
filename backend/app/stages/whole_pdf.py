@@ -6,9 +6,10 @@ IN THE PIPELINE ONLY WHEN THE SWITCH IS ON (`core.pipeline.pipeline_for`): with
 in it, so a run is what it was.
 
 On, it runs straight after the extraction (`core.pipeline.whole_pdf_pipeline` says why there).
-It sends the chosen pages as the PDF file itself, in parts within the request's limits, asks every
-part for the template's lines a few dozen at a time, checks each figure against the page it cites
-in the PDF's own text, and writes one row per line and basis.
+It sends EVERY PAGE as the PDF file itself, in parts within the request's limits, and asks every
+part for the template's lines — every line, whatever the page classifier found and whatever is set
+on the Page Scope screen, which narrows only the rules' reading beside the model. It checks each
+figure against the page it cites in the PDF's own text, and writes one row per line and basis.
 
 EVERY FIGURE IS FOUND AGAIN IN THE RULES' READING OF ITS PAGE AND CHECKED THERE
 (`services.whole_pdf_locate`): the face row or note row that prints it, its column, its unit, or the
@@ -61,6 +62,7 @@ from app.services import derivation, review_state
 from app.services import whole_pdf as W
 from app.services import whole_pdf_locate as L
 from app.services.buckets import PRINTED_ON_FLAG
+from app.services.statements import ACTIVE_STATEMENTS
 
 #: What still runs once the model has read the file. The test for each stage is the same two
 #: questions: does it need the note tables (which this route now keeps), and is it safe beside face
@@ -160,7 +162,6 @@ class WholePdfStage:
         if refused:
             return _fallback(doc, ctx, refused)
 
-        off = set(getattr(ctx, "sections_off", None) or ())
         window, room = _model_limits(ctx)
         max_pages = int(ex.whole_pdf_pages_per_request)
         if window < 1_000_000 and max_pages > _PAGES_UNDER_A_MILLION:
@@ -168,13 +169,16 @@ class WholePdfStage:
             ctx.log(f"whole_pdf:pages_per_request {max_pages} -> {_PAGES_UNDER_A_MILLION} "
                     f"(llm.context_window_tokens={window} is under 1,000,000)")
             max_pages = _PAGES_UNDER_A_MILLION
+        scope = _page_scope(ctx)
+        if scope:
+            # EVERY PAGE GOES AND EVERY LINE IS ASKED, whatever the Page Scope screen says: it
+            # narrowed the rules' reading above (`pdf_extract`), and only that.
+            ctx.log(f"whole_pdf:page_scope_not_applied({scope}) — every page is sent and every "
+                    f"line asked; Page Scope narrows only what the rules read")
         try:
-            # A statement a person switched off on the Page Scope screen is not asked for either.
-            plan = W.plan(doc, ctx.raw_bytes, ctx.line_items, choice=str(ex.whole_pdf_pages),
-                          max_pages=max_pages,
+            plan = W.plan(doc, ctx.raw_bytes, ctx.line_items, max_pages=max_pages,
                           max_request_bytes=int(ex.whole_pdf_max_request_mb) * 1024 * 1024,
                           lines_per_request=int(ex.whole_pdf_lines_per_request),
-                          included_pages=getattr(ctx, "included_pages", None), sections_off=off,
                           max_input_tokens=window - room)
         except Exception as exc:  # noqa: BLE001 - a file that will not cut is read by the rules
             return _fallback(doc, ctx, f"the PDF could not be cut into parts: "
@@ -243,6 +247,23 @@ class WholePdfStage:
         # kept below read the notes exactly as on the rules route.
         ctx.whole_pdf_rules_rows = list(doc.line_items)
         doc.line_items = rows
+        # A PAGE THE RULES LEFT UNREAD IS NOT UNREAD ONCE THE MODEL HAS READ IT. Out of the page
+        # selection, read only for a switched-off section, scanned with no OCR: each of them went
+        # to the model, so where the model answered it is not a page this run did not read, and a
+        # statement printed there is not "not read" (`services.unread_pages`; the structural checks
+        # run on it). READ MEANS ANSWERED, NOT SENT: a page counts as read only when a part holding
+        # it got at least one reply. A page whose every part failed, or one larger than a request,
+        # was read by nobody, and it stays unread.
+        rules_unread = list(doc.unread_pages or [])
+        read = {p for pi in asked.answered for p in parts[pi].pages}
+        doc.unread_pages = [e for e in rules_unread if int(e.get("page") or 0) - 1 not in read]
+        # The statements whose lines a request answered — the ones the model read, whatever is
+        # switched off on Page Scope. A switched-off statement not among them stays "not read"
+        # (`services.unread_pages.sections_left_unread`, in the structural stage and in the API's
+        # recompute, which reads it off the stored run).
+        answered_keys = set().union(*asked.answered.values())
+        statements_read = sorted({W.statement_of(it) for it in lines if it.key in answered_keys}
+                                 & ACTIVE_STATEMENTS)
 
         statuses: dict[str, int] = {}
         for r in merged.values():
@@ -276,6 +297,12 @@ class WholePdfStage:
             "checked": dict(sorted(judge.counts.items())),
             # What the rules read, kept beside the model's reading.
             "rules_face_rows": len(ctx.whole_pdf_rules_rows), "notes_kept": len(doc.notes),
+            # The pages the rules did not read (Page Scope, scanned with no OCR): sent all the same,
+            # and off the run's unread pages where a part holding them was answered.
+            "pages_the_rules_did_not_read": [int(e.get("page") or 0) for e in rules_unread],
+            # The statements whose lines a request answered: read by the model, even when switched
+            # off on Page Scope (`services.unread_pages.sections_left_unread`).
+            "statements_read": statements_read,
         }
         ctx.only_stages = KEPT_STAGES
         ctx.log(f"whole_pdf:read lines={len(answered) + len(text_rows)} of {len(lines)} "
@@ -559,6 +586,18 @@ def _lost_lines(doc, plan, asked: _Asked) -> tuple[str | None, list[str]]:
                     f"face pages (part {', '.join(str(pi + 1) for pi in holders)}; failed in "
                     f"part {', '.join(map(str, failed)) or '?'})"), lost
     return None, lost
+
+
+def _page_scope(ctx) -> str:
+    """What the Page Scope screen sets for this run, in words for the log — "" when nothing."""
+    out = []
+    included = getattr(ctx, "included_pages", None)
+    if included:
+        out.append(f"pages chosen: {len(included)}")
+    off = sorted(getattr(ctx, "sections_off", None) or ())
+    if off:
+        out.append(f"sections off: {','.join(off)}")
+    return "; ".join(out)
 
 
 def _fallback(doc, ctx, reason: str):

@@ -156,21 +156,13 @@ def _doc(kinds: list[PageKind]) -> DocumentModel:
     return doc
 
 
-def test_the_pages_sent_are_the_pages_the_page_scope_screen_reads():
-    """The pages the rules read, and the cover (finding auditor_pages_not_sent: a classified
-    cover or auditor's report is sent too — the lines they print are printed nowhere else)."""
+def test_every_page_is_sent_whatever_the_classifier_found():
+    """The cover, the statements, a page of another kind and the notes: every page, in order
+    (`test_page_scope_does_not_narrow_the_whole_pdf_route.py` has the Page Scope side)."""
     doc = _doc([PageKind.COVER, PageKind.FACE, PageKind.OTHER, PageKind.NOTES, PageKind.NOTES])
-    assert W.pages_to_send(doc, choice="statements") == ([0, 1, 3, 4], "statements; +cover 1")
-    assert W.pages_to_send(doc, choice="all")[0] == [0, 1, 2, 3, 4]
-    # A person's selection narrows them, as it narrows what the rules read — and adds nothing.
-    assert W.pages_to_send(doc, choice="statements", included_pages={1, 3, 9}) == (
-        [1, 3], "page_scope")
-    # …and so do the sections they switched off (the cover is no section).
-    pages, why = W.pages_to_send(doc, choice="statements", sections_off={"notes"})
-    assert pages == [0, 1] and "sections off: notes" in why
+    assert W.pages_to_send(doc) == ([0, 1, 2, 3, 4], "every page")
     none = _doc([PageKind.COVER, PageKind.OTHER])
-    pages, why = W.pages_to_send(none, choice="statements")
-    assert pages == [0, 1] and why.startswith("all(")
+    assert W.pages_to_send(none) == ([0, 1], "every page")
 
 
 def test_a_long_selection_is_sent_in_parts_each_holding_its_own_pages():
@@ -354,7 +346,7 @@ def run(monkeypatch):
 
     def _run(provider=None, **extraction):
         s = get_settings()
-        for name, value in {"whole_pdf_to_model": True, "whole_pdf_pages": "statements",
+        for name, value in {"whole_pdf_to_model": True,
                             "llm_disclosures": False, **extraction}.items():
             monkeypatch.setattr(s.extraction, name, value)
         if provider is not None:
@@ -372,12 +364,12 @@ def run(monkeypatch):
 def test_the_model_reads_the_file_and_the_extraction_is_skipped(run):
     provider = _Scripted()
     doc, ctx = run(provider)
-    # The file went with every request, and only the statement and notes pages were in it.
+    # The file went with every request, and every page of it — the cover too — was in it.
     assert provider.sent and all(len(m["documents"]) == 1 for m in provider.sent)
-    assert ctx.whole_pdf["pages_sent"] == [2, 3]
+    assert ctx.whole_pdf["pages_sent"] == [1, 2, 3]
     sent = fitz.open(stream=__import__("base64").b64decode(provider.sent[0]["documents"][0]["data"]),
                      filetype="pdf")
-    assert sent.page_count == 2
+    assert sent.page_count == 3
     # The rows are the model's, one per line and basis, on the template's keys — and a line the
     # model left out is the rules' reading of it, on a row of its own
     # (`services.whole_pdf_rules.fill_from_rules`): here the "other current assets" row.
@@ -521,20 +513,18 @@ def test_the_switch_and_its_limits_are_admin_settings(monkeypatch):
 
     fields = {f["key"]: f for f in S.extraction_config()["fields"]}
     assert fields["whole_pdf_to_model"]["kind"] == "bool"
-    assert fields["whole_pdf_pages"]["choices"] == ["statements", "all"]
+    assert "whole_pdf_pages" not in fields          # every page is sent: there is no choice
     assert (fields["whole_pdf_pages_per_request"]["min"],
             fields["whole_pdf_pages_per_request"]["max"]) == (1, 600)
     ex = get_settings().extraction
-    for key in ("whole_pdf_to_model", "whole_pdf_pages", "whole_pdf_lines_per_request"):
+    for key in ("whole_pdf_to_model", "whole_pdf_lines_per_request"):
         monkeypatch.setattr(ex, key, getattr(ex, key))
     # An admin can switch it off, and back on, from the Settings screen.
-    S.set_extraction_config(persist=False, whole_pdf_to_model=False, whole_pdf_pages="all",
+    S.set_extraction_config(persist=False, whole_pdf_to_model=False,
                             whole_pdf_lines_per_request=40)
-    assert ex.whole_pdf_to_model is False and ex.whole_pdf_pages == "all"
+    assert ex.whole_pdf_to_model is False and ex.whole_pdf_lines_per_request == 40
     S.set_extraction_config(persist=False, whole_pdf_to_model=True)
     assert ex.whole_pdf_to_model is True
-    with pytest.raises(ValueError):
-        S.set_extraction_config(persist=False, whole_pdf_pages="some")
     with pytest.raises(ValueError):
         S.set_extraction_config(persist=False, whole_pdf_pages_per_request=601)
 
@@ -665,7 +655,7 @@ def test_a_text_line_is_written_where_the_page_prints_it_and_refused_where_it_do
                     reply.lines.append(W.WholePdfLine(key=key, text=words, text_pages=[1]))
             return reply, meta
 
-    doc, ctx = run(_Text(), whole_pdf_pages="all")
+    doc, ctx = run(_Text())
     texts = {li.canonical_key: li for li in doc.line_items
              if any(v.value_text for v in li.values.values())}
     name = texts.get("notes_audit__auditor")
@@ -701,7 +691,7 @@ def test_a_narrative_is_checked_as_the_rules_route_checks_one(run):
                     reply.lines.append(W.WholePdfLine(key=key, text=words, text_pages=pages))
             return reply, meta
 
-    doc, ctx = run(_Prose(), whole_pdf_pages="all")
+    doc, ctx = run(_Prose())
     texts = {li.canonical_key: li for li in doc.line_items
              if any(v.value_text for v in li.values.values())}
     narrative = texts.get("notes_contingencies__narrative")
@@ -886,7 +876,7 @@ def test_through_the_pipeline_revenue_is_its_cascades_from_the_parts_the_model_r
 
     provider = _Parts()
     s = get_settings()
-    for name, value in {"whole_pdf_to_model": True, "whole_pdf_pages": "all",
+    for name, value in {"whole_pdf_to_model": True,
                         "llm_disclosures": False, "llm_shared_figure_tiebreak": False}.items():
         monkeypatch.setattr(s.extraction, name, value)
     monkeypatch.setitem(registry._factories.setdefault("llm", {}), provider.id, lambda: provider)
@@ -1025,7 +1015,7 @@ def test_through_the_pipeline_a_note_part_keeps_its_line_and_a_payment_its_sign(
 
     provider = _CF()
     s = get_settings()
-    for name, value in {"whole_pdf_to_model": True, "whole_pdf_pages": "all",
+    for name, value in {"whole_pdf_to_model": True,
                         "llm_disclosures": False, "llm_shared_figure_tiebreak": False}.items():
         monkeypatch.setattr(s.extraction, name, value)
     monkeypatch.setitem(registry._factories.setdefault("llm", {}), provider.id, lambda: provider)

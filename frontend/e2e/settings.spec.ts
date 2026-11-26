@@ -54,8 +54,11 @@ test("the route picker shows the route in use, opens the picked route's options,
   await expect(page.getByTestId("route-card-whole_pdf")).toContainText("alongside");
   await expect(page.getByText("skip extraction")).toHaveCount(0);
 
-  // Only the chosen route's own options are on the page.
-  await expect(page.getByTestId("ex-whole_pdf_pages")).toBeVisible();
+  // Only the chosen route's own options are on the page. The whole PDF sends every page and asks
+  // every line, so its own options are its request limits, folded; there is no page choice.
+  await expect(page.getByTestId("st-group-request-limits")).toBeVisible();
+  await expect(page.getByTestId("ex-whole_pdf_pages")).toHaveCount(0);
+  await expect(page.getByTestId("route-card-whole_pdf")).toContainText("Page Scope");
   await expect(page.getByTestId("route-fallback")).toBeVisible();
   await expect(page.getByTestId("ex-llm_document_context")).toHaveCount(0);
 
@@ -65,7 +68,7 @@ test("the route picker shows the route in use, opens the picked route's options,
   await expect(page.getByTestId("route-card-questions")).toHaveAttribute("data-on", "true");
   await expect(page.getByTestId("route-not-saved-questions")).toBeVisible();
   await expect(page.getByTestId("ex-llm_document_context")).toBeVisible();
-  await expect(page.getByTestId("ex-whole_pdf_pages")).toHaveCount(0);
+  await expect(page.getByTestId("st-group-request-limits")).toHaveCount(0);
   await expect(page.getByTestId("route-fallback")).toHaveCount(0);
   await expect(page.getByTestId("st-tab-unsaved-route")).toBeVisible();
   await expect(page.getByTestId("st-route-summary-unsaved")).toBeVisible();

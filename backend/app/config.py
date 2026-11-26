@@ -585,10 +585,11 @@ class ExtractionSettings(BaseModel):
     # OFF IN CODE, ON IN THE SHIPPED config.toml — the value a fresh clone and "restore defaults"
     # get. A Settings built without that file (or with a file that does not set it) stays off.
     whole_pdf_to_model: bool = False
-    # Which pages go: "statements" — the pages the classifier found to be statements and notes
-    # (or the pages a person chose on the Page Scope screen); "all" — every page.
-    whole_pdf_pages: Literal["statements", "all"] = "statements"
-    # The most pages one request carries; a longer selection is sent in consecutive parts, each
+    # EVERY PAGE GOES, AND EVERY LINE IS ASKED (`services.whole_pdf.pages_to_send`), whatever the
+    # page classifier found and whatever is set on the Page Scope screen — which narrows only the
+    # rules' reading beside the model. There was a `whole_pdf_pages` ("statements" | "all"); it is
+    # gone, and a value saved for it is dropped at startup (`settings_state.RETIRED_KNOBS`).
+    # The most pages one request carries; a longer file is sent in consecutive parts, each
     # asked every line. Claude reads at most 600 pages a request, and 100 on a model whose window
     # is under a million tokens. 600, for the shipped 1,000,000-token window: a part is cut smaller
     # still where its pages would not fit the window (`llm.context_window_tokens`).

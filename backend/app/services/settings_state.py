@@ -187,10 +187,11 @@ EXTRACTION_KNOBS: tuple[Knob, ...] = (
     Knob("whole_pdf_to_model", "bool", "Send the whole PDF to the model",
          "On in the shipped config.toml. Off, a filing is read as always: rows are rebuilt from "
          "each page and placed on the template's lines by the rules, and the model is only asked "
-         "where a line's figure is printed. On, the pages are still classified (what the Page "
-         "Scope screen shows), and then the PDF FILE ITSELF is sent to the model with the "
-         "template's lines — the model sees each page as printed, tables and columns intact — "
-         "and returns each line's figures with the page it read them on. The rules still read "
+         "where a line's figure is printed. On, the PDF FILE ITSELF is sent to the model with "
+         "the template's lines — the model sees each page as printed, tables and columns intact "
+         "— and returns each line's figures with the page it read them on. Every page is sent "
+         "and every line is asked, whatever the page classifier found and whatever is set on the "
+         "Page Scope screen: Page Scope then changes only what the rules read. The rules still read "
          "the filing alongside it: they read the note tables, check each model figure against "
          "the page it cites and against their own reading, and fill the lines the model leaves "
          "empty; the note screens and the contingent-liabilities narrative are filled as on the "
@@ -201,21 +202,8 @@ EXTRACTION_KNOBS: tuple[Knob, ...] = (
          "provider cannot be sent the file, or a statement's request fails, the whole filing is "
          "read by the rules route — with the model's line-item questions if \"Ask the model "
          "about line items\" is on — and the run log says why."),
-    Knob("whole_pdf_pages", "choice", "Pages sent with the whole PDF",
-         "Only read when the switch above is on. \"statements\" sends the pages the classifier "
-         "found to be financial statements and notes — or the pages chosen on the Page Scope "
-         "screen — which is usually a third to a half of an annual report and far cheaper. "
-         "\"all\" sends every page, for a filing whose statements the classifier does not find.",
-         choices=("statements", "all"),
-         choice_info=(
-             ("statements", "Statement and note pages",
-              "The pages the classifier found, or those chosen on the Page Scope screen: usually "
-              "a third to a half of the report, and far cheaper."),
-             ("all", "Every page",
-              "For a filing whose statements the classifier does not find."),
-         )),
     Knob("whole_pdf_pages_per_request", "number", "Pages in one request (whole PDF)",
-         "The most pages one request carries. A longer selection is sent in consecutive parts, "
+         "The most pages one request carries. A longer file is sent in consecutive parts, "
          "each asked every line, and a figure read in two parts keeps the one from a statement "
          "page. Claude reads at most 600 pages a request, and 100 on a model whose context "
          "window is under a million tokens.",
@@ -399,13 +387,9 @@ KNOB_PLACEMENT: dict[str, Placement] = {
         "every other line.",
         ("llm_mapping", _ON)),
     # …and the options of "Whole PDF to the model".
-    "whole_pdf_pages": Placement(
-        "route", "Pages sent",
-        "Send only the statement and note pages, or every page.",
-        ("whole_pdf_to_model", _ON)),
     "whole_pdf_pages_per_request": Placement(
         "route", "Request limits",
-        "The most pages in one request; a longer selection is sent in parts.",
+        "The most pages in one request; a longer file is sent in parts.",
         ("whole_pdf_to_model", _ON), folded=True),
     "whole_pdf_max_request_mb": Placement(
         "route", "Request limits",
@@ -538,7 +522,9 @@ ROUTES: tuple[Route, ...] = (
         "and the contingent-liabilities narrative are still filled.",
         "The most tokens: every request carries the pages (about 1,500 to 4,800 tokens a page, "
         "cached after the first). Few requests: a statement's lines go in one.",
-        ("Needs a provider that can be sent a file (anthropic, bedrock_gateway, openai, "
+        ("Every page is sent and every line asked: the Page Scope screen changes only what the "
+         "rules read beside the model (and the fallback).",
+         "Needs a provider that can be sent a file (anthropic, bedrock_gateway, openai, "
          "azure_openai).",
          "If the file cannot be sent, or a statement's request fails, the whole filing is read "
          "by the fallback."),
@@ -622,6 +608,49 @@ def _forget(scope: str) -> None:
         pass
 
 
+def _forget_keys(scope: str, keys) -> None:
+    """Drop these persisted overrides of a scope, and only these."""
+    from sqlalchemy import delete
+
+    from app.db.base import SessionLocal
+    from app.db.models import SettingOverride
+
+    try:
+        with SessionLocal() as session:
+            session.execute(delete(SettingOverride).where(SettingOverride.scope == scope,
+                                                          SettingOverride.key.in_(list(keys))))
+            session.commit()
+    except Exception:  # noqa: BLE001 — best effort, as `_persist`
+        pass
+
+
+#: SETTINGS THAT ARE GONE. The Settings screen saves every knob whenever any one is changed, so a
+#: deployment that saved anything has a row for each; one left in the table would read as
+#: configuration and do nothing. Each is removed at startup, what it said logged, as the LLM rows
+#: are (`load_persisted`) — and a client that still sends one is ignored (`set_extraction_config`
+#: honours only the declared knobs).
+#:
+#:   whole_pdf_pages  "statements" | "all": which pages the whole-PDF route sent. It now sends
+#:                    every page and asks every line, whatever the page classifier found and
+#:                    whatever is set on the Page Scope screen (`services.whole_pdf.pages_to_send`);
+#:                    a saved "statements" must not narrow it again.
+RETIRED_KNOBS = ("whole_pdf_pages",)
+
+
+def _drop_retired(stored: dict) -> dict:
+    """The stored extraction overrides without the retired knobs, whose rows are deleted."""
+    retired = {k: stored[k] for k in RETIRED_KNOBS if k in stored}
+    if not retired:
+        return stored
+    import logging
+    logging.getLogger(__name__).warning(
+        "Removed saved settings that no longer exist (%s): the whole-PDF route sends every page "
+        "and asks every line, whatever is set on the Page Scope screen.",
+        ", ".join(f"{k}={v!r}" for k, v in sorted(retired.items())))
+    _forget_keys(SCOPE_EXTRACTION, retired)
+    return {k: v for k, v in stored.items() if k not in retired}
+
+
 def _stored(scope: str) -> dict:
     from sqlalchemy import select
 
@@ -664,7 +693,7 @@ def load_persisted() -> None:
         _forget(SCOPE_LLM)
     _warn_if_provider_unregistered()
 
-    ex_stored = _read_as_saved(_stored(SCOPE_EXTRACTION))
+    ex_stored = _read_as_saved(_drop_retired(_stored(SCOPE_EXTRACTION)))
     if ex_stored:
         try:
             set_extraction_config(**ex_stored, persist=False)

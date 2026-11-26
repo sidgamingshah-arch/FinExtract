@@ -5,6 +5,8 @@ export const scope: Record<Locale, Record<string, string>> = {
     "sc.title": "Statement page detection",
     "sc.subhead":
       "Which pages each statement and the notes are read from. Extraction reads only the sections switched on.",
+    "sc.subheadWholePdf":
+      "Which pages each statement and the notes are read from by the rules. The model is sent the whole PDF and asked every line, whatever is switched on here.",
     "sc.scan": "SCAN",
     "sc.native": "NATIVE",
     "sc.back": "Back",
@@ -31,6 +33,7 @@ export const scope: Record<Locale, Record<string, string>> = {
     "sc.saved": "Saved. Re-run extraction to read the page this way.",
     // Header and section table
     "sc.readCount": "Read: {read} of {total} pages",
+    "sc.readCountWholePdf": "Read by the rules: {read} of {total} pages",
     "sc.col.section": "Section",
     "sc.col.pages": "Pages",
     "sc.col.use": "Use",
@@ -40,6 +43,10 @@ export const scope: Record<Locale, Record<string, string>> = {
     "sc.sectionOff": "Switched off: its pages are not read",
     "sc.notesOff":
       "Switched off: no note is read, so lines that take their figure from a note stay blank",
+    "sc.sectionOffWholePdf":
+      "Switched off: the rules do not read its pages; the model is still sent them and asked its lines",
+    "sc.notesOffWholePdf":
+      "Switched off: the rules read no note; the model is still sent the notes and asked every line",
     "sc.pagesEdit": "Change the pages",
     "sc.pagesHelp":
       "Pages are counted from the start of the file: the sheet number under each page.",
@@ -106,6 +113,8 @@ export const scope: Record<Locale, Record<string, string>> = {
       "Page scope applies to PDF documents. This one is not a PDF, so nothing here changes what is read.",
     "sc.locked":
       "A run is extracting this document. Page changes wait until it finishes, or stop it on the Extraction screen.",
+    "sc.wholePdf":
+      "The whole PDF is sent to the model: every page goes and every line is asked, whatever is chosen here. What you choose here changes only what the rules read beside the model — the reading that checks the model's figures, fills the lines it leaves empty, and reads the filing if the model cannot.",
     "sc.openExtraction": "Open the extraction →",
     // Status, cue and footer
     "sc.saving": "Saving…",
@@ -114,6 +123,7 @@ export const scope: Record<Locale, Record<string, string>> = {
     "sc.kept":
       "Kept as they are: {pages}. Each is read for another section or cut into parts; use the button under the page to change it.",
     "sc.extractN": "Extract {n} pages →",
+    "sc.extractAll": "Extract all {n} pages →",
     "sc.blockedNone": "Switch on at least one section.",
     // Asked before extracting a document again
     "sc.again.title": "This document has already been extracted",
@@ -139,6 +149,7 @@ export const scope: Record<Locale, Record<string, string>> = {
   zh: {
     "sc.title": "报表页面检测",
     "sc.subhead": "各报表及附注分别从哪些页面读取。提取只读取已启用的部分。",
+    "sc.subheadWholePdf": "规则从哪些页面读取各报表及附注。整份 PDF 会发送给模型，无论此处启用哪些部分，所有项目都会询问。",
     "sc.scan": "扫描",
     "sc.native": "原生",
     "sc.back": "返回",
@@ -164,6 +175,7 @@ export const scope: Record<Locale, Record<string, string>> = {
     "sc.saved": "已保存。请重新运行提取以按此方式读取本页。",
     // Header and section table
     "sc.readCount": "读取：{read} / {total} 页",
+    "sc.readCountWholePdf": "规则读取：{read} / {total} 页",
     "sc.col.section": "部分",
     "sc.col.pages": "页面",
     "sc.col.use": "使用",
@@ -172,6 +184,8 @@ export const scope: Record<Locale, Record<string, string>> = {
     "sc.sectionNotFound": "本文档中未找到",
     "sc.sectionOff": "已关闭：其页面不读取",
     "sc.notesOff": "已关闭：不读取任何附注，取自附注的项目将为空",
+    "sc.sectionOffWholePdf": "已关闭：规则不读取其页面；这些页面仍会发送给模型，并询问其项目",
+    "sc.notesOffWholePdf": "已关闭：规则不读取附注；附注仍会发送给模型，所有项目都会询问",
     "sc.pagesEdit": "修改页码",
     "sc.pagesHelp": "页码从文件开头起算，即每页下方的序号。",
     "sc.pagesCancel": "取消",
@@ -223,6 +237,8 @@ export const scope: Record<Locale, Record<string, string>> = {
     "sc.renderFailed": "此页面无法渲染。",
     "sc.notPdf": "页面范围仅适用于 PDF 文档。本文档不是 PDF，此处的设置不会改变读取内容。",
     "sc.locked": "正在对本文档运行提取。页面更改需待其完成，或在“提取”页面停止该运行。",
+    "sc.wholePdf":
+      "整份 PDF 会发送给模型：无论此处如何选择，所有页面都会发送，所有项目都会询问。此处的选择只改变规则在模型之外读取的内容——规则用这些内容核对模型给出的数字、填写模型留空的项目，并在模型无法读取时读取整份文件。",
     "sc.openExtraction": "打开提取 →",
     // Status, cue and footer
     "sc.saving": "正在保存…",
@@ -230,6 +246,7 @@ export const scope: Record<Locale, Record<string, string>> = {
     "sc.changed": "页码已保存。请重新提取以读取。",
     "sc.kept": "以下页面保持不变：{pages}。它们已按其他部分读取或被切分为多个部分；请使用页面下方的按钮修改。",
     "sc.extractN": "提取 {n} 页 →",
+    "sc.extractAll": "提取全部 {n} 页 →",
     "sc.blockedNone": "请至少启用一个部分。",
     // Asked before extracting a document again
     "sc.again.title": "此文档已提取过",
@@ -251,6 +268,8 @@ export const scope: Record<Locale, Record<string, string>> = {
     "sc.title": "كشف صفحات القوائم المالية",
     "sc.subhead":
       "الصفحات التي تُقرأ منها كل قائمة مالية والإيضاحات. لا يقرأ الاستخراج إلا الأقسام المفعّلة.",
+    "sc.subheadWholePdf":
+      "الصفحات التي تقرأ منها القواعدُ كل قائمة مالية والإيضاحات. يُرسَل ملف PDF كاملاً إلى النموذج ويُسأل عن كل البنود، أيًّا كانت الأقسام المفعّلة هنا.",
     "sc.scan": "ممسوحة",
     "sc.native": "أصلية",
     "sc.back": "رجوع",
@@ -277,6 +296,7 @@ export const scope: Record<Locale, Record<string, string>> = {
     "sc.saved": "تم الحفظ. أعد تشغيل الاستخراج لقراءة الصفحة بهذه الطريقة.",
     // Header and section table
     "sc.readCount": "تُقرأ {read} من {total} صفحة",
+    "sc.readCountWholePdf": "تقرأ القواعد {read} من {total} صفحة",
     "sc.col.section": "القسم",
     "sc.col.pages": "الصفحات",
     "sc.col.use": "استخدام",
@@ -285,6 +305,8 @@ export const scope: Record<Locale, Record<string, string>> = {
     "sc.sectionNotFound": "غير موجود في هذا المستند",
     "sc.sectionOff": "موقوف: لا تُقرأ صفحاته",
     "sc.notesOff": "موقوف: لا يُقرأ أي إيضاح، فتبقى البنود التي تأخذ أرقامها من الإيضاحات فارغة",
+    "sc.sectionOffWholePdf": "موقوف: لا تقرأ القواعد صفحاته؛ لكنها تُرسَل إلى النموذج ويُسأل عن بنوده",
+    "sc.notesOffWholePdf": "موقوف: لا تقرأ القواعد أي إيضاح؛ لكن الإيضاحات تُرسَل إلى النموذج ويُسأل عن كل البنود",
     "sc.pagesEdit": "تغيير الصفحات",
     "sc.pagesHelp": "تُعدّ الصفحات من بداية الملف: رقم الورقة أسفل كل صفحة.",
     "sc.pagesCancel": "إلغاء",
@@ -349,6 +371,8 @@ export const scope: Record<Locale, Record<string, string>> = {
       "ينطبق نطاق الصفحات على مستندات PDF فقط. هذا المستند ليس ملف PDF، فلا يغيّر شيء هنا ما يُقرأ.",
     "sc.locked":
       "يجري استخراج هذا المستند الآن. تنتظر تغييرات الصفحات حتى ينتهي، أو أوقفه من شاشة الاستخراج.",
+    "sc.wholePdf":
+      "يُرسَل ملف PDF كاملاً إلى النموذج: تُرسَل كل الصفحات ويُسأل عن كل البنود، أيًّا كان ما يُختار هنا. ما تختاره هنا يغيّر فقط ما تقرؤه القواعد إلى جانب النموذج — القراءة التي تتحقق من أرقام النموذج، وتملأ البنود التي يتركها فارغة، وتقرأ المستند إذا تعذّر على النموذج ذلك.",
     "sc.openExtraction": "افتح الاستخراج →",
     // Status, cue and footer
     "sc.saving": "جارٍ الحفظ…",
@@ -357,6 +381,7 @@ export const scope: Record<Locale, Record<string, string>> = {
     "sc.kept":
       "أُبقيت كما هي: {pages}. كلٌّ منها يُقرأ ضمن قسم آخر أو مقسّم إلى أجزاء؛ استخدم الزر أسفل الصفحة لتغييرها.",
     "sc.extractN": "استخرج {n} صفحة →",
+    "sc.extractAll": "استخرج كل الصفحات ({n}) →",
     "sc.blockedNone": "فعّل قسمًا واحدًا على الأقل.",
     // Asked before extracting a document again
     "sc.again.title": "تم استخراج هذا المستند من قبل",
@@ -381,6 +406,8 @@ export const scope: Record<Locale, Record<string, string>> = {
     "sc.title": "Détection des pages d'états financiers",
     "sc.subhead":
       "Les pages d’où sont lus chaque état financier et les notes. L’extraction ne lit que les sections activées.",
+    "sc.subheadWholePdf":
+      "Les pages d’où les règles lisent chaque état financier et les notes. Le PDF entier est envoyé au modèle, et toutes les lignes sont demandées, quelles que soient les sections activées ici.",
     "sc.scan": "SCAN",
     "sc.native": "NATIF",
     "sc.back": "Retour",
@@ -407,6 +434,7 @@ export const scope: Record<Locale, Record<string, string>> = {
     "sc.saved": "Enregistré. Relancez l'extraction pour lire la page ainsi.",
     // Header and section table
     "sc.readCount": "Lues : {read} sur {total} pages",
+    "sc.readCountWholePdf": "Lues par les règles : {read} sur {total} pages",
     "sc.col.section": "Section",
     "sc.col.pages": "Pages",
     "sc.col.use": "Utiliser",
@@ -415,6 +443,10 @@ export const scope: Record<Locale, Record<string, string>> = {
     "sc.sectionNotFound": "Introuvable dans ce document",
     "sc.sectionOff": "Désactivée : ses pages ne sont pas lues",
     "sc.notesOff": "Désactivée : aucune note n’est lue, les lignes tirées d’une note restent vides",
+    "sc.sectionOffWholePdf":
+      "Désactivée : les règles ne lisent pas ses pages ; elles sont quand même envoyées au modèle, qui est interrogé sur ses lignes",
+    "sc.notesOffWholePdf":
+      "Désactivée : les règles ne lisent aucune note ; les notes sont quand même envoyées au modèle, qui est interrogé sur toutes les lignes",
     "sc.pagesEdit": "Modifier les pages",
     "sc.pagesHelp":
       "Les pages sont comptées depuis le début du fichier : le numéro de feuille sous chaque page.",
@@ -482,6 +514,8 @@ export const scope: Record<Locale, Record<string, string>> = {
       "Le périmètre des pages s’applique aux documents PDF. Ce document n’est pas un PDF : rien ici ne change ce qui est lu.",
     "sc.locked":
       "Une extraction de ce document est en cours. Les changements de pages attendent sa fin, ou arrêtez-la depuis l’écran Extraction.",
+    "sc.wholePdf":
+      "Le PDF entier est envoyé au modèle : toutes les pages partent et toutes les lignes sont demandées, quoi qu’on choisisse ici. Ce que vous choisissez ici ne change que ce que les règles lisent à côté du modèle — la lecture qui vérifie les chiffres du modèle, remplit les lignes qu’il laisse vides et lit le document si le modèle ne le peut pas.",
     "sc.openExtraction": "Ouvrir l’extraction →",
     // Status, cue and footer
     "sc.saving": "Enregistrement…",
@@ -490,6 +524,7 @@ export const scope: Record<Locale, Record<string, string>> = {
     "sc.kept":
       "Laissées telles quelles : {pages}. Chacune est lue pour une autre section ou coupée en parties ; utilisez le bouton sous la page pour la modifier.",
     "sc.extractN": "Extraire {n} pages →",
+    "sc.extractAll": "Extraire les {n} pages →",
     "sc.blockedNone": "Activez au moins une section.",
     // Asked before extracting a document again
     "sc.again.title": "Ce document a déjà été extrait",

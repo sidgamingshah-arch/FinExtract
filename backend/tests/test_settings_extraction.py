@@ -260,7 +260,8 @@ def test_every_knob_has_a_place_on_the_screen(client):
 def test_a_knob_only_one_route_reads_hangs_off_that_routes_switch(client):
     body = client.get("/api/v1/settings", headers=_admin(client)).json()
     when = {f["key"]: f["shown_when"] for f in body["extraction_fields"]}
-    assert when["whole_pdf_pages"] == {"key": "whole_pdf_to_model", "values": [True]}
+    assert when["whole_pdf_lines_per_request"] == {"key": "whole_pdf_to_model", "values": [True]}
+    assert "whole_pdf_pages" not in when       # gone: the whole PDF sends every page
     assert when["llm_group_similarity"] == {"key": "llm_request_grouping", "values": ["similar"]}
     assert when["document_reader_pages"] == {"key": "document_reader", "values": ["kensho"]}
     assert when["llm_mapping"] is None and when["whole_pdf_to_model"] is None

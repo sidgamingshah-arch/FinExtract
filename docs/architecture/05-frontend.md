@@ -367,6 +367,16 @@ starts the new run, as a saved page correction always has. Page changes wait whi
 extracting. A workbook or an image document is read sheet by sheet or whole, so the screen
 offers no page edits for it.
 
+**With the whole PDF sent to the model** (`extraction.whole_pdf_to_model` on and a provider that
+can be sent a file, served as `whole_pdf` with the pages; with the stub, or a provider that takes
+no file, every run falls back to the rules, so the flag is off), every page goes and every line is
+asked whatever is chosen here, so the screen says so above the sections (`scope-whole-pdf`): its
+choices change only what the rules read beside the model — the reading that checks the model's
+figures, fills the lines it leaves empty, and reads the filing if the model cannot. The screen's
+other words follow: the heading, the page count ("Read by the rules"), and a switched-off section,
+which says the rules do not read it but the model is still sent it and asked its lines. Switching
+every section off does not disable Extract, which reads "Extract all N pages".
+
 ## Other screens
 
 Login (shown until a session exists) and the top-bar user menu; integrity report (routing

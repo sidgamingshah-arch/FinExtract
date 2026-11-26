@@ -402,7 +402,7 @@ function KnobSections({ fields, st, extras }: {
           return (
             <div key={title || i} data-testid={`st-section-${id}`} style={{ marginTop: i ? 16 : 0 }}>
               {/* A section of one knob is headed by that knob's own label; a second heading above
-                  it ("Pages sent" over "Pages sent with the whole PDF") only repeats it. */}
+                  it (a group named for the one knob it holds) only repeats it. */}
               {title && list.length > 1 && (
                 <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: 0.5, color: color.muted,
                               textTransform: "uppercase", paddingBottom: 2 }}>{title}</div>

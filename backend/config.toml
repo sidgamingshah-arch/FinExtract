@@ -267,12 +267,14 @@ document_reader = "off"          # off | kensho — a hosted document engine ([d
 document_reader_pages = "scanned" # scanned (in place of OCR) | all (in place of the text layer)
 # THE WHOLE PDF TO THE MODEL, IN PLACE OF THE EXTRACTION. Off: a filing is read as always (rows
 # rebuilt from the page, placed on the template's lines by the rules). On: the pages are classified,
-# then the PDF FILE itself goes to the model with the template's lines, and the model returns each
-# line's figures with the page it read them on; every figure is looked for on that page in the PDF's
+# then the PDF FILE itself goes to the model with the template's lines — EVERY page and EVERY line,
+# whatever the classifier found and whatever is set on the Page Scope screen, which narrows only
+# what the rules read beside the model — and the model returns each line's figures with the page it
+# read them on; every figure is looked for on that page in the PDF's
 # own text and sent to review when it is not there. Row reconstruction, note tables and mapping are
 # skipped; units, signs and the checks run on the model's figures. A provider that cannot take a
 # file, or a run where no request succeeds, is read by the rules and the log says why. Admin-
-# switchable from the Settings screen, with the four limits below.
+# switchable from the Settings screen, with the three limits below.
 #
 # ON HERE, so that it TRAVELS: an admin's switch is stored in the database, which is not in git, and
 # this file is the value a fresh clone starts with ("restore defaults" on the Settings screen
@@ -281,8 +283,7 @@ document_reader_pages = "scanned" # scanned (in place of OCR) | all (in place of
 # with the stub provider (the test suite, `run_filing.py --no-llm`) or for a spreadsheet, the stage
 # falls back and the rules read the filing exactly as with this off.
 whole_pdf_to_model = true
-whole_pdf_pages = "statements"    # statements (the classifier's statement and notes pages) | all
-whole_pdf_pages_per_request = 600 # a longer selection goes in parts; Claude: 600 a request on a 1M window, 100 under it
+whole_pdf_pages_per_request = 600 # a longer file goes in parts; Claude: 600 a request on a 1M window, 100 under it
 whole_pdf_max_request_mb = 20     # the largest request, the PDF counted in base64; Claude's API takes 32, Bedrock less
 whole_pdf_lines_per_request = 250 # template lines one request asks about, at most: a statement's whole list in one request
 # HOW MANY REQUESTS ARE SENT AT ONCE: the line-item figure requests and the whole-PDF requests

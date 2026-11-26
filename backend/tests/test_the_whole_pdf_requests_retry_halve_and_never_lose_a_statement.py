@@ -50,8 +50,8 @@ def _notes(n: int) -> list[str]:
             f"Note {n} Receivables: trade 280, other 20, total 300"]
 
 
-#: Cover, balance sheet, four note pages: one part at 100 pages a request, two at 3 (the balance
-#: sheet carried in both).
+#: Cover, balance sheet, four note pages, every one of them sent: one part at 100 pages a request,
+#: three at 3 (the balance sheet carried in each).
 _FILING = [["Annual Report 2024 - Example Corp"], _BALANCE_SHEET,
            _notes(5), _notes(6), _notes(7), _notes(8)]
 
@@ -119,7 +119,7 @@ def run(monkeypatch):
 
     def _run(provider, **extraction):
         s = get_settings()
-        for name, value in {"whole_pdf_to_model": True, "whole_pdf_pages": "statements",
+        for name, value in {"whole_pdf_to_model": True,
                             "llm_disclosures": False, "llm_parallel_requests": 1,
                             **extraction}.items():
             monkeypatch.setattr(s.extraction, name, value)
@@ -255,19 +255,19 @@ def test_the_halving_has_a_bound(run):
 
 
 def test_a_statement_answered_in_another_part_holding_its_face_is_not_lost(run):
-    """Two parts holding the notes, the balance sheet carried in both, and the balance sheet alone
-    as part 3, where its face lines are asked. Its request there fails, after its retry: it is
-    asked again, whole, in part 1, which holds the same face, so the statement keeps its lines and
-    the run goes on."""
+    """Three parts holding the notes (and the cover: every page is sent), the balance sheet
+    carried in each, and the balance sheet alone as part 4, where its face lines are asked. Its
+    request there fails, after its retry: it is asked again, whole, in part 1, which holds the same
+    face, so the statement keeps its lines and the run goes on."""
     provider = _Provider(fail=lambda call, nth: RuntimeError("HTTP 500")
-                         if call["statement"] == "balance sheet" and call["part"] == 3 else None)
+                         if call["statement"] == "balance sheet" and call["part"] == 4 else None)
     doc, ctx = run(provider, whole_pdf_pages_per_request=3)
-    assert ctx.whole_pdf["parts"] == 3 and ctx.whole_pdf["pages_in_every_part"] == [2]
-    assert ctx.whole_pdf["pages_per_part"] == [3, 3, 1]
+    assert ctx.whole_pdf["parts"] == 4 and ctx.whole_pdf["pages_in_every_part"] == [2]
+    assert ctx.whole_pdf["pages_per_part"] == [3, 3, 2, 1]
     assert _fell_back(ctx) is None
-    assert [f["part"] for f in ctx.whole_pdf["requests_failed"]] == [3]
+    assert [f["part"] for f in ctx.whole_pdf["requests_failed"]] == [4]
     assert [(c["part"], len(c["keys"])) for c in _of(provider, "balance sheet")
-            ] == [(3, 47), (3, 47), (1, 47)]
+            ] == [(4, 47), (4, 47), (1, 47)]
     assert any(line.startswith("whole_pdf:asked_again part=1 lines=47 (balance_sheet)")
                for line in ctx.logs)
     assert ctx.whole_pdf["lines_lost"] == []
@@ -275,14 +275,14 @@ def test_a_statement_answered_in_another_part_holding_its_face_is_not_lost(run):
 
 
 def test_a_half_of_a_statements_request_that_fails_is_asked_again_where_the_notes_are(run):
-    """The balance sheet's request to the statements alone (part 3) is cut off and asked as two
+    """The balance sheet's request to the statements alone (part 4) is cut off and asked as two
     halves; the first half answers, the second fails after its retry. Its face lines are asked
     nowhere else, so that half is asked again in part 1, which holds the same face — the
     statement keeps every line and the run is not sent to the rules for 24 lines one retry away.
     (Before 01d4a34's request-size change every part was asked them, so another part covered a
     half that failed in one.)"""
     def fail(call, nth):
-        if call["statement"] != "balance sheet" or call["part"] != 3:
+        if call["statement"] != "balance sheet" or call["part"] != 4:
             return None
         if len(call["keys"]) > 30:
             return _cut_off_error()
@@ -292,7 +292,7 @@ def test_a_half_of_a_statements_request_that_fails_is_asked_again_where_the_note
     doc, ctx = run(provider, whole_pdf_pages_per_request=3)
     sheet = [(c["part"], len(c["keys"])) for c in _of(provider, "balance sheet")]
     assert _fell_back(ctx) is None, _fell_back(ctx)
-    assert sheet == [(3, 47), (3, 23), (3, 24), (3, 24), (1, 24)]
+    assert sheet == [(4, 47), (4, 23), (4, 24), (4, 24), (1, 24)]
     assert ctx.whole_pdf["lines_lost"] == []
     assert any(line.startswith("whole_pdf:asked_again part=1 lines=24 (balance_sheet)")
                for line in ctx.logs)
