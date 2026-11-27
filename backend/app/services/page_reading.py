@@ -102,9 +102,16 @@ def narrow_targets(targets, included=None, sections_off=None, log=None, dropped=
             log(f"extract:page_scope_applied={sorted(inc)}")
     off = set(sections_off or ())
     if off:
+        from app.services.page_spread import spread_halves
+
         kept = []
         for p in targets:
-            secs = {section_of(x) for x in page_reads(p, True)} - {None}
+            # A 2-UP SPREAD SHEET is read half by half (`pdf_extract._spread_batches`) and its own
+            # parts name only its first face half: a sheet whose right half prints the balance
+            # sheet is still read for it when the profit or loss on its left is switched off.
+            secs = ({section_of(x) for x in page_reads(p, True)}
+                    | {section_of(h) for h in spread_halves(p)
+                       if not (_get(p, "evidence") or {}).get("override_parts")}) - {None}
             if secs and secs <= off:
                 if log:
                     log(f"extract:page={_get(p, 'index')}:sections_off={sorted(secs)}")

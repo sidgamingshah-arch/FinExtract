@@ -193,6 +193,14 @@ class WholePdfStage:
         if not chunks:
             return _fallback(doc, ctx, "the line-item set names no line to ask for")
         first = plan.ask(0, plan.first_chunk())
+        if not any(W.statement_values(p) for p in doc.pages if p.kind == PageKind.FACE):
+            # SAID, because everything that leans on the statement pages switches off without them:
+            # no part of the statements alone and no statement page carried into every part (every
+            # page is sent all the same, `W.pages_to_send`). A statement's lines are then judged
+            # lost by their own requests (`_lost_lines`).
+            ctx.log("whole_pdf:warning no statement page was classified — the plan holds no face "
+                    "page; each statement's lines are judged by whether their own request "
+                    "succeeded")
         ctx.log(f"whole_pdf:plan pages={len(pages)} of {len(doc.pages)} "
                 f"({plan.why}) parts={len(parts)} "
                 f"pages_per_part={','.join(str(len(p.pages)) for p in parts)} "
@@ -219,6 +227,11 @@ class WholePdfStage:
 
         try:
             texts = W.read_pages(ctx.raw_bytes, pages)
+            # Where each spread sheet folds, so a caption is read on its figure's page.
+            for p in doc.pages:
+                fold = ((getattr(p, "evidence", None) or {}).get("spread") or {}).get("fold")
+                if fold is not None and int(p.index) in texts:
+                    texts[int(p.index)].fold = float(fold)
             readings, units, unknown, unreadable = _readings(doc, parts, chunks, replies, texts)
             # EVERY FIGURE FOUND AGAIN IN THE RULES' READING OF ITS PAGE, AND CHECKED there — the
             # checks every model answer is held to, and the column it is printed in — while the
@@ -226,8 +239,8 @@ class WholePdfStage:
             judge = L.Judge(doc, ctx, ctx.line_items, texts, log=ctx.log)
             readings = judge.judge(readings)
             merged = W.merge(readings, {item.key: item for item in ctx.line_items.items},
-                             faces={W._statement_value(p) for p in doc.pages
-                                    if p.kind == PageKind.FACE and W._statement_value(p)})
+                             faces={st for p in doc.pages if p.kind == PageKind.FACE
+                                    for st in W.statement_values(p)})
             judge.settle(merged)
             # THE SIGN EACH FIGURE ENDS WITH is the one the rules give the cell it was found on,
             # decided on the rules' own rows while they are still the document's (`_RulesSigns`).
@@ -568,12 +581,21 @@ def _lost_lines(doc, plan, asked: _Asked) -> tuple[str | None, list[str]]:
                   if not any(it.key in keys for keys in answered.values()))
     faces: dict[str, set[int]] = {}
     for p in doc.pages:
-        st = W._statement_value(p)
-        if p.kind == PageKind.FACE and st in W.FACE_STATEMENTS:
-            faces.setdefault(st, set()).add(int(p.index))
+        if p.kind != PageKind.FACE:
+            continue
+        for st in W.statement_values(p):          # both halves of a spread sheet
+            if st in W.FACE_STATEMENTS:
+                faces.setdefault(st, set()).add(int(p.index))
     for statement in W.FACE_STATEMENTS:
         holders = [pi for pi, part in enumerate(plan.parts)
                    if faces.get(statement, set()) & set(part.pages)]
+        if not holders and not faces.get(statement):
+            # A STATEMENT WITH NO FACE PAGE ANYWHERE is judged by its own requests: its lines are
+            # lost when no request in any part that asked them succeeded. It used to be skipped,
+            # so where the classifier found no statement a failed balance-sheet request blanked
+            # every balance-sheet line and the run reported success (Vivo Energy Mauritius 2025
+            # before its dated titles were read: 208 lines lost, no fallback).
+            holders = list(range(len(plan.parts)))
         if not holders:
             continue
         own = [it.key for chunk in plan.chunks if chunk.statement == statement
@@ -647,6 +669,18 @@ def _readings(doc, parts, chunks, replies, texts):
                     continue
                 page = part.original_page(int(fig.page or 0))
                 check = W.check_figure(amount, [a for _, a in rows], page, part, numbers)
+                # A CITED PRINTED FOLIO is mapped back through the folios each page — each half of
+                # a two-page spread — prints (`W.page_of_folio`), where the figure is not on the
+                # file page the number names.
+                if check.status not in ("on_page", "parts_on_page", "nil"):
+                    by_folio = W.page_of_folio(part, fig.page)
+                    if by_folio is not None and by_folio != page:
+                        again = W.check_figure(amount, [a for _, a in rows], by_folio, part,
+                                               numbers)
+                        if again.status in ("on_page", "parts_on_page"):
+                            check = W.Check("moved", by_folio,
+                                            f"cited printed page {fig.page}, the report's page "
+                                            f"on file page {part.pages.index(by_folio) + 1}")
                 caption = (fig.caption or "").strip()
                 on_page = texts.get(check.page) if check.page is not None else None
                 box, label_box = (W.locate(amount, caption, on_page, fig.period) if not rows
@@ -1223,14 +1257,20 @@ def _rows(doc, line_item_set, merged: dict, provider_id: str,
             doubtful = r.check.status in _REVIEWED or bool(r.others) or r.review
             if doubtful:
                 flags.append(REVIEW_FLAG)
-            page = r.check.page if r.check.page is not None else 0
+            # NO PAGE IS NOT PAGE 0. A figure whose cited page is outside the part (and found on
+            # no page of it) has no page to cite: it used to be cited on the file's first page —
+            # the cover — which a reviewer then opened. It now carries no provenance at all, and
+            # says so (`not_placed_on_page`). MEASURED on Vivo Energy Mauritius 2025 with the
+            # printed folios cited: 73 of 112 statement figures were cited on the cover.
+            page = r.check.page
             kind = "model_pdf" if source.get(page) is None else f"model_pdf:{source[page]}"
             producer = f"whole_pdf:{provider_id}"
             # THE CITATION: the figure's own box on its page (the viewer highlights it and the
             # grid links to it — no box, no link), its caption's box, and the caption as printed.
-            provenance = Provenance(page_index=page, bbox=r.box, value_bbox=r.box,
-                                    label_bbox=r.label_box, text_snippet=r.caption or None,
-                                    source_kind=kind, producer=producer)
+            provenance = (Provenance(page_index=page, bbox=r.box, value_bbox=r.box,
+                                     label_bbox=r.label_box, text_snippet=r.caption or None,
+                                     source_kind=kind, producer=producer)
+                          if page is not None else None)
             if not r.box:
                 flags.append(f"{FLAG}:not_placed_on_page")
             # The figure the checks kept, in the statements' scale (the model's where none ran).
@@ -1251,10 +1291,11 @@ def _rows(doc, line_item_set, merged: dict, provider_id: str,
                 provenance=provenance,
                 confidence=ConfidenceVector(mapping=max(0.0, score), method="llm",
                                             flags=flags)))
-            row.derivation = derivation.record(
-                row.derivation, basis=r.basis, period_label=r.period,
-                derivation=_citation(r, page, kind, producer, kinds.get(page), provenance,
-                                     None if verdict is None or verdict.unchecked else verdict))
+            if page is not None:
+                row.derivation = derivation.record(
+                    row.derivation, basis=r.basis, period_label=r.period,
+                    derivation=_citation(r, page, kind, producer, kinds.get(page), provenance,
+                                         None if verdict is None or verdict.unchecked else verdict))
             # THE NOTE REFERENCES THE FACE PRINTS beside the row the figure was found on, so the
             # links, the note-to-face ties and the published notes work as on the rules route.
             for ref in (verdict.note_refs if verdict is not None else ()):

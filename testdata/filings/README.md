@@ -78,6 +78,53 @@ template's own sign convention (an expense or a minority share that a rollup ded
 `null` means the filing prints nothing for that line. A filing with no key yet can still be
 captured, linted and audited; the key is what the `report --key` comparison needs.
 
+## Mauritius
+
+Annual reports of non-financial companies listed on the Stock Exchange of Mauritius (SEM), all
+IFRS, all in Mauritian rupees (MUR, printed `Rs` or `MUR`). They are measured on the HK pair, as
+the other IFRS filings are. "Pages" counts PDF pages; most of these PDFs put two printed pages on
+one PDF page (a spread), so the printed folios run to about twice the count.
+
+| file | company | SEM code | period | standard | template | pages |
+| --- | --- | --- | --- | --- | --- | ---: |
+| `sem_vivo_energy_mauritius_2025.pdf` | Vivo Energy Mauritius Limited | SHEL.N0000 | 2025 (31 December) | IFRS | HK | 58 |
+| `sem_moroil_2025.pdf` | Mauritius Oil Refineries Limited (Moroil) | MOR.N0000 | FY to 30 June 2025 | IFRS | HK | 133 |
+| `sem_phoenix_beverages_2025.pdf` | Phoenix Beverages Limited | MBL.N0000 | FY to 30 June 2025 | IFRS | HK | 117 |
+| `sem_lux_island_resorts_2025.pdf` | Lux Island Resorts Ltd | NRL.N0000 | FY to 30 June 2025 | IFRS | HK | 112 |
+| `sem_gamma_civic_2024.pdf` | Gamma Civic Ltd | GCL.N0000 | 2024 (31 December) | IFRS | HK | 85 |
+
+Each was added for a shape the others do not print:
+
+- **Vivo Energy Mauritius** (from vivoenergy.com) is a single entity: two value columns, no
+  group or company wording. 57 of its 58 PDF pages are spreads; the statements are on PDF pages
+  35-36 (printed 66-69), and every title carries its date on the same line ("STATEMENT OF
+  FINANCIAL POSITION AS AT 31 DECEMBER 2025"). The comprehensive income statement sits under the
+  P&L on the same printed page, the balance-sheet subtotals have no caption, and the tax line is
+  printed `( 111,807)`, with a space after the bracket. Units `Rs'000`.
+- **Moroil** (from moroil.mu) is the one with single pages: A4 portrait, one statement per
+  page (printed 66-70, PDF pages 65-69). Its dates are written the US way and stand alone under
+  the title ("JUNE 30, 2025", "YEAR ENDED JUNE 30, 2025"); the P&L and the OCI are one statement
+  split over two pages under the same title; the cash flow statement comes before the statement
+  of changes in equity, starts from "Cash generated from operations" (note 32(a)) and closes on
+  net cash after overdrafts, which is negative. Its operating profit has no caption. Group and
+  company columns, `Rs'000`.
+- **Phoenix Beverages** (from phoenixbeveragesgroup.mu) groups thousands with spaces, not commas
+  (`13 400 370`, `(5 619 017)`), prints nil as an en dash, and runs a navigation band across the top
+  of every page. Spreads; statements on PDF pages 66-67 (printed 128-131). Its balance-sheet title is
+  dated "for the year ended", its operating profit is "Profit before finance costs", and the P&L and
+  OCI are one statement. Group and company, `MUR '000`.
+- **Lux Island Resorts** (from luxislandresorts.com) titles its statements over three lines
+  ("CONSOLIDATED AND SEPARATE STATEMENTS" / "OF FINANCIAL POSITION" / "AS AT 30 JUNE 2025"), prints
+  a by-nature P&L with EBITDA lines and no gross profit, a separate statement of comprehensive
+  income, a separate statement of changes in equity for the company, and convertible bonds inside
+  equity. Spreads; statements on PDF pages 63-65 (printed 122-127). Group and company, `Rs'000`.
+- **Gamma Civic** (from gamma.mu) prints whole rupees (`MUR`, no thousands: `8,576,158,147`). Every
+  PDF page is a spread, the cover too. The P&L goes from revenue straight to "Operating Profit"
+  (the costs are only in note 21). The group's statement of changes in equity runs across the
+  fold: the captions and two columns on the left page (printed 90), the other six columns on the
+  right page (printed 91). The cash flow statement runs on to the next PDF page (printed 93 to 94,
+  "STATEMENTS OF CASH FLOWS (CONTINUED)"). Group and company; the group has non-controlling interests.
+
 ## Running the stand-in on a filing
 
 From `backend/` (see `docs/testing/llm-standin.md` for the full procedure):

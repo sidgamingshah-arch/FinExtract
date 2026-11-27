@@ -826,7 +826,20 @@ def label_segments(text: str, patterns: CaptionPatterns | None = None) -> list[s
         shorter = _LEADING_PERIOD.sub("", part).strip()
         if shorter and shorter != part:
             out.append(shorter)
+    # …AND WITHOUT A FOOTNOTE LETTER SET AFTER THE WHOLE CAPTION, as the last spelling tried. Lux
+    # Island Resorts 2025 prints "Income tax (expense)/ credit (a)" (p123) and "Impairment of
+    # financial assets (iii)", pointing at footnotes under the statement; the letter matched no
+    # alias and the tax charge, 246,682 / 238,079, was swept into the operating costs. Lower-case
+    # letters and roman numerals only, at the very end: "(note (b))" is a citation the patterns
+    # above already strip, and an upper-case "(A)" is a Schedule III total's own label.
+    for part in list(out):
+        bare = _TRAILING_SUB_ITEM.sub("", part).strip()
+        if bare and bare != part:
+            out.append(bare)
     return list(dict.fromkeys(out))
+
+
+_TRAILING_SUB_ITEM = re.compile(r"\s+\((?:[a-z]|[ivx]{2,4})\)\s*$")
 
 
 @dataclass
@@ -1230,6 +1243,16 @@ def section_of_row(row) -> str | None:
     return section_of_banner(banner or "")
 
 
+_CASH_FLOW_SECTION_TOKENS = frozenset({
+    "cash_flow_from_operating_activities", "cash_flow_from_investing_activities",
+    "cash_flow_from_financing_activities"})
+# "cash flows from", "cash flow used in", "cash flows from used in" (the folded "from/(used in)"),
+# "cash flows generated from", "cash flows arising from" — on text `normalize_label` has folded.
+_CASH_FLOW_LEAD_IN = re.compile(
+    r"^cash ?flows? (?:(?:from|used|in|generated|arising|provided|by|applied|utilised|utilized"
+    r"|for)\s+)+(?=(?:operating|investing|financing) activities\b)")
+
+
 def section_of_banner_only(text: str | None) -> str | None:
     """The section a label names when the label is NOTHING BUT that banner, else None.
 
@@ -1272,6 +1295,18 @@ def section_of_banner_only(text: str | None) -> str | None:
     # over made neither a banner, and each was folded onto the row under it.
     heading = numbered_face_heading(text)
     remaining = heading if heading is not None else normalize_label(text)
+    # A CASH-FLOW SECTION IS HEADED "Cash flows from <the> activities", and the lead-in is part
+    # of the banner, not a word the vocabulary leaves over. Only the CAPS form ("CASH FLOWS FROM
+    # OPERATING ACTIVITIES") was a banner, through `row_reconstruct._looks_like_header`; printed in
+    # sentence case it was exhausted by nothing, so it was no banner at all. MEASURED on Vivo
+    # Energy Mauritius 2025 (p69): "Cash flows from investing activities" was glued onto
+    # "Proceeds from disposal of property, plant and equipment", the investing section never
+    # opened, and "Interest received" 7,065 / 11,701 was read under the operating section above
+    # it — both sections then failed their rollups by 2 x that figure. Anchored at the start and
+    # only before an activities phrase, so the TOTAL "Net cash flows from investing activities"
+    # still leaves "net" over and stays a caption.
+    if token in _CASH_FLOW_SECTION_TOKENS:
+        remaining = _CASH_FLOW_LEAD_IN.sub("", remaining, count=1)
     for _tok, words in SECTION_WORDS:
         for word in words:
             # …IN THE PLURAL TOO, for an English phrase. Hindustan Unilever 2024-25 heads its tax

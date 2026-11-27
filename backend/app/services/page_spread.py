@@ -207,3 +207,125 @@ def page_fold(words, width: float, height: float, rotation: int | None = 0) -> f
     if wide <= tall:
         return None
     return gutter_x(words)
+
+
+# ── which half a figure sits on ───────────────────────────────────────────────────────────────
+# A SPREAD SHEET IS TWO PRINTED PAGES, AND EVERY READER THAT ASKS THE SHEET ONE QUESTION GETS THE
+# FIRST HALF'S ANSWER. `classify._merge_spread_units` gives the sheet its first face half's
+# statement and one folio, and records both halves under `evidence["spread"]["halves"]`, each with
+# its own statement, entity and folio. Measured on Vivo Energy Mauritius' annual report 2025, every
+# sheet but the cover a spread: sheet 34 prints the statement of profit or loss (printed page 66)
+# beside the statement of financial position (67), sheet 35 the statement of changes in equity (68)
+# beside the cash flow (69). Read by the sheet, the filing had no balance sheet and no cash flow —
+# the whole-PDF plan asked neither against the statements alone and the lost-lines guard covered
+# neither — every balance-sheet figure cited page 66 and every cash-flow figure page 68, and the 31
+# cash-flow rows were filed under "Changes in equity". These answer by the half instead: a figure's
+# half is the side of the fold its box's centre lies on, the rule `halves` cuts by. `page` is a
+# `PageSource` or its serialised dict (the API reads the stored result).
+
+def _field(page, name: str):
+    return page.get(name) if isinstance(page, dict) else getattr(page, name, None)
+
+
+def spread_halves(page) -> list[dict]:
+    """The halves `classify` recorded for a spread sheet, in reading order; [] for any other
+    page."""
+    spread = (_field(page, "evidence") or {}).get("spread") or {}
+    return [h for h in (spread.get("halves") or ()) if isinstance(h, dict)]
+
+
+def half_at(page, x: float | None) -> dict | None:
+    """The half of a spread sheet that `x` (a fraction of the sheet's width) falls on, or None when
+    the page is not a spread or `x` is not known."""
+    halves_ = spread_halves(page)
+    spread = (_field(page, "evidence") or {}).get("spread") or {}
+    if not halves_ or x is None or spread.get("fold") is None:
+        return None
+    side = "left" if float(x) < float(spread["fold"]) else "right"
+    return next((h for h in halves_ if h.get("side") == side), None)
+
+
+def bbox_centre_x(bbox) -> float | None:
+    """The centre of a box across the page — a `BBox` or its dict — or None."""
+    if bbox is None:
+        return None
+    try:
+        x0, x1 = ((bbox.get("x0"), bbox.get("x1")) if isinstance(bbox, dict)
+                  else (bbox.x0, bbox.x1))
+        return (float(x0) + float(x1)) / 2
+    except (TypeError, ValueError, AttributeError):
+        return None
+
+
+def statements_on(page) -> list[str]:
+    """Every statement a page prints, in reading order: each face half's on a spread sheet (the
+    sheet's own verdict is only its first), each face part's where a person cut the page
+    (`services.page_overrides`), the page's own statement otherwise."""
+    out: list[str] = []
+    evidence = _field(page, "evidence") or {}
+    for part in evidence.get("override_parts") or ():
+        statement = part.get("statement") if isinstance(part, dict) else None
+        if statement and part.get("kind") == "face" and statement not in out:
+            out.append(statement)
+    for half in spread_halves(page):
+        statement = half.get("statement")
+        if half.get("kind") == "face" and statement and statement not in out:
+            out.append(statement)
+    own = _field(page, "statement")
+    own = getattr(own, "value", own)
+    if own and own not in out:
+        out.append(own)
+    return out
+
+
+def statement_at(page, x: float | None) -> str | None:
+    """The statement printed where `x` falls: its half's on a spread sheet — none on a half that is
+    not a face, as on a page that is not — else the page's own."""
+    half = half_at(page, x)
+    if half is not None:
+        return (half.get("statement") or None) if half.get("kind") == "face" else None
+    own = _field(page, "statement")
+    return getattr(own, "value", own) or None
+
+
+def _half_folio(page, half: dict) -> str | None:
+    """A half's own folio — or, when the half prints none and the page facing it does, that page's
+    number less one (a left page) or plus one (a right page).
+
+    The two halves of a 2-up sheet are consecutive printed pages. The sheet's own folio is its
+    FIRST half's that prints one, so a half printing none would otherwise cite the page beside it:
+    Hindustan Unilever's sheet 233 prints 464 on its left page and nothing on its right."""
+    if half.get("printed_page"):
+        return str(half["printed_page"])
+    halves_ = spread_halves(page)
+    if len(halves_) != 2 or half not in halves_:
+        return None
+    facing = halves_[1 - halves_.index(half)].get("printed_page")
+    if not facing or not str(facing).isdigit():
+        return None
+    number = int(facing) + (-1 if half.get("side") == "left" else 1)
+    return str(number) if number > 0 else None
+
+
+def folio_at(page, x: float | None) -> str | None:
+    """The page number printed where `x` falls: its half's folio on a spread sheet (`_half_folio`),
+    else the sheet's own (`PageSource.printed_page`)."""
+    half = half_at(page, x)
+    if half is not None:
+        folio = _half_folio(page, half)
+        if folio:
+            return folio
+    folio = _field(page, "printed_page")
+    return str(folio) if folio else None
+
+
+def folio_of_statement(page, statement: str | None) -> str | None:
+    """The page number printed on the half of a spread sheet that prints `statement`, else the
+    sheet's own — where a reader names the page a statement is on, with no figure to place."""
+    for half in spread_halves(page):
+        if half.get("kind") == "face" and half.get("statement") == statement:
+            folio = _half_folio(page, half)
+            if folio:
+                return folio
+    folio = _field(page, "printed_page")
+    return str(folio) if folio else None

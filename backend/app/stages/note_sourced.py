@@ -1746,7 +1746,7 @@ def _fill_by_cascade(parent_def, kids: list, by_key: dict, doc: DocumentModel,
         # printed as a line of its own. See `CascadeRung.carved_from_face`.
         from app.services.rollups import CARVED_FROM_FACE
         if rung_def is not None and rung_def.carved_from_face and not _face_prints_line(
-                parent_def, by_key, defs or {}, basis, period):
+                parent_def, by_key, defs or {}, basis, period, doc=doc):
             slot = _slot(target_row, basis, period)
             if slot is not None and CARVED_FROM_FACE not in slot.confidence.flags:
                 slot.confidence.flags.append(CARVED_FROM_FACE)
@@ -2026,7 +2026,8 @@ def _arrival_label(parent_def, kids: list) -> str:
     return " + ".join(labels) or str(getattr(parent_def, "label", "") or parent_def.key)
 
 
-def _face_prints_line(parent_def, by_key: dict, defs: dict, basis: str, period: str) -> bool:
+def _face_prints_line(parent_def, by_key: dict, defs: dict, basis: str, period: str,
+                      doc=None) -> bool:
     """Whether the face prints this derived line AS A LINE OF ITS OWN, for one slot.
 
     Answered by the line's own FACE parts — the terms of its cascade whose route is ``face``. China
@@ -2052,10 +2053,17 @@ def _face_prints_line(parent_def, by_key: dict, defs: dict, basis: str, period: 
             printed_on = _statement_name(getattr(part, "statement", None))
             if own and printed_on and printed_on != own:
                 continue
-            row = by_key.get(term.ref)
-            ev = _slot(row, basis, period) if row is not None else None
-            if ev is not None and ev.value is not None:
-                return True
+            # EVERY ROW OF THE PART, not the last one `by_key` kept: a filing printing the line on
+            # its consolidated AND its company balance sheet has two rows of the face part, and
+            # `by_key` holds only the company's — so the consolidated face row was not seen and
+            # the consolidated figure was carved out of the section it is printed in (688008's
+            # 其他应收款 4,143,856.36, p149, once Other Receivables(CP)'s CP_P1 was carved).
+            rows = ([li for li in doc.line_items if li.canonical_key == term.ref]
+                    if doc is not None else [by_key.get(term.ref)])
+            for row in rows:
+                ev = _slot(row, basis, period) if row is not None else None
+                if ev is not None and ev.value is not None:
+                    return True
     return False
 
 

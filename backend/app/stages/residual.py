@@ -324,6 +324,37 @@ def _broken_down_rows(ordered: list) -> set:
 # A per-share figure is a ratio in cents, not an amount: added into a section subtotal it is
 # nonsense, and it is small enough that no rollup notices.
 _PER_SHARE = re.compile(r"per share|per ordinary share|每股|hk cents|rmb cents", re.IGNORECASE)
+# …AND THE COUNT OF SHARES IT IS DIVIDED BY. An IFRS income statement prints it under the EPS line —
+# "Number of shares used in the calculation ('000)  29,322  29,322" — and it is a number of
+# shares, not an amount of money. MEASURED on Vivo Energy Mauritius 2025 (p66): swept into the OCI
+# residual, it turned other comprehensive loss (15,766) / (9,511) into +13,556 / +19,811. Share-count
+# wording only: "Shares issued", a transaction in money on an equity statement, is not matched.
+_SHARE_COUNT = re.compile(
+    r"\bnumber\s+of\s+(?:ordinary\s+|equity\s+)?shares\b"
+    r"|\bweighted\s+average\s+(?:number\s+of\s+)?(?:ordinary\s+|equity\s+)?shares\b"
+    r"|\bshares\s+in\s+issue\b.*\(\s*(?:'|‘|’)?000\s*\)"
+    r"|股份数|股數|股数", re.IGNORECASE)
+
+
+# …AND THE EPS LINES PRINTED BY THEIR KIND ALONE. An Ind AS statement heads them "Earnings per equity
+# share of face value of ₹10 each" and captions each line "Basic (Rs.)", "Diluted (in ₹)" — the
+# heading is a caption-only line the reader keeps for no row, so the line itself says only basic or
+# diluted, with the currency it is quoted in. MEASURED: swept into the OCI residual on IndiGo 2024/25
+# (187.93 / 211.84 and 187.67 / 211.61, p233; the same on p153), Asian Paints 2025/26 (p183), JSW
+# 2024/25 (p218) and Laurus Labs 2025/26 (p104). The whole caption must be the kind AND the
+# bracketed unit it is quoted in (the ₹ glyph comes through as "`", "I" or "J" on some of these
+# PDFs): a bare "Basic" is far too generic to veto on its own, and is read as a per-share figure
+# only under a per-share heading (`_per_share_rows`).
+_EPS_KIND_ONLY = re.compile(
+    r"^\W*(?:basic|diluted)(?:\s*(?:and|&|/)\s*(?:basic|diluted))?\s*"
+    r"\(\s*[^()\d]{1,16}\)\s*$", re.IGNORECASE)
+_PER_EQUITY_SHARE = re.compile(r"per\s+equity\s+share", re.IGNORECASE)
+
+
+def _is_per_share_row(row) -> bool:
+    label = _label(row)
+    return bool(_PER_SHARE.search(label) or _SHARE_COUNT.search(label)
+                or _PER_EQUITY_SHARE.search(label) or _EPS_KIND_ONLY.match(label))
 # "Note 12", "附註12", "(a)", "12", "" — a row whose caption identifies nothing at all.
 #
 # EVERY ALTERNATIVE IS REFERENCE-SHAPED. The single pattern this replaces made every part optional
@@ -548,13 +579,37 @@ _OF_WHICH_PHRASE = "of which breakdown"
 # was refused as an attribution caption, so Net cash flows used for financing activities published
 # -93,349 against a printed -178,876. The test is therefore not run on a cash-flow row.
 _ATTRIBUTION_PHRASE = "attribution caption"
+# A ROW PRINTED UNDER AN ATTRIBUTION HEADING IS AN ATTRIBUTION LINE, whatever its own caption says.
+# "Total comprehensive income attributable to:" over "Owners of the Company" and "Non-controlling
+# interests": the owners' row says so in its caption, the other one does not (the pattern above
+# wants "non-controlling interests:" with its colon, because a bare "Non-controlling interests" is
+# also the balance sheet's equity LINE). MEASURED on Moroil 2025 (p68): 'Non-controlling interests'
+# 2,518 / 2,864 was swept into the OCI residual, so other comprehensive income showed (1,970) /
+# 60,016 against the (4,488) / 57,152 printed. Only a heading that splits a PROFIT or an INCOME by
+# owner: "Equity attributable to owners of the Company" heads share capital and reserves, which are
+# lines of their own.
+_ATTRIBUTION_HEADING = re.compile(
+    r"^\W*(?:total\s+)?(?:other\s+)?(?:comprehensive\s+)?"
+    r"(?:profit|loss|income|earnings|\(loss\)|\(profit\)|result)[\w\s/()&,-]*attributable\s+to"
+    r"|^\W*(?:total\s+)?comprehensive\s+(?:income|loss)[\w\s/()&,-]*attributable\s+to"
+    r"|(?:净利润|綜合收益|综合收益|全面收益)[^，,]*归属|(?:净利润|綜合收益|综合收益|全面收益)[^，,]*歸屬",
+    re.IGNORECASE)
+
+
+def _is_attribution_row(row) -> bool:
+    if _ATTRIBUTION.search(_label(row)):
+        return True
+    heads = [getattr(row, "group_hint", "") or "", getattr(row, "section_hint", "") or ""]
+    return any(_ATTRIBUTION_HEADING.search(h) for h in heads if h)
+
+
 _ATTRIBUTION_STATEMENTS_EXEMPT = frozenset({"cash_flow"})
 _EXCLUSIONS: tuple[tuple[str, object], ...] = (
     ("section subtotal", lambda row: row.role is LineRole.SUBTOTAL),
     ("statement total", lambda row: row.role is LineRole.TOTAL),
     ("section header", lambda row: row.role in (LineRole.HEADER, LineRole.SPACER)),
-    (_ATTRIBUTION_PHRASE, lambda row: bool(_ATTRIBUTION.search(_label(row)))),
-    (_PER_SHARE_PHRASE, lambda row: bool(_PER_SHARE.search(_label(row)))),
+    (_ATTRIBUTION_PHRASE, lambda row: _is_attribution_row(row)),
+    (_PER_SHARE_PHRASE, _is_per_share_row),
     ("narrative row", _is_narrative_row),
     ("note-reference-only row", lambda row: bool(_NOTE_REF_ONLY.match(_label(row)))),
     (_OF_WHICH_PHRASE, lambda row: bool(_OF_WHICH.match(_label(row)))),
@@ -630,6 +685,12 @@ _TOTAL_CAPTION = re.compile(
     # IFRS: "(Decrease)/increase in cash and cash equivalents" -76,524 into Other financing)
     r"|^\W*(?:net\s*)?\(?\s*(?:increase|decrease)\s*\)?(?:\s*/\s*\(?\s*(?:increase|decrease)\s*\)?)?"
     r"\s+in\s+cash\s+and\s+(?:cash\s+equivalents|bank\s+balances)\W*$"
+    # …and the same change printed bare, as the middle line of a movement-in-cash block
+    # ("Movement in cash and cash equivalents / At July 1, / Increase/(decrease) / At June 30,"):
+    # Moroil 2025 (p69) swept its 12,091 / (27,903) into Other financing a second time. Both
+    # directions are named, so a component "Increase in borrowings" is untouched.
+    r"|^\W*(?:net\s*)?\(\s*(?:increase|decrease)\s*\)\s*/\s*(?:increase|decrease)\W*$"
+    r"|^\W*(?:net\s*)?(?:increase|decrease)\s*/\s*\(\s*(?:increase|decrease)\s*\)\W*$"
     # "Cash and cash equivalents at (the) beginning / end of the year", "… as stated in the
     # statement of cash flows", and the bare "AT END OF YEAR" a cash flow's last line is printed as
     r"|cash\s+and\s+cash\s+equivalents\s+(?:at|as\s+at)\s+(?:the\s+)?(?:beginning|end|start)\b"
@@ -977,6 +1038,37 @@ def _every_caption(concept) -> list[str]:
     for captions in (getattr(concept, "aliases_i18n", None) or {}).values():
         out.extend(captions or [])
     return list(dict.fromkeys(c for c in out if c))
+
+
+# A ROW A RESIDUAL'S `exclude_hints` REFUSE AS A TOTAL, SWEPT BECAUSE IT IS ITS STATEMENT'S FIRST
+# FIGURE — see `_opens_its_statement`.
+OPENS_ITS_STATEMENT_FLAG = "residual_opens_its_statement"
+
+
+def _opens_its_statement(idx: int, ordered: list, li, stmt: str | None, statement_of) -> bool:
+    """Whether ``li`` is the first figure its statement prints on the face.
+
+    An `exclude_hints` pattern refuses a caption because it names a TOTAL of rows the section
+    prints above it — "Cash generated from operations" closes the reconciliation of profit to
+    operating cash, and sweeping it as well would count that reconciliation twice. A statement that
+    OPENS on that caption prints the reconciliation in a note instead, and the row is the only
+    figure the face gives for it: refused, it left the operating section short by exactly its
+    amount. MEASURED on Moroil 2025 (p69, reconciliation in note 32(a)): net cash from operating
+    activities was rebuilt from the interest and tax lines alone, -28,301 / -31,175 against the
+    188,838 / 168,271 printed; Phoenix Beverages 2025 (p131, note 31(a)) the same, -442,347 /
+    -209,023 against 1,666,269 / 1,998,159. China SCE 1966, Lai Sun and BYD Electronic print the
+    reconciliation on the face above the same caption, and it stays refused there.
+
+    "First" is by printing order among the face rows that carry a figure: the nearest such row
+    above it belongs to another statement, or there is none.
+    """
+    if getattr(li, "printed_in", None) is not PrintedIn.FACE or not stmt:
+        return False
+    for prev in reversed(ordered[:idx]):
+        if getattr(prev, "printed_in", None) is not PrintedIn.FACE or not _has_value(prev):
+            continue
+        return (statement_of(prev) or "") != stmt
+    return True
 
 
 def _vetoed_by_never_sweep(res: _Residual, label: str) -> str | None:
@@ -1629,6 +1721,14 @@ class ResidualStage:
                 continue
 
             veto = _vetoed_by_never_sweep(target, li.source_label or "")
+            opens_statement = False
+            if (veto is not None and veto.startswith("exclude_hints:")
+                    and _opens_its_statement(idx, ordered, li, stmt, statement_of)):
+                # A TOTAL'S CAPTION THAT OPENS ITS STATEMENT TOTALS NOTHING PRINTED ABOVE IT — see
+                # `_opens_its_statement`. It is swept as the component it is on this face.
+                li.confidence.flags.append(f"{OPENS_ITS_STATEMENT_FLAG}:{veto}")
+                veto = None
+                opens_statement = True
             if veto is not None:
                 ineligible += 1
                 li.confidence.flags.append(f"residual_never_sweep:{veto}")
@@ -1637,7 +1737,7 @@ class ResidualStage:
             if ("section subtotal" in terms.exclusions
                     and (target.statement or stmt) in _TOTAL_CAPTION_STATEMENTS):
                 total_caption = _reads_as_total(li.source_label or "")
-                if total_caption is not None:
+                if total_caption is not None and not opens_statement:
                     # Eligibility 3 read off the CAPTION — see `_TOTAL_CAPTION`. After the
                     # residual's own `never_sweep`, so a veto the rulebook names is still the one
                     # reported; this catches every total it does not name.

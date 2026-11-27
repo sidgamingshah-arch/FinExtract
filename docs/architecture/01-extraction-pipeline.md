@@ -1005,6 +1005,21 @@ no request answered in a part holding its face pages: the stage logs
 `whole_pdf:fallback(<why>)`, leaves the document as the extraction left it, and every later stage
 runs — the rules read the filing, with nothing read twice.
 
+**Two-page spreads and filings with no face page found** (Mauritius annual reports, where each PDF
+page is two printed pages):
+- A spread sheet's statements are read by its halves (`whole_pdf.statement_values`). A sheet
+  printing the P&L on its left half and the balance sheet on its right counts as a face page of
+  both, for the statements-alone part, the merge and the lost-lines guard.
+- The question names the printed pages each file page holds (`_spread_note`). A figure cited by
+  its printed folio is mapped back to the one page of the part that prints it
+  (`page_of_folio`), and the citation names the half the figure sits on.
+- A statement with no face page anywhere is judged by its own requests. If no request that asked
+  its lines succeeded, the route falls back as above. It used to be skipped, so a failed
+  balance-sheet request blanked every balance-sheet line and the run reported success.
+- A figure found on no page carries no provenance. It is no longer cited on page 0.
+- On a single-entity filing, a figure the model filed as standalone is refiled on the one basis
+  the filing prints (`whole_pdf:refiled_basis:standalone->consolidated`).
+
 **What it costs**, measured as the request shape on ten corpus filings with the defaults (no model
 called): statement and notes pages are 28 to 180 of 97 to 383 pages; one or two parts of 0.3 to
 16 MB. At the default 250 lines a request, a part takes one request per statement: 4 on the US

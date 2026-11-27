@@ -2615,13 +2615,17 @@ def _value_of(r: dict, basis: str, period: str) -> dict | None:
 def _face_pages_of(pages: list[dict] | None, statement: str | None) -> list[str]:
     """The face pages the classifier gave a statement, as cards print a page — where a figure the
     model displaced was printed when the row no longer carries its face provenance."""
+    from app.services.page_spread import folio_of_statement, statements_on
+
     out: list[str] = []
     for p in pages or []:
-        if not statement or p.get("statement") != statement:
+        # Both halves of a 2-up spread sheet, each with its own folio: the sheet's `statement` is
+        # only its first face half's.
+        if not statement or statement not in statements_on(p):
             continue
         if str(p.get("kind") or "").rsplit(".", 1)[-1].lower() != "face":
             continue
-        label = f"p.{p.get('printed_page') or int(p.get('index') or 0) + 1}"
+        label = f"p.{folio_of_statement(p, statement) or int(p.get('index') or 0) + 1}"
         if label not in out:
             out.append(label)
     return out
@@ -7923,8 +7927,11 @@ def search_document_text(
     except ImportError:  # pragma: no cover - PyMuPDF is a core dep
         raise HTTPException(status_code=501, detail="PDF rendering unavailable")
 
-    folios = {(p.get("index", 0) or 0): p.get("printed_page")
-              for p in _document_pages(row, store)}
+    from app.services.page_spread import folio_at
+
+    # By the half a hit is on, on a 2-up spread sheet (`page_spread.folio_at`): the sheet prints
+    # two folios and its own `printed_page` is its first half's.
+    by_index = {(p.get("index", 0) or 0): p for p in _document_pages(row, store)}
     scanned = sum(1 for p in _document_pages(row, store) if p.get("source_kind") == "scanned")
     needle = q.strip()
     hits: list[dict] = []
@@ -7952,7 +7959,8 @@ def search_document_text(
                 break
             hits.append({
                 "page_index": index,
-                "printed_page": folios.get(index),
+                "printed_page": (folio_at(by_index[index], (rect.x0 + rect.x1) / 2 / w)
+                                 if index in by_index else None),
                 "bbox": {"x0": max(0.0, rect.x0 / w), "y0": max(0.0, rect.y0 / h),
                          "x1": min(1.0, rect.x1 / w), "y1": min(1.0, rect.y1 / h)},
                 "snippet": _snippet_at(lines, rect) or needle,

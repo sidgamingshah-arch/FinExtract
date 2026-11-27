@@ -4,22 +4,27 @@ Two regimes are told apart: an Indian annual report (below) and a US Form 10-K
 (`is_us_10k_filing`). Every filing that is neither — the HKEX and mainland corpus the readers are
 calibrated on — is read exactly as before.
 
-An Indian annual report prints two things the readers otherwise refuse, both measured on Schedule III
-statements laid out the way the Companies Act prescribes:
+An Indian annual report prints a row the readers otherwise refuse, measured on Schedule III
+statements laid out the way the Companies Act prescribes: a row OPENED by a bracketed or dotted
+numeral — Schedule III's own "(1) Current tax" / "(2) Deferred tax". The numeral parses as the
+amount -1 (`row_reconstruct._num`), text after a figure is neither caption nor figure, and the row
+was dropped with its tax charge. The rule is switched on for an Indian filing only
+(`stages.extract`), because the reference corpus the readers are calibrated on (HKEX and mainland
+filings) is not where it was measured. The test is the vocabulary no other corpus prints: the
+rupee sign, lakh / crore scaling, "Ind AS", the Companies Act 2013 and a Corporate Identity Number.
 
-* a statement TITLE carrying its own date on the same line — "Standalone Balance Sheet as at 31 March
-  2025", "Statement of Profit and Loss for the year ended 31st March, 2025". A heading line with more
-  than one number is not a title candidate (`stages.classify._looks_like_heading`), so the page was
-  never a face and nothing on it was read;
-* rows OPENED by a bracketed or dotted numeral — Schedule III's own "(1) Current tax" / "(2) Deferred
-  tax". The numeral parses as the amount -1 (`row_reconstruct._num`), text after a figure is neither
-  caption nor figure, and the row was dropped with its tax charge.
-
-Both rules are correct for any filing, but the reference corpus the readers are calibrated on (HKEX
-and mainland filings) is not where they were measured, so they are switched on for an Indian filing
-only. The test is the vocabulary no other corpus prints: the rupee sign, lakh / crore scaling, "Ind
-AS", the Companies Act 2013 and a Corporate Identity Number. Lifting the gate is a decision for the
-day the reference corpus is re-measured with the rules on.
+THE OTHER RULE THIS GATE ONCE HELD IS NOW READ ON EVERY FILING: a statement TITLE carrying its own
+date on the same line — "Standalone Balance Sheet as at 31 March 2025", "STATEMENT OF FINANCIAL
+POSITION AS AT 31 DECEMBER 2025". A heading line with more than one number is not a title candidate
+(`stages.classify._looks_like_heading`), so the page was never a face and nothing on it was read.
+An IFRS filing prints its titles that way too — Vivo Energy Mauritius' annual report 2025 heads all
+four statements so, and with the cut kept to India it had no statement page at all. Measured with
+the cut on every filing: on the 19 HKEX and mainland test filings (the five reference filings among
+them) no page verdict, title or unmapped title moves and no figure moves, because none of them
+prints a title with its date (`stages.classify._TITLE_DATE_TAIL`); on the Indian filings it was on
+already; of the four other Mauritius filings, none moves a page verdict, and Gamma Civic and Lux
+Island Resorts each list one more unmapped title (a sentence that ends in its year end, cut there).
+The day-one caution stands for the enumerated rows, which were not re-measured.
 """
 from __future__ import annotations
 

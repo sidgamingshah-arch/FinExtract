@@ -429,9 +429,12 @@ def explain_gaps(rows: list[dict], template_def: dict | None, basis: str, *,
                     at = place(v.get("provenance"))
                     if at is not None:
                         places.add(at)
+        from app.services.page_spread import statements_on
+
         for pg in pages or []:
-            if (pg.get("statement") and pg.get("index") is not None
-                    and normalize_statement(pg.get("statement")) == statement):
+            # every statement the page prints: both halves of a 2-up spread sheet
+            if pg.get("index") is not None and any(
+                    normalize_statement(st) == statement for st in statements_on(pg)):
                 places.add(("page", int(pg["index"])))
         tau1 = max(tolerance, REL_TOLERANCE * abs(gap1))
         tau2 = max(tolerance, REL_TOLERANCE * abs(gap2))

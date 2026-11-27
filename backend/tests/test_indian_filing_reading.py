@@ -1,13 +1,14 @@
-"""Two reading rules an Indian annual report needs, and the gate that keeps them to Indian filings.
+"""Two reading rules an Indian annual report needs, and the gate that keeps one of them to Indian
+filings.
 
 * A statement title printed WITH ITS DATE on the same line ("Standalone Balance Sheet as at 31 March
   2025") is the page's title. It carries two numbers, so the heading test refused it and the page was
-  never a face.
+  never a face. Read on EVERY filing now — an IFRS filing prints its titles the same way
+  (`test_a_title_printed_with_its_date_is_a_face_on_every_filing`).
 * A row OPENED by its enumerator ("(1) Current tax") keeps the numeral in its caption. Read as a
-  figure, "(1)" was the amount -1 and the row was dropped with its tax charge.
-
-Both are switched on only when `services.regime.is_indian_filing` says so, because the reference
-corpus they would otherwise reach (HKEX and mainland filings) was not re-measured with them on.
+  figure, "(1)" was the amount -1 and the row was dropped with its tax charge. Switched on only when
+  `services.regime.is_indian_filing` says so, because the reference corpus it would otherwise reach
+  (HKEX and mainland filings) was not re-measured with it on.
 """
 from __future__ import annotations
 
@@ -66,15 +67,15 @@ def _page(title: str) -> list[dict]:
              "bold": False}]
 
 
-def test_the_dated_title_makes_the_page_a_balance_sheet_only_on_an_indian_filing():
+def test_the_dated_title_makes_the_page_a_balance_sheet():
     lines = _page("Standalone Balance Sheet as at 31 March 2025")
     text = "\n".join(line["text"] for line in lines)
-    on = classify._features(1, lines, 842.0, text, dated_titles=True)
+    on = classify._features(1, lines, 842.0, text)                 # the default: every filing
     off = classify._features(1, lines, 842.0, text, dated_titles=False)
     assert on.statement == "balance_sheet"
     assert on.matched_title == "Standalone Balance Sheet"
     assert on.matched_title_y == pytest.approx(56.0 / 842.0)   # located by the line it was printed as
-    assert off.statement is None                                # the gate: unchanged elsewhere
+    assert off.statement is None            # without the cut the line is refused: two numbers
 
 
 def _row(*tokens: str):

@@ -213,6 +213,13 @@ _SCOPE_CONSOL = re.compile(
 _SCOPE_COMPANY = re.compile(
     rf"\bcompany\b(?!\s+{_CORP_SUFFIX}\b)|\bthe\s+bank\b(?!\s+{_CORP_SUFFIX}\b)"
     r"|\bparent\b|\bstandalone\b|\bunconsolidated\b"
+    # IFRS's "separate financial statements" are the parent's own (IAS 27): Lux Island Resorts 2025
+    # titles the company's equity statement "SEPARATE STATEMENT OF CHANGES IN EQUITY" (sheet 64,
+    # printed 126). It was read as the company's only while front-matter pages latched the notes
+    # walk (`repeat_after_notes`); once those pages were no longer notes it kept no entity, and
+    # the company's figures took the consolidated default. "Consolidated and separate" is still
+    # consolidated: that test runs first.
+    r"|\bseparate\b"
     r"|[母][公][司]|[本][公][司]", re.I)
 # 綜合 vs 综合. Traditional HK usage is 綜合 = consolidated (the comment on ``_ZH_CI_AMBIG`` above says
 # so), and 綜合損益及其他全面收益表 — the commonest Traditional face title there is — is the GROUP's.
@@ -224,8 +231,15 @@ _ZH_CONSOL_AMBIG = re.compile(r"綜合|综合(?!收益|[損损]益|全面|[虧�
 
 # Prose pages that discuss the statements without being one.
 _NARRATIVE = re.compile(
-    r"\bin\s+our\s+opinion\b|\bwe\s+have\s+audited\b|\bindependent\s+auditor"
-    r"|\bdirectors'?\s+report\b|\bkey\s+audit\s+matters?\b|\bbasis\s+for\s+opinion\b"
+    r"\bin\s+our\s+opinion\b|\bwe\s+have\s+audited\b"
+    # …but not a statement's footer that only REFERS to the auditor's report: Lux Island Resorts
+    # 2025 prints "Independent Auditor's report on pages 116 to 121." under every statement, and on
+    # a half short enough for it to fall in the first 1,500 characters (the comprehensive income,
+    # p124) the statement was read as the auditor's report.
+    r"|\bindependent\s+auditor(?![’'`]?s\s+report\s+(?:is\s+)?(?:set\s+out\s+)?on\s+pages?\b)"
+    # …and the apostrophe a typeset report prints: Gamma Civic 2024's "DIRECTORS’ REPORT" (p75)
+    # missed the straight one, and its figures-in-prose made the page a profit-or-loss face.
+    r"|\bdirectors[’'`]?\s+report\b|\bkey\s+audit\s+matters?\b|\bbasis\s+for\s+opinion\b"
     r"|[核][數数][師师][報报][告告]|[董][事][會会][報报][告告]|[獨独][立][核][數数][師师]", re.I)
 
 # THE SECTION OF THE REPORT THIS PAGE IS IN, as its own running header names it.
@@ -338,7 +352,12 @@ _NUM_TOKEN = re.compile(r"\(?-?[\d,]+\.?\d*\)?")
 # What this decides is whether a statement is still running ABOVE a title printed part-way down a
 # page, which is a question about content and not about how far down the title sits — see
 # ``PageFeat.amounts_above_title``.
-_AMOUNT_LINE = re.compile(r"\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+\.\d{2}(?!\d)")
+# …AND THOUSANDS GROUPED WITH A SPACE, as Phoenix Beverages prints every figure ("207 446",
+# "(757 040)"). Not seen, a row label beside such figures was no table row: its pension note (sheet
+# 96, printed 190) "Liability in the statements of financial position 207 446 …" was read as a
+# balance-sheet title part-way down the page, and both halves became balance-sheet faces.
+_AMOUNT_LINE = re.compile(r"\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+\.\d{2}(?!\d)"
+                          r"|(?<![\d,.])\d{1,3}(?: \d{3})+(?![\d,.])")
 # A split title runs to two or three short lines; beyond that a "run" of heading-shaped lines is
 # the title plus the top of the table.
 _JOIN_MAX_LINES = 3
@@ -435,6 +454,25 @@ class PageFeat:
     numeric_density: float = 0.0
     scope: str | None = None
     scope_columns: list[str] = field(default_factory=list)
+    # "L" / "R" for a half of a 2-up spread sheet (`_spread_units`), "" for a whole page — so a
+    # log line names the sheet AND the half, not a position in the list of printed pages.
+    side: str = ""
+
+
+def _unit_label(f) -> str:
+    """How the log names a printed page: its sheet's 0-based index, plus L / R on a spread sheet.
+
+    Positions in the list of printed pages are not page numbers once a spread is split: on Vivo
+    Energy Mauritius "notes_before_face=[2..54]" were half-pages 2-54, sheets 2-31, and
+    "first_face=59" was sheet 34's left half; both halves of a sheet logged one "page=34"."""
+    return f"{getattr(f, 'index', '?')}{getattr(f, 'side', '') or ''}"
+
+
+def _unit_labels(path: list, feats: list | None) -> list[str]:
+    """`_unit_label` of every entry of `path`, or its position where no features are given."""
+    if feats and len(feats) == len(path):
+        return [_unit_label(f) for f in feats]
+    return [str(i) for i in range(len(path))]
 
 
 def _looks_like_heading(line: str) -> bool:
@@ -468,9 +506,13 @@ def _title_zone(lines: list[dict], limit: int = 8) -> list[dict]:
     return out
 
 
-def _title_candidates(lines: list[dict]) -> list[dict]:
+def _title_candidates(lines: list[dict], *, every_start: bool = False) -> list[dict]:
     """Heading-like lines, plus joins of consecutive heading-like lines so a title split across two
-    lines ("CONSOLIDATED STATEMENT OF" / "CASH FLOWS") is matched as one."""
+    lines ("CONSOLIDATED STATEMENT OF" / "CASH FLOWS") is matched as one.
+
+    ``every_start`` also joins from each later line of a run — see `joined_from_every_line`. Asked
+    for only where the ordinary candidates named no statement (`_features`), so a page whose title
+    was read keeps the title it had."""
     cands = [dict(c) for c in lines if _looks_like_heading(c["text"])]
 
     def joined(run: list[dict]) -> None:
@@ -492,14 +534,29 @@ def _title_candidates(lines: list[dict]) -> list[dict]:
         if text != run[0]["text"]:
             cands.append({**run[0], "text": text})
 
+    def joined_from_every_line(run: list[dict]) -> None:
+        """A title split over lines may START part-way down a run of heading-shaped lines.
+
+        Lux Island Resorts 2025 heads every statement under its issuer line, on three lines:
+        "LUX ISLAND RESORTS LTD AND ITS SUBSIDIARIES" / "CONSOLIDATED AND SEPARATE STATEMENTS" /
+        "OF FINANCIAL POSITION" (sheets 62-64). Joined only from the run's first line, the join
+        reached the 90-character cap at "… SUBSIDIARIES CONSOLIDATED AND SEPARATE STATEMENTS" and
+        no candidate held "STATEMENTS OF FINANCIAL POSITION": the balance sheet (p122), the profit
+        or loss (p123), the comprehensive income (p124) and the cash flow (p127) were no faces.
+        Each join is still capped (`joined`). Only when asked (``every_start``): a join that starts
+        on a heading line ABOVE the title (a navigation tab, the issuer's name) is topmost and would
+        displace a title the page's ordinary candidates already read."""
+        for start in range(len(run) - 1 if every_start else min(1, len(run) - 1)):
+            joined(run[start:])
+
     run: list[dict] = []
     for line in lines:
         if _looks_like_heading(line["text"]):
             run.append(line)
         else:
-            joined(run)
+            joined_from_every_line(run)
             run = []
-    joined(run)
+    joined_from_every_line(run)
     return cands
 
 
@@ -508,9 +565,17 @@ def _title_candidates(lines: list[dict]) -> list[dict]:
 # the year ended 31st March, 2025", "Balance Sheet as at March 31, 2025". The date gives the line two
 # numbers, so `_looks_like_heading` refuses it and the page was never a face. What follows the title
 # is a date phrase and nothing else, so the line is offered again WITHOUT it — the title and only the
-# title, still subject to every test a title is. Switched on for an Indian filing only
-# (`services.regime`); the text a candidate came from is kept, because the title's position on the
-# page is found by that text.
+# title, still subject to every test a title is. The text a candidate came from is kept, because
+# the title's position on the page is found by that text.
+#
+# OFFERED ON EVERY FILING, and it was an Indian filing's only (`services.regime`). An IFRS filing
+# prints its titles the same way: Vivo Energy Mauritius' annual report 2025 heads all four
+# statements "STATEMENT OF PROFIT OR LOSS FOR THE YEAR ENDED 31 DECEMBER 2025", "STATEMENT OF
+# FINANCIAL POSITION AS AT 31 DECEMBER 2025" and so on, and with the cut kept to India the filing
+# had no statement page at all: 0 face pages, 77 rows all read from the notes, 49 of 49 checks
+# skipped. Measured on the 19 HKEX and mainland test filings (the five references among them): no
+# page verdict, title or figure moves with the cut on — no title there carries its date — so only a
+# filing that does print one moves.
 _MONTH = (r"(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?"
           r"|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)")
 _TITLE_DATE = (rf"(?:\d{{1,2}}(?:st|nd|rd|th)?[\s.,\-/]*{_MONTH}[\s.,\-/]*\d{{4}}"
@@ -598,7 +663,7 @@ def _under_a_note_heading(zone: list[dict], title: str | None, printed_as: dict)
     return False
 
 
-def _mid_page_statement(lines: list[dict], title_zone: list[dict], *, dated_titles: bool = False
+def _mid_page_statement(lines: list[dict], title_zone: list[dict], *, dated_titles: bool = True
                         ) -> tuple[str | None, bool, str | None, bool]:
     """Find an exact statement title that starts below a completed table on the same page.
 
@@ -625,7 +690,8 @@ def _mid_page_statement(lines: list[dict], title_zone: list[dict], *, dated_titl
     return _resolve_statement(candidates, coverage=_MID_PAGE_TITLE_COVERAGE)
 
 
-def _closing_statement(lines: list[dict], title_zone: list[dict], title_y: float | None
+def _closing_statement(lines: list[dict], title_zone: list[dict], title_y: float | None, *,
+                       dated_titles: bool = True
                        ) -> tuple[str | None, str | None, float | None]:
     """The LAST exact statement title printed below this page's own title, as
     ``(statement, title, y)`` — only when a statement's figures are printed between the two.
@@ -647,13 +713,23 @@ def _closing_statement(lines: list[dict], title_zone: list[dict], title_y: float
     The same strict floor `_mid_page_statement` applies, because this reads the same region of the
     page; and a title with no figures between it and the page's own title is not a second statement
     but the first one's title printed twice.
+
+    A CLOSING TITLE PRINTED WITH ITS DATE is offered without it, as the page's own title is
+    (`_dated_title_candidates`). Vivo Energy Mauritius prints its statement of comprehensive income
+    under the statement of profit or loss on printed page 66 — "STATEMENT OF COMPREHENSIVE INCOME
+    FOR THE YEAR ENDED 31 DECEMBER 2025" at y=0.58 — and opens it by restating "Profit for the year
+    529,539 / 516,510". Unseen, the second statement was the first one's tail, the restatement was a
+    second bottom line on the same page, and the published profit was 1,059,078 / 1,033,020.
     """
     if title_y is None:
         return None, None, None
     zone_ids = {id(line) for line in title_zone}
-    below = [line for line in lines if id(line) not in zone_ids
-             and float(line.get("y", 0.0)) > title_y and _looks_like_heading(line["text"])
-             and not _on_a_figure_row(line, lines) and not _prose_fragment(line["text"])]
+    region = [line for line in lines if id(line) not in zone_ids
+              and float(line.get("y", 0.0)) > title_y
+              and not _on_a_figure_row(line, lines) and not _prose_fragment(line["text"])]
+    below = [line for line in region if _looks_like_heading(line["text"])]
+    if dated_titles:
+        below += _dated_title_candidates(region)
     for cand in sorted(below, key=lambda line: float(line.get("y", 0.0)), reverse=True):
         name, _combined, title, _ambig = _resolve_statement([dict(cand)],
                                                             coverage=_MID_PAGE_TITLE_COVERAGE)
@@ -849,8 +925,8 @@ def _cf_supplement_extent(path: list[str], feats: list, cache: list, *, log=None
                 for k in range(i, head):
                     out[k] = _NOTES
                 if log:
-                    log(f"classify:cf_supplement=page{feats[head].index}(close_unread,"
-                        f"to_notes={[feats[k].index for k in range(i, head)]})")
+                    log(f"classify:cf_supplement=page{_unit_label(feats[head])}(close_unread,"
+                        f"to_notes=[{', '.join(_unit_label(feats[k]) for k in range(i, head))}])")
             if close_at is not None:
                 extent[head] = {"supplement": True,
                                 "notes_above_title": bool(feats[head].amounts_above_title)}
@@ -865,10 +941,10 @@ def _cf_supplement_extent(path: list[str], feats: list, cache: list, *, log=None
                 for k in before + after:
                     out[k] = _NOTES
                 if log:
-                    log(f"classify:cf_supplement=page{feats[head].index}"
-                        f"(closes_on={feats[k_close].index},face_ends_at_y={end_y},"
+                    log(f"classify:cf_supplement=page{_unit_label(feats[head])}"
+                        f"(closes_on={_unit_label(feats[k_close])},face_ends_at_y={end_y},"
                         f"notes_above_title={extent[head]['notes_above_title']},"
-                        f"to_notes={[feats[k].index for k in before + after]})")
+                        f"to_notes=[{', '.join(_unit_label(feats[k]) for k in before + after)}])")
         i = j + 1
     return out, extent
 
@@ -988,8 +1064,19 @@ def _covers_title(match: str, text: str, coverage: float | None = None) -> bool:
 # The qualifier is refused in either language and in either position: English puts it before
 # ("summary of …"), Chinese after ("損益表摘要").
 _SUMMARY_TITLE = re.compile(
-    r"\bsummar(?:y|ies)\b|\bhighlights?\b|\bextract(?:ed|s)?\s+from\b"
+    r"\bsummar(?:y|ies)\b|\bhighlights?\b|\bextract(?:ed|s)?\s+from\b|\bat\s+a\s+glance\b"
     r"|[摘概][要要]|[概][覽览]", re.I)
+# A PAGE THAT IS A SUMMARY, by the heading its title zone prints: "FINANCIAL HIGHLIGHTS & RATIOS",
+# "BALANCE SHEET STATUS AT A GLANCE", "FIVE-YEAR SUMMARY". The statement names printed below such a
+# heading are the summary's sections, not statements: Lux Island Resorts 2025 sheet 17 (printed
+# 32-33) prints "STATEMENT OF PROFIT OR LOSS" over five years of highlights and "CONSOLIDATED
+# STATEMENT OF CASH FLOW" in an infographic, and both halves were read as faces — profit for the
+# year (12,363,502) and total current liabilities 18,951,378 came from them. Read on the title zone
+# only, where a page prints its own heading.
+_SUMMARY_PAGE = re.compile(
+    r"\bfinancial\s+highlights\b|\bat\s+a\s+glance\b|\bfinancial\s+summary\b"
+    r"|\b(?:five|ten|5|10)[\s-]+years?\s+(?:financial\s+)?(?:summary|review|record|highlights)\b"
+    r"|\bkey\s+financial\s+(?:figures|highlights|indicators)\b", re.I)
 
 
 def _resolve_statement(cands: list[dict], *, coverage: float | None = None
@@ -1145,6 +1232,33 @@ _FOLIO = re.compile(r"^[-–—(\[]?\s*(\d{1,4})\s*[-–—)\]]?$")
 _FOLIO_BAND = 0.07
 
 
+def _folio_line(line: dict, page_h: float) -> tuple[int, float, str] | None:
+    """``(zone, edge, folio)`` when this line is a folio printed in the page's margin, else None:
+    zone 0 the bottom margin, 1 the top, ``edge`` its distance from that edge."""
+    if not page_h:
+        return None
+    text = line["text"].strip()
+    m = _FOLIO.match(text)
+    if not m and "|" in text:
+        # A FOLIO SET INSIDE THE FOOTER: "66 | Mauritius Oil Refineries Ltd and its Subsidiaries |
+        # Annual Report 2025" on a left page, "… | Annual Report 2025 | 67" on a right one. Moroil
+        # 2025 prints every folio so, and no page had one: 0 of 133 pages, 0 of 308 cited values.
+        # Only the first or the last segment, and only a bare number there.
+        segments = [seg.strip() for seg in text.split("|")]
+        m = _FOLIO.match(segments[0]) or _FOLIO.match(segments[-1])
+    if not m:
+        return None
+    folio = m.group(1)
+    if re.fullmatch(r"(?:19|20)\d\d", folio):
+        return None
+    y = float(line.get("y", 0.0)) / page_h
+    if y >= 1.0 - _FOLIO_BAND:
+        return 0, 1.0 - y, folio            # bottom margin: where a folio normally sits
+    if y <= _FOLIO_BAND:
+        return 1, y, folio
+    return None
+
+
 def _printed_folio(lines: list[dict], page_h: float) -> str | None:
     """The page's own printed page number, if it prints one.
 
@@ -1157,21 +1271,9 @@ def _printed_folio(lines: list[dict], page_h: float) -> str | None:
         return None
     best: tuple[int, float, str] | None = None
     for line in lines:
-        m = _FOLIO.match(line["text"].strip())
-        if not m:
-            continue
-        folio = m.group(1)
-        if re.fullmatch(r"(?:19|20)\d\d", folio):
-            continue
-        y = float(line.get("y", 0.0)) / page_h
-        if y >= 1.0 - _FOLIO_BAND:
-            zone, edge = 0, 1.0 - y            # bottom margin: where a folio normally sits
-        elif y <= _FOLIO_BAND:
-            zone, edge = 1, y
-        else:
-            continue
-        if best is None or (zone, edge) < (best[0], best[1]):
-            best = (zone, edge, folio)
+        hit = _folio_line(line, page_h)
+        if hit is not None and (best is None or hit[:2] < best[:2]):
+            best = hit
     return best[2] if best else None
 
 
@@ -1309,8 +1411,9 @@ def _page_lines(page) -> tuple[list[dict], float]:
 
 
 def _features(index: int, lines: list[dict], page_h: float, text: str, *,
-              dated_titles: bool = False, us_10k: bool = False) -> PageFeat:
+              dated_titles: bool = True, us_10k: bool = False) -> PageFeat:
     f = PageFeat(index=index)
+    printed = lines                        # every line, as `text` joins them
     nav = _navigation_strip(lines)
     if nav:
         lines = [line for line in lines if id(line) not in nav]
@@ -1328,6 +1431,11 @@ def _features(index: int, lines: list[dict], page_h: float, text: str, *,
     # heading a deferred-tax table under "Note 18 : Income Taxes (Contd.)" on Asian Paints.
     cands = [c for c in cands if not _prose_fragment(c["text"])]
     f.statement, f.oci_combined, title, f.title_ambig = _resolve_statement(cands)
+    if f.statement is None:
+        # A TITLE SPLIT OVER LINES UNDER A HEADING LINE OF ITS OWN — see `_title_candidates`.
+        later = [c for c in _title_candidates(zone, every_start=True)
+                 if not _prose_fragment(c["text"])]
+        f.statement, f.oci_combined, title, f.title_ambig = _resolve_statement(later)
     if f.statement is not None and _under_a_note_heading(zone, title, printed_as):
         f.statement, title = None, None
     if f.statement is None:
@@ -1343,7 +1451,7 @@ def _features(index: int, lines: list[dict], page_h: float, text: str, *,
     # `_REPORT_SECTION` against the TITLE ZONE alone — a running header is printed there, and a
     # genuine note's body may discuss management's analysis without belonging to that section.
     f.narrative = bool(_NARRATIVE.search(joined) or _NARRATIVE.search(text[:1500])
-                       or _REPORT_SECTION.search(joined)
+                       or _REPORT_SECTION.search(joined) or _SUMMARY_PAGE.search(joined)
                        # a 10-K's Items 9-16, Parts III-IV, signatures and exhibits
                        or (us_10k and _opens_a_10k_back_part(lines)))
     if f.narrative:
@@ -1365,19 +1473,49 @@ def _features(index: int, lines: list[dict], page_h: float, text: str, *,
                 for line in lines)
             # …and whether the page ENDS in another one. Asked of every titled page, top-zone or
             # mid-page alike, because both can be followed by a second statement's title.
-            name, closing, closing_y = _closing_statement(lines, zone, float(hit["y"]))
+            name, closing, closing_y = _closing_statement(lines, zone, float(hit["y"]),
+                                                          dated_titles=dated_titles)
             if name:
                 f.closing_statement, f.closing_title = name, closing
                 f.closing_title_y = closing_y / page_h
     f.strong_title = f.statement is not None
 
     f.notes_banner = any(re.search(p, joined, re.I) for p in _NOTES_BANNER)
-    f.note_heading = (bool(_NUMBERED_HEADING.search(text))
+    # THE FOLIO IS NOT A NOTE NUMBER. `_NUMBERED_HEADING` is searched over the page's text with its
+    # lines joined, so a folio printed on a line of its own and followed by the running footer
+    # read as one: "66\nVIVO ENERGY MAURITIUS LIMITED" is "66 VIVO…" to the pattern, and it fired
+    # on 103 of Vivo's 105 printed pages, the only match on 48 of them — +2.5 to NOTES and -3.0 to
+    # FACE on the cover and the strategic report. The margin folio (`_folio_line`) is left out of
+    # the text the two note tests read, and nothing else is: the pattern itself is unchanged (see
+    # `_ZH_NUMBERED_HEADING` for why widening or narrowing it is not done lightly).
+    #
+    # MEASURED OVER THE 31 TEST FILINGS, rules only, against the same code without it. No page
+    # verdict of the five reference filings moves, and no figure moves but IndiGo's. What does,
+    # every page of it one that was notes (or other) on this match:
+    #   IndiGo — its report pages (sheets 49-132) are no longer notes, so sheet 49 (printed 47), an
+    #     MD&A page with a "Balance sheet" heading, is no longer the standalone balance sheet ahead
+    #     of them, and the year "2024" in a sentence there is no longer read into other non-current
+    #     assets: total non-current assets 654,343 and total assets 1,159,139, as the standalone
+    #     balance sheet prints them (sheet 152), and its non-current-assets check passes.
+    #   Hindustan Unilever (23 sheets, printed 32-102) and Gamma Civic (sheets 40-42) — front
+    #     matter no longer notes; Gamma's sheet 46 right half (printed 91), the six columns of the
+    #     group equity statement carried across the fold, continues that statement.
+    #   Phoenix Beverages — the cover is no longer a face. The left half of the five-year summary
+    #     (sheet 29, printed 56) becomes a face naming no statement, the sheet's verdict is its
+    #     first face half's, and so the summary is no longer read as the profit or loss. A side
+    #     effect, not a reading that a summary is no statement (see `_merge_spread_units`).
+    #   Lai Sun — its five-year summary (sheets 54-55, printed 53-54) becomes a face naming no
+    #     statement. A face naming none is not read (`page_reading._is_target`), and the whole-PDF
+    #     plan is the same (98 + 98 pages, and the same 12 asked alone).
+    body = text
+    if any(_folio_line(line, page_h) is not None for line in printed):
+        body = "\n".join(line["text"] for line in printed if _folio_line(line, page_h) is None)
+    f.note_heading = (bool(_NUMBERED_HEADING.search(body))
                       or _opens_with_zh_note_heading(lines)
                       # "Note 6 – …" / "Note 15.    …" — see `_US_10K_NOTE_HEADING`
                       or (us_10k and any(_US_10K_NOTE_HEADING.match(line["text"])
                                          for line in lines))) and not f.strong_title
-    f.note_one = bool(_NOTE_ONE.search(text)) and not f.strong_title
+    f.note_one = bool(_NOTE_ONE.search(body)) and not f.strong_title
     f.backmatter = bool(_BACKMATTER.search(joined))
 
     tokens = text.split()
@@ -1515,6 +1653,13 @@ def _spread_units(pdf, pages: list, cache: list, texts: list, *, log=None):
         for half, (lo, hi) in halves:
             rot = _half_rotation(half)
             half_h = height
+            # THE FOLIO IS PRINTED UPRIGHT, at the foot of the sheet, even beside a half set a
+            # quarter-turn: it is read off the half's own lines BEFORE they are turned. Read in the
+            # turned frame the folio is no longer in a margin band, and the half had none —
+            # Asian Paints' sheet 254 prints 506 under its sideways left half, and that half, then
+            # the sheet, took the right page's 507.
+            unit = page_src.model_copy(deep=True)
+            unit.printed_page = _printed_folio(half, height)
             if rot in (90, 270):
                 half, half_h = _sideways_half(half, lo, hi, height, rot)
                 if log:
@@ -1523,7 +1668,7 @@ def _spread_units(pdf, pages: list, cache: list, texts: list, *, log=None):
             else:
                 rot = 0
             rotations.append(rot)
-            out_pages.append(page_src.model_copy(deep=True))
+            out_pages.append(unit)
             out_cache.append((half, half_h))
             out_texts.append("\n".join(line["text"] for line in half))
         spreads[page_src.index] = (fold, len(halves), tuple(rotations))
@@ -1606,7 +1751,7 @@ def _continue_on_the_facing_half(pages: list, feats: list, cache: list, spreads:
         right.evidence = evidence
         taken += 1
         if log:
-            log(f"classify:page={right.index}:right_half_continues({left.statement},"
+            log(f"classify:page={right.index}R:right_half_continues({left.statement},"
                 f"{left.scope or '-'})")
     return taken
 
@@ -1616,7 +1761,15 @@ def _merge_spread_units(whole_pages: list, whole_cache: list, units: list, sprea
     """Fold each spread's halves back onto its page and return the pages, in order.
 
     The page takes its first FACE half's verdict (else its first notes half's, else its first);
-    `evidence["spread"]` keeps every half, which is what `pdf_extract` reads a face spread by."""
+    `evidence["spread"]` keeps every half, which is what `pdf_extract` reads a face spread by.
+
+    EACH HALF KEEPS ITS OWN FOLIO (``printed_page``, read off the half's own upright lines in
+    `_spread_units`), and the sheet's is its first half's that prints one. Read off the whole
+    sheet, the folio was
+    whichever of the two sat nearer the edge — the left page's on Vivo Energy Mauritius (both at
+    y=820.7, the left first), the right page's on Gamma Civic — and every figure on the sheet cited
+    it. A reader that knows where on the sheet a figure is asks its half instead
+    (`services.page_spread.folio_at`, `statement_at`, `statements_on`)."""
     by_index: dict[int, list] = {}
     for unit in units:
         by_index.setdefault(unit.index, []).append(unit)
@@ -1626,24 +1779,34 @@ def _merge_spread_units(whole_pages: list, whole_cache: list, units: list, sprea
         halves = by_index.get(page.index) or []
         fold = spreads[page.index][0]
         rotations = tuple(spreads[page.index][2]) + (0,) * len(halves)
+        # THE FIRST FACE HALF, EVEN ONE THAT NAMES NO STATEMENT — and a sheet whose verdict names
+        # none is not read as a face (`page_reading._is_target`). Left so on purpose, for now: the
+        # two sheets in the test filings where it decides anything are front-matter summaries with
+        # a statement title on their right half (Laurus Labs' sheet 59, "- Balance Sheet", printed
+        # 117; Phoenix Beverages' sheet 29, its five-year summary, printed 57), and taking the named
+        # half as the lead would read both as statements. That a summary is no statement is the
+        # classifier's to say, not this choice's.
         lead = (next((u for u in halves if u.kind is PageKind.FACE), None)
                 or next((u for u in halves if u.kind is PageKind.NOTES), None) or halves[0])
         page.kind, page.statement, page.scope = lead.kind, lead.statement, lead.scope
         page.scope_columns = list(lead.scope_columns or [])
         page.classification_confidence = lead.classification_confidence
         page.classification_evidence = list(lead.classification_evidence or [])
-        page.printed_page = _printed_folio(lines, height)
+        page.printed_page = (next((u.printed_page for u in halves if u.printed_page), None)
+                             or _printed_folio(lines, height))
         page.evidence = dict(lead.evidence or {})
         page.evidence["spread"] = {
             "fold": round(float(fold), 4),
             "halves": [{"side": side, "kind": u.kind.value, "statement": u.statement,
                         "scope": u.scope, "scope_columns": list(u.scope_columns or []),
+                        "printed_page": u.printed_page,
                         "evidence": dict(u.evidence or {}),
                         **({"rotation": rot} if rot else {})}
                        for side, u, rot in zip(_SIDES, halves, rotations)]}
         if log and any(u.kind is PageKind.FACE for u in halves):
             log(f"classify:page={page.index}:spread("
                 + ",".join(f"{side}={u.kind.value}:{u.statement or '-'}:{u.scope or '-'}"
+                           f":p{u.printed_page or '?'}"
                            for side, u in zip(_SIDES, halves)) + ")")
     return whole_pages
 
@@ -1766,7 +1929,10 @@ def _notes_follow_the_face(path: list[str], log=None, feats: list | None = None)
     for i in moved:
         out[i] = _PRE
     if log:
-        log(f"classify:notes_before_face={moved}->other(first_face={first_face})")
+        labels = _unit_labels(path, feats)
+        shown = [labels[i] for i in moved]
+        log(f"classify:notes_before_face=[{', '.join(shown)}]->other"
+            f"(first_face={labels[first_face]})")
     return out
 
 
@@ -1825,8 +1991,9 @@ def _untitled_face_inside_the_notes_is_notes(path: list[str], feats: list, *, lo
         i = j + 1
 
     if moved and log:
+        labels = _unit_labels(path, feats)
         for a, b in moved:
-            log(f"classify:untitled_face_inside_notes={a}-{b}->notes"
+            log(f"classify:untitled_face_inside_notes={labels[a]}-{labels[b]}->notes"
                 f"(no statement title on any of {b - a + 1} page(s))")
     return out
 
@@ -2123,7 +2290,7 @@ class ClassifyStage:
         indian = is_indian_filing(texts)
         ctx.indian_filing = indian
         if indian:
-            ctx.log("classify:regime=indian (dated titles and enumerated rows are read)")
+            ctx.log("classify:regime=indian (enumerated rows are read)")
         us_10k = not indian and is_us_10k_filing(texts)
         ctx.us_10k_filing = us_10k
         if us_10k:
@@ -2135,8 +2302,13 @@ class ClassifyStage:
         whole_pages, whole_cache = pages, cache
         pages, cache, texts, spreads = _spread_units(pdf, pages, cache, texts, log=ctx.log)
         for page_src, (lines, height), text in zip(pages, cache, texts):
-            feats.append(_features(page_src.index, lines, height, text, dated_titles=indian,
+            # A title printed with its date is offered without it on EVERY filing — see
+            # `_TITLE_DATE_TAIL`; the Indian regime now switches on the enumerated rows alone.
+            feats.append(_features(page_src.index, lines, height, text, dated_titles=True,
                                    us_10k=us_10k))
+        for k in range(1, len(feats)):
+            if feats[k].index == feats[k - 1].index and feats[k].index in spreads:
+                feats[k - 1].side, feats[k].side = "L", "R"
 
         path, margins = _decode(feats)
         # The notes explain statements already printed, so none of them precedes the face.
@@ -2174,8 +2346,10 @@ class ClassifyStage:
                 pages, feats, path, margins, cache)):
             page_src.kind = _KIND[state]
             page_src.classification_confidence = _confidence(margin)
-            # Every page, not just the faces: the viewer names any page the reader scrolls to.
-            page_src.printed_page = _printed_folio(lines, height)
+            # Every page, not just the faces: the viewer names any page the reader scrolls to. A
+            # half of a spread sheet was given its own by `_spread_units`, in the sheet's frame.
+            if page_src.index not in spreads:
+                page_src.printed_page = _printed_folio(lines, height)
             extent = supplement.get(pos) or {}
             closing_scope: str | None = None
             # WHY THE PAGE HAS ITS ENTITY, for Page Scope to say in a line (see `scope_reason`).
@@ -2206,7 +2380,7 @@ class ClassifyStage:
                     resolved = "company" if (here or notes_chapter) == "company" else "consolidated"
                     reason = {"rule": "supplement_in_notes",
                               "chapter": here or notes_chapter or None}
-                    ctx.log(f"classify:page={page_src.index}:entity_scope=supplement_in_notes"
+                    ctx.log(f"classify:page={_unit_label(f)}:entity_scope=supplement_in_notes"
                             f"({resolved}, chapter={here or notes_chapter or 'unread'})")
                 if resolved is None and f.matched_title is None:
                     # An untitled continuation of a titled run: the entity was named once, on the
@@ -2215,7 +2389,7 @@ class ClassifyStage:
                     resolved = run_scope
                     if resolved is not None:
                         reason = {"rule": "carried", "from_page": run_scope_from}
-                        ctx.log(f"classify:page={page_src.index}:entity_scope=carried({resolved})")
+                        ctx.log(f"classify:page={_unit_label(f)}:entity_scope=carried({resolved})")
                     else:
                         reason = {"rule": "unresolved", "why": "untitled"}
                 elif f.matched_title is not None:
@@ -2237,7 +2411,7 @@ class ClassifyStage:
                         resolved = "company"
                         reason = {"rule": "indian_title_without_consolidated",
                                   "title": f.matched_title}
-                        ctx.log(f"classify:page={page_src.index}:entity_scope="
+                        ctx.log(f"classify:page={_unit_label(f)}:entity_scope="
                                 f"indian_title_without_consolidated(company:{current or '?'})")
                     # Including None: a titled page whose own scope is unresolved ENDS the run's
                     # verdict rather than passing it on to whatever follows.
@@ -2255,7 +2429,7 @@ class ClassifyStage:
                         # deciding whether an untitled page re-presents the Group's statement.
                         why = "face_after_notes" if seen_notes else "titled_page"
                         reason = {"rule": "unresolved", "why": why}
-                        ctx.log(f"classify:page={page_src.index}:entity_scope="
+                        ctx.log(f"classify:page={_unit_label(f)}:entity_scope="
                                 f"unresolved({why}:{current or '?'})")
                 page_src.scope = resolved
                 page_src.scope_columns = f.scope_columns or cols
@@ -2272,7 +2446,7 @@ class ClassifyStage:
                     run_scope_from = page_src.index if closing_scope is not None else None
                     if closing_scope == "consolidated":
                         consolidated_stmts.add(current)
-                    ctx.log(f"classify:page={page_src.index}:closing_title="
+                    ctx.log(f"classify:page={_unit_label(f)}:closing_title="
                             f"{f.closing_title!r}({current},{closing_scope or 'unresolved'})")
             else:
                 page_src.statement = None
@@ -2314,7 +2488,7 @@ class ClassifyStage:
                     page_src.evidence["scope_conflict"] = conflict
                     if SCOPE_CONFLICT_FLAG not in page_src.classification_evidence:
                         page_src.classification_evidence.append(SCOPE_CONFLICT_FLAG)
-                    ctx.log(f"classify:page={page_src.index}:{SCOPE_CONFLICT_FLAG}"
+                    ctx.log(f"classify:page={_unit_label(f)}:{SCOPE_CONFLICT_FLAG}"
                             f"(title={conflict['title']},band={'|'.join(conflict['band'])})")
             if state == _FACE and f.closing_statement:
                 page_src.evidence.update({"closing_title": f.closing_title,
@@ -2346,7 +2520,11 @@ class ClassifyStage:
             ctx.log(f"classify:page={page_src.index}:framework={framework}")
         pdf.close()
         doc.unmapped_titles = sorted(set(doc.unmapped_titles))[:60]
-        stmts = {p.statement for p in doc.face_pages() if p.statement}
+        from app.services.page_spread import statements_on
+
+        # Every statement found, the second half of a spread sheet included (its sheet's own
+        # verdict is its first half's).
+        stmts = {st for p in doc.face_pages() for st in statements_on(p)}
         ambig = sum(1 for p in doc.pages if (p.evidence or {}).get("title_ambig"))
         ctx.log(f"classify:face={len(doc.face_pages())} notes={len(doc.notes_pages())} "
                 f"statements={sorted(stmts)}")

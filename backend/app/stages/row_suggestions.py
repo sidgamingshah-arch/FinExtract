@@ -66,16 +66,16 @@ class RowSuggestionsStage:
 
         # What the serialized row does not carry and the question needs: the statement the row is
         # printed on (its page's), the section banner and the heading printed above it.
+        from app.services.buckets import page_statement_resolver
+
         by_id = {str(li.id): li for li in doc.line_items}
-        statement_of_page = {p.index: p.statement for p in doc.pages if p.statement}
+        # By half on a 2-up spread sheet, whose own verdict is its first face half's.
+        statement_of_page = page_statement_resolver(doc)
         views: list[dict] = []
         for r in rows:
             li = by_id.get(str(r.get("id") or ""))
-            pages = ([ev.provenance.page_index for ev in li.values.values()
-                      if ev.provenance is not None] if li is not None else [])
             views.append({**r,
-                          "statement": next((statement_of_page[p] for p in pages
-                                             if p in statement_of_page), ""),
+                          "statement": (statement_of_page(li) if li is not None else "") or "",
                           "section_hint": (getattr(li, "section_hint", "") or "") if li else "",
                           "group_hint": (getattr(li, "group_hint", "") or "") if li else ""})
         definitions = {i.key: str(getattr(i, "definition", "") or "")

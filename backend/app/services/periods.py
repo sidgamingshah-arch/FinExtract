@@ -232,10 +232,34 @@ def _is_restatement(v: dict | None) -> bool:
     return TRANSPOSED_FLAG in tuple(flags)
 
 
-def _printed_at(v: dict | None) -> object:
+#: Stamped by `pdf_extract` on a face row printed BELOW a second statement's title on its page
+#: (`classify._closing_statement`): ``f"{BELOW_CLOSING_TITLE_FLAG}:{title}"``. The row is on the
+#: same page as the rows above the title and in a different printed statement.
+BELOW_CLOSING_TITLE_FLAG = "below_closing_title"
+
+
+def printed_location(page, flags=()) -> object:
+    """Where a figure was printed, as far as "is this the same line again" needs to know: its page
+    — and, on a page that opens a second statement part-way down, which of the two it sits in.
+
+    A STATEMENT OF COMPREHENSIVE INCOME PRINTED UNDER THE STATEMENT OF PROFIT OR LOSS, ON THE SAME
+    PAGE, opens by restating the bottom line. Vivo Energy Mauritius prints both on page 66: "Profit
+    for the year 529,539 / 516,510" at the foot of the one and at the head of the other. By page
+    alone the two rows were printed in one place, which is the duplicate-fact rule's sign of a line
+    a statement chose to print twice, so they added: 1,059,078 / 1,033,020. Printed on the next
+    page (Moroil, pages 67 and 68) the same restatement was already one fact. None when the page is
+    not known, as before."""
+    if page is None:
+        return None
+    under = next((str(f) for f in (flags or ())
+                  if str(f).startswith(f"{BELOW_CLOSING_TITLE_FLAG}:")), None)
+    return page if under is None else (page, under)
+
+
+def _printed_at(v: dict | None, row: dict | None = None) -> object:
     """Where a value was printed, as far as "is this the same line again" needs to know."""
     prov = (v or {}).get("provenance") or {}
-    return prov.get("page_index")
+    return printed_location(prov.get("page_index"), (row or {}).get("flags") or ())
 
 
 def summable(group: list[dict], basis: str, period: str) -> list[tuple[dict, float]]:
@@ -288,7 +312,7 @@ def summable(group: list[dict], basis: str, period: str) -> list[tuple[dict, flo
         if printed and _is_restatement(slot):
             continue
         ident = (caption_key(r), n)
-        where = _printed_at(slot)
+        where = _printed_at(slot, r)
         # ORDER-INDEPENDENT, and it was not. The rule drops a second printing of one fact on a
         # DIFFERENT page; it recorded the first row's page even when that row HAD none, so a
         # provenance-less row seen first anchored the fact at None and the paged row after it was

@@ -278,7 +278,8 @@ def _text_facts(doc_model) -> dict[str, dict]:
     reader of a served row's `value` reads a number); it reaches the export here, as the row of
     the template line it answers. A narrative the model wrote reaches it the same way, its
     `llm_prose` flag with it."""
-    folio_of = _folio_lookup(doc_model) if getattr(doc_model, "pages", None) else (lambda _i: None)
+    folio_of = (_folio_lookup(doc_model) if getattr(doc_model, "pages", None)
+                else (lambda _i, _bbox=None: None))
     out: dict[str, dict] = {}
     for li in getattr(doc_model, "line_items", None) or ():
         if not li.canonical_key or not _is_text_row(li) or li.canonical_key in out:
@@ -895,12 +896,27 @@ def _folio_lookup(doc_model):
     Built once per serialization and closed over, rather than scanned per provenance record: a
     200-page filing has thousands of values, and a linear scan per value is quadratic for a lookup
     that is a dict.
+
+    ``folio_of(page_index, bbox=None)``: GIVEN THE FIGURE'S BOX, a 2-up spread sheet answers with
+    the folio of the half the box is on (`page_spread.folio_at`) — the sheet prints two, and its own
+    ``printed_page`` is its first half's. Measured on Vivo Energy Mauritius: every balance-sheet
+    figure (printed on 67) cited 66 and every cash-flow figure (69) cited 68.
     """
-    folios = {pg.index: pg.printed_page for pg in (doc_model.pages or [])
-              if getattr(pg, "printed_page", None)}
-    if not folios:
+    from app.services.page_spread import bbox_centre_x, folio_at, spread_halves
+
+    pages = list(doc_model.pages or [])
+    folios = {pg.index: pg.printed_page for pg in pages if getattr(pg, "printed_page", None)}
+    spreads = {pg.index: pg for pg in pages if spread_halves(pg)}
+    if not folios and not spreads:
         return None
-    return folios.get
+
+    def folio_of(page_index, bbox=None):
+        page = spreads.get(page_index)
+        if page is not None and bbox is not None:
+            return folio_at(page, bbox_centre_x(bbox))
+        return folios.get(page_index)
+
+    return folio_of
 
 
 def _disclosure_with_folios(disclosure: dict | None, folio_of) -> dict | None:
@@ -912,7 +928,7 @@ def _disclosure_with_folios(disclosure: dict | None, folio_of) -> dict | None:
         prov = item.get("provenance")
         if (isinstance(prov, dict) and isinstance(prov.get("page_index"), int)
                 and not prov.get("printed_page")):
-            folio = folio_of(prov["page_index"])
+            folio = folio_of(prov["page_index"], prov.get("label_bbox") or prov.get("bbox"))
             if folio:
                 item = {**item, "provenance": {**prov, "printed_page": folio}}
         items.append(item)
@@ -932,7 +948,7 @@ def _derivation_with_folios(store: dict | None, folio_of) -> dict | None:
     def with_folio(prov):
         if (isinstance(prov, dict) and isinstance(prov.get("page_index"), int)
                 and not prov.get("printed_page")):
-            folio = folio_of(prov["page_index"])
+            folio = folio_of(prov["page_index"], prov.get("label_bbox") or prov.get("bbox"))
             if folio:
                 return {**prov, "printed_page": folio}
         return prov
@@ -1245,7 +1261,8 @@ def _prov_dict(p, folio_of=None):
         return None
     return {
         "source_kind": p.source_kind, "page_index": p.page_index,
-        "printed_page": (folio_of(p.page_index) if folio_of is not None else None),
+        "printed_page": (folio_of(p.page_index, p.label_bbox or p.bbox)
+                         if folio_of is not None else None),
         "sheet": p.sheet, "cell": p.cell, "label_cell": p.label_cell,
         "bbox": (p.bbox.model_dump() if p.bbox is not None else None),
         "label_bbox": (p.label_bbox.model_dump() if p.label_bbox is not None else None),
@@ -1334,9 +1351,15 @@ def _serialize_notes(doc_model) -> list[dict]:
         page = (nt.source_pages[0] if nt.source_pages else 0)
         # ``page`` stays the 1-based SHEET position: the Notes screen turns it straight back into an
         # index to scroll the viewer and to size the page stack. ``printed_page`` is the folio, a
-        # sibling for the citation, and None when the classifier could not read one.
+        # sibling for the citation, and None when the classifier could not read one — on a 2-up
+        # spread sheet, the folio of the half the table's first figure is printed on.
+        first_box = next((ev.provenance.label_bbox or ev.provenance.bbox
+                          for it in nt.items for ev in it.values.values()
+                          if ev.provenance is not None and ev.provenance.page_index == page),
+                         None)
         notes.append({"no": nt.note_number, "title": nt.title, "page": page + 1,
-                      "printed_page": (folio_of(page) if folio_of is not None else None),
+                      "printed_page": (folio_of(page, first_box) if folio_of is not None
+                                       else None),
                       "rows": rows})
     return notes
 

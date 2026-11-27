@@ -644,6 +644,11 @@ def fill_from_rules(doc, ctx, judge=None, asked=None) -> dict:
            "split_inside_the_models_whole": 0, "split_filled_whole": 0}
     rules_rows = getattr(ctx, "whole_pdf_rules_rows", None)
     if not rules_rows:
+        # SAID, not silent: a run whose rules read nothing to set aside (no statement page, a
+        # filing the rules could not read) has nothing to fill the model's empty lines from.
+        if getattr(ctx, "whole_pdf", None) is not None and hasattr(ctx, "log"):
+            ctx.log("whole_pdf:rules_fill nothing_set_aside — the rules read no row to set aside, "
+                    "so no line the model left empty is filled from them")
         return out
     try:
         published = rules_published_rows(doc, ctx, rules_rows)

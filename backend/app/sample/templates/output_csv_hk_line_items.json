@@ -1523,12 +1523,14 @@
    "definition": "The investment cost (or carrying amount) of the entity's interests in its subsidiaries, which appears only on the company's own statement of financial position, since consolidation eliminates it: 'Investments in subsidiaries', 'Interests in subsidiaries', 于附属公司的投资. It is a printed row; read it as it stands. Not this line: amounts due from subsidiaries ('Due from subsidiaries'); investments in associates and joint ventures ('Investments in Associates', 'Invest in JVs & Partnerships'). On a CAS parent-company balance sheet the single row 长期股权投资 also carries the investments in subsidiaries; that row is 'Investments in Associates' as printed and is not split. A consolidated balance sheet prints no such row: answer with an empty sources list. It is one of the lines this template's rollup adds into Total Non-Current Assets.",
    "aliases": [
     "Investment in Subsidiaries",
-    "Investment/Interest in Subsidiaries"
+    "Investment/Interest in Subsidiaries",
+    "Investments in subsidiaries"
    ],
    "aliases_i18n": {
     "en": [
      "Investment in Subsidiaries",
-     "Investment/Interest in Subsidiaries"
+     "Investment/Interest in Subsidiaries",
+     "Investments in subsidiaries"
     ],
     "zh": [
      "于子公司的投资",
@@ -1553,14 +1555,22 @@
     "Investments in Associates",
     "Investment/Interest in Associates",
     "Investments accounted for using the equity method",
-    "Investment in associated entities"
+    "Investment in associated entities",
+    "Investment in associate",
+    "Investment in associates",
+    "Investments in associate",
+    "Interests in associates"
    ],
    "aliases_i18n": {
     "en": [
      "Investments in Associates",
      "Investment/Interest in Associates",
      "Investments accounted for using the equity method",
-     "Investment in associated entities"
+     "Investment in associated entities",
+     "Investment in associate",
+     "Investment in associates",
+     "Investments in associate",
+     "Interests in associates"
     ],
     "zh": [
      "于联营企业的权益",
@@ -1588,12 +1598,20 @@
    "definition": "The entity's equity-accounted interests in joint ventures, jointly controlled entities and partnerships, where the balance sheet prints them as a row of their own among the non-current assets ('Investments in joint ventures', 'Interests in joint ventures', 于合营公司的投资). It is a printed row; read it as it stands. Not this line: a row that prints associates and joint ventures together, or the CAS row 长期股权投资, which are 'Investments in Associates' as printed; amounts due from joint ventures or advances to them (a due-from line); joint operations accounted for line by line. Where the amount is only part of a larger row the balance sheet prints, it has no row of its own: answer with an empty sources list and do not split it out of that row. It is one of the lines this template's rollup adds into Total Non-Current Assets.",
    "aliases": [
     "Invest in JVs & Partnerships",
-    "Investment/Interest in JV"
+    "Investment/Interest in JV",
+    "Investment in joint ventures",
+    "Investments in joint ventures",
+    "Investment in joint venture",
+    "Interests in joint ventures"
    ],
    "aliases_i18n": {
     "en": [
      "Invest in JVs & Partnerships",
-     "Investment/Interest in JV"
+     "Investment/Interest in JV",
+     "Investment in joint ventures",
+     "Investments in joint ventures",
+     "Investment in joint venture",
+     "Interests in joint ventures"
     ]
    },
    "keyword_hints": [
@@ -3463,13 +3481,17 @@
    "aliases": [
     "Current Tax Receivables",
     "Profit tax receivables",
-    "Income tax receivables"
+    "Income tax receivables",
+    "Current tax assets",
+    "Current tax asset"
    ],
    "aliases_i18n": {
     "en": [
      "Current Tax Receivables",
      "Profit tax receivables",
-     "Income tax receivables"
+     "Income tax receivables",
+     "Current tax assets",
+     "Current tax asset"
     ]
    },
    "keyword_hints": [
@@ -4338,7 +4360,8 @@
        "sign": -1
       }
      ],
-     "note": "Find 1 less Find 2. Find 1 is the other-receivables row of its note, plus the classes a filing states beside it: interest and dividends receivable (000709 prints 应收股利 230,806,800.00 beside 其他应收款 683,092,791.26, adding to the face's 913,899,591.26), the current portion of long-term receivables and of loans and advances, and funds placed. The other-receivables row is REQUIRED: without it the rung would publish a component alone — 688008's parent-company 40,000,000.00 of dividends against a face of 1,287,570,989.98 — so it falls to the face instead. Find 2 is the related-party money the note breaks out INSIDE that row (000709's parent-company 关联借款 88,000,000.00); an adjustment, so it never resolves the rung on its own. NEGATIVE is refused, per the specification's NEGATIVE_RESIDUAL."
+     "note": "Find 1 less Find 2. Find 1 is the other-receivables row of its note, plus the classes a filing states beside it: interest and dividends receivable (000709 prints 应收股利 230,806,800.00 beside 其他应收款 683,092,791.26, adding to the face's 913,899,591.26), the current portion of long-term receivables and of loans and advances, and funds placed. The other-receivables row is REQUIRED: without it the rung would publish a component alone — 688008's parent-company 40,000,000.00 of dividends against a face of 1,287,570,989.98 — so it falls to the face instead. Find 2 is the related-party money the note breaks out INSIDE that row (000709's parent-company 关联借款 88,000,000.00); an adjustment, so it never resolves the rung on its own. NEGATIVE is refused, per the specification's NEGATIVE_RESIDUAL. CARVED FROM THE FACE where the face prints no other-receivables row of its own (no figure on sub__cp_face_other_receivables): the money is then inside a combined row the face does print — 'Trade and other receivables', 'Prepayments, deposits and other receivables' — so the line is shown and the section total does not add it again. MEASURED: Vivo Energy Mauritius 2025 note 19 'Other receivables' 59,809 / 59,026 inside 'Trade and other receivables' 1,257,948 / 1,253,741 (p67), total current assets 2,798,515 / 3,173,334 against 2,738,706 / 3,114,308 printed; 佳明 note 18 4,444 / 932 inside 126,739 / 93,249 (p63); Moroil note 14 5,218 / 7,723 (p66). Where a residual prints the money (China SCE's 'Prepayments, other receivables and other assets', p103) the face settlement still hands it over whole and the line is counted, as before.",
+     "carved_from_face": true
     },
     {
      "id": "FROM_THE_FACE",
@@ -4433,7 +4456,12 @@
     "Fixed deposits",
     "Bank deposits",
     "Time deposits",
-    "Cash and bank balances"
+    "Cash and bank balances",
+    "Cash at bank and in hand",
+    "Bank and cash balances",
+    "Cash at bank, in hand and short term deposits",
+    "Cash and bank balance",
+    "Cash in hand and at bank"
    ],
    "aliases_i18n": {
     "en": [
@@ -4446,7 +4474,12 @@
      "Fixed deposits",
      "Bank deposits",
      "Time deposits",
-     "Cash and bank balances"
+     "Cash and bank balances",
+     "Cash at bank and in hand",
+     "Bank and cash balances",
+     "Cash at bank, in hand and short term deposits",
+     "Cash and bank balance",
+     "Cash in hand and at bank"
     ],
     "zh": [
      "现金及现金等价物",
@@ -4731,7 +4764,8 @@
     "non-voting deferred shares",
     "Authorized shares",
     "Owners' equity",
-    "Issued capital"
+    "Issued capital",
+    "Stated capital"
    ],
    "aliases_i18n": {
     "en": [
@@ -4744,7 +4778,8 @@
      "non-voting deferred shares",
      "Authorized shares",
      "Owners' equity",
-     "Issued capital"
+     "Issued capital",
+     "Stated capital"
     ],
     "zh": [
      "实收资本",
@@ -5512,7 +5547,8 @@
     "Mudaraba",
     "Bank borrowings",
     "Interest-bearing bank borrowings",
-    "Interest-bearing loans"
+    "Interest-bearing loans",
+    "Borrowings"
    ],
    "aliases_i18n": {
     "en": [
@@ -5529,7 +5565,8 @@
      "Mudaraba",
      "Bank borrowings",
      "Interest-bearing bank borrowings",
-     "Interest-bearing loans"
+     "Interest-bearing loans",
+     "Borrowings"
     ],
     "zh": [
      "流动借款",
@@ -6537,7 +6574,10 @@
     "MPF",
     "Mandatory provident funds",
     "Provident funds",
-    "Provident contributions"
+    "Provident contributions",
+    "Retirement benefit obligations",
+    "Employee benefit obligations",
+    "Retirement benefit obligation"
    ],
    "aliases_i18n": {
     "en": [
@@ -6547,7 +6587,10 @@
      "MPF",
      "Mandatory provident funds",
      "Provident funds",
-     "Provident contributions"
+     "Provident contributions",
+     "Retirement benefit obligations",
+     "Employee benefit obligations",
+     "Retirement benefit obligation"
     ],
     "zh": [
      "长期应付职工薪酬"
@@ -6866,7 +6909,8 @@
     "Interest bearing borrowings",
     "Mudaraba",
     "Interest-bearing bank borrowings",
-    "Interest-bearing loans"
+    "Interest-bearing loans",
+    "Borrowings"
    ],
    "aliases_i18n": {
     "en": [
@@ -6881,7 +6925,8 @@
      "Interest bearing borrowings",
      "Mudaraba",
      "Interest-bearing bank borrowings",
-     "Interest-bearing loans"
+     "Interest-bearing loans",
+     "Borrowings"
     ],
     "zh": [
      "一年内到期的长期借款",
@@ -8080,14 +8125,18 @@
     "Current Tax Payable",
     "Profit tax payables",
     "Corporate income tax",
-    "Tax and zakat"
+    "Tax and zakat",
+    "Current tax liabilities",
+    "Current tax liability"
    ],
    "aliases_i18n": {
     "en": [
      "Current Tax Payable",
      "Profit tax payables",
      "Corporate income tax",
-     "Tax and zakat"
+     "Tax and zakat",
+     "Current tax liabilities",
+     "Current tax liability"
     ]
    },
    "keyword_hints": [
@@ -8602,7 +8651,9 @@
     "MPF",
     "Mandatory provident funds",
     "Provident funds",
-    "Provident contributions"
+    "Provident contributions",
+    "Retirement benefit obligations",
+    "Employee benefit obligations"
    ],
    "aliases_i18n": {
     "en": [
@@ -8612,7 +8663,9 @@
      "MPF",
      "Mandatory provident funds",
      "Provident funds",
-     "Provident contributions"
+     "Provident contributions",
+     "Retirement benefit obligations",
+     "Employee benefit obligations"
     ]
    },
    "keyword_hints": [
@@ -9197,14 +9250,16 @@
     "Cost of Sales",
     "Cost of goods sold",
     "Direct cost",
-    "Direct labour cost"
+    "Direct labour cost",
+    "Cost of operations"
    ],
    "aliases_i18n": {
     "en": [
      "Cost of Sales",
      "Cost of goods sold",
      "Direct cost",
-     "Direct labour cost"
+     "Direct labour cost",
+     "Cost of operations"
     ],
     "zh": [
      "主营业务成本",
@@ -9727,7 +9782,8 @@
     "Selling & marketting expenses",
     "Selling and distribution costs",
     "Selling expenses",
-    "Distribution costs"
+    "Distribution costs",
+    "Marketing, warehousing, selling and distribution expenses"
    ],
    "aliases_i18n": {
     "en": [
@@ -9742,7 +9798,8 @@
      "Selling & marketting expenses",
      "Selling and distribution costs",
      "Selling expenses",
-     "Distribution costs"
+     "Distribution costs",
+     "Marketing, warehousing, selling and distribution expenses"
     ],
     "zh": [
      "分销成本",
@@ -10664,7 +10721,8 @@
     "Profit from operations",
     "Loss from operations",
     "Profit/(loss) from operations",
-    "(Loss)/profit from operations"
+    "(Loss)/profit from operations",
+    "Profit before finance costs"
    ],
    "aliases_i18n": {
     "en": [
@@ -10677,7 +10735,8 @@
      "Profit from operations",
      "Loss from operations",
      "Profit/(loss) from operations",
-     "(Loss)/profit from operations"
+     "(Loss)/profit from operations",
+     "Profit before finance costs"
     ],
     "zh": [
      "息税前利润",
@@ -10937,7 +10996,8 @@
     "Other interest incomes",
     "Interest income from loan receivables/other receivables/finance lease receivables",
     "interest income from related party",
-    "Bank interest"
+    "Bank interest",
+    "Finance income"
    ],
    "aliases_i18n": {
     "en": [
@@ -10946,7 +11006,8 @@
      "Other interest incomes",
      "Interest income from loan receivables/other receivables/finance lease receivables",
      "interest income from related party",
-     "Bank interest"
+     "Bank interest",
+     "Finance income"
     ],
     "zh": [
      "利息收入",
@@ -11455,7 +11516,12 @@
     "Share of results of associates",
     "Share of profit of associates and joint ventures",
     "Share of profits of associates and joint ventures",
-    "Share of profit of associates"
+    "Share of profit of associates",
+    "Share of result of associate",
+    "Share of results of associate",
+    "Share of profit of an associate",
+    "Share of profit of associate",
+    "Share of result of associates"
    ],
    "aliases_i18n": {
     "en": [
@@ -11467,7 +11533,12 @@
      "Share of results of associates",
      "Share of profit of associates and joint ventures",
      "Share of profits of associates and joint ventures",
-     "Share of profit of associates"
+     "Share of profit of associates",
+     "Share of result of associate",
+     "Share of results of associate",
+     "Share of profit of an associate",
+     "Share of profit of associate",
+     "Share of result of associates"
     ],
     "zh": [
      "对联营企业和合营企业的投资收益",
@@ -11498,7 +11569,12 @@
     "Dividend income from Jointly controlled entities / Joint ventures/JV",
     "Share of profits and losses of joint ventures",
     "Share of profit and loss of joint ventures",
-    "Share of profits of joint ventures"
+    "Share of profits of joint ventures",
+    "Share of profit of joint ventures",
+    "Share of results of joint ventures",
+    "Share of result of joint ventures",
+    "Share of profit of a joint venture",
+    "Share of results of joint venture"
    ],
    "aliases_i18n": {
     "en": [
@@ -11508,7 +11584,12 @@
      "Dividend income from Jointly controlled entities / Joint ventures/JV",
      "Share of profits and losses of joint ventures",
      "Share of profit and loss of joint ventures",
-     "Share of profits of joint ventures"
+     "Share of profits of joint ventures",
+     "Share of profit of joint ventures",
+     "Share of results of joint ventures",
+     "Share of result of joint ventures",
+     "Share of profit of a joint venture",
+     "Share of results of joint venture"
     ],
     "zh": [
      "合营公司",
@@ -12003,13 +12084,25 @@
    "aliases": [
     "Gain(Loss) Disp of Disc Ops",
     "Net loss from disposal of subsidiaries / Associates / Joint ventures / Jointly controlled entities / Equity investments",
-    "Disposal of discontinued operations"
+    "Disposal of discontinued operations",
+    "Profit on disposal of subsidiary",
+    "Profit on disposal of subsidiaries",
+    "Gain on disposal of subsidiary",
+    "Gain on disposal of subsidiaries",
+    "Loss on disposal of subsidiary",
+    "Loss on disposal of subsidiaries"
    ],
    "aliases_i18n": {
     "en": [
      "Gain(Loss) Disp of Disc Ops",
      "Net loss from disposal of subsidiaries / Associates / Joint ventures / Jointly controlled entities / Equity investments",
-     "Disposal of discontinued operations"
+     "Disposal of discontinued operations",
+     "Profit on disposal of subsidiary",
+     "Profit on disposal of subsidiaries",
+     "Gain on disposal of subsidiary",
+     "Gain on disposal of subsidiaries",
+     "Loss on disposal of subsidiary",
+     "Loss on disposal of subsidiaries"
     ]
    },
    "keyword_hints": [
@@ -12133,7 +12226,11 @@
     "Net gain from fair value adjustment on investment properties",
     "Changes in fair value of investment properties",
     "Changes in fair value of investment properties, net",
-    "Change in fair value of investment properties"
+    "Change in fair value of investment properties",
+    "Net fair value gain on investment properties",
+    "Net fair value loss on investment properties",
+    "Fair value gain on revaluation of investment property",
+    "Fair value gain on revaluation of investment properties"
    ],
    "aliases_i18n": {
     "en": [
@@ -12149,7 +12246,11 @@
      "Net gain from fair value adjustment on investment properties",
      "Changes in fair value of investment properties",
      "Changes in fair value of investment properties, net",
-     "Change in fair value of investment properties"
+     "Change in fair value of investment properties",
+     "Net fair value gain on investment properties",
+     "Net fair value loss on investment properties",
+     "Fair value gain on revaluation of investment property",
+     "Fair value gain on revaluation of investment properties"
     ],
     "zh": [
      "投资性房地产公允价值变动收益",
@@ -12896,13 +12997,21 @@
    "aliases": [
     "Minimum Pension Liability Adj",
     "Reserve for retirement benefit funds",
-    "Pension liability adjustment"
+    "Pension liability adjustment",
+    "Remeasurements of retirement benefit obligations",
+    "Remeasurement of defined benefit obligations",
+    "Remeasurements of employment benefit obligations",
+    "Remeasurements of post-employment benefit obligations"
    ],
    "aliases_i18n": {
     "en": [
      "Minimum Pension Liability Adj",
      "Reserve for retirement benefit funds",
-     "Pension liability adjustment"
+     "Pension liability adjustment",
+     "Remeasurements of retirement benefit obligations",
+     "Remeasurement of defined benefit obligations",
+     "Remeasurements of employment benefit obligations",
+     "Remeasurements of post-employment benefit obligations"
     ],
     "zh": [
      "重新计量设定受益计划"
@@ -12976,13 +13085,25 @@
    "aliases": [
     "Total Other Comprehensive Income",
     "Other Comprehensive Income",
-    "Other comprehensive income/loss for the year"
+    "Other comprehensive income/loss for the year",
+    "Other comprehensive loss for the year, net of tax",
+    "Other comprehensive income for the year, net of tax",
+    "Other comprehensive (loss)/income for the year",
+    "Other comprehensive (loss)/income for the year, net of tax",
+    "Other comprehensive income/(loss) for the year, net of tax",
+    "Other comprehensive loss for the year"
    ],
    "aliases_i18n": {
     "en": [
      "Total Other Comprehensive Income",
      "Other Comprehensive Income",
-     "Other comprehensive income/loss for the year"
+     "Other comprehensive income/loss for the year",
+     "Other comprehensive loss for the year, net of tax",
+     "Other comprehensive income for the year, net of tax",
+     "Other comprehensive (loss)/income for the year",
+     "Other comprehensive (loss)/income for the year, net of tax",
+     "Other comprehensive income/(loss) for the year, net of tax",
+     "Other comprehensive loss for the year"
     ],
     "zh": [
      "其他综合收益的税后净额",
@@ -13135,7 +13256,9 @@
     "Interim dividend",
     "Interim dividends",
     "末期股息",
-    "中期股息"
+    "中期股息",
+    "Dividends declared",
+    "Dividend declared"
    ],
    "aliases_i18n": {
     "en": [
@@ -13146,7 +13269,9 @@
      "distribution of cash dividends",
      "Final dividend",
      "Interim dividend",
-     "Interim dividends"
+     "Interim dividends",
+     "Dividends declared",
+     "Dividend declared"
     ],
     "zh": [
      "对所有者（或股东）的分配",
@@ -13366,7 +13491,9 @@
     "Profit(loss) before tax",
     "Profit for the year",
     "Loss before tax",
-    "Profit before tax"
+    "Profit before tax",
+    "Profit before income tax",
+    "Profit before taxation"
    ],
    "aliases_i18n": {
     "en": [
@@ -13374,7 +13501,9 @@
      "Profit(loss) before tax",
      "Profit for the year",
      "Loss before tax",
-     "Profit before tax"
+     "Profit before tax",
+     "Profit before income tax",
+     "Profit before taxation"
     ],
     "zh": [
      "年内亏损",
@@ -13491,7 +13620,10 @@
     "Amortization of land use rights",
     "Deperciation and amortization",
     "Depreciation and Impairment",
-    "Depreciation of property, plant and equipment"
+    "Depreciation of property, plant and equipment",
+    "Depreciation and amortisation",
+    "Depreciation and amortization",
+    "Depreciation, depletion and amortisation"
    ],
    "aliases_i18n": {
     "en": [
@@ -13499,7 +13631,10 @@
      "Amortization of land use rights",
      "Deperciation and amortization",
      "Depreciation and Impairment",
-     "Depreciation of property, plant and equipment"
+     "Depreciation of property, plant and equipment",
+     "Depreciation and amortisation",
+     "Depreciation and amortization",
+     "Depreciation, depletion and amortisation"
     ],
     "zh": [
      "使用权资产的折旧",
@@ -13535,7 +13670,8 @@
     "Asset Impairment gain/loss",
     "Impairment of property,plant and equipment",
     "Expected credit loss",
-    "Write down to net realisable value of completed properties held for sale and properties under development"
+    "Write down to net realisable value of completed properties held for sale and properties under development",
+    "Amortisation of intangible assets"
    ],
    "aliases_i18n": {
     "en": [
@@ -13546,7 +13682,8 @@
      "Asset Impairment gain/loss",
      "Impairment of property,plant and equipment",
      "Expected credit loss",
-     "Write down to net realisable value of completed properties held for sale and properties under development"
+     "Write down to net realisable value of completed properties held for sale and properties under development",
+     "Amortisation of intangible assets"
     ],
     "zh": [
      "无形资产摊销",
@@ -13603,7 +13740,14 @@
     "Share of profit and loss of associates",
     "Share of profit and loss of joint ventures",
     "Share of results of associates",
-    "Share of profits of joint ventures"
+    "Share of profits of joint ventures",
+    "Share of profit of joint ventures",
+    "Share of result of associate",
+    "Share of results of associate",
+    "Share of results of joint ventures",
+    "Share of profit of an associate",
+    "Share of profit of associates and joint ventures",
+    "Share of profits of associates and joint ventures"
    ],
    "aliases_i18n": {
     "en": [
@@ -13615,7 +13759,14 @@
      "Share of profit and loss of associates",
      "Share of profit and loss of joint ventures",
      "Share of results of associates",
-     "Share of profits of joint ventures"
+     "Share of profits of joint ventures",
+     "Share of profit of joint ventures",
+     "Share of result of associate",
+     "Share of results of associate",
+     "Share of results of joint ventures",
+     "Share of profit of an associate",
+     "Share of profit of associates and joint ventures",
+     "Share of profits of associates and joint ventures"
     ],
     "zh": [
      "合营公司",
@@ -13706,7 +13857,11 @@
     "Gain/loss on Disposal of Fixed Assets",
     "Gain/loss on Disposal of property,plant and equipment",
     "Gain/loss on Disposal of investment property",
-    "Cash Flow from Disposal of leased Assets"
+    "Cash Flow from Disposal of leased Assets",
+    "Profit on disposal of property, plant and equipment",
+    "Loss on disposal of property, plant and equipment",
+    "(Profit)/loss on disposal of property, plant and equipment",
+    "Loss/(profit) on disposal of property, plant and equipment"
    ],
    "aliases_i18n": {
     "en": [
@@ -13715,7 +13870,11 @@
      "Gain/loss on Disposal of Fixed Assets",
      "Gain/loss on Disposal of property,plant and equipment",
      "Gain/loss on Disposal of investment property",
-     "Cash Flow from Disposal of leased Assets"
+     "Cash Flow from Disposal of leased Assets",
+     "Profit on disposal of property, plant and equipment",
+     "Loss on disposal of property, plant and equipment",
+     "(Profit)/loss on disposal of property, plant and equipment",
+     "Loss/(profit) on disposal of property, plant and equipment"
     ],
     "zh": [
      "资产处置损失",
@@ -13777,14 +13936,22 @@
     "Chg in Trade Receivables",
     "Increase/Decrease/Change in Trade Receivables",
     "Increase/Decrease/Change in Trade and Other Receivables",
-    "Increase/Decrease/Change in Bills Receivables"
+    "Increase/Decrease/Change in Bills Receivables",
+    "(Increase)/decrease in trade and other receivables",
+    "Decrease/(increase) in trade and other receivables",
+    "Increase in trade and other receivables",
+    "Decrease in trade and other receivables"
    ],
    "aliases_i18n": {
     "en": [
      "Chg in Trade Receivables",
      "Increase/Decrease/Change in Trade Receivables",
      "Increase/Decrease/Change in Trade and Other Receivables",
-     "Increase/Decrease/Change in Bills Receivables"
+     "Increase/Decrease/Change in Bills Receivables",
+     "(Increase)/decrease in trade and other receivables",
+     "Decrease/(increase) in trade and other receivables",
+     "Increase in trade and other receivables",
+     "Decrease in trade and other receivables"
     ],
     "zh": [
      "经营性应收项目的减少"
@@ -13830,12 +13997,20 @@
    "definition": "The (increase)/decrease in inventories: a movement in working capital printed in the indirect-method operating section, between the adjusted profit and 'Cash generated from operations' — 'Decrease in inventories', '(Increase)/decrease in inventories' (存貨減少). For a property developer the properties it builds for sale are its inventories, so the change in properties under development for sale and in completed properties held for sale ('Decrease in inventories of properties', 'Increase in properties under development', 'Decrease in completed properties held for sale') is this line too; where several such rows are printed this line is their total. On a CAS filing it is the 存货的减少 row of the reconciliation of net profit to operating cash flow that a CAS cash flow statement prints as its supplement (现金流量表补充资料, 将净利润调节为经营活动现金流量). Not this line: a write-down of inventories to net realisable value, which is an adjustment to profit ('Amortization & Asset Impairment'); additions to investment properties, which are investing cash flows ('Purchase Investment Property'); contract assets or contract costs ('Chg in Other Current Assets', 'Chg in Prepayments & Def Assets'). It is one of the lines this template's rollup adds into Cash Flows Oper Activ(Indirect).",
    "aliases": [
     "Chg in Inventories",
-    "Increase/Decrease/Change in Inventories"
+    "Increase/Decrease/Change in Inventories",
+    "Decrease/(increase) in inventories",
+    "(Increase)/decrease in inventories",
+    "Increase in inventories",
+    "Decrease in inventories"
    ],
    "aliases_i18n": {
     "en": [
      "Chg in Inventories",
-     "Increase/Decrease/Change in Inventories"
+     "Increase/Decrease/Change in Inventories",
+     "Decrease/(increase) in inventories",
+     "(Increase)/decrease in inventories",
+     "Increase in inventories",
+     "Decrease in inventories"
     ],
     "zh": [
      "存货的减少"
@@ -13928,13 +14103,21 @@
    "aliases": [
     "Chg in Trade Payables",
     "Increase/Decrease/Change in Trade Payables",
-    "Increase/Decrease/Change in Trade and Other Payables"
+    "Increase/Decrease/Change in Trade and Other Payables",
+    "Decrease in trade and other payables",
+    "Increase in trade and other payables",
+    "Increase/(decrease) in trade and other payables",
+    "(Decrease)/increase in trade and other payables"
    ],
    "aliases_i18n": {
     "en": [
      "Chg in Trade Payables",
      "Increase/Decrease/Change in Trade Payables",
-     "Increase/Decrease/Change in Trade and Other Payables"
+     "Increase/Decrease/Change in Trade and Other Payables",
+     "Decrease in trade and other payables",
+     "Increase in trade and other payables",
+     "Increase/(decrease) in trade and other payables",
+     "(Decrease)/increase in trade and other payables"
     ],
     "zh": [
      "经营性应付项目的增加"
@@ -14144,7 +14327,10 @@
     "Income tax paid",
     "Income taxes paid",
     "Hong Kong profits tax paid",
-    "Overseas taxes paid"
+    "Overseas taxes paid",
+    "Tax paid - net",
+    "Net tax paid",
+    "Tax paid"
    ],
    "aliases_i18n": {
     "en": [
@@ -14155,7 +14341,10 @@
      "Income tax paid",
      "Income taxes paid",
      "Hong Kong profits tax paid",
-     "Overseas taxes paid"
+     "Overseas taxes paid",
+     "Tax paid - net",
+     "Net tax paid",
+     "Tax paid"
     ]
    },
    "keyword_hints": [
@@ -14299,7 +14488,12 @@
     "Net cash flows from/(used in) operating activities",
     "Net cash flows used in operating activities",
     "Net cash generated from operating activities",
-    "Net cash used in operating activities"
+    "Net cash used in operating activities",
+    "Net cash flows generated from operating activities",
+    "Net cash generated from/(used in) operating activities",
+    "Net cash (used in)/generated from operating activities",
+    "Net cash flows (used in)/generated from operating activities",
+    "Net cash flows generated from/(used in) operating activities"
    ],
    "aliases_i18n": {
     "en": [
@@ -14308,7 +14502,12 @@
      "Net cash flows from/(used in) operating activities",
      "Net cash flows used in operating activities",
      "Net cash generated from operating activities",
-     "Net cash used in operating activities"
+     "Net cash used in operating activities",
+     "Net cash flows generated from operating activities",
+     "Net cash generated from/(used in) operating activities",
+     "Net cash (used in)/generated from operating activities",
+     "Net cash flows (used in)/generated from operating activities",
+     "Net cash flows generated from/(used in) operating activities"
     ],
     "zh": [
      "经营活动产生的现金流量净额",
@@ -14700,13 +14899,17 @@
    "aliases": [
     "Purchase Intangible Assets",
     "(Payment for) Purchase of Intangible Assets",
-    "(Payments for)Purchase of (acquisition of) land use rights"
+    "(Payments for)Purchase of (acquisition of) land use rights",
+    "Acquisition of intangible assets",
+    "Purchase of intangible assets"
    ],
    "aliases_i18n": {
     "en": [
      "Purchase Intangible Assets",
      "(Payment for) Purchase of Intangible Assets",
-     "(Payments for)Purchase of (acquisition of) land use rights"
+     "(Payments for)Purchase of (acquisition of) land use rights",
+     "Acquisition of intangible assets",
+     "Purchase of intangible assets"
     ]
    },
    "keyword_hints": [
@@ -14756,7 +14959,10 @@
     "(Payments for)Purchase of leasehold land",
     "Purchase of items of property, plant and equipment",
     "Purchases of items of property, plant and equipment",
-    "Purchase of items of property, plant and equipment, intangible assets and other long-term assets"
+    "Purchase of items of property, plant and equipment, intangible assets and other long-term assets",
+    "Purchase of property, plant and equipment",
+    "Payments for purchase of property, plant and equipment and intangible assets",
+    "Acquisition of property, plant and equipment"
    ],
    "aliases_i18n": {
     "en": [
@@ -14768,7 +14974,10 @@
      "(Payments for)Purchase of leasehold land",
      "Purchase of items of property, plant and equipment",
      "Purchases of items of property, plant and equipment",
-     "Purchase of items of property, plant and equipment, intangible assets and other long-term assets"
+     "Purchase of items of property, plant and equipment, intangible assets and other long-term assets",
+     "Purchase of property, plant and equipment",
+     "Payments for purchase of property, plant and equipment and intangible assets",
+     "Acquisition of property, plant and equipment"
     ],
     "zh": [
      "购建固定资产、无形资产和其他长期资产支付的现金"
@@ -14799,7 +15008,10 @@
     "Gain/Loss/Payment from disposal of leased assets",
     "Proceeds from disposal of items of property, plant and equipment",
     "Proceeds from disposal of right-of-use assets",
-    "Proceeds from disposal of property, plant and equipment, intangible assets and other long-term assets"
+    "Proceeds from disposal of property, plant and equipment, intangible assets and other long-term assets",
+    "Proceeds from disposal of property, plant and equipment",
+    "Proceeds from disposal of equipment",
+    "Proceeds from disposal of machinery and equipment"
    ],
    "aliases_i18n": {
     "en": [
@@ -14814,7 +15026,10 @@
      "Gain/Loss/Payment from disposal of leased assets",
      "Proceeds from disposal of items of property, plant and equipment",
      "Proceeds from disposal of right-of-use assets",
-     "Proceeds from disposal of property, plant and equipment, intangible assets and other long-term assets"
+     "Proceeds from disposal of property, plant and equipment, intangible assets and other long-term assets",
+     "Proceeds from disposal of property, plant and equipment",
+     "Proceeds from disposal of equipment",
+     "Proceeds from disposal of machinery and equipment"
     ],
     "zh": [
      "出售物业、厂房及设备所得款项",
@@ -15321,13 +15536,11 @@
    "label": "Other Invest Cash Flows",
    "definition": "The investing section's remainder: every row printed on the face of the investing activities section that no dedicated line of this template claims — advances to and repayments from related parties other than associates and joint ventures, loans advanced to third parties and repayments received, government grants received for assets, placements and withdrawals of pledged, restricted and time deposits, and on a CAS statement 收到其他与投资活动有关的现金 and 支付其他与投资活动有关的现金. Its figure is the sum of those rows at their printed signs, each kept with its own caption; it is never worked out as the printed subtotal less the lines the template has mapped. Not this line: the net cash flow from investing activities ('Cash Flows from Invest Activities') or any subtotal such as 投资活动现金流入小计; a row printed under the operating or financing activities headings; the net increase or decrease in cash and cash equivalents; a row a dedicated line takes. Where a row fits a dedicated line, it belongs to that line and not here; do not add this line up yourself.",
    "aliases": [
-    "Other Invest Cash Flows",
-    "Net cash used in/generated from investing activities"
+    "Other Invest Cash Flows"
    ],
    "aliases_i18n": {
     "en": [
-     "Other Invest Cash Flows",
-     "Net cash used in/generated from investing activities"
+     "Other Invest Cash Flows"
     ]
    },
    "keyword_hints": [
@@ -15363,7 +15576,14 @@
     "Net cash flows from investing activities",
     "Net cash flows used in investing activities",
     "Net cash flows used for investing activities",
-    "Net cash used in investing activities"
+    "Net cash used in investing activities",
+    "Net cash flows (used in)/generated from investing activities",
+    "Net cash used in/generated from investing activities",
+    "Net cash generated from investing activities",
+    "Net cash flows generated from investing activities",
+    "Net cash generated from/(used in) investing activities",
+    "Net cash flows from/(used in) investing activities",
+    "Net cash flows generated from/(used in) investing activities"
    ],
    "aliases_i18n": {
     "en": [
@@ -15371,7 +15591,14 @@
      "Net cash flows from investing activities",
      "Net cash flows used in investing activities",
      "Net cash flows used for investing activities",
-     "Net cash used in investing activities"
+     "Net cash used in investing activities",
+     "Net cash flows (used in)/generated from investing activities",
+     "Net cash used in/generated from investing activities",
+     "Net cash generated from investing activities",
+     "Net cash flows generated from investing activities",
+     "Net cash generated from/(used in) investing activities",
+     "Net cash flows from/(used in) investing activities",
+     "Net cash flows generated from/(used in) investing activities"
     ],
     "zh": [
      "投资活动产生的现金流量净额",
@@ -15539,7 +15766,10 @@
     "Proceeds/cash recepit from interest bearing borrowings/interest bearing long term loan/interest bearing loan/loan",
     "Proceeds/cash recepit from issue of bonds/debentures",
     "Proceeds/cash recepit from finance lease",
-    "New bank borrowings raised"
+    "New bank borrowings raised",
+    "Proceeds from borrowings",
+    "Proceeds from bank loan",
+    "Proceeds from bank loans"
    ],
    "aliases_i18n": {
     "en": [
@@ -15550,7 +15780,10 @@
      "Proceeds/cash recepit from interest bearing borrowings/interest bearing long term loan/interest bearing loan/loan",
      "Proceeds/cash recepit from issue of bonds/debentures",
      "Proceeds/cash recepit from finance lease",
-     "New bank borrowings raised"
+     "New bank borrowings raised",
+     "Proceeds from borrowings",
+     "Proceeds from bank loan",
+     "Proceeds from bank loans"
     ],
     "zh": [
      "取得借款收到的现金"
@@ -15608,7 +15841,11 @@
     "Repayment/cash payment of bonds/debentures",
     "Repayment/cash payment of interest bearing borrowings/interest bearing long term loan/interest bearing loan/loan",
     "Repayment of bank borrowings",
-    "Redemption and repurchase of guaranteed notes"
+    "Redemption and repurchase of guaranteed notes",
+    "Repayment of borrowings",
+    "Repayment of long term bank loans",
+    "Payments of long term borrowings",
+    "Repayment of long term borrowings"
    ],
    "aliases_i18n": {
     "en": [
@@ -15619,7 +15856,11 @@
      "Repayment/cash payment of bonds/debentures",
      "Repayment/cash payment of interest bearing borrowings/interest bearing long term loan/interest bearing loan/loan",
      "Repayment of bank borrowings",
-     "Redemption and repurchase of guaranteed notes"
+     "Redemption and repurchase of guaranteed notes",
+     "Repayment of borrowings",
+     "Repayment of long term bank loans",
+     "Payments of long term borrowings",
+     "Repayment of long term borrowings"
     ],
     "zh": [
      "偿还债务支付的现金"
@@ -15647,7 +15888,9 @@
     "Change in short term bank loan",
     "Change in short term other loan/debentures/notes",
     "Proceeds/cash receipt from current/short term (borrowings/loan/bank loan/other loan/debentures/notes)",
-    "Repayment/cash payment of current/short term (borrowings/loan/bank loan/other loan/debetures/notes)"
+    "Repayment/cash payment of current/short term (borrowings/loan/bank loan/other loan/debetures/notes)",
+    "Proceeds from short term bank loans",
+    "Repayment of short term bank loans"
    ],
    "aliases_i18n": {
     "en": [
@@ -15659,7 +15902,9 @@
      "Change in short term bank loan",
      "Change in short term other loan/debentures/notes",
      "Proceeds/cash receipt from current/short term (borrowings/loan/bank loan/other loan/debentures/notes)",
-     "Repayment/cash payment of current/short term (borrowings/loan/bank loan/other loan/debetures/notes)"
+     "Repayment/cash payment of current/short term (borrowings/loan/bank loan/other loan/debetures/notes)",
+     "Proceeds from short term bank loans",
+     "Repayment of short term bank loans"
     ]
    },
    "keyword_hints": [
@@ -15778,14 +16023,22 @@
     "Dividends Paid(Fin)",
     "Dividends Paid",
     "Dividends paid to owners of the Company",
-    "Dividend paid"
+    "Dividend paid",
+    "Dividends paid to Company's shareholders",
+    "Dividends paid to company's owners",
+    "Dividends paid to owners of the parent",
+    "Dividend paid to owners of the Company"
    ],
    "aliases_i18n": {
     "en": [
      "Dividends Paid(Fin)",
      "Dividends Paid",
      "Dividends paid to owners of the Company",
-     "Dividend paid"
+     "Dividend paid",
+     "Dividends paid to Company's shareholders",
+     "Dividends paid to company's owners",
+     "Dividends paid to owners of the parent",
+     "Dividend paid to owners of the Company"
     ],
     "zh": [
      "分配股利、利润或偿付利息支付的现金",
@@ -15883,7 +16136,14 @@
     "Net cash flows from financing activities",
     "Net cash flows used in financing activities",
     "Net cash flows used for financing activities",
-    "Net cash used in financing activities"
+    "Net cash used in financing activities",
+    "Net cash generated from/(used in) financing activities",
+    "Net cash generated from financing activities",
+    "Net cash flows generated from financing activities",
+    "Net cash (used in)/generated from financing activities",
+    "Net cash flows from/(used in) financing activities",
+    "Net cash flows (used in)/generated from financing activities",
+    "Net cash flows generated from/(used in) financing activities"
    ],
    "aliases_i18n": {
     "en": [
@@ -15891,7 +16151,14 @@
      "Net cash flows from financing activities",
      "Net cash flows used in financing activities",
      "Net cash flows used for financing activities",
-     "Net cash used in financing activities"
+     "Net cash used in financing activities",
+     "Net cash generated from/(used in) financing activities",
+     "Net cash generated from financing activities",
+     "Net cash flows generated from financing activities",
+     "Net cash (used in)/generated from financing activities",
+     "Net cash flows from/(used in) financing activities",
+     "Net cash flows (used in)/generated from financing activities",
+     "Net cash flows generated from/(used in) financing activities"
     ],
     "zh": [
      "筹资活动产生的现金流量净额",
@@ -15984,7 +16251,8 @@
     "Translation of foreign currency",
     "Effect of foreign exchange rates changes, net",
     "Effect of exchange rate changes on cash and cash equivalents",
-    "Effect of foreign exchange rate change on cash and cash equivalents"
+    "Effect of foreign exchange rate change on cash and cash equivalents",
+    "Effects of exchange rate changes on cash and cash equivalents"
    ],
    "aliases_i18n": {
     "en": [
@@ -15998,7 +16266,8 @@
      "Translation of foreign currency",
      "Effect of foreign exchange rates changes, net",
      "Effect of exchange rate changes on cash and cash equivalents",
-     "Effect of foreign exchange rate change on cash and cash equivalents"
+     "Effect of foreign exchange rate change on cash and cash equivalents",
+     "Effects of exchange rate changes on cash and cash equivalents"
     ],
     "zh": [
      "汇兑调整",

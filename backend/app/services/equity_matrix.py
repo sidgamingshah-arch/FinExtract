@@ -441,8 +441,15 @@ def collapse_movement_rows(doc, *, line_items=None, log=None) -> int:
         return 0
     slot_of = {dates[0]: "current", dates[1]: "prior"}
 
-    # caption -> period -> the cells that make it up, in printed order.
-    cells: dict[str, dict[str, list]] = {}
+    # caption -> (basis, period) -> the cells that make it up, in printed order.
+    #
+    # BY BASIS AS WELL. A Mauritian equity statement prints the group's table over the company's
+    # on one page, each read on its own basis (`row_reconstruct._equity_entity_blocks`), and the
+    # two print the same captions. Keyed by period alone, the company's movement was added to the
+    # group's under the group's basis: MEASURED on Phoenix Beverages 2025 (p130), the 2024 other
+    # comprehensive loss in retained earnings came to (44,386) = (22,270) + (22,116), and the
+    # company's own 2025 movements were left with no dividend line at all.
+    cells: dict[str, dict[tuple[str, str], list]] = {}
     order: list[str] = []
     for opening, close, movements in blocks:
         period = slot_of.get(_balance_date(close))
@@ -468,7 +475,8 @@ def collapse_movement_rows(doc, *, line_items=None, log=None) -> int:
             if caption not in cells:
                 cells[caption] = {}
                 order.append(caption)
-            cells[caption].setdefault(period, []).append(value)
+            basis = str(getattr(value.basis, "value", value.basis))
+            cells[caption].setdefault((basis, period), []).append(value)
 
     added = 0
     ordinal = max((int(getattr(r, "ordinal", 0) or 0) for r in doc.line_items), default=0)
@@ -479,20 +487,20 @@ def collapse_movement_rows(doc, *, line_items=None, log=None) -> int:
         item.confidence.flags.append(f"{MATCH_STATEMENT_FLAG}:{_MOVEMENT_STATEMENT}")
         # CURRENT BEFORE PRIOR, for the reason `transpose_closing_balances` states.
         for period in ("current", "prior"):
-            printed = cells[caption].get(period) or ()
-            if not printed:
-                continue
-            # ONE VALUE PER PERIOD, summed. `set_value` keys by (basis, period) and would keep
-            # whichever cell was written last — and a statement that prints one movement on two
-            # lines within a block means their sum, not the second of them.
-            fact = printed[0].model_copy(deep=True)
-            fact.value = sum((v.value for v in printed[1:]), start=printed[0].value)
-            fact.period_label = period
-            fact.period_display = dates[0] if period == "current" else dates[1]
-            fact.period_end = None
-            fact.column_index = None
-            fact.confidence.flags = list(fact.confidence.flags or ()) + [MOVEMENT_FLAG]
-            item.set_value(fact)
+            for (_basis, slot), printed in sorted(cells[caption].items()):
+                if slot != period or not printed:
+                    continue
+                # ONE VALUE PER (BASIS, PERIOD), summed. `set_value` keys by (basis, period) and
+                # would keep whichever cell was written last — and a statement that prints one
+                # movement on two lines within a block means their sum, not the second of them.
+                fact = printed[0].model_copy(deep=True)
+                fact.value = sum((v.value for v in printed[1:]), start=printed[0].value)
+                fact.period_label = period
+                fact.period_display = dates[0] if period == "current" else dates[1]
+                fact.period_end = None
+                fact.column_index = None
+                fact.confidence.flags = list(fact.confidence.flags or ()) + [MOVEMENT_FLAG]
+                item.set_value(fact)
         if item.values:
             doc.line_items.append(item)
             added += 1

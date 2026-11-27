@@ -313,6 +313,16 @@ def _pages_of_item(li) -> list[int]:
 def segment_source(doc: DocumentModel, ontology=None) -> BucketedSource:
     """The whole segmentation. Every face row and every note lands in exactly one bucket."""
     note_numbers = {str(n.note_number) for n in doc.notes if n.note_number is not None}
+    # WHERE THE ROW WAS PRINTED, asked of the row before its page (`printed_statement_resolver`).
+    # Read off the page, every row of a spread sheet took its first half's statement: Vivo Energy
+    # Mauritius' sheet 35 prints the statement of changes in equity (p68) beside the cash flow
+    # (p69), and its 31 cash-flow rows, each stamped printed_on:cash_flow, were filed under
+    # "Changes in equity" with the three cash-flow buckets empty — as were the 25 rows of 河钢
+    # 000709's company cash flow printed above the equity statement's title on page 89. Not
+    # `statement_resolver`: a transposed equity balance or a movement DECLARES the vocabulary that
+    # names it (`equity_matrix.MATCH_STATEMENT_FLAG`), which is a mapping answer — it is still a
+    # line of the statement of changes in equity it is printed in.
+    statement_of = printed_statement_resolver(doc)
     stmt_by_page = _statement_by_page(doc)
     note_pages = {p.index for p in doc.pages if p.kind == PageKind.NOTES}
 
@@ -355,7 +365,8 @@ def segment_source(doc: DocumentModel, ontology=None) -> BucketedSource:
             continue
         section = _section_of_row(getattr(li, "section_hint", None),
                       getattr(li, "canonical_key", None))
-        statement = next((stmt_by_page[p] for p in pages if p in stmt_by_page), None)
+        statement = (statement_of(li)
+                     or next((stmt_by_page[p] for p in pages if p in stmt_by_page), None))
         bucket, reason = bucket_of(section, statement, None)
         seg = segments[bucket]
         seg.face_item_ids.append(str(li.id))
@@ -481,19 +492,59 @@ def statement_resolver(doc):
     an answer about the caption rather than about the page. ``PRINTED_ON_FLAG`` is where the row was
     printed, which is what everything else is asking. The page is the fallback, and remains the
     answer for every page that carries one statement.
+
+    ON A 2-UP SPREAD SHEET THE PAGE IS ASKED BY HALF (`page_spread.statement_at`): the sheet's own
+    verdict is its first face half's, and a row the reader did not stamp — one a later stage built
+    on the second half — is on the statement its half prints, not on the first half's.
     """
     from app.services.equity_matrix import MATCH_STATEMENT_FLAG
 
-    stmt_by_page = {p.index: p.statement for p in doc.pages if p.statement}
+    on_page = page_statement_resolver(doc)
 
     def resolve(row) -> str | None:
         for prefix in (MATCH_STATEMENT_FLAG, PRINTED_ON_FLAG):
             for flag in (getattr(getattr(row, "confidence", None), "flags", None) or ()):
                 if str(flag).startswith(f"{prefix}:"):
                     return str(flag).split(":", 1)[1] or None
+        return on_page(row)
+
+    return resolve
+
+
+def printed_statement_resolver(doc):
+    """``(row) -> statement`` the row was PRINTED in: the reader's stamp (:data:`PRINTED_ON_FLAG`),
+    else its page's, by half on a 2-up spread sheet (`page_statement_resolver`). Unlike
+    `statement_resolver` it does not read `equity_matrix.MATCH_STATEMENT_FLAG`, which says which
+    statement's vocabulary names a caption, not where it was printed."""
+    on_page = page_statement_resolver(doc)
+
+    def resolve(row) -> str | None:
+        for flag in (getattr(getattr(row, "confidence", None), "flags", None) or ()):
+            if str(flag).startswith(f"{PRINTED_ON_FLAG}:"):
+                return str(flag).split(":", 1)[1] or None
+        return on_page(row)
+
+    return resolve
+
+
+def page_statement_resolver(doc):
+    """``(row) -> statement`` of the page the row's first figure was printed on — by HALF on a
+    2-up spread sheet (`page_spread.statement_at`), whose own verdict is its first face half's.
+    The page half of `statement_resolver`, for a reader that asks where a row was printed and not
+    what it declares."""
+    from app.services.page_spread import bbox_centre_x, spread_halves, statement_at
+
+    stmt_by_page = {p.index: p.statement for p in doc.pages if p.statement}
+    spreads = {p.index: p for p in doc.pages if spread_halves(p)}
+
+    def resolve(row) -> str | None:
         for ev in (getattr(row, "values", None) or {}).values():
-            if ev.provenance is not None:
-                return stmt_by_page.get(ev.provenance.page_index)
+            prov = getattr(ev, "provenance", None)
+            if prov is not None:
+                page = spreads.get(prov.page_index)
+                if page is not None:
+                    return statement_at(page, bbox_centre_x(prov.label_bbox or prov.bbox))
+                return stmt_by_page.get(prov.page_index)
         return None
 
     return resolve

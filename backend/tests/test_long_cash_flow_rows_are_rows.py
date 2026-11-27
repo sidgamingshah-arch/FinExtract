@@ -176,6 +176,10 @@ def test_a_long_han_run_is_still_captions_merged():
     "CASH FLOWS FROM INVESTING ACTIVITIES (continued)",
     "Current assets (cont'd)",
     "流動資產（續）",
+    # …and, since `mapping.section_of_banner_only` takes the "Cash flows from" lead-in as part of
+    # the banner (Vivo Energy Mauritius prints it in sentence case), the line without the mark too.
+    "CASH FLOWS FROM OPERATING ACTIVITIES",
+    "Cash flows from operating activities",
 ])
 def test_a_continued_banner_is_a_banner(text):
     assert _is_banner_line(text, ())
@@ -185,7 +189,6 @@ def test_a_continued_banner_is_a_banner(text):
     "Consolidated statement of changes in equity (continued)",
     "Notes to the financial statements (continued)",
     "Gain on lease modification",
-    "CASH FLOWS FROM OPERATING ACTIVITIES",   # unchanged: not exhausted by the vocabulary
 ])
 def test_other_lines_are_not(text):
     assert not _is_banner_line(text, ())

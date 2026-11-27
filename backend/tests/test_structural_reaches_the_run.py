@@ -83,7 +83,13 @@ def test_a_leaf_of_a_swept_section_is_nil_when_absent(template, working_view):
     # 327, not 325: THE USER'S DECISION (r9) — "Each line becomes the printed row, and the rollup
     # no longer subtracts siblings" — made LTD Bank and Dividends Paid(Fin) plain leaves of their
     # swept sections (Cash Paid to Employees too, whose direct-method section is not swept).
-    assert len(nil) == 327, len(nil)
+    # 338, not 327: THE ELEVEN SECTION RESIDUALS THEMSELVES are nil when nothing was swept into
+    # them (their template rollup is the plug the residual framework forbids as a figure). On Vivo
+    # Energy Mauritius 2025 every investing row reached a line of its own, Other Invest Cash Flows
+    # held nothing, and the investing rollup went from pass to `components_not_mapped`.
+    assert len(nil) == 338, len(nil)
+    for residual in ("cf_investing__other_invest_cash_flows", "bs_ca__other_current_assets"):
+        assert residual in nil, residual
     for leaf in ("bs_nca__land", "bs_ca__raw_materials",
                  "bs_ca__due_from_related_parties_cp", "bs_cl__trade_financing"):
         assert nil.get(leaf) == "balance_sheet", leaf

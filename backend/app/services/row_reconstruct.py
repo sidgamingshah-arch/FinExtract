@@ -83,8 +83,20 @@ _NOTE_HDR = re.compile(r"^(notes?|附註|附注)$", re.IGNORECASE)
 # A note reference token is a bare 1-2 digit note number, optionally with a suffix like "(b)".
 # Three-digit bare numbers are far more likely to be real amounts on note detail rows, and the
 # broad 1-3 digit form was swallowing them before the row could reach the value parser.
-_NOTE_REF_TOKEN = re.compile(r"^\d{1,2}(?:\s*\([a-z]{1,3}\)|[a-z]{1,2})?[.,;]?$",
+#
+# …AND A SUB-NOTE CAN HAVE A SUB-NOTE OF ITS OWN: Gamma Civic 2024 cites "17(a)(ii)", "17(a)(iii)",
+# "28(d)(i)" (p88-89). None was note-shaped, so each stayed in its caption — "Taxation 17(a)(ii)"
+# matched no alias and the tax charge (99,170,070) / (74,215,202) was swept into other operating
+# expenses, leaving the tax line missing. Up to three bracketed parts, each a letter or a roman
+# numeral; an amount never carries one.
+_NOTE_REF_TOKEN = re.compile(r"^\d{1,2}(?:(?:\s*\([a-z]{1,4}\)){1,3}|[a-z]{1,2})?[.,;]?$",
                              re.IGNORECASE)
+# THE NEXT PART OF A LIST OF REFERENCES, after one that ended on its separator: Moroil 2025 cites
+# "5(a), (b)" and "5(a), (b), 11" (p68-69), and the "(b)" was read into the caption — "Gain on
+# property revaluation (b)", "Purchase of property, plant and equipment (b),". Only straight after a
+# reference that ended with a comma, and only ahead of the row's figures (see `_scan_row`).
+_NOTE_LIST_PART = re.compile(
+    r"^(?:\(\s*[a-z]{1,4}\s*\)|\d{1,2}[a-z]{0,2}(?:\([a-z]{1,4}\)){0,3})[.,;]?$", re.IGNORECASE)
 _CHINESE_CHAPTER_NOTE_REF = re.compile(
     r"^[一二三四五六七八九十]{1,3}\s*[、,，.]\s*(?P<no>\d{1,2})[.,;]?$"
 )
@@ -103,7 +115,8 @@ _WORD_GAP = 0.02
 def _is_note_ref_token(t: str) -> bool:
     """Is this token shaped like a note reference (and therefore not an amount)?"""
     s = t.strip()
-    return bool(s) and bool(_NOTE_REF_TOKEN.match(s) or _CHINESE_CHAPTER_NOTE_REF.match(s))
+    return bool(s) and bool(_NOTE_REF_TOKEN.match(s) or _CHINESE_CHAPTER_NOTE_REF.match(s)
+                            or _NOTE_REF_PAIR.match(s))
 
 
 def _note_ref_value(t: str) -> str | None:
@@ -128,6 +141,8 @@ def _note_ref_value(t: str) -> str | None:
     s = t.strip().strip(".,;")
     if _NOTE_REF_TOKEN.match(s):
         return s
+    if (pair := _NOTE_REF_PAIR.match(s)) is not None:
+        return pair.group(1)
     match = _CHINESE_CHAPTER_NOTE_REF.match(s)
     if match is None:
         return None
@@ -380,6 +395,11 @@ def _is_heading_with_note_only(label: str, vals: list) -> bool:
     return all(_is_date_ish(v) for v in vals)
 
 
+_AT_A_DATE = re.compile(
+    r"^\s*(?:as\s+)?(?:at|on)\s+(?:\d{1,2}\s+[a-z]{3,9}\.?,?\s+(?:19|20)\d{2}"
+    r"|[a-z]{3,9}\.?\s+\d{1,2},?\s+(?:19|20)\d{2})\s*$", re.IGNORECASE)
+
+
 def _is_noise_row(label: str, vals: list,
                   steps: tuple[tuple[str, object], ...] = (),
                   signals: tuple[tuple[Basis, str], ...] = (),
@@ -417,6 +437,14 @@ def _is_noise_row(label: str, vals: list,
             return True
     norm = apply_pipeline(label, steps)
     if _is_period_only_label(norm or label):
+        return True
+    # A STATEMENT'S DATE LINE, with its day and its year read as figures. Gamma Civic 2024 prints
+    # "at 31 December 2024" under its balance-sheet title (p88), and the row came out with 31 and
+    # 2024 in its two columns — swept into the other current assets, so total current assets showed
+    # 3,204,079,968 / 3,103,680,810 against 3,204,079,937 / 3,103,678,786. The bare "at" is not a
+    # period caption on its own (`_is_period_only_label` keeps "At 1 July 2024 1,233,698" as the
+    # balance row it is), so only where every figure is a date fragment.
+    if vals and all(_is_date_ish(v) for v in vals) and _AT_A_DATE.match(label):
         return True
     # Nothing but annotations: after the declared strips the row has no caption at all, and its
     # only figures are date fragments — a units/period header line, not a financial line.
@@ -1107,20 +1135,56 @@ def _scan_row(row: list[Word], fmt=None, *, extract_note_refs: bool = True,
     note_ref: str | None = None
     value_words: list[Word] = []
     i = 0
+    note_list_open: str | bool = False
     if (_ENUMERATED_ROWS.get() and len(row) > 1 and _ROW_ENUMERATOR.match(row[0].text.strip())
             and _OPENS_A_WORD.match(row[1].text.strip())):
         label_words.append(row[0])
         i = 1
     while i < len(row):
         tok = row[i].text.strip()
+        list_was_open, note_list_open = note_list_open, False
+        # THE NEXT PART OF A LIST OF NOTE REFERENCES — see `_NOTE_LIST_PART`. After a part that
+        # ended on its comma comes another part; after one that did not, only "&" or "and" carries
+        # the list on ("3, 4 & 39A").
+        if (list_was_open and not value_words
+                and any(_is_money_like(w.text, fmt) for w in row[i + 1:])):
+            if list_was_open == "part" and _NOTE_LIST_PART.match(tok):
+                note_list_open = "part" if tok.endswith(",") else "joiner"
+                i += 1
+                continue
+            # …only when a reference part follows it: Hindustan Unilever 2024-25 wraps "Total
+            # outstanding dues of creditors other than micro enterprises" / "and small enterprises"
+            # with its note 22 at the end of the first line (p143, p184), and the "and" that opens
+            # the caption's second line is the caption's.
+            if (list_was_open == "joiner" and tok.lower() in ("&", "and") and i + 1 < len(row)
+                    and _NOTE_LIST_PART.match(row[i + 1].text.strip())):
+                note_list_open = "part"
+                i += 1
+                continue
         # A YEAR PRINTED AS THE ROW'S CAPTION — "2026", "Fiscal 2027" — see `_CAPTION_YEARS`.
         if not value_words and _is_caption_year(row[i]):
+            label_words.append(row[i])
+            i += 1
+            continue
+        # A LINE THAT OPENS ON A DATE, ahead of the figures: "1 JANUARY", "31 DECEMBER", the second
+        # line of Gamma Civic's "CASH AND CASH EQUIVALENTS AT" (p94) — and the same date once the
+        # wrap has joined it to its first line, where it prints no year and figures follow it
+        # (`_a_yearless_date_before_figures`). A column header "As at 31 March 2025" keeps its
+        # date where the header reader reads it, and "Balance as at 1 April 2023 612.40" keeps its
+        # year for `_label_keeping_its_date`.
+        # Read as a figure, the day took the row's first column and the month — text after a
+        # figure — was dropped, so neither the opening nor the closing cash came out at all.
+        if (not value_words and _is_caption_date_part(row, i)
+                and (all(_is_caption_date_part(row, k) or _MONTH_TOKEN.match(row[k].text.strip())
+                         for k in range(i))
+                     or _a_yearless_date_before_figures(row, i, fmt))):
             label_words.append(row[i])
             i += 1
             continue
         if (extract_note_refs and _NOTE.match(tok) and i + 1 < len(row) and _is_note_ref_token(row[i + 1].text)
                 and not (i and _tight_after(row[i - 1], row[i]))):
             note_ref = _note_ref_value(row[i + 1].text)
+            note_list_open = "part" if row[i + 1].text.strip().endswith(",") else "joiner"
             i += 2
             continue
         # A BARE NOTE NUMBER STANDING BETWEEN THE LABEL AND THE FIGURES, as in
@@ -1143,6 +1207,7 @@ def _scan_row(row: list[Word], fmt=None, *, extract_note_refs: bool = True,
                 and not _outside_the_note_column(row[i], note_x)
                 and not _tight_after(row[i - 1], row[i])):
             note_ref = _note_ref_value(tok)
+            note_list_open = "part" if tok.endswith(",") else "joiner"
             i += 1
             continue
         # …AND A CHAPTER-NUMBERED NOTE REFERENCE THAT OPENS THE LINE. A caption that wraps onto two
@@ -1241,6 +1306,17 @@ def _dollar_amount_in_a_text_row(row: list[Word], i: int, fmt=None) -> bool:
 
 
 _CURRENCY_WORD = re.compile(r"^(?:₹|Rs\.?|INR)$")
+def _a_yearless_date_before_figures(row: list[Word], i: int, fmt=None) -> bool:
+    """Whether ``row[i]`` is the day of a day-and-month printed with no year, figures after it."""
+    if not _DAY_PART.match(row[i].text.strip()) or i + 1 >= len(row):
+        return False
+    if not _MONTH_TOKEN.match(row[i + 1].text.strip()):
+        return False
+    if i + 2 < len(row) and _YEAR_PART.match(row[i + 2].text.strip()):
+        return False
+    return any(_is_money_like(w.text, fmt) for w in row[i + 2:])
+
+
 _MONTH_WORD = re.compile(r"^(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?"
                          r"|aug(?:ust)?|sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)$",
                          re.I)
@@ -1694,7 +1770,23 @@ def _is_wrapped_head(head: list[Word], cont: list[Word],
     # In a bilingual filing the translation is appended to the SAME row, so the head's last
     # English word is not the row's last word. Grammar is judged on the Latin portion only.
     head_latin = re.sub(r"\s+", " ", _HAN.sub(" ", head_text)).strip()
+    # A HEAD THAT OPENS AS A TOTAL OPENS NO SECTION. Gamma Civic 2024 prints its cash-flow totals
+    # in capitals over two lines — "NET CASH FLOWS USED IN FINANCING" / "ACTIVITIES",
+    # "NET (DECREASE)/INCREASE IN CASH AND CASH" / "EQUIVALENTS", "CASH AND CASH EQUIVALENTS AT" /
+    # "1 JANUARY" (p93-94) — and the first line, a caps line ending in no connective, was taken for a
+    # banner. The figures kept a caption of "ACTIVITIES" or "EQUIVALENTS", which named nothing and
+    # was swept into other financing cash flows: financing showed (743,159,285) against the
+    # (399,681,936) printed. A banner names a section and never opens with "Net" or "Total" or
+    # with the cash balance, so such a head wraps into a short line of capitals beneath it.
+    if (_OPENS_AS_A_TOTAL.match(head_latin) and cont_text == cont_text.upper()
+            and len(_LATIN_WORD.findall(cont_text)) <= 3 and re.search(r"[A-Z]", cont_text)):
+        return True
     return bool(_HEAD_INCOMPLETE.search(head_latin)) or bool(_CONT_STARTS.match(cont_text))
+
+
+_OPENS_AS_A_TOTAL = re.compile(
+    r"^(?:NET|TOTAL)\b|^CASH\s+AND\s+CASH\s+EQUIVALENTS\b|^OPERATING\s+\(?(?:PROFIT|LOSS)")
+_LATIN_WORD = re.compile(r"[A-Za-z]{2,}")
 
 
 # A HEADING A FACE PRINTS OVER THE ROWS BENEATH IT, with no colon and in sentence case, so neither
@@ -1743,12 +1835,20 @@ _EQUITY_BLOCK_HEADING = re.compile(
 # plans", JSW's "A (i) Items that will not be reclassified…" over "a) Remeasurement gain/(loss)…" —
 # and that row reached no line. The heading is only ever printed alone; a line that also carries the
 # block's figures is its subtotal, and has them beside it on the same line.
+#
+# …AND THE IFRS WORDING THAT NAMES THE INCOME ITSELF: Lux Island Resorts 2025 heads its blocks
+# "Other comprehensive income that will not be reclassified" / "to profit or loss subsequently"
+# (p124), and both headings were folded onto the first row under them — the revaluation gain
+# 384,540 / (129,336) and the cash-flow hedge movement (47,237) / (64,461) reached no line, and
+# total other comprehensive income came to (66,370) against 270,933 printed.
 _OCI_BLOCK_HEADING = re.compile(
     r"(?i)^\W*(?:[a-h](?:[.)]\s*|\s+))?(?:\(?[ivx]{1,4}[.)]\s*)?"
-    r"items?\s+that\s+(?:will|would|may)\s+(?:not\s+)?(?:subsequently\s+)?(?:be\s+)?"
+    r"(?:items?|other\s+comprehensive\s+\(?(?:income|loss|expense)\)?"
+    r"(?:\s*/\s*\(?(?:income|loss|expense)\)?)?)"
+    r"\s+that\s+(?:will|would|may)\s+(?:not\s+)?(?:subsequently\s+)?(?:be\s+)?"
     r"(?:subsequently\s+)?reclassified\s+(?:subsequently\s+)?(?:in)?to\s+(?:the\s+)?"
     r"(?:statement\s+of\s+)?profit\s+(?:or|and|&)\s+loss"
-    r"(?:\s+in\s+subsequent\s+(?:periods?|years?))?\s*:?$")
+    r"(?:\s+in\s+subsequent\s+(?:periods?|years?)|\s+subsequently)?\s*:?$")
 # AND SCHEDULE III'S "Income", printed alone over "Revenue from operations", "Other income" and
 # "Total income" (Chemplast Sanmar, IndiGo). It is the income half of the statement, but no section
 # word can say so: "income" ends "Other income" and opens "Income tax", and the section vocabulary
@@ -2369,7 +2469,10 @@ def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
                          or (on_face and _is_enumerated_other(_scan_row(pending, fmt)[0]))
                          # …or one the CAS sign note closes — see `_closed_by_its_sign_note`.
                          or _complete_by_its_sign_note(pending, fmt))
-                    and not _translates(_scan_row(pending, fmt)[0], label_words)):
+                    and not _translates(_scan_row(pending, fmt)[0], label_words)
+                    # …UNLESS THIS ROW'S CAPTION OPENS ON A CONNECTIVE, which no caption does: it is
+                    # the pending caption's second line — see `_continues_on_a_connective`.
+                    and not _continues_on_a_connective(pending, label_words, fmt)):
                 out.append(pending)
                 pending = []
             # A BRACKETED NOTE REFERENCE PRINTED AS THE LAST LINE of a caption that is already
@@ -2553,7 +2656,9 @@ def _merge_wrapped_labels(rows: list[list[Word]], fmt=None,
             # A COMPLETE CAPTION IS A LINE ITEM, not the head of a wrap — see ``known`` — unless
             # the next line is its Chinese translation, printed beside the figures (`_translates`).
             and (not _is_known_caption(label_words, steps, known)
-                 or _translates(label_words, _scan_row(nxt, fmt)[0]))
+                 or _translates(label_words, _scan_row(nxt, fmt)[0])
+                 # …or the next line opens on a connective — see `_continues_on_a_connective`.
+                 or _continues_on_a_connective(row, _scan_row(nxt, fmt)[0], fmt))
             # …and on a face, an enumerated 其他 is one too — see `_is_enumerated_other`.
             and not (on_face and _is_enumerated_other(label_words))
             # …and so is a caption the CAS sign note closes — see `_closed_by_its_sign_note`.
@@ -2972,6 +3077,39 @@ _ENUMERATED_OTHER = re.compile(
 
 def _is_enumerated_other(label_words: list[Word]) -> bool:
     return bool(label_words) and bool(_ENUMERATED_OTHER.match(_join_words(label_words)))
+
+
+def _continues_on_a_connective(head_row: list[Word], label_words: list[Word], fmt=None) -> bool:
+    """Whether ``label_words`` are the second line of the caption in ``head_row``: they open on a
+    connective ("and", "of", "for" — `_CONT_STARTS`), which no caption opens on, in lower case, at
+    or right of the head's own left edge and directly beneath it.
+
+    A KNOWN CAPTION CAN BE THE HEAD OF A LONGER ONE, and the vocabulary test that stops an empty
+    line item from swallowing the next caption (`_is_known_caption`) cannot see that. MEASURED on
+    Vivo Energy Mauritius 2025 (p69): "Payments for purchase of property, plant and equipment" is an
+    alias, so it was let go as an empty row of its own, and its second line "and intangible assets"
+    kept the figures (300,791) / (263,191) — a caption that names nothing, swept into other
+    investing cash flows. The connective is lower case on purpose: "And" or "Of" at the start of a
+    printed line is a caption's first word, not a continuation.
+    """
+    head_labels = _scan_row(head_row, fmt)[0]
+    if not head_labels or not label_words:
+        return False
+    first = min(label_words, key=lambda w: w.bbox.x0)
+    # …OR THE HEAD STOPS ON A COMMA: a caption does not end on one. MEASURED on Far East Horizon
+    # 2024 (p180) once "Proceeds from disposal of property, plant and equipment" became an alias:
+    # "Proceeds from disposal of property, plant and equipment," / "intangible assets and other
+    # long-term assets" was let go as an empty head, and its second line took the figures
+    # 1,923,864 / 1,243,767 into other investing cash flows.
+    last = max(head_labels, key=lambda w: w.bbox.x1)
+    open_head = last.text.rstrip().endswith(",")
+    if not first.text[:1].islower() or not (
+            open_head or _CONT_STARTS.match(_join_words(label_words))):
+        return False
+    head_box, tail_box = _row_box(head_labels), _row_box(label_words)
+    line_h = max(head_box.y1 - head_box.y0, 1e-4)
+    return (tail_box.x0 >= head_box.x0 - 0.01 and tail_box.x0 <= head_box.x0 + 0.06
+            and 0 < tail_box.y0 - head_box.y0 <= 2.0 * line_h)
 
 
 def _is_known_caption(label_words: list[Word], steps: tuple[tuple[str, object], ...],
@@ -3908,6 +4046,13 @@ def _is_basis_caption_row(label: str, vals: list,
     if not vals or not all(_is_date_ish(v) for v in vals):
         return False
     tokens = [t for t in re.split(r"[\s/|·、,，()（）:：]+", label) if t]
+    # …WITH THE ARTICLE AND THE NOTE COLUMN'S HEADER BESIDE THE SIGNALS. Lux Island Resorts 2025
+    # sets "Notes" on the baseline of "THE GROUP" and "THE COMPANY", and the year row under them
+    # folded in: "Notes THE GROUP THE COMPANY" 2025 / 2024 was read as a row on each of its four
+    # statement halves (p122-p127) and swept into the residuals — 2,025 / 2,024 on the other
+    # non-current assets and on the operating costs. Neither word is an entity, so at least one
+    # token must still be a signal.
+    tokens = [t for t in tokens if _norm_signal(t) != "the" and not _NOTE_HDR.match(t.strip())]
     if not tokens:
         return False
     return all(_signal_side(t, signals) is not None for t in tokens)
@@ -4585,6 +4730,9 @@ def _detect_note_column(rows: list[list[Word]]) -> float | None:
 # ONLY INSIDE A DETECTED NOTE COLUMN (`_detect_note_column`): elsewhere a "2.2" is a figure.
 _SECTIONED_NOTE_REF = re.compile(r"^(\d{1,2}(?:\.\d{1,2}){1,2}[A-Za-z]?)[.,;]?$")
 _NOTE_REF_LIST = re.compile(r"^(\d{1,2}[A-Za-z]{0,2})(?:,\s*\d{1,2}[A-Za-z]{0,2})+[.,;]?$")
+# …and two notes cited with a slash, "Bank Overdrafts 18/26" (Gamma Civic 2024, p88): the caption
+# kept it and matched no alias. Cites the first; inside a detected note column only, like the list.
+_NOTE_REF_PAIR = re.compile(r"^(\d{1,2}[A-Za-z]{0,2})\s*/\s*\d{1,2}[A-Za-z]{0,2}[.,;]?$")
 
 
 def _note_column_ref(t: str) -> str | None:
@@ -4594,7 +4742,7 @@ def _note_column_ref(t: str) -> str | None:
     s = t.strip()
     if (ref := _note_ref_value(s)) is not None:
         return ref
-    m = _SECTIONED_NOTE_REF.match(s) or _NOTE_REF_LIST.match(s)
+    m = _SECTIONED_NOTE_REF.match(s) or _NOTE_REF_LIST.match(s) or _NOTE_REF_PAIR.match(s)
     return m.group(1) if m else None
 
 
@@ -6515,6 +6663,13 @@ BY_POSITION_FLAG = "period_by_position"
 # under development + Completed properties for sale + …", bound inventories by its second part and
 # added the whole of current assets, 13,991,585, to the 40,904 the filing prints.
 COMPOSED_CAPTION_FLAG = "caption_composed_of_its_rows"
+# A BARE FIGURE LINE THE READER PROVED IS ITS SECTION'S TOTAL (`_face_section_total`): captioned
+# with the section's banner, because that is the only caption the page gives it. The banner is what
+# the section IS, not what its total is called, so caption mapping matched it to nothing — on Vivo
+# Energy Mauritius 2025 (p67) all four of 2,050,718 / 2,738,706 / 258,549 / 3,323,069 stayed
+# unclassified and no balance-sheet section had a printed total to be checked against. The mapper
+# reads this flag and asks for the section's total by its own name (`stages.map_ontology`).
+FACE_SECTION_TOTAL_FLAG = "face_section_total"
 # A NOTE ROW PRINTED WITH A NIL MARK IN EVERY COLUMN ("(iii) Disputed dues - MSME  -  -  -"): kept
 # as a row so the request can say it was printed, and carrying no figure at all.
 NIL_ROW_FLAG = "printed_nil"
@@ -7121,17 +7276,66 @@ def _cell_text(t: str) -> str:
     return _FOOTMARK.sub("", t.strip())
 
 
+# WHERE A DATED CAPTION'S DAY AND YEAR ARE LEFT OUT OF THE CELLS: an equity statement's face only,
+# set by `build_line_items` for the page it reads. MEASURED on every note page as well, and held
+# back there: a property, plant and equipment movement note ("As at April 01, 2024" over the
+# additions, the charge for the year and the closing cost) then passed for a matrix of components,
+# which is the reading cause 22 asks for, but the notes carry no entity scope, so Laurus Labs
+# 2025-26's standalone note (page index 112) was read beside the consolidated one (147) and the
+# depreciation charge it feeds came out 821.09 / 751.83 against the 458.25 / 409.01 printed.
+_EQUITY_DATE_CAPTIONS: ContextVar[bool] = ContextVar("equity_date_captions", default=False)
+
+
 def _matrix_cells(row: list[Word], fmt=None) -> list[Word]:
     """The value-shaped tokens of a row. A nil dash counts: it carries no amount but it does
-    mark a column position, which is what the column geometry is derived from."""
+    mark a column position, which is what the column geometry is derived from.
+
+    THE DAY AND THE YEAR OF A DATED CAPTION ARE NOT CELLS — on an equity statement
+    (`_EQUITY_DATE_CAPTIONS`). Vivo Energy Mauritius 2025 captions its balance rows "At 01 January
+    2024" (p68), and the "01" and the "2024" of every such row stood in a band of their own: six
+    columns where three are printed, which `_matrix_column_names` could not name, so the page read
+    no rows at all (`equity_matrix_unnamed_columns=6`). Moroil 2025 sets the date the other way
+    round, "Balance at July 1, 2024" (p70). A 1-2 digit number beside a month name, and a year after
+    a month or after a day that follows one, is the caption's date.
+    """
     out: list[Word] = []
+    dated = _EQUITY_DATE_CAPTIONS.get()
     for i, w in enumerate(row):
         t = _cell_text(w.text)
         if _NIL_CELL.match(t) and _dash_inside_a_caption(row, i):
             continue
+        if dated and _is_caption_date_part(row, i):
+            continue
         if _NIL_CELL.match(t) or _num(t, fmt) is not None:
             out.append(w)
     return out
+
+
+# A MONTH AS A DATE PRINTS IT: the name in full or cut to three or four letters, with the stop or
+# the comma a date can carry ("July 1, 2024", "31 Dec. 2025"). Its own name, because `_MONTH_WORD`
+# above is the bare name `_number_inside_the_caption` reads, and a second binding of that name
+# would replace it for the whole module; and no wider, because "Market", "Declared" or
+# "Decrease" beside a note number is not a date.
+_MONTH_TOKEN = re.compile(r"^(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?"
+                          r"|aug(?:ust)?|sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?"
+                          r"|dec(?:ember)?)\.?,?$", re.IGNORECASE)
+_DAY_PART = re.compile(r"^\d{1,2}(?:st|nd|rd|th)?,?$")
+_YEAR_PART = re.compile(r"^(?:19|20)\d{2},?$")
+
+
+def _is_caption_date_part(row: list[Word], i: int) -> bool:
+    """Whether ``row[i]`` is the day or the year of a date written out in the row's caption."""
+    t = row[i].text.strip()
+    prev = row[i - 1].text.strip() if i > 0 else ""
+    nxt = row[i + 1].text.strip() if i + 1 < len(row) else ""
+    if _DAY_PART.match(t):
+        return bool(_MONTH_TOKEN.match(nxt) or _MONTH_TOKEN.match(prev))
+    if _YEAR_PART.match(t):
+        if _MONTH_TOKEN.match(prev):
+            return True
+        before = row[i - 2].text.strip() if i > 1 else ""
+        return bool(_DAY_PART.match(prev) and _MONTH_TOKEN.match(before))
+    return False
 
 
 def _dash_inside_a_caption(row: list[Word], i: int) -> bool:
@@ -7232,7 +7436,8 @@ def _amount_shaped(tokens: list[str]) -> bool:
     return bool(toks) and all(_AMOUNT_SHAPED.match(t) for t in toks)
 
 
-def _detect_matrix(rows: list[list[Word]], fmt=None) -> _Matrix | None:
+def _detect_matrix(rows: list[list[Word]], fmt=None,
+                   min_cols: int = _MATRIX_MIN_COLS) -> _Matrix | None:
     """Geometry of a matrix face, or None when the page is not one.
 
     Columns come from the value rows themselves (clustered right edges) rather than from the
@@ -7243,7 +7448,7 @@ def _detect_matrix(rows: list[list[Word]], fmt=None) -> _Matrix | None:
     cells_by_row: dict[int, list[Word]] = {}
     for i, row in enumerate(rows):
         cells = _matrix_cells(row, fmt)
-        if len(cells) >= _MATRIX_MIN_COLS and _strong_cells(cells, fmt) * 2 >= len(cells):
+        if len(cells) >= min_cols and _strong_cells(cells, fmt) * 2 >= len(cells):
             data_idx.append(i)
             cells_by_row[i] = cells
     if len(data_idx) < _MATRIX_MIN_ROWS:
@@ -7260,7 +7465,7 @@ def _detect_matrix(rows: list[list[Word]], fmt=None) -> _Matrix | None:
     min_support = max(2, (len(data_idx) + 2) // 3)
     kept = [(_median([e for e, _ in g]), len(g), _amount_shaped([t for _, t in g]))
             for g in groups if len(g) >= min_support]
-    if len(kept) < _MATRIX_MIN_COLS:
+    if len(kept) < min_cols:
         return None
     full = len(data_idx)
 
@@ -7289,11 +7494,11 @@ def _detect_matrix(rows: list[list[Word]], fmt=None) -> _Matrix | None:
         _edge, support, amounts = cluster
         return support >= full and amounts
 
-    while (len(kept) > _MATRIX_MIN_COLS
+    while (len(kept) > min_cols
            and kept[1][0] - kept[0][0] > 2.5 * _pitch([e for e, _s, _a in kept])
            and not _is_a_component_column(kept[0])):
         kept.pop(0)
-    while (len(kept) > _MATRIX_MIN_COLS
+    while (len(kept) > min_cols
            and kept[-1][0] - kept[-2][0] > 2.5 * _pitch([e for e, _s, _a in kept])
            and not _is_a_component_column(kept[-1])):
         kept.pop()
@@ -7531,6 +7736,22 @@ def _is_matrix_noise(label: str, row_text: str, vals: list) -> bool:
     return bool(_HDR_LABEL.search(label)) or _is_period_only_label(label)
 
 
+# THE SUB-HEADING AN IFRS STATEMENT OF CHANGES IN EQUITY PRINTS OVER ITS OWNER TRANSACTIONS —
+# "Transactions with owners", "Transactions with owners of the Company, recognised directly in
+# equity", "Contributions by and distributions to owners" — alone on its line, its total printed
+# below as "Total transactions with owners". Folded forward as the head of a wrapped caption, it
+# was glued onto the first movement under it: Vivo Energy Mauritius 2025 (p68) read "Transactions
+# with owners Dividends declared (Note 26)" (486,456) / (504,343), a caption no dividend line can
+# name. Anchored at both ends, so the TOTAL and any row with words of its own still read as captions.
+_EQUITY_OWNERS_HEADING = re.compile(
+    r"(?i)^\W*(?:transactions\s+with\s+(?:the\s+)?(?:owners|shareholders|equity\s+holders)"
+    r"(?:\s+of\s+the\s+(?:company|group|parent|bank))?"
+    r"(?:\s+in\s+their\s+capacity\s+as\s+owners)?"
+    r"(?:\s*,?\s*(?:recorded|recognised|recognized)\s+directly\s+in\s+equity)?"
+    r"|contributions\s+by\s+and\s+distributions\s+to\s+owners"
+    r"(?:\s+of\s+the\s+(?:company|group|parent))?)\s*:?$")
+
+
 def _matrix_items(m: _Matrix, names: list[str], *, page_index: int, document_id: str | None,
                   source_kind: str, ordinal_start: int, fmt=None,
                   unit_ctx: UnitContext | None = None, dims: tuple[str, ...] = (),
@@ -7553,6 +7774,12 @@ def _matrix_items(m: _Matrix, names: list[str], *, page_index: int, document_id:
     ordinal = ordinal_start
     basis = _matrix_basis([w for row in m.rows for w in row], page_scope)
     value_left = m.bands[0][0]
+    # A MATRIX'S NOTES COLUMN, headed "Notes" and holding bare note numbers, sits left of the first
+    # component column, so its references were read into the captions: Phoenix Beverages 2025
+    # (p130) "Dividends 23", Moroil 2025 (p70) "Dividends 31" and "Transfer 17(b)" — a caption no
+    # dividend line names. Only a face's matrix, and only where the header names the column
+    # (`_detect_note_column`).
+    note_x = _detect_note_column(m.rows) if on_face else None
     pending: list[Word] = []                 # label lines waiting for the row that has figures
     tail: BBox | None = None                 # box of the LAST pending line, for the wrap test
     spliced: set[int] = set()                # rows already consumed as a caption's TAIL
@@ -7614,6 +7841,11 @@ def _matrix_items(m: _Matrix, names: list[str], *, page_index: int, document_id:
             if _is_known_caption(label_words, (), frozenset()):
                 pending, tail = [], None
                 continue
+            # AN IFRS EQUITY STATEMENT'S OWN SUB-HEADING heads the rows under it and is no part of
+            # their captions — see `_EQUITY_OWNERS_HEADING`.
+            if _EQUITY_OWNERS_HEADING.match(_join_words(label_words)):
+                pending, tail = [], None
+                continue
             if _opens_its_own_line(label_words):
                 # ITS ENUMERATION SAYS IT STARTS A CAPTION, so it cannot continue the one pending
                 # above it — but it is still the head of ITS OWN row, whose figures are printed on
@@ -7662,6 +7894,20 @@ def _matrix_items(m: _Matrix, names: list[str], *, page_index: int, document_id:
                          or _completes_the_matrix_caption(label_words, nxt_label))):
                 label_words = label_words + nxt_label
                 spliced.add(i + 1)
+        if on_face and label_words:
+            # THE NOTES COLUMN IS NO PART OF THE CAPTION — see `note_x` above. Only at the END of
+            # the caption, never inside it ("At 1 July 2024" keeps its day): a note number under the
+            # "Notes" heading, or one standing apart from the words before it, as the company table
+            # under a group table prints it (Moroil p70 sets its "Notes" heading 0.03 of the page
+            # left of the "31" beneath it).
+            ordered = sorted(label_words, key=lambda w: w.bbox.x0)
+            while (len(ordered) > 1 and _is_note_number(ordered[-1].text)
+                   and ((note_x is not None and abs(_xc(ordered[-1]) - note_x) <= 0.03)
+                        or ordered[-1].bbox.x0 - ordered[-2].bbox.x1 > 0.01)):
+                ordered.pop()
+            if len(ordered) < len(label_words):
+                keep = {id(w) for w in ordered}
+                label_words = [w for w in label_words if id(w) in keep]
         label = _join_words(_regroup_scripts(label_words))
         if not label:
             continue
@@ -7782,10 +8028,50 @@ def _maybe_matrix(words: list[Word], *, statement: str | None,
                       or _NIL_CELL.match(_cell_text(w.text)))
         if numeric < _MATRIX_MIN_COLS * _MATRIX_MIN_ROWS:
             return None, None
-    m = _detect_matrix(_group_rows(words, _line_tol(words), fold=page_fold), fmt)
+    rows = _group_rows(words, _line_tol(words), fold=page_fold)
+    m = _detect_matrix(rows, fmt)
+    if m is None and statement == "changes_in_equity":
+        return _small_equity_matrix(rows, fmt)
     if m is None:
         return None, None
     return m, _matrix_column_names(m)
+
+
+# THE FEWEST COMPONENTS AN EQUITY STATEMENT PRINTS: share capital, retained earnings and their
+# total. `_MATRIX_MIN_COLS` asks for five because four is the widest a two-column comparative
+# prints (two bases by two periods), and a single entity with one reserve prints three. MEASURED on
+# Vivo Energy Mauritius 2025 (p68): Share Capital | Retained Earnings | Total Equity, fourteen rows,
+# and none was read. Below five, a page is a matrix only when its header names every column and
+# the last is the TOTAL — a comparative's columns are years or entities, never a total.
+_SMALL_MATRIX_MIN_COLS = 3
+_TOTAL_COLUMN = re.compile(r"\btotal\b|合计|合計|總計|总计", re.IGNORECASE)
+
+
+def _small_equity_matrix(rows: list[list[Word]], fmt=None
+                         ) -> tuple[_Matrix | None, list[str] | None]:
+    m = _detect_matrix(rows, fmt, min_cols=_SMALL_MATRIX_MIN_COLS)
+    if m is None:
+        return None, None
+    # …AND ONLY A SMALL ONE. Asked for three columns a row, the detector also finds a WIDE matrix
+    # whose rows print fewer than five figures each — the header-less continuation page of a CAS
+    # statement, which `build_line_items` refuses on purpose (`equity_matrix_continuation_no_
+    # header`). Zhongshan Public Utilities 2024 (page indexes 157 and 159, seven components) was
+    # read that way and gave eight rows of cut captions ("一、上年期末", "三、本期增减变动金额（减").
+    if len(m.bands) >= _MATRIX_MIN_COLS:
+        return None, None
+    names = _matrix_column_names(m)
+    if not names or not _TOTAL_COLUMN.search(names[-1]):
+        return None, None
+    # …AND ITS CELLS ARE PRINTED AMOUNTS. With three columns asked for, the tail of a CAS cash
+    # flow over the first lines of the equity statement beneath it passed for a matrix: Kaishan
+    # 2024 (page index 127) gave two rows of number fragments ("一、 993, 2,39 375, 324,") whose
+    # "cells" were 210, 619, 191 and 621. A component column holds amounts, printed with their
+    # thousands separators; a matrix whose cells mostly do not is not one.
+    cells = [_cell_text(w.text) for row in m.rows[m.first_data:] for w in _matrix_cells(row, fmt)
+             if not _NIL_CELL.match(_cell_text(w.text))]
+    if not cells or sum(1 for t in cells if _AMOUNT_SHAPED.match(t)) * 3 < len(cells) * 2:
+        return None, None
+    return m, names
 
 
 # How far a figure's RIGHT EDGE may sit from a column's, as a fraction of page width, and still be
@@ -8270,7 +8556,107 @@ def fuse_figures_wrapped_over_the_page(words: list[Word], next_words: list[Word]
             [w for w in next_words if id(w) not in dropped], joined)
 
 
-def build_line_items(words: list[Word], *, page_index: int, document_id: str | None,
+def build_line_items(words: list[Word], **kwargs) -> tuple[list[LineItem], int]:
+    """Reconstruct the line items of one page (or one half of a spread) — see `_build_line_items`.
+
+    An equity statement's dated captions are read with their day and year left out of the matrix
+    cells (`_EQUITY_DATE_CAPTIONS`); every other page is read as it always was.
+
+    AN EQUITY STATEMENT PAGE THAT PRINTS THE GROUP'S TABLE ABOVE THE COMPANY'S is read one table at
+    a time, each on the basis its own heading names (`_equity_entity_blocks`)."""
+    equity = kwargs.get("statement") == "changes_in_equity"
+    token = _EQUITY_DATE_CAPTIONS.set(equity)
+    try:
+        blocks = (_equity_entity_blocks(words, kwargs.get("number_format"),
+                                        kwargs.get("page_fold", DETECT_FOLD))
+                  if equity and kwargs.get("on_face", True) else None)
+        if not blocks:
+            return _build_line_items(words, **kwargs)
+        log = kwargs.get("log")
+        if log:
+            log(f"extract:page={kwargs.get('page_index')}:equity_entity_blocks="
+                + ",".join(f"{entity}({len(block)} words)" for entity, block in blocks))
+        items: list[LineItem] = []
+        ordinal = int(kwargs.get("ordinal_start", 0) or 0)
+        for entity, block in blocks:
+            got, ordinal = _build_line_items(block, **{**kwargs, "page_scope": entity,
+                                                       "ordinal_start": ordinal})
+            items += got
+        return items, ordinal
+    finally:
+        _EQUITY_DATE_CAPTIONS.reset(token)
+
+
+# AN ENTITY'S OWN TABLE ON AN EQUITY STATEMENT PAGE, headed by the entity alone: "THE GROUP" over the
+# group's table and "THE COMPANY" over the company's, or the same name printed at the head of the
+# table's unit row ("THE GROUP  Notes  MUR '000 …"). What else such a heading line may carry is the
+# column chrome: "Notes" and the units.
+_ENTITY_BLOCK_HEAD = re.compile(r"^\W*(?:the\s+)?(group|company)\b(?![’'`]s)(?P<rest>.*)$",
+                                re.IGNORECASE)
+_BLOCK_HEAD_CHROME = re.compile(r"\bnotes?\b|[A-Za-z$₹€£]{0,4}\s?['’‘`]?\s?0{3}\b|[\s()]+",
+                                re.IGNORECASE)
+_BLOCK_ENTITY = {"group": "consolidated", "company": "company"}
+
+
+def _equity_entity_blocks(words: list[Word], fmt=None, fold=DETECT_FOLD
+                          ) -> list[tuple[str, list[Word]]] | None:
+    """``[(entity, words)]`` — the page cut into the tables of the entities it prints one under the
+    other, or None when it prints one.
+
+    A Mauritian statement of changes in equity prints both entities on one page, the group's table
+    above the company's, each under its own heading and column header. Read as one matrix, the two
+    were one grid with one basis: MEASURED on Moroil 2025 (printed page 70) the group's seven
+    columns and the company's five clustered into eight bands, one of them nothing but nil dashes
+    with no heading, so the matrix was unnamed and the page read NO rows (every run since the
+    baseline); on Phoenix Beverages 2025 (p130) the 51 company values were filed as the group's,
+    and the transposed rows added the two tables — profit for the year 1,539,991 = 803,565 +
+    736,426, dividends (773,010) = 2 x (386,505).
+
+    A table runs from its heading's own header band — the first line after the previous table's
+    last row of figures — to the line before the next table's. Only when the page prints at least
+    two DIFFERENT entity headings, each followed by figures."""
+    rows = _group_rows(words, _line_tol(words), fold=fold) if words else []
+    if len(rows) < 4:
+        return None
+
+    def valued(row: list[Word]) -> bool:
+        _lw, _nr, vw = _scan_row(row, fmt)
+        return sum(1 for w in vw if _num(w.text, fmt) is not None
+                   and not _YEAR_ONLY.fullmatch(w.text.strip())) >= 2
+
+    heads: list[tuple[int, str]] = []
+    for i, row in enumerate(rows):
+        m = _ENTITY_BLOCK_HEAD.match(_join_words(row))
+        if not m or _BLOCK_HEAD_CHROME.sub("", m.group("rest") or ""):
+            continue
+        if valued(row):
+            continue
+        heads.append((i, _BLOCK_ENTITY[m.group(1).lower()]))
+    if len({e for _, e in heads}) < 2:
+        return None
+    # The first heading of each entity, in printed order; a repeated heading is the same table's.
+    firsts: list[tuple[int, str]] = []
+    for i, entity in heads:
+        if not firsts or firsts[-1][1] != entity:
+            firsts.append((i, entity))
+    if len(firsts) < 2:
+        return None
+    starts = [0]
+    for i, _entity in firsts[1:]:
+        last_figures = max((k for k in range(i) if valued(rows[k])), default=None)
+        if last_figures is None:
+            return None                       # no figures above the second heading: one table
+        starts.append(last_figures + 1)
+    out: list[tuple[str, list[Word]]] = []
+    for n, (head, entity) in enumerate(firsts):
+        lo, hi = starts[n], (starts[n + 1] if n + 1 < len(starts) else len(rows))
+        if not lo <= head < hi or not any(valued(rows[k]) for k in range(head, hi)):
+            return None
+        out.append((entity, [w for row in rows[lo:hi] for w in row]))
+    return out
+
+
+def _build_line_items(words: list[Word], *, page_index: int, document_id: str | None,
                      source_kind: str, ordinal_start: int = 0,
                      number_format=None, statement: str | None = None,
                      log=None, scope: ScopeSelection | None = None,
@@ -9059,6 +9445,7 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
         # bare figure is far likelier a stray, so the arithmetic is the evidence: it is the
         # section's total only when, in every column it prints, it is exactly the sum of the rows
         # printed under the banner in force. Its caption is that banner, as printed.
+        section_total_line = False
         if value_words and not label and on_face and not promoted and section:
             if face_section[0] == section and _face_section_total(
                     value_words, face_section[1], number_format):
@@ -9084,6 +9471,7 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                         log(f"extract:page={page_index}:face_subtotal_recaptioned("
                             f"{partial.source_label[:60]!r})")
                 face_total_now = list(face_captions)
+                section_total_line = True
                 if log:
                     log(f"extract:page={page_index}:face_section_total({section!r})")
 
@@ -9383,6 +9771,8 @@ def build_line_items(words: list[Word], *, page_index: int, document_id: str | N
                                           if promoted else []),
                       section_hint=section, group_hint=group, source=ValueSource.MACHINE,
                       parent_id=breakdown_of.id if breakdown_of is not None else None)
+        if section_total_line:
+            li.confidence.flags.append(FACE_SECTION_TOTAL_FLAG)
         if sub_open and not sub_stack:
             group = ""          # the last block a printed heading opened has ended
             sub_open = False

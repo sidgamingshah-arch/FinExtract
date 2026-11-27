@@ -540,6 +540,30 @@ def evaluate(template_def: dict | None, reported, *, labels: dict[str, str] | No
         complete = not requires_complete or all(component.value is not None
                               for component in calc.components)
         calc.computable = total is not None and complete
+        # A LINE THAT IS ITS OWN PRINTED FIGURE LESS ITS PARTS (`reported_total_key` is the line,
+        # `reported_total_op: diff`) HAS NOTHING TO COMPUTE WHERE THE FILING PRINTS NO FIGURE FOR IT.
+        # The parts are then lines of their own, and the "sum" left over is not this line: Cash
+        # Equivalents is "printed cash equivalents less pledged deposits", and with no cash
+        # equivalents printed it became the pledged deposits themselves — counted a second time in
+        # total current assets, and taken out of Cash in Hand and at Banks a second time as well.
+        # MEASURED on 佳明 2025/26 (p63): pledged deposits 135,199 became Cash Equivalents 135,199
+        # and Cash in Hand and at Banks -246,103 (24,295 printed); China SCE 2023 (p103) the same
+        # with restricted cash 1,564,401; BYD Electronic 2024 by its pledged deposits 50. A SUBTOTAL
+        # keeps the sum of its parts — 1966 prints no inventories line, and Inventories is its
+        # properties under development plus completed properties for sale.
+        if (calc.computable and reported_total is None and reported_total_key == key
+                and reported_total_op == DIFF and nodes[key].get("role") == "line"):
+            calc.computable = False
+        # …AND A BALANCE-SHEET LINE ITS PARTS TAKE BELOW ZERO IS NOT ITS FIGURE. A balance is not
+        # negative; a diff that makes it so has subtracted parts the printed row does not hold.
+        # MEASURED on Far East Horizon 2024 (p174): current restricted deposits 1,100,401 less the
+        # non-current restricted deposits printed on a row of their own came to -8,507,714. The
+        # printed figure stands, as a cascade rung computing below zero is refused.
+        if (calc.computable and reported_total is not None and reported_total_key == key
+                and reported_total_op == DIFF and nodes[key].get("role") == "line"
+                and key.startswith(("bs_ca__", "bs_nca__", "bs_cl__", "bs_ncl__"))
+                and float(reported_total) > 0 and float(total) < 0):
+            calc.computable = False
         # A BALANCE-SHEET SUBTOTAL OF DEDUCTIONS ALONE IS NOT ITS FIGURE. Net Trade Receivables is
         # gross + allowance, and where the gross is not disclosed the allowance alone is not the
         # net receivable — it was published as one once the allowance was answered and the gross

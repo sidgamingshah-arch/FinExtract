@@ -146,7 +146,18 @@ _SCALE_PATTERNS = [
 # …)" and prints ₹ only where its font maps it (the EPS caption on some pages, "(`)" on others), so a
 # scan reaching the standalone face first read crores with no currency, and every request said
 # "crores (x10,000,000), currency not stated" over figures the filing says are rupees.
-_CCY = [("₹", "INR"), ("rs.", "INR"), ("inr", "INR"), ("rupee", "INR"),
+#
+# A RUPEE IS NOT ALWAYS INDIAN. Mauritius, Sri Lanka, Pakistan, Nepal and the Seychelles print their
+# figures in rupees too, and say so the same way — "Rs'000", "Rupees" — so "rs." and "rupee" name a
+# rupee (`_RUPEE`), and which one is decided by the country the document is about
+# (`_resolve_rupee`). MEASURED on Vivo Energy Mauritius 2025: every statement is headed "Rs’000",
+# which set the scale and no currency at all ("normalize:units=thousand/unknown_ccy"); declared as
+# a fixed INR it would have stamped Mauritian rupees Indian. "₹" and "INR" are the Indian rupee
+# whatever the document is about, and so are "MUR" and "Mauritian rupees" the Mauritian one —
+# Phoenix Beverages and Gamma Civic head their statements "MUR '000" and "MUR".
+_RUPEE = "rupee"
+_CCY = [("₹", "INR"), ("inr", "INR"), ("mauritian rupee", "MUR"), ("mur", "MUR"),
+        ("rs.", _RUPEE), ("rs'000", _RUPEE), ("rupee", _RUPEE),
         ("hk$", "HKD"), ("hkd", "HKD"), ("港幣", "HKD"), ("港币", "HKD"), ("港元", "HKD"),
         ("rmb", "CNY"), ("cny", "CNY"), ("人民幣", "CNY"), ("人民币", "CNY"),
         ("us$", "USD"), ("usd", "USD"), ("美元", "USD"),
@@ -168,14 +179,57 @@ _MAX_FACE_SCAN = 12
 # "entrepreneur" and "inr" inside any word. Symbols ("$", "₹", "hk$") and Han tokens stand as they are.
 _LATIN_TOKEN = re.compile(r"^[a-z.]+$")
 # …in the singular or the plural: Laurus Labs declares "(All amounts in Crore Rupees …)".
-_CCY_RX = [(re.compile(rf"(?<![a-z]){re.escape(tok)}{'' if tok.endswith('.') else 's?'}(?![a-z])")
+# "Rs’000" is the rupee's units idiom, set like "RMB'000" with either apostrophe. Spelled out
+# because a bare "rs" followed by an apostrophe is the end of "shareholders' equity".
+_RUPEE_THOUSANDS = re.compile(r"(?<![a-z])rs\s?['’‘`]\s?0{3}")
+_CCY_RX = [(_RUPEE_THOUSANDS if tok == "rs'000"
+            else re.compile(rf"(?<![a-z]){re.escape(tok)}{'' if tok.endswith('.') else 's?'}(?![a-z])")
             if _LATIN_TOKEN.match(tok) else None, tok, code) for tok, code in _CCY]
+# The countries whose currency is called the rupee, each by how a document names it. The Indian
+# rupee is the default: a rupee filing that names none of them is read as it always was.
+_RUPEE_COUNTRIES: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("MUR", re.compile(r"(?<![a-z])mauriti(?:us|an)(?![a-z])")),
+    ("LKR", re.compile(r"(?<![a-z])sri\s+lanka")),
+    ("PKR", re.compile(r"(?<![a-z])pakistan")),
+    ("NPR", re.compile(r"(?<![a-z])nepal")),
+    ("SCR", re.compile(r"(?<![a-z])seychell")),
+    # "Indian Ocean" names a sea, not India: all 16 of Phoenix Beverages' "India" hits are the
+    # ocean, and an island filing that names the ocean as often as its own country tied to INR.
+    ("INR", re.compile(r"(?<![a-z])india(?:n)?(?![a-z])(?!\s+ocean)")),
+)
 
 
-def _currency_in(text: str) -> str | None:
-    """The first currency of `_CCY`, in the table's order, that `text` names."""
-    return next((code for rx, tok, code in _CCY_RX
+def _currency_in(text: str, document: str | None = None) -> str | None:
+    """The first currency of `_CCY`, in the table's order, that `text` names.
+
+    Which rupee a "Rs" or "rupees" is, is the DOCUMENT's question, not the page's: ``document`` is
+    the whole document's lower-cased text (`_resolve_rupee`), and without it a rupee is India's,
+    as it always was."""
+    code = next((code for rx, tok, code in _CCY_RX
                  if (rx.search(text) if rx is not None else tok in text)), None)
+    if code == _RUPEE:
+        return _resolve_rupee(document) if document else "INR"
+    return code
+
+
+def _names_indian_rupee(text: str) -> bool:
+    """Whether `text` names the Indian rupee itself ("₹", "INR"), not merely a rupee."""
+    return "₹" in text or bool(re.search(r"(?<![a-z])inr(?![a-z])", text))
+
+
+def _resolve_rupee(document: str) -> str:
+    """Which rupee a document's "Rs" is: the rupee country it names most often, else India's.
+
+    Counted over the WHOLE document, because the statement faces name no country and a cover is
+    often a picture (Vivo's is). Most often, not at all: an Indian group names its Mauritian
+    holding company in a list of subsidiaries, and a Mauritian company names India among its
+    markets, and neither changes whose rupees the statements are printed in. Measured on the test
+    filings: the five Mauritian reports name Mauritius 110 to 255 times and India at most 16; every
+    Indian report names India far more often than any other rupee country.
+    """
+    counts = {code: len(rx.findall(document)) for code, rx in _RUPEE_COUNTRIES}
+    best = max(counts, key=lambda c: (counts[c], c == "INR"))
+    return best if counts[best] else "INR"
 
 
 # A figure standing in front of the unit, across any amount of whitespace the text layer inserted.
@@ -290,12 +344,21 @@ def _detect_units(ctx: PipelineContext, fmt: str, doc: DocumentModel | None = No
         chunks.append((page.index, by_index.get(page.index, "")))
 
     currency: str | None = None
+    whole: list[str] = []          # the document's text, read only if a rupee is named
+
+    def _document() -> str:
+        if not whole:
+            whole.append(" ".join(t for _, t in pages).lower())
+        return whole[0]
+
     for index, raw in chunks:
         text = raw.lower()
         if not text:
             continue
         # Remember the first currency seen: the face page declaring the scale may print only
         # "'000" with the currency stated once, elsewhere.
+        if currency is None and _currency_in(text) == "INR" and not _names_indian_rupee(text):
+            currency = _currency_in(text, _document())
         currency = currency or _currency_in(text)
         scale_word = _scan_scale(text, front_matter=index is None)
         if scale_word is None:

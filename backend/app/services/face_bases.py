@@ -83,6 +83,9 @@ class FaceBases:
     reason: str = ""
     ignored_pages: tuple[int, ...] = ()
     counted_pages: frozenset[int] = frozenset()
+    #: WHY a known answer is what it is, where the pages did not name it: "single_entity" — no
+    #: statement names a group or a company (`SINGLE_ENTITY`). "" where the titles named it.
+    rule: str = ""
 
     @property
     def sole(self) -> str | None:
@@ -100,6 +103,8 @@ class FaceBases:
         """The answer as the run log states it: ``standalone``, ``consolidated,standalone`` or
         ``unknown(<reason>)``, with the unread pages inside the notes named."""
         text = ",".join(sorted(self.bases)) if self.known else f"unknown({self.reason})"
+        if self.known and self.rule == SINGLE_ENTITY:
+            text += f"({SINGLE_ENTITY}: no statement names a group or a company)"
         if self.ignored_pages:
             text += "; not counted: page=" + ",".join(str(i) for i in self.ignored_pages)
         return text
@@ -111,12 +116,25 @@ def page_entities(page) -> list[str | None]:
     A person's override names one entity per face part (`services.page_overrides`). Otherwise the
     page's own scope, plus the entity of the statement still running above a mid-page title and of
     the statement a closing title opens — a page cut in two prints two statements.
+
+    A 2-UP SPREAD SHEET prints a statement on each face half (`classify._merge_spread_units`), and
+    the sheet's own scope is only its first half's: each face half is read as such a page.
     """
+    from app.services.page_spread import spread_halves
+
     evidence = getattr(page, "evidence", None) or {}
     parts = evidence.get("override_parts")
     if parts:
         return [part.get("entity") for part in parts if part.get("kind") == "face"]
-    out = [getattr(page, "scope", None)]
+    faces = [h for h in spread_halves(page) if h.get("kind") == "face"]
+    if faces:
+        return [entity for half in faces
+                for entity in _printed_entities(half.get("scope"), half.get("evidence") or {})]
+    return _printed_entities(getattr(page, "scope", None), evidence)
+
+
+def _printed_entities(scope, evidence: dict) -> list[str | None]:
+    out = [scope]
     if evidence.get("statement_before_title"):
         out.append(evidence.get("scope_before_title"))
     if evidence.get("closing_title"):
@@ -124,8 +142,23 @@ def page_entities(page) -> list[str | None]:
     return out
 
 
+#: The rule a single entity's basis is decided by — see `face_bases`.
+SINGLE_ENTITY = "single_entity"
+
+
 def face_bases(pages: Iterable) -> FaceBases:
-    """The bases this document's statement pages print, from the classifier's page verdicts."""
+    """The bases this document's statement pages print, from the classifier's page verdicts.
+
+    A SINGLE ENTITY PRINTS ONE SET OF STATEMENTS AND NAMES NO ONE. A company with no subsidiaries
+    titles its statements "Statement of financial position" — no "consolidated", no "company", no
+    Group | Company columns — so no page's entity is read, and the answer used to be unknown. Its
+    figures are the primary statements, filed under the consolidated basis like every filing's
+    primary statements (the product's convention, and the whole-PDF model is told the same), and
+    the reason is recorded: `rule` is "single_entity". Only where NO statement page anywhere names
+    an entity: one that does (a group whose other statements were read) leaves an unread page
+    unknown, as before. MEASURED: Vivo Energy Mauritius 2025, four statements on sheets 34-35,
+    every title "STATEMENT OF … 2025" and two year columns.
+    """
     from app.services.statements import ACTIVE_STATEMENTS
 
     pages = list(pages or ())
@@ -149,6 +182,10 @@ def face_bases(pages: Iterable) -> FaceBases:
                 if index not in ignored:
                     ignored.append(index)
             else:
+                if _names_no_entity(faces):
+                    return FaceBases(bases=frozenset({"consolidated"}), known=True,
+                                     counted_pages=frozenset(int(p.index) for p in faces),
+                                     rule=SINGLE_ENTITY)
                 return FaceBases(reason=f"page={index}: a statement page whose entity was not "
                                         f"read sits ahead of the notes")
     if not counted:
@@ -156,6 +193,32 @@ def face_bases(pages: Iterable) -> FaceBases:
                          ignored_pages=tuple(ignored))
     return FaceBases(bases=frozenset(bases), known=True, ignored_pages=tuple(ignored),
                      counted_pages=frozenset(counted))
+
+
+def _names_no_entity(faces) -> bool:
+    """Whether every statement page's TITLE WAS READ and none — nor a column band — names whose
+    figures it presents.
+
+    Read titles are the evidence: a page whose title was not read at all says nothing about whose
+    statements they are (a classifier miss, a person's override), and stays unknown."""
+    from app.services.page_spread import spread_halves
+
+    for page in faces:
+        evidence = getattr(page, "evidence", None) or {}
+        if evidence.get("override_parts"):
+            return False
+        if any(entity is not None for entity in page_entities(page)):
+            return False
+        if getattr(page, "scope_columns", None):
+            return False
+        halves = [h for h in spread_halves(page) if h.get("kind") == "face"]
+        titled = ([bool((h.get("evidence") or {}).get("matched_title")) for h in halves]
+                  if halves else [bool(evidence.get("matched_title"))])
+        if not all(titled):
+            return False
+        if any(h.get("scope_columns") for h in halves):
+            return False
+    return True
 
 
 def _values(row) -> list:

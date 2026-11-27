@@ -251,7 +251,7 @@ def collect_values(items: Iterable[LineItem]) -> MappedValues:
     # CAS filings measured (河钢 9,678,206,759.05, 四创 244,695,836.40, 海博思创 889,984,819.39). A
     # row with no page is not evidence of where it was printed: it neither anchors a fact nor is
     # dropped as a repeat of one, as in `summable`.
-    from app.services.periods import caption_key
+    from app.services.periods import caption_key, printed_location
 
     printed_at: dict[tuple, object] = {}
     for li in items:
@@ -268,7 +268,8 @@ def collect_values(items: Iterable[LineItem]) -> MappedValues:
             slot: Slot = (ev.basis.value, ev.period_label)
             if _is_restatement(ev) and (key, slot) in printed_slots:
                 continue
-            page = getattr(getattr(ev, "provenance", None), "page_index", None)
+            page = printed_location(getattr(getattr(ev, "provenance", None), "page_index", None),
+                                    li.confidence.flags)
             if page is not None:
                 fact = (key, slot, names, val)
                 if fact in printed_at and printed_at[fact] != page:
@@ -697,6 +698,35 @@ def declared_costs(template: TemplateDefinition, ontology=None) -> frozenset[str
 _NOT_EVIDENCE_METHODS = ("residual", *DERIVED_METHODS)
 
 
+# The row flags `stages.note_sourced` writes when the line-item set's note declarations or a
+# cascade rung put a figure on a line.
+_ASSEMBLED_FLAG_PREFIXES = ("cascade_rung:", "note_sourced:")
+
+
+def _assembled_from_notes(li: LineItem) -> bool:
+    flags = tuple(getattr(li.confidence, "flags", None) or ())
+    return any(str(f).startswith(_ASSEMBLED_FLAG_PREFIXES) for f in flags)
+
+
+# The value flags `normalize` writes when the TEMPLATE's own sign (`sign: natural_negative`, the
+# contra and deduction lines) turned a figure the page printed positive into a negative one.
+_TEMPLATE_NEGATED = "sign_rule:natural_negative"
+_KEPT_AS_PRINTED = "sign_rule:as_printed_under_unsigned_expense"
+
+
+def _printed_unsigned_by_template(ev) -> bool:
+    """Whether this figure is negative only because the template's sign made it so.
+
+    `normalize` stores a contra line (`sign: natural_negative` — interest expense, a dividend, an
+    allowance) as a deduction whatever sign the page printed. Where the page printed it POSITIVE
+    the minus is the template's, not the filing's: the figure is a cost the filing printed unsigned,
+    which is evidence against the section being signed, never for it."""
+    flags = tuple(getattr(getattr(ev, "confidence", None), "flags", None) or ())
+    raw = getattr(ev, "value_raw", None)
+    return (_TEMPLATE_NEGATED in flags and _KEPT_AS_PRINTED not in flags
+            and raw is not None and Decimal(raw) > 0)
+
+
 def _signed_on_filing(items: Iterable[LineItem], section_of: dict[str, str],
                       costs: frozenset[str]) -> frozenset[str]:
     """The sections whose signs THIS FILING establishes: its costs are printed negative.
@@ -718,6 +748,19 @@ def _signed_on_filing(items: Iterable[LineItem], section_of: dict[str, str],
     filing prints the section. Measured on a stored CAS run whose cash-flow outflows were never
     oriented: a swept investing subtotal printed "-63,077,961.11" was the only negative in the
     operating section, and counting it reported the operating total out by 7.6bn.
+
+    AND NOT A FIGURE THE LINE-ITEM SET ASSEMBLED FROM THE NOTES. A cascade rung or a note-sourced
+    part writes its figure onto a line the face never printed, as the note prints it — and notes
+    print magnitudes. `printed_in` cannot tell: it is only stamped later (`stages.segment`), so such
+    a row arrives here with none. MEASURED on Vivo Energy Mauritius 2025: the one positive "cost"
+    on its income statement was Depreciation & Impairment (Oper Exp) +211,665 / +206,748, put
+    together by cascade P4 from notes 14 and 16; the face prints every cost in brackets, and every
+    profit-or-loss check was skipped as `component_signs_not_established`. Grand Ming 2025/26 carries
+    the same kind of row (cascade P3, +19,729 / +21,258).
+
+    AND A MINUS THE TEMPLATE GAVE IS NOT THE FILING'S. A contra line (`sign: natural_negative`)
+    is stored negative however the page printed it; one the page printed positive is a cost the
+    filing printed unsigned (`_printed_unsigned_by_template`), and counts against the section.
     """
     from app.core.models.enums import PrintedIn
 
@@ -730,9 +773,20 @@ def _signed_on_filing(items: Iterable[LineItem], section_of: dict[str, str],
             continue
         if (li.confidence.method or "") in _NOT_EVIDENCE_METHODS:
             continue
+        if _assembled_from_notes(li):
+            continue
         for ev in li.values.values():
             figure = _printed(ev)
             if figure is None or figure == 0:
+                continue
+            if _printed_unsigned_by_template(ev):
+                # A COST THE PAGE PRINTED UNSIGNED, negated by the template's sign: the filing's own
+                # convention is unsigned. MEASURED on Asian Paints 2025/26 (p232) and IndiGo
+                # 2024/25 (p233): every other cost is swept into Other Operating Expenses (no
+                # evidence), and 'Finance costs' 195.41 / 50,800, printed unsigned and stored
+                # -195.41 / -50,800, was the only figure left, so the section read as signed and
+                # the profit-or-loss reconciliation failed by the unsigned costs it added up.
+                unsigned_cost.add(section)
                 continue
             if figure < 0:
                 negative.add(section)
@@ -799,7 +853,8 @@ def _one_signed_sections(ontology) -> frozenset[str] | None:
 
 def section_relations(template: TemplateDefinition, ontology,
                       signed_on_filing: frozenset[str] = frozenset(),
-                      section_of: dict[str, str] | None = None) -> list[Relation]:
+                      section_of: dict[str, str] | None = None,
+                      printed_sections: frozenset[str] | None = None) -> list[Relation]:
     """One reconciliation per template section, when the rulebook asks for it.
 
     ``signed_on_filing`` names the sections whose costs this filing prints negative
@@ -949,8 +1004,24 @@ def section_relations(template: TemplateDefinition, ontology,
             # rollup reaches only this section's members, and not all of them (that is the section's
             # own total, or a statement total nested in it). Whether one stands in is decided per
             # slot, in `_standing_in`. Balance sheet only — a section that nets carries signs a
-            # stand-in would have to take a view on.
-            if st.type.value in _SIGNS_NEVER_IN_DOUBT:
+            # stand-in would have to take a view on — UNLESS THE FILING HAS TAKEN IT: a section
+            # whose figures this filing prints signed (`evidenced`, below) adds up as printed, and
+            # so does a subtotal printed in it. MEASURED where a profit and loss prints its tax
+            # charge as one line: total income tax is a subtotal of the current, deferred and
+            # earlier-year parts, none of which these filings print, so the section summed every
+            # line but the tax and failed by exactly the printed charge — Hon Kwok 2023/24 by
+            # (46,314), Far East Horizon 2024 by (3,502,126), PetroChina 2024 by (57,753) — once
+            # their profit-and-loss checks ran at all.
+            scopes = {(section_of or {}).get(k, "") for k in (subtotal, *members)}
+            # A SCOPE THE FILING PRINTS NOTHING IN HAS NO SIGNS TO ESTABLISH: its members are nil.
+            # The profit-and-loss section reaches the "attributable to" block through Minority
+            # Interests(PL); a single entity, or a group without non-controlling interests, prints
+            # no such block, and its signed income statement was refused as "not declared one
+            # way" (Vivo Energy Mauritius 2025, 佳明 2025/26).
+            if printed_sections is not None and scopes & printed_sections:
+                scopes = scopes & printed_sections
+            evidenced = bool(scopes) and scopes <= signed_on_filing
+            if st.type.value in _SIGNS_NEVER_IN_DOUBT or evidenced:
                 standins = []
                 for cand in candidates:
                     if cand == subtotal:
@@ -958,6 +1029,17 @@ def section_relations(template: TemplateDefinition, ontology,
                     pulled = reach.get(cand, frozenset()) - {cand}
                     if pulled and pulled <= inside and pulled != inside:
                         standins.append((cand, tuple(sorted(pulled))))
+                # …AND IN A SECTION THAT NETS, ONLY A SUBTOTAL WITH NO SUBTOTAL INSIDE IT. A running
+                # subtotal of the statement — gross profit, operating profit — is printed BESIDE
+                # its parts, which a filing's captions may have put on keys outside its reach: Moroil
+                # 2025 (p67) prints "Cost of operations", swept into other operating expenses, and
+                # its gross profit 287,072 then stood in as well, so the section counted the cost
+                # of operations twice and failed by (287,072) instead of passing. A bucket of
+                # leaves (total income tax, net finance costs) holds no subtotal of its own; two subtotals over
+                # the same leaves are both refused.
+                if st.type.value not in _SIGNS_NEVER_IN_DOUBT:
+                    standins = [(c, p) for c, p in standins
+                                if not any(set(q) <= set(p) for c2, q in standins if c2 != c)]
                 # The widest first, so a subtotal nested in another is never counted beside it.
                 standins = tuple(sorted(standins, key=lambda s: -len(s[1])))
             else:
@@ -981,9 +1063,8 @@ def section_relations(template: TemplateDefinition, ontology,
             # 45,107% of it. An unusable number for a real defect, which is now named in the skip
             # reason instead of asserted as a break.
             # …OR WHERE THE FILING SIGNS THEM. A section whose costs are printed in parentheses
-            # adds up as printed, so the identity holds there whatever the rulebook declares.
-            scopes = {(section_of or {}).get(k, "") for k in (subtotal, *members)}
-            evidenced = bool(scopes) and scopes <= signed_on_filing
+            # adds up as printed, so the identity holds there whatever the rulebook declares
+            # (`evidenced`, computed above).
             if (st.type.value not in _SIGNS_NEVER_IN_DOUBT and one_signed is not None
                     and section.node_id not in one_signed and not evidenced):
                 out.append(Relation(
@@ -1252,11 +1333,23 @@ def _nil_when_absent(template: TemplateDefinition, ontology=None) -> dict[str, s
       zero on a filing whose balance-sheet cash line was not found.
     """
     swept = _residual_namespaces(template, ontology)
+    # THE RESIDUAL ITSELF IS NIL WHEN NOTHING WAS SWEPT INTO IT. Its template rollup is the plug
+    # (the section's printed total less its other lines) that the residual framework forbids as a
+    # figure, so the rule above, which keeps every rolled-up node out, kept it out too — and once a
+    # filing's every row reached a line of its own, the empty residual made its section's rollup
+    # unknown. MEASURED on Vivo Energy Mauritius 2025 (p69): with "Proceeds from disposal of
+    # property, plant and equipment" and "Payments for purchase of property, plant and equipment
+    # and intangible assets" bound, Other Invest Cash Flows held nothing and the investing rollup
+    # went from pass to `components_not_mapped`.
+    residuals = {str(getattr(m, "canonical_key", "") or "")
+                 for m in (getattr(ontology, "mappings", None) or ())
+                 if getattr(m, "value_scope", None) == "exclusive_residual"}
     out: dict[str, str] = {}
     for st in template.statements:
         for node in template._walk(st.sections):
             key = node.canonical_key
-            if key and not node.rollup and "__" in key and key.rsplit("__", 1)[0] in swept:
+            if key and "__" in key and key.rsplit("__", 1)[0] in swept and (
+                    not node.rollup or key in residuals):
                 out[key] = st.type.value
     return out
 
@@ -1306,8 +1399,11 @@ def evaluate_structure(template: TemplateDefinition,
     declared = relations(template)
     if ontology is not None:
         declared += ontology_identities(template, ontology)
+        # The sections this filing prints anything in: a section it prints nothing in (no
+        # non-controlling interests, so no "attributable to" block) has no sign to establish.
+        printed_here = frozenset(section_of.get(k, "") for k in vals.values) - {""}
         declared += section_relations(template, ontology, signed_on_filing=signed_here,
-                                      section_of=section_of)
+                                      section_of=section_of, printed_sections=printed_here)
     # TWO RELATIONS MUST NOT SHARE AN ID, for the same reason two guards must not (see ``_unique``):
     # the review card's DOM id is ``chk-structural-{rule_id}-{scope_key}`` and the coverage report
     # keys its per-rule alarms on the id, so one id over two relations is one card for two
@@ -1317,6 +1413,11 @@ def evaluate_structure(template: TemplateDefinition,
     # relation's subject carries its operands (api/routes/documents.py::_structural_checks).
     taken: dict[str, int] = {}
     declared = [replace(rel, id=_unique(rel.id, taken)) for rel in declared]
+    # The template's own rollups, target -> its children, and each key's role, for
+    # `_printed_equal_of_total`.
+    rollup_children = {rel.target: rel.components for rel in declared
+                       if rel.kind == "rollup" and rel.op == "sum" and not rel.signs}
+    roles = {n.canonical_key: n.role for n in template.all_nodes() if n.canonical_key}
 
     for rel in declared:
         keys = (rel.target, *rel.components)
@@ -1329,6 +1430,7 @@ def evaluate_structure(template: TemplateDefinition,
             # premise instead told a reader to go fix a declaration that would change nothing.
             reason = ("no_reported_subtotal"
                       if rel.kind == "section_reconciliation" and not vals.slots(rel.target)
+                      and _printed_equal_of_total(rel, rollup_children, roles, vals) is None
                       else rel.broken)
             # …except on a statement whose pages were not read: whether it prints the subtotal is
             # exactly what nobody looked at.
@@ -1388,6 +1490,11 @@ def evaluate_structure(template: TemplateDefinition,
             report.results.append(_skip(rel, [], "ambiguous_mapping", {"keys": blocked}))
             continue
         target_slots = sorted(vals.slots(rel.target), key=lambda s: (s[0], s[1] or ""))
+        if not target_slots and rel.kind == "section_reconciliation":
+            stand = _printed_equal_of_total(rel, rollup_children, roles, vals)
+            if stand is not None:
+                rel = stand
+                target_slots = sorted(vals.slots(rel.target), key=lambda s: (s[0], s[1] or ""))
         if not target_slots:
             # For a section reconciliation the missing figure IS the subtotal, and the rulebook
             # names that case separately: the section is unreconciled, not under-extracted.
@@ -1446,6 +1553,52 @@ def evaluate_structure(template: TemplateDefinition,
     for res in report.failures():
         report.failed_assertions.append(_assertion(res))
     return report
+
+
+def _printed_equal_of_total(rel: Relation, rollup_children: dict, roles: dict,
+                            vals) -> Relation | None:
+    """The section's reconciliation against the PRINTED figure its total equals, where the filing
+    prints no figure for the total itself — or None.
+
+    THE TEMPLATE SAYS WHICH FIGURE THAT IS. The profit-and-loss section is reconciled to Profit for
+    the year, and the template's rollup makes that line Profit(Loss) Bef Extraord Items plus the
+    extraordinary items plus Minority Interests(PL) — the owners' share of the profit, which is what
+    the line-item set's aliases bind to it ("Owners of the Company", "Attributable to owners of the
+    parent"). A filing that has no non-controlling interests and no extraordinary items prints no
+    such row: its "Profit for the year" binds Profit(Loss) Bef Extraord Items, and by the template's
+    own arithmetic the total is that printed figure. So the section is reconciled against it — in
+    the slots where it is printed, it is not itself derived, and every other child of the total is
+    absent. MEASURED: Vivo Energy Mauritius 2025 (a single entity, p66) and 佳明 2025/26 (p61) were
+    `no_reported_subtotal` on every run; Moroil, which prints "Owners of the parent", reconciles to
+    that row as before.
+
+    ONLY A PRINTED SUBTOTAL BESIDE UNPRINTED LINES. The figure stood in for the total must be a
+    subtotal (it carries the section's flow), and every other child of the total a plain line,
+    which is nil where the filing does not print it — as `_nil_when_absent` treats it. A child that
+    is itself a subtotal or a total is never presumed nil. MEASURED on the first form of this rule,
+    which took any one printed child: Laurus 2025/26 was reconciled to Non-controlling interests
+    (1.35) (p273, the profit-and-loss total not bound), Laurus's and JSW 2024/25's financing
+    sections to the opening cash and to the investing total (the closing-cash roll whose other
+    totals were not read), and Lux Island Resorts' equity to its retained earnings alone.
+    """
+    kids = rollup_children.get(rel.target) or ()
+    subtotal = (LineRole.SUBTOTAL, LineRole.TOTAL)
+    for child in kids:
+        if child in vals.derived or not vals.slots(child):
+            continue
+        others = [k for k in kids if k != child]
+        if any(vals.slots(k) for k in others):
+            continue
+        if roles.get(child) not in subtotal or any(roles.get(k) != LineRole.LINE for k in others):
+            continue
+        return replace(
+            rel, target=child, components=tuple(c for c in rel.components if c != child),
+            standins=tuple(s for s in rel.standins if s[0] != child),
+            extra={**rel.extra, "total_not_printed": rel.target,
+                   "reconciled_to": child,
+                   "why": "the template's total is this printed subtotal plus lines the filing "
+                          "does not print"})
+    return None
 
 
 def _assertion(res: RuleResult) -> str:

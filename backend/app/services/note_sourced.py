@@ -159,11 +159,11 @@ class NoteRowHit:
 
     __slots__ = ("key", "note_number", "note_title", "caption", "matched_by", "value", "amount",
                  "basis", "period", "column", "column_matched_by", "period_source", "printed",
-                 "rescaled", "basis_from")
+                 "rescaled", "basis_from", "table")
 
     def __init__(self, *, key, note_number, note_title, caption, matched_by, value, amount,
                  basis, period, column=None, column_matched_by=None, period_source=None,
-                 basis_from=""):
+                 basis_from="", table=None):
         self.key = key
         self.note_number = note_number
         self.note_title = note_title
@@ -176,6 +176,9 @@ class NoteRowHit:
         # WHY `basis` IS THIS NOTE'S — its table's `NotesTable.basis_from`: "chapter", "carried",
         # "band", "default" or "" (see `services.face_bases.EXPLICIT_NOTE_BASES`).
         self.basis_from = basis_from
+        # THE NOTE TABLE the row was read from — so a figure one table of a note restates from
+        # another of its tables is recognised as one disclosure (`_restated`), not two.
+        self.table = table
         # WHICH PRINTED COLUMN selected this figure, for a part declaring `column_heading_any` /
         # `column_heading_none` — the heading as printed, the pattern that admitted it, and where
         # its period came from (`note_columns.period_of`: "column", "row_block" or "grid"). None
@@ -300,7 +303,7 @@ class _ColumnSelector:
                 note_title=title, caption=caption, matched_by=matched,
                 value=value, amount=amount, basis=basis, period=period,
                 column=str(heading), column_matched_by=by, period_source=source,
-                basis_from=str(getattr(table, "basis_from", "") or "")))
+                basis_from=str(getattr(table, "basis_from", "") or ""), table=table))
         out: list[NoteRowHit] = []
         for found in slots.values():
             if len({h.amount for h in found}) == 1:
@@ -343,7 +346,7 @@ class _ColumnSelector:
             value=nil, amount=Decimal(0), basis=basis, period=period,
             column=str(heading), column_matched_by=self.admits(heading),
             period_source=f"blank_printed_column:{source}",
-            basis_from=str(getattr(table, "basis_from", "") or ""))]
+            basis_from=str(getattr(table, "basis_from", "") or ""), table=table)]
 
 
 def select_rows(item, notes, periods: set[str] | None = None,
@@ -585,7 +588,7 @@ def select_rows(item, notes, periods: set[str] | None = None,
                         note_title=title, caption=caption, matched_by=matched,
                         value=value, amount=amount,
                         basis=_table_basis(table, value), period=hint,
-                        basis_from=str(getattr(table, "basis_from", "") or "")))
+                        basis_from=str(getattr(table, "basis_from", "") or ""), table=table))
                 continue
 
             # A movement table's rows are readable ONLY through the block period. One that did not
@@ -675,7 +678,7 @@ def select_rows(item, notes, periods: set[str] | None = None,
                     note_title=title, caption=caption, matched_by=matched,
                     value=value, amount=amount,
                     basis=_table_basis(table, value),
-                    basis_from=str(getattr(table, "basis_from", "") or ""),
+                    basis_from=str(getattr(table, "basis_from", "") or ""), table=table,
                     # `label`, NOT `value.period_label`. The two are the same string for every
                     # part reading the primary measure — `label` was read off the value above —
                     # and they differ for a part declaring `measure`, where `label` has had the
@@ -1088,9 +1091,148 @@ def resolve(hits: list[NoteRowHit], rollup: str) -> dict[tuple[str, str], tuple[
 
     out: dict[tuple[str, str], tuple[Decimal, list[dict]]] = {}
     for slot, rows in by_slot.items():
-        amount, counted = take_by_rollup([r.amount for r in rows], rollup)
-        out[slot] = (amount, [_trail_input(r, counted=c) for r, c in zip(rows, counted)])
+        rolled: dict[int, str] = {}
+        restated: set[int] = set()
+        if rollup != "alternatives":
+            # The roll-forward first: its closing balance is the note's figure, and the analyses
+            # of that balance in the note's other tables close on the same amount — read after
+            # `_restated` had struck those closings, their components would be left to add.
+            rolled = _inside_a_roll_forward(rows)
+            rest = [i for i in range(len(rows)) if i not in rolled]
+            restated = {rest[j] for j in _restated([rows[i] for i in rest])}
+        kept = [r for i, r in enumerate(rows) if i not in restated and i not in rolled]
+        amount, counted_kept = take_by_rollup([r.amount for r in kept], rollup)
+        flags = iter(counted_kept)
+        inputs = []
+        for i, r in enumerate(rows):
+            if i in rolled:
+                inputs.append({**_trail_input(r, counted=False), "reason": rolled[i]})
+            elif i in restated:
+                inputs.append({**_trail_input(r, counted=False), "reason": "restated"})
+            else:
+                inputs.append(_trail_input(r, counted=next(flags)))
+        out[slot] = (amount, inputs)
     return out
+
+
+#: A BALANCE ROW of a note's movement table: "At 1 July", "At 30 June 2025", "Balance at
+#: 31 December", "At beginning of year", "Opening balance", 年初余额 / 期末余额.
+_MONTH_NAME = r"(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?"
+_BALANCE_CAPTION = re.compile(
+    r"^\W*(?:balance\s+)?(?:(?:at|as\s+at|as\s+of)\s+(?:"
+    r"(?:the\s+)?(?:beginning|start|end)\s+of\s+(?:the\s+)?(?:financial\s+)?(?:year|period)"
+    rf"|\d{{1,2}}(?:st|nd|rd|th)?\s+{_MONTH_NAME}(?:,?\s+(?:19|20)\d{{2}})?"
+    rf"|{_MONTH_NAME}\s+\d{{1,2}}(?:st|nd|rd|th)?(?:,?\s+(?:19|20)\d{{2}})?)"
+    r"|(?:opening|closing)\s+(?:balance|carrying\s+amount|net\s+book\s+value))\W*$"
+    r"|^\W*(?:年初|年末|期初|期末)(?:余额|餘額)?\W*$", re.IGNORECASE)
+_ROLL_TOLERANCE = Decimal(1)
+
+
+def _inside_a_roll_forward(rows: list[NoteRowHit]) -> dict[int, str]:
+    """``{position: reason}`` — the rows of one slot that a note's ROLL-FORWARD already accounts
+    for, so only its closing balance counts.
+
+    A note that prints a movement table opens on the balance brought forward, lists the year's
+    movements and closes on the balance carried forward; read row by row, a part that takes every
+    row of the note counted the opening, every movement and the closing — about twice the balance —
+    and then the tables that analyse the same closing balance (by level, by investee, by currency),
+    each closing on it again. MEASURED on Phoenix Beverages 2025, note 10 (FVOCI, printed 177-178):
+    the part came to 167,633 = 3,448 + 37,792 - 193 + 38 + 41,085 + the analyses' components,
+    against the 41,085 the note and the face print (p128); the restatement rule (`_restated`) had
+    set aside only the exact duplicates.
+
+    Proved by the table's own arithmetic, in this slot: the first balance row plus the rows between
+    it and a later balance row equals that later row. Then the opening and the movements are set
+    aside ("inside_a_roll_forward"), and in the note's other tables a run of rows that closes on a
+    balance row printing the proved closing, and adds up to it, is set aside too
+    ("analysis_of_the_balance"). A table with no such proof — a list of components — is read as
+    it always was.
+    """
+    out: dict[int, str] = {}
+    by_table: dict[int, list[int]] = {}
+    for i, r in enumerate(rows):
+        if r.table is not None:
+            by_table.setdefault(id(r.table), []).append(i)
+    closings: list[tuple[object, Decimal, int]] = []        # (note number, amount, position)
+    for positions in by_table.values():
+        balances = [i for i in positions if _BALANCE_CAPTION.match(str(rows[i].caption or ""))]
+        if len(balances) < 2:
+            continue
+        opening = balances[0]
+        for closing in balances[1:]:
+            between = [i for i in positions if opening < i < closing]
+            if not between:
+                continue
+            moved = rows[opening].amount + sum((rows[i].amount for i in between), Decimal(0))
+            if abs(moved - rows[closing].amount) <= _ROLL_TOLERANCE:
+                out[opening] = "inside_a_roll_forward"
+                for i in between:
+                    out[i] = "inside_a_roll_forward"
+                closings.append((rows[closing].note_number, rows[closing].amount, closing))
+                break
+    if not closings:
+        return out
+    kept_closings = {c for _n, _a, c in closings}
+    for positions in by_table.values():
+        run: list[int] = []
+        for i in positions:
+            r = rows[i]
+            if i in out or i in kept_closings:
+                run = []
+                continue
+            closes_one = (_BALANCE_CAPTION.match(str(r.caption or ""))
+                          and any(r.note_number == n and abs(r.amount - a) <= _ROLL_TOLERANCE
+                                  for n, a, _c in closings))
+            if not closes_one:
+                run.append(i)
+                continue
+            if not run or abs(sum((rows[j].amount for j in run), Decimal(0))
+                              - r.amount) <= _ROLL_TOLERANCE:
+                for j in run + [i]:
+                    out[j] = "analysis_of_the_balance"
+            run = []
+    return out
+
+
+#: How far apart, in sheets, two tables of one note may be and still be one note's — the note and
+#: its continuation. A note number printed again further on is another set of statements' note
+#: (an Indian filing numbers its standalone and its consolidated notes alike), which this does not
+#: judge.
+_RESTATED_WITHIN_SHEETS = 2
+
+
+def _restated(rows: list[NoteRowHit]) -> set[int]:
+    """The positions of rows whose figure ANOTHER TABLE OF THE SAME NOTE already gave, for one slot.
+
+    A note restates its own figures: IFRS 16's right-of-use note prints the year's charge in its
+    movement table and again in the table of "amounts recognised in profit or loss", and a PP&E
+    note prints the charge in its schedule and again where it says which expense lines it is in.
+    Summed, a charge doubled. MEASURED on Vivo Energy Mauritius 2025, note 16: "Charge for the
+    year" 17,426 / 16,633 (p92) and "Depreciation of right-of-use asset" 17,426 / 16,633 (p93)
+    made the right-of-use depreciation 34,852 / 33,266, and Deprec & Impairment(Oper Exp)
+    211,665 / 206,748 against the 194,239 / 190,115 note 9 prints (p86). Rows of ONE table are
+    components and always add; only an equal figure from another table of the note, on the same
+    or a neighbouring sheet, is the same fact.
+    """
+    out: set[int] = set()
+    seen: list[NoteRowHit] = []
+    for i, r in enumerate(rows):
+        if r.amount and r.table is not None and any(
+                s.amount == r.amount and s.note_number == r.note_number
+                and s.table is not None and s.table is not r.table
+                and _sheets_apart(s, r) <= _RESTATED_WITHIN_SHEETS for s in seen):
+            out.add(i)
+            continue
+        seen.append(r)
+    return out
+
+
+def _sheets_apart(a: NoteRowHit, b: NoteRowHit) -> int:
+    pa = getattr(getattr(a.value, "provenance", None), "page_index", None)
+    pb = getattr(getattr(b.value, "provenance", None), "page_index", None)
+    if pa is None or pb is None:
+        return 1 << 30
+    return abs(int(pa) - int(pb))
 
 
 def method_of(rollup: str, count: int) -> str:

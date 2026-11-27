@@ -338,6 +338,100 @@ def _overdrawn_words(page) -> dict[tuple, list[tuple]]:
     return out
 
 
+# A BRACKETED NEGATIVE SET WITH A SPACE AFTER ITS BRACKET: "( 111,807)". The text layer gives the
+# "(" as a word of its own, and the row reader put it in the caption — "Income tax expense (" —
+# while "111,807)" parsed as a positive figure. MEASURED on Vivo Energy Mauritius 2025 (p66): the
+# tax expense came out +111,807 / +106,768 and the computed profit 753,153 / 730,046 against the
+# 529,539 / 516,510 printed. Narrow on purpose: only a bare "(" immediately followed, on the same
+# printed line and within about half a character height, by digits that close the bracket. A
+# "(Note 5)" or "(a)" caption never matches. Surveyed on all 31 test filings: these two cells are
+# the only ones.
+_CLOSES_A_BRACKETED_FIGURE = re.compile(r"^\d[\d,]*(?:\.\d+)?\)$")
+
+
+def _join_spaced_open_brackets(words: list[tuple]) -> list[tuple]:
+    if not any(wd[4] == "(" for wd in words):
+        return words
+    out: list[tuple] = []
+    k = 0
+    while k < len(words):
+        wd = words[k]
+        nxt = words[k + 1] if k + 1 < len(words) else None
+        if (nxt is not None and wd[4] == "(" and _CLOSES_A_BRACKETED_FIGURE.match(nxt[4])
+                and tuple(wd[5:7]) == tuple(nxt[5:7])
+                and 0 <= nxt[0] - wd[2] <= 0.6 * max(wd[3] - wd[1], 1.0)):
+            out.append((wd[0], min(wd[1], nxt[1]), nxt[2], max(wd[3], nxt[3]),
+                        "(" + nxt[4], *nxt[5:]))
+            k += 2
+            continue
+        out.append(wd)
+        k += 1
+    return out
+
+
+# THOUSANDS GROUPED WITH A SPACE: "13 400 370", "(5 619 017)". The text layer gives each digit group
+# as a word of its own, about a fifth of a character height apart, and the row reader kept one
+# group per column. MEASURED on Phoenix Beverages 2025 (MUR '000): every face figure kept only its
+# first group — revenue 13 / 12 against 13 400 370 / 12 170 859 (p129), total assets 15 / 10 against
+# 15 953 406 / 10 067 363 (p128) — and all 36 compared figures were wrong.
+#
+# A PAGE'S CONVENTION, decided on the page: the groups are joined only where the page prints at
+# least `_SPACED_GROUP_MIN_CHAINS` such runs and more of them than numbers grouped with a comma.
+# Surveyed on all 31 test filings: Phoenix Beverages' statement and note pages print 20 to 299
+# runs each; elsewhere at most 4 on any page, and every one of those is a postal code ("400 001",
+# Mumbai) or a telephone number on an address page, which stays as printed. The groups join only
+# across a gap under `_SPACED_GROUP_GAP` of the word's height and on one printed line; the gap
+# between two columns is several times that.
+_SPACED_GROUP_LEAD = re.compile(r"^[(\-]?\d{1,3}$")
+_SPACED_GROUP_NEXT = re.compile(r"^\d{3}\)?$")
+_COMMA_GROUPED = re.compile(r"^[(\-]?\d{1,3}(?:,\d{3})+(?:\.\d+)?\)?$")
+_SPACED_GROUP_GAP = 0.45
+_SPACED_GROUP_MIN_CHAINS = 5
+
+
+def _next_group(a: tuple, b: tuple) -> bool:
+    return (bool(_SPACED_GROUP_NEXT.match(b[4])) and tuple(a[5:7]) == tuple(b[5:7])
+            and 0 <= b[0] - a[2] < _SPACED_GROUP_GAP * max(a[3] - a[1], 1.0))
+
+
+def _join_spaced_thousands(words: list[tuple]) -> list[tuple]:
+    chains = sum(1 for a, b in zip(words, words[1:])
+                 if _SPACED_GROUP_LEAD.match(a[4]) and _next_group(a, b))
+    if chains < _SPACED_GROUP_MIN_CHAINS:
+        return words
+    if chains <= sum(1 for wd in words if _COMMA_GROUPED.match(wd[4])):
+        return words
+    out: list[tuple] = []
+    k = 0
+    while k < len(words):
+        wd = words[k]
+        if _SPACED_GROUP_LEAD.match(wd[4]) and k + 1 < len(words) and _next_group(wd, words[k + 1]):
+            parts, last = [wd[4]], wd
+            j = k + 1
+            while j < len(words) and _next_group(last, words[j]) and not parts[-1].endswith(")"):
+                parts.append(words[j][4])
+                last = words[j]
+                j += 1
+            out.append((wd[0], min(wd[1], last[1]), last[2], max(wd[3], last[3]),
+                        ",".join(parts), *wd[5:]))
+            k = j
+            continue
+        out.append(wd)
+        k += 1
+    return out
+
+
+def _join_split_figures(words: list[tuple]) -> list[tuple]:
+    """One printed figure the text layer split into words, joined back into one word.
+
+    The digit groups are joined first: a bracket set apart from a figure grouped with spaces,
+    "( 52 079)", closes its bracket only once "52" and "079)" are one word. In the other order the
+    "(" was left alone in the caption and "52,079)" read as +52,079. No test filing prints both
+    conventions on one page today (Vivo prints "( 111,807)", Phoenix "(52 079)").
+    """
+    return _join_spaced_open_brackets(_join_spaced_thousands(words))
+
+
 def _native_words(page, w: float, h: float, rotation: int | None = None) -> list[Word]:
     """The page's words, in reading space, with the words drawn at some OTHER angle removed.
 
@@ -367,6 +461,7 @@ def _native_words(page, w: float, h: float, rotation: int | None = None) -> list
             pieces = overdrawn.get((word[4], round(word[0], 1), round(word[2], 1)))
             split.extend(pieces if pieces else [word])
         words = split
+    words = _join_split_figures(words)
     for x0, y0, x1, y1, text, *_ in words:
         if not text.strip():
             continue
@@ -1002,6 +1097,7 @@ def extract_pdf(data: bytes, doc, ctx: PipelineContext, *, scope=None,
         doc.other_page_items = [li for li in doc.line_items if _on_widened(li)]
         doc.line_items[:] = kept
         ctx.log(f"extract:anywhere_rows_held_apart={len(doc.other_page_items)}")
+    _stamp_rows_below_a_closing_title(doc, ctx.log)
     ctx.log(f"extract:pdf_line_items={added} note_tables={len(doc.notes)}")
     if doc.unread_pages:
         ctx.log(f"extract:unread_pages={len(doc.unread_pages)} "
@@ -1164,6 +1260,45 @@ def extract_image(data: bytes, doc, ctx: PipelineContext, *, scope=None,
     doc.line_items.extend(items)
     ctx.log(f"extract:image_line_items={len(items)}")
     return len(items)
+
+
+def _stamp_rows_below_a_closing_title(doc, log) -> int:
+    """Stamp each face row printed below a SECOND statement's title on its page
+    (`classify._closing_statement`) with ``periods.BELOW_CLOSING_TITLE_FLAG``. Returns how many.
+
+    The rows are read in one batch with those above the title — the batch's statement and entity
+    are the reader's business (`row_reconstruct` switches a mainland title's basis itself) — so
+    nothing else records that they sit in another printed statement. The duplicate-fact rule needs
+    it: a statement of comprehensive income printed under the statement of profit or loss opens by
+    restating the bottom line, and by page alone the two printings were one place, so they added
+    (`periods.printed_location`). On a 2-up spread sheet the title is the row's half's."""
+    from app.services.periods import BELOW_CLOSING_TITLE_FLAG
+
+    pages = {p.index: p for p in doc.pages}
+    stamped = 0
+    for li in doc.line_items:
+        if li.printed_in is not PrintedIn.FACE or any(
+                str(f).startswith(f"{BELOW_CLOSING_TITLE_FLAG}:") for f in li.confidence.flags):
+            continue
+        prov = next((ev.provenance for ev in li.values.values()
+                     if ev.provenance is not None), None)
+        page = pages.get(prov.page_index) if prov is not None else None
+        box = (prov.label_bbox or prov.bbox) if prov is not None else None
+        if page is None or page.kind is not PageKind.FACE or box is None:
+            continue
+        half = page_spread.half_at(page, page_spread.bbox_centre_x(box))
+        if half is not None and half.get("rotation"):
+            continue                    # read in its own frame: the sheet's y is not the half's
+        evidence = (half.get("evidence") if half is not None else page.evidence) or {}
+        title_y, title = evidence.get("closing_title_y"), evidence.get("closing_title")
+        if not isinstance(title_y, (int, float)) or not title:
+            continue
+        if (box.y0 + box.y1) / 2 >= float(title_y):
+            li.confidence.flags.append(f"{BELOW_CLOSING_TITLE_FLAG}:{title}")
+            stamped += 1
+    if stamped:
+        log(f"extract:rows_below_closing_title={stamped}")
+    return stamped
 
 
 def _record_reader_scope(ps, decided: dict, log) -> None:

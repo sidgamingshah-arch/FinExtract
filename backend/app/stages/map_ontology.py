@@ -251,6 +251,162 @@ def _columns_of(li) -> set[tuple[str, str]]:
     return {(ev.basis.value, ev.period_label or "") for ev in li.values.values()}
 
 
+# ── The cash roll-forward block ─────────────────────────────────────────────────────────────
+#
+# A CASH FLOW STATEMENT CAN CLOSE ON A BLOCK OF ITS OWN instead of on captioned opening and closing
+# lines:
+#
+#     Movement in cash and cash equivalents
+#     At July 1,                         (41,918)   (14,015)
+#     Increase/(decrease)                  12,091    (27,903)
+#     At June 30,                        (29,827)   (41,918)
+#
+# The two balances are captioned by nothing but a date, so no alias can name them, and the rows
+# were swept into the financing residual beside the year's change. MEASURED on Moroil 2025 (p69):
+# net cash used in financing activities showed (161,552) / (190,488) against the (131,725) /
+# (148,570) printed, opening cash was missing and closing cash showed (234,875) against (29,827).
+# Phoenix Beverages 2025 (p131) prints the same block ("At 1 July" / "(Decrease)/increase" /
+# "Effect of foreign exchange rate changes" / "At 30 June"), and Gamma Civic 2024 (p94) captions
+# the two balances "CASH AND CASH EQUIVALENTS AT / 1 JANUARY" and "... AT / 31 DECEMBER", which no
+# alias names either.
+#
+# The balances are bound only where the block's own arithmetic proves them: the first dated row,
+# plus the year's change (the bare "Increase/(decrease)" or the statement's "Net increase/(decrease)
+# in cash and cash equivalents"), plus any exchange effect printed in the block, equals the last
+# dated row, in every column that prints all three and in at least one.
+ROLL_FORWARD_FLAG = "bound_as_cash_roll_forward"
+_MOVEMENT_IN_CASH = re.compile(
+    r"^\W*(?:(?:analysis\s+of\s+(?:the\s+)?)?(?:movements?|changes?)\s+in\s+)?cash\s+and\s+cash"
+    r"\s+equivalents\b[\s:：]*", re.IGNORECASE)
+_MONTH = r"(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?"
+_BARE_DATE_CAPTION = re.compile(
+    rf"^\W*(?:balance\s+)?(?:at|as\s+at|as\s+of|on)\s+"
+    rf"(?:\d{{1,2}}(?:st|nd|rd|th)?\s+{_MONTH}|{_MONTH}(?:\s+\d{{1,2}}(?:st|nd|rd|th)?)?)"
+    rf"(?:\s*,?\s*(?:19|20)\d{{2}})?\s*,?\s*"
+    rf"(?:\(?(?:note\s*)?\d{{1,3}}(?:\s*\([a-z0-9]{{1,4}}\))*\)?)?"
+    # …or a footnote letter under the statement: Lux Island Resorts 2025 closes its cash flow on
+    # "Cash and cash equivalents at 30 June (a)" (p127), and the block went unproved.
+    r"(?:\s*\((?:[a-z]|[ivx]{2,4})\))?\s*$", re.IGNORECASE)
+_YEARS_CHANGE = re.compile(
+    r"^\W*(?:net\s+)?\(?(?:increase|decrease)\)?\s*/\s*\(?(?:increase|decrease)\)?"
+    r"(?:\s+in\s+cash\s+and\s+cash\s+equivalents)?(?:\s+for\s+the\s+(?:year|period))?\W*$",
+    re.IGNORECASE)
+_FX_EFFECT = re.compile(r"\b(?:foreign\s+)?exchange\b|\btranslation\b", re.IGNORECASE)
+
+
+def _slot_figures(li) -> dict[tuple[str, str], Decimal]:
+    out: dict[tuple[str, str], Decimal] = {}
+    for ev in (li.values or {}).values():
+        if ev.value is None or getattr(ev, "column_index", None) is not None:
+            continue
+        basis = getattr(ev.basis, "value", ev.basis)
+        out[(str(basis), str(ev.period_label or ""))] = Decimal(str(ev.value))
+    return out
+
+
+def cash_roll_forward_rows(doc, statement_of) -> dict:
+    """``{row id: the caption to ask for}`` — the opening and closing balances of each proved
+    cash roll-forward block on a cash flow face (see the comment above)."""
+    by_page: dict[int | None, list] = {}
+    for li in doc.line_items:
+        if li.canonical_key or li.printed_in is not PrintedIn.FACE or not li.values:
+            continue
+        if (statement_of(li) or "") != "cash_flow":
+            continue
+        by_page.setdefault(_page_of(li), []).append(li)
+    out: dict = {}
+    for page, rows in by_page.items():
+        if page is None:
+            continue
+        rows.sort(key=lambda r: getattr(r, "ordinal", 0))
+        dated = [li for li in rows
+                 if _BARE_DATE_CAPTION.match(_MOVEMENT_IN_CASH.sub("", li.source_label or ""))]
+        if len(dated) < 2:
+            continue
+        opening, closing = dated[0], dated[-1]
+        inside = [li for li in rows
+                  if getattr(opening, "ordinal", 0) < getattr(li, "ordinal", 0)
+                  < getattr(closing, "ordinal", 0)]
+        change = next((li for li in inside if _YEARS_CHANGE.match(li.source_label or "")), None)
+        if change is None:
+            change = next((li for li in reversed(rows)
+                           if getattr(li, "ordinal", 0) < getattr(opening, "ordinal", 0)
+                           and _YEARS_CHANGE.match(li.source_label or "")), None)
+        if change is None:
+            continue
+        # The exchange effect is printed inside the block, or between the statement's own change
+        # line and the block (Gamma Civic 2024, p94: "Net Foreign Exchange Differences" under
+        # "NET (DECREASE)/INCREASE IN CASH AND CASH EQUIVALENTS", over the opening balance).
+        start = min(getattr(change, "ordinal", 0), getattr(opening, "ordinal", 0))
+        fx = [li for li in rows
+              if start < getattr(li, "ordinal", 0) < getattr(closing, "ordinal", 0)
+              and li is not change and li is not opening
+              and _FX_EFFECT.search(li.source_label or "")]
+        o, c, d = _slot_figures(opening), _slot_figures(closing), _slot_figures(change)
+        fx_slots = [_slot_figures(li) for li in fx]
+        proved = 0
+        refuted = False
+        for slot in set(o) & set(c) & set(d):
+            total = o[slot] + d[slot] + sum((f.get(slot, Decimal(0)) for f in fx_slots), Decimal(0))
+            if abs(total - c[slot]) <= Decimal("1.5"):
+                proved += 1
+            else:
+                refuted = True
+        if proved and not refuted:
+            out[opening.id] = "Cash and cash equivalents at beginning of the year"
+            out[closing.id] = "Cash and cash equivalents at end of the year"
+    return out
+
+
+def sub_block_subtotals(doc, flag: str) -> set:
+    """The bare lines flagged as their section's total (``flag``) that only close a BLOCK of it.
+
+    The reader proves a bare line is its section's total when it is the sum of the rows printed
+    under the banner in force so far (`row_reconstruct._face_section_total`), and a section that
+    prints its rows in blocks closes each block the same way. MEASURED on Lai Sun Garment 2024/25
+    (page index 186): under "OTHER COMPREHENSIVE INCOME/(EXPENSE)" the block that may be reclassified
+    closes on a bare 253,776 / (234,993), the block that will not on 14,288 / (151,668), and the
+    section on "OTHER COMPREHENSIVE INCOME/(EXPENSE) FOR THE YEAR" 268,064 / (386,661). Bound as the
+    section's total, the first block's line failed both OCI checks by the second block. A line is the
+    section's total only if no later row of the same section on the page prints it plus the rows in
+    between — that row is the total, and the line a block of it.
+    """
+    by_page: dict = {}
+    for li in doc.line_items:
+        if li.printed_in is PrintedIn.FACE and li.values:
+            by_page.setdefault((_page_of(li), li.section_hint or ""), []).append(li)
+    out: set = set()
+    for (page, section), rows in by_page.items():
+        if page is None or not section:
+            continue
+        rows.sort(key=lambda r: getattr(r, "ordinal", 0))
+        for i, li in enumerate(rows):
+            if flag not in li.confidence.flags:
+                continue
+            running = dict(_slot_figures(li))
+            for later in rows[i + 1:]:
+                figures = _slot_figures(later)
+                common = set(figures) & set(running)
+                if common and all(abs(figures[k] - running[k]) <= Decimal("1.5") for k in common):
+                    out.add(li.id)
+                    break
+                for k, v in figures.items():
+                    if k in running:
+                        running[k] += v
+    return out
+
+
+def _totals_its_rows(total, rows) -> bool:
+    """Whether ``total`` prints, in every slot it prints, the sum of ``rows`` — its components."""
+    want = _slot_figures(total)
+    got: dict = {}
+    for li in rows:
+        for slot, figure in _slot_figures(li).items():
+            got[slot] = got.get(slot, Decimal(0)) + figure
+    common = set(want) & set(got)
+    return bool(common) and all(abs(want[k] - got[k]) <= Decimal("1.5") for k in common)
+
+
 def _page_of(li) -> int | None:
     return next((ev.provenance.page_index for ev in li.values.values()
                  if ev.provenance is not None), None)
@@ -707,14 +863,13 @@ def _sibling_evidence(doc: DocumentModel, ontology, parents: list,
         norm = normalize_label(label or "")
         return next((key for cap, key in captions if cap and cap in norm), "")
 
-    pages = {p.index for p in doc.pages if p.statement and any(
-        ev.provenance is not None and ev.provenance.page_index == p.index
-        for li in parents for ev in li.values.values())}
-    statements = {p.statement for p in doc.pages if p.index in pages}
+    from app.services.buckets import page_statement_resolver
+
+    # The statements the parents are printed on, by half on a 2-up spread sheet.
+    statement_of_page = page_statement_resolver(doc)
+    statements = {st for st in (statement_of_page(li) for li in parents) if st}
     for li in doc.line_items:
-        page = next((ev.provenance.page_index for ev in li.values.values()
-                     if ev.provenance is not None), None)
-        stmt = next((p.statement for p in doc.pages if p.index == page), None)
+        stmt = statement_of_page(li)
         if stmt not in statements:
             continue
         found = hit(li.source_label or "")
@@ -1109,9 +1264,15 @@ class MapOntologyStage:
         _unread = unread_set_pages(doc)
         set_refused = 0
         composed = 0
-        from app.services.row_reconstruct import COMPOSED_CAPTION_FLAG
+        from app.services.row_reconstruct import COMPOSED_CAPTION_FLAG, FACE_SECTION_TOTAL_FLAG
         us_10k = bool(getattr(ctx, "us_10k_filing", False))
         block_bound = 0
+        section_totals_bound = 0
+
+        roll_forward = cash_roll_forward_rows(doc, _statement_of)
+        roll_forward_bound = 0
+        block_totals = sub_block_subtotals(doc, FACE_SECTION_TOTAL_FLAG)
+        block_totals_kept = 0
 
         for done, li in enumerate(doc.line_items, start=1):
             unread = _unread.get(_page_of(li)) if _unread and li.printed_in is not PrintedIn.NOTES \
@@ -1132,6 +1293,43 @@ class MapOntologyStage:
                 continue
             res = matcher.match(li.source_label, statement=_statement_of(li),
                                 section=_section_for(li))
+            # A BARE LINE THE READER PROVED IS ITS SECTION'S TOTAL carries the section's banner as
+            # its caption (`row_reconstruct.FACE_SECTION_TOTAL_FLAG`), and the banner names the
+            # section, not its total. It is asked for by the total's own name — "Total" and the
+            # banner, or the banner and 合计 — under the same statement and section gates, so it
+            # binds only the subtotal the rulebook declares for that section. No alias is added:
+            # a printed caption "Current assets" stays a banner everywhere else.
+            if li.id in block_totals:
+                # A BLOCK OF THE SECTION, NOT ITS TOTAL — see `sub_block_subtotals` — whatever its
+                # borrowed caption matches. The caption is the section's banner, and a banner that
+                # is itself an alias of the section's total ("OTHER COMPREHENSIVE INCOME") bound
+                # the block to that total directly. MEASURED on Far East Horizon 2024 (p173): the
+                # cash-flow-hedge block 674,974 / 216,597 sat on Total Other Comprehensive Income
+                # beside the printed total 641,328 / 136,036, and the two added up.
+                res = None
+                block_totals_kept += 1
+            elif ((res is None or not res.canonical_key)
+                    and FACE_SECTION_TOTAL_FLAG in li.confidence.flags and li.source_label):
+                banner_text = li.source_label.strip().rstrip(":：")
+                asked = (f"{banner_text}合计" if re.search(r"[㐀-鿿]", banner_text)
+                         else f"Total {banner_text}")
+                alt = matcher.match(asked, statement=_statement_of(li), section=_section_for(li))
+                if alt is not None and alt.canonical_key:
+                    res = alt
+                    section_totals_bound += 1
+                    li.confidence.flags.append(f"bound_as_section_total:{alt.canonical_key}")
+            # THE OPENING AND CLOSING CASH OF A ROLL-FORWARD BLOCK, captioned by a bare date —
+            # see `cash_roll_forward_rows`. Asked for by the line's own name, on the cash flow.
+            if (res is None or not res.canonical_key) and li.id in roll_forward:
+                asked = roll_forward[li.id]
+                alt = (matcher.match(asked, statement="cash_flow", section=_section_for(li))
+                       or None)
+                if alt is None or not alt.canonical_key:
+                    alt = matcher.match(asked, statement="cash_flow")
+                if alt is not None and alt.canonical_key:
+                    res = alt
+                    roll_forward_bound += 1
+                    li.confidence.flags.append(f"{ROLL_FORWARD_FLAG}:{alt.canonical_key}")
             # A 10-K COMPREHENSIVE-INCOME BLOCK'S BARE ROW, read with its heading — see
             # `_block_caption`. Every gate below applies to the answer as to any other.
             via_heading = False
@@ -1256,6 +1454,16 @@ class MapOntologyStage:
         mapped += self._revenue_block_parts(doc, ontology, _statement_of, ctx)
         mapped += self._closing_total_once(doc, ontology, matcher, _statement_of, ctx)
         self._the_total_printed_below_its_part(doc, ctx)
+        if section_totals_bound:
+            ctx.log(f"map_line_items:bound_as_section_total={section_totals_bound} (bare face "
+                    f"lines that total their section, read as that section's declared total)")
+        if block_totals_kept:
+            ctx.log(f"map_line_items:section_block_subtotals_not_bound={block_totals_kept} (a bare "
+                    f"line that closes a block of its section, whose total is printed below it)")
+        if roll_forward_bound:
+            ctx.log(f"map_line_items:cash_roll_forward_bound={roll_forward_bound} (opening and "
+                    f"closing cash captioned by a bare date under a movement-in-cash block, "
+                    f"proved by opening + change = closing)")
         if block_bound:
             ctx.log(f"map_line_items:bound_with_block_heading={block_bound} (10-K comprehensive-"
                     f"income rows read with the heading over their block)")
@@ -1424,18 +1632,39 @@ class MapOntologyStage:
                 continue
             page = _page_of(anchor)
             block: list = []
-            reached = False
+            reached = None
             for li in face[i + 1:i + 2 + _REVENUE_BLOCK_MAX]:
                 if _page_of(li) != page:
                     break
                 if li.canonical_key == _COST_OF_SALES:
-                    reached = True
+                    reached = li
                     break
                 if ends_walk(li) or li.canonical_key in _NOT_REVENUE:
                     break
                 block.append(li)
-            if not reached:
+            if reached is None:
                 continue
+            if block and _totals_its_rows(reached, block):
+                # THE ROWS ABOVE THE COST OF SALES ARE ITS OWN PARTS, not revenue. Phoenix
+                # Beverages 2025 (p129) prints "Revenue 13 400 370", "Manufacturing costs
+                # (5 619 017)", "Excise and other specific duties (3 689 224)" and their total
+                # "Cost of sales (9 308 241)": both cost rows were taken as revenue, and the face's
+                # revenue part came to 4,092,129 — its gross profit.
+                #
+                # …AND THEY ARE INSIDE THE COST OF SALES, so they are recorded as its breakdown
+                # (`parent_id`, as `row_reconstruct` records a total printed after its
+                # components), which the residual refuses as an "of which" breakdown. Left
+                # unclaimed they were swept into Other Operating Expenses beside the cost of sales
+                # that already holds them: operating profit (8,119,732) against 1,188,509 printed,
+                # exactly 9,308,241 short (measured on the first version of this rule).
+                for li in block:
+                    if li.canonical_key or getattr(li, "parent_id", None) is not None:
+                        continue
+                    li.parent_id = reached.id
+                    li.confidence.flags.append(f"component_of:{_COST_OF_SALES}")
+                    ctx.log(f"map_line_items:component_of_cost_of_sales "
+                            f"{(li.source_label or '')[:40]!r}")
+                block = []
             refused = False
             for li in reversed(face[:i]):
                 if _page_of(li) != page or ends_walk(li) or len(block) >= _REVENUE_BLOCK_MAX:
@@ -1481,9 +1710,20 @@ class MapOntologyStage:
         for li in face:
             if li.canonical_key == _CLOSING_TOTAL:
                 covered |= _bases_of(li)
+        from app.services.equity_matrix import MOVEMENT_FLAG
+
         bound = 0
         for li in face:
             if li.canonical_key or li.role is LineRole.HEADER or not (_bases_of(li) - covered):
+                continue
+            if any(MOVEMENT_FLAG in (ev.confidence.flags or ()) for ev in li.values.values()):
+                # A MOVEMENT READ DOWN THE RETAINED-PROFITS COLUMN is the owners' share, under the
+                # banner that keeps it off the income statement (`equity_matrix._MOVEMENT_SECTION`)
+                # — which matching "with no section" here would step round. MEASURED on Lai Sun
+                # Garment 2024/25 once the company's movements (p350) were no longer added into
+                # the group's: "Loss for the year" carried a company slot no income-statement row
+                # covered, was bound to the profit for the year, and brought the group's owners'
+                # share (1,675,589) in beside the printed loss — the rollup failed by exactly it.
                 continue
             res = matcher.match(li.source_label, statement="profit_and_loss", section=None)
             if res is None or res.canonical_key != _CLOSING_TOTAL or not _apply_result(li, res):
@@ -1927,7 +2167,14 @@ class MapOntologyStage:
         if not decls:
             return 0
         tol = Decimal(str(ctx.settings.extraction.recon_abs_tolerance))
-        stmt_by_page = {p.index: p.statement for p in doc.pages if p.statement}
+        from app.services.buckets import page_statement_resolver
+
+        # By half on a 2-up spread sheet, whose own verdict is its first face half's.
+        statement_of_page = page_statement_resolver(doc)
+        # The notes the income statement's own rows cite — see the cash-flow gate below.
+        pl_cited_notes = _cited_notes([li for li in doc.line_items
+                                       if li.printed_in is PrintedIn.FACE
+                                       and statement_of_page(li) == "profit_and_loss"])
         added = 0
         for aggregate, children, section in decls:
             parents = [li for li in doc.line_items if li.canonical_key == aggregate]
@@ -1949,7 +2196,20 @@ class MapOntologyStage:
             tables = [t for t in doc.notes if str(t.note_number) in cited]
             if not tables:
                 continue
-            statement = stmt_by_page.get(_page_of(parent) or -1)
+            statement = statement_of_page(parent)
+            if aggregate in dynamic and statement == "cash_flow":
+                charged = cited & pl_cited_notes
+                if charged:
+                    # A CASH FLOW IS NOT ITEMISED BY THE NOTE OF THE CHARGE. The income statement
+                    # cites the same note, so the note breaks down the EXPENSE, and its rows name
+                    # the expense's lines: MEASURED on Moroil 2025, "Interest paid 28" (26,946) /
+                    # (29,272) on the cash flow (p69) was split by note 28, finance costs (p122),
+                    # into Interest Expense — the add-back of the charge — and Interest Paid (Oper)
+                    # was left empty, cited to the note's "- Bank overdrafts" cell (4,841).
+                    ctx.log(f"map_line_items:split_declined({aggregate}): its note "
+                            f"{','.join(sorted(charged))} is the income statement's, and itemises "
+                            f"the charge, not the cash")
+                    continue
 
             def concepts_in(group: list) -> tuple[dict[str, list], list, list]:
                 found: dict[str, list] = {}

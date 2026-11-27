@@ -273,7 +273,7 @@ def _page_caption(page_text, box) -> str:
     hit = next((w for w in page_text.words if w.box.x0 == box.x0 and w.box.y0 == box.y0), None)
     if hit is None:
         return ""
-    return " ".join(w.text for w in W._row_caption(hit, page_text.words))
+    return " ".join(w.text for w in W._row_caption(hit, page_text.words, getattr(page_text, "fold", None)))
 
 
 def _sentence_marks(amount: Decimal, text: str) -> tuple[str | None, Decimal | None]:
@@ -461,9 +461,21 @@ class Judge:
         # the rules put a note row into on this route), with the currency read as `normalize`
         # reads it. Its rows are left out so that unit is the one every basis is compared with.
         self.check_doc = _check_view(ctx, doc)
+        # A SINGLE ENTITY PRINTS ONE BASIS (`face_bases.SINGLE_ENTITY`): its primary statements,
+        # filed as consolidated. An answer the model filed as "standalone" is that one basis, not
+        # a second set of statements, so it is refiled without a review rather than put in review
+        # for a column basis nothing printed (Vivo Energy Mauritius 2025: 110 of 112 figures).
+        from app.services.face_bases import SINGLE_ENTITY, face_bases as _face_bases
+        self.single_entity = _face_bases(getattr(doc, "pages", None) or ()).rule == SINGLE_ENTITY
         self.kinds = {p.index: p.kind for p in getattr(doc, "pages", None) or ()}
         self.statements = {p.index: W._statement_value(p)
                            for p in getattr(doc, "pages", None) or ()}
+        # A FACE ROW'S STATEMENT IS ITS HALF'S on a 2-up spread sheet, whose own verdict is its
+        # first face half's (`buckets.page_statement_resolver`): Vivo Energy Mauritius' balance
+        # sheet is the right half of a sheet titled, by its left half, profit and loss.
+        from app.services.buckets import page_statement_resolver
+
+        self.statement_of_row = page_statement_resolver(doc)
         self.verdicts: dict[int, Verdict] = {}
         # (key, basis) -> flags for a row whose slot(s) were refused or withheld entirely.
         self.row_flags: dict[tuple[str, str], list[str]] = {}
@@ -520,7 +532,10 @@ class Judge:
             # THE PRINTED CELL, so two columns of one face row — a statement of changes in
             # equity's closing row, one figure per reserve — are two printed figures to
             # `answer_checks.refuse_repeated_figures`, not one row cited twice.
-            e.update(on_face=True, statement=self.statements.get(page, ""),
+            e.update(on_face=True,
+                     statement=(self.statement_of_row(cell.row) or ""
+                                if getattr(cell, "row", None) is not None
+                                else self.statements.get(page, "")),
                      row_id=str(getattr(cell.row, "id", "") or ""),
                      unit=note_sourced._unit_of(cell.row), provenance=prov,
                      cells=[cell_at] if cell_at is not None else [])
@@ -603,7 +618,7 @@ class Judge:
                     review = True
                     flags.append(f"{FLAG}:column_period:{cell.period}:{place.heading or '?'}")
             if cell.basis and cell.basis != r.basis:
-                if place.certain and cell.kind == "face":
+                if (place.certain and cell.kind == "face") or self.single_entity:
                     refile_basis = cell.basis
                 else:
                     review = True
@@ -655,6 +670,8 @@ class Judge:
 
         kept, refused, flags, review, to_period, to_basis = self._column_checks(
             item, r, places, entries)
+        if self.single_entity and to_basis is None and str(r.basis) == "standalone":
+            to_basis = "consolidated"
         # EACH ROW'S SIGN IS THE SIGN OF ITS AMOUNT. The model gives a row it takes out of a sum as
         # a negative figure, and the figure written adds the signed rows; the checks are told the
         # same, so a 其中 row or a derivative SUBTRACTED from the row it sits in is the line taking
@@ -816,8 +833,9 @@ class Judge:
         for slot, r in merged.items():
             v = self.verdicts.get(id(r))
             for e in (v.kept if v and not v.unchecked else ()):
-                if e.get("on_face") and e.get("row_id") and self.statements.get(
-                        (e.get("page") or 0) - 1) == "balance_sheet":
+                if e.get("on_face") and e.get("row_id") and (
+                        e.get("statement") or self.statements.get((e.get("page") or 0) - 1)
+                ) == "balance_sheet":
                     uses.setdefault(e["row_id"], []).append((slot, r, v, e))
         for row_id, used in uses.items():
             lines = {self._line_of(slot[0]) for slot, *_ in used}

@@ -132,6 +132,20 @@ def _statement_value(page) -> str:
     return st if st in ACTIVE_STATEMENTS else ""
 
 
+def statement_values(page) -> list[str]:
+    """Every known statement a page prints — BOTH halves' on a 2-up spread sheet, whose own
+    `statement` is only its first face half's (`page_spread.statements_on`).
+
+    Read by the sheet's one verdict, Vivo Energy Mauritius' balance sheet (sheet 34, right half)
+    and cash flow (sheet 35, right half) were statements this filing did not print: neither was
+    asked against the statements alone, the lost-lines guard covered neither, and a balance-sheet
+    or cash-flow line the model read off a note page was not flagged FACE_LINE_OFF_FACE."""
+    from app.services.page_spread import statements_on
+    from app.services.statements import ACTIVE_STATEMENTS
+
+    return [st for st in statements_on(page) if st in ACTIVE_STATEMENTS]
+
+
 @dataclass
 class Part:
     """One file sent: the pages it holds (0-based, of the original), in order, and its bytes.
@@ -141,6 +155,11 @@ class Part:
     pages: list[int]
     pdf: bytes
     faces_only: bool = False
+    #: THE PRINTED FOLIOS of each page sent, by its original index: one for a page, two for a
+    #: two-page spread sheet (left, right — `page_spread.folio_at`), "" where none is printed.
+    #: Filled by `plan` from the classified pages; the question names them and a cited folio is
+    #: mapped back through them (`page_of_folio`).
+    folios: dict[int, tuple[str, ...]] = field(default_factory=dict)
 
     @property
     def b64_bytes(self) -> int:
@@ -151,6 +170,43 @@ class Part:
         if 1 <= page_of_part <= len(self.pages):
             return self.pages[page_of_part - 1]
         return None
+
+
+def page_folios(doc) -> dict[int, tuple[str, ...]]:
+    """Every page's printed folios, by index: (left, right) for a two-page spread sheet, (folio,)
+    for a page — read off the classifier's per-half folios (`page_spread.spread_halves`)."""
+    from app.services.page_spread import _half_folio, spread_halves
+
+    out: dict[int, tuple[str, ...]] = {}
+    for p in getattr(doc, "pages", None) or ():
+        halves = [h for h in spread_halves(p) if h.get("side") in ("left", "right")]
+        if len(halves) == 2:
+            out[int(p.index)] = tuple(str(_half_folio(p, h) or "") for h in halves)
+        else:
+            out[int(p.index)] = (str(getattr(p, "printed_page", None) or ""),)
+    return out
+
+
+def page_of_folio(part: Part, cited) -> int | None:
+    """The one page of the part that prints the folio ``cited``, or None."""
+    want = str(cited or "").strip()
+    if not want or not part.folios:
+        return None
+    found = [p for p in part.pages if want in (part.folios.get(p) or ())]
+    return found[0] if len(found) == 1 else None
+
+
+def _spread_note(part: Part) -> str:
+    """What the question says about a part whose pages are two-page spreads: which printed pages
+    each file page holds — so a page is cited as the file's page, and a printed folio, where given,
+    can be mapped back."""
+    rows = [(i, part.folios.get(p) or ()) for i, p in enumerate(part.pages, start=1)]
+    if not any(len(f) == 2 for _, f in rows):
+        return ""
+    listed = "; ".join(f"{i}: {'-'.join(x for x in f if x) or 'unnumbered'}" for i, f in rows)
+    return (" Pages of this file are two-page spreads of the printed report, so each file page "
+            "holds two printed pages. Cite the FILE's page (its position in this file, the first "
+            f"being 1), not a printed page number. File page: printed pages — {listed}.")
 
 
 def _runs(pages: list[int]) -> list[tuple[int, int]]:
@@ -272,10 +328,11 @@ def build_parts(raw: bytes, pages: list[int], *, max_pages: int, max_request_byt
 
 
 def face_pages(doc, pages: list[int]) -> list[int]:
-    """The statement faces among the pages sent: a page classified a face of a known statement."""
+    """The statement faces among the pages sent: a page classified a face of a known statement —
+    on either half of a 2-up spread sheet (`statement_values`)."""
     sent = set(pages)
     return sorted(int(p.index) for p in doc.pages
-                  if int(p.index) in sent and p.kind == PageKind.FACE and _statement_value(p))
+                  if int(p.index) in sent and p.kind == PageKind.FACE and statement_values(p))
 
 
 def as_document(part: Part, number: int) -> dict:
@@ -672,8 +729,8 @@ def plan(doc, raw: bytes, item_set, *, max_pages: int, max_request_bytes: int,
     whole: frozenset = frozenset()
     statements = statement_pages(doc, [p for p in pages if p not in set(dropped)])
     if parts and statements and len(statements) < len(pages) - len(dropped):
-        found = {_statement_value(p) for p in doc.pages
-                 if int(p.index) in set(statements) and _statement_value(p)}
+        found = {st for p in doc.pages if int(p.index) in set(statements)
+                 for st in statement_values(p)}
         whole = frozenset(found & set(FACE_STATEMENTS))
         keys = face_keys(chunks, whole, item_set)
         rest = statements_rest(chunks, whole, keys, lines_per_request) if keys else []
@@ -695,6 +752,9 @@ def plan(doc, raw: bytes, item_set, *, max_pages: int, max_request_bytes: int,
                 keys = frozenset()
         if keys:
             chunks = chunks + rest
+    folios = page_folios(doc)
+    for part in parts:
+        part.folios = {p: folios.get(p, ("",)) for p in part.pages}
     return Plan(pages=pages, why=why, parts=parts, dropped=dropped, carried=carried, lines=lines,
                 chunks=chunks, overhead_bytes=overhead, face_keys=keys,
                 face_statements=whole if keys else frozenset())
@@ -707,7 +767,9 @@ named template lines with the figures the report prints.
 
 For every line you can find, give its figures, one for each basis and period the report prints:
 - basis: "consolidated" for the group's (consolidated) statements; "standalone" for the company's \
-own (parent-only, standalone, company-level) statements.
+own (parent-only, standalone, company-level) statements. A report that prints ONE set of \
+statements and names no group or company in their titles or columns (a company with no \
+subsidiaries) prints its primary statements: their basis is "consolidated".
 - period: "current" for the latest financial year the statement prints, "prior" for the year \
 before it. Leave out older columns.
 - amount: the figure exactly as printed, in the statement's own units (do not scale it), written \
@@ -1001,6 +1063,7 @@ def question(lines: list, part: Part, part_number: int, part_count: int,
         listed = body
     else:
         listed = f"Template lines ({statement}):\n" + "\n".join(rows)
+    where += _spread_note(part)
     return (f"{where}\n\n{common}{listed}" + added
             + "\n\nAnswer every line above that the report prints; leave out the rest.")
 
@@ -1163,6 +1226,9 @@ class PageText:
     words: list[PageWord]
     upright: bool = True
     text: str = ""            # the page's text, for a TEXT line's check (`text_lines`)
+    #: WHERE A TWO-PAGE SPREAD SHEET FOLDS, as a fraction of its width (`classify`'s
+    #: `evidence["spread"]["fold"]`), or None for a page. A caption is read on its figure's side.
+    fold: float | None = None
 
 
 def read_pages(raw: bytes, pages: list[int]) -> dict[int, PageText]:
@@ -1208,8 +1274,9 @@ def locate_text(text: str, page: PageText | None) -> BBox | None:
         return None
     want = fold(text)
     rows: list[list[PageWord]] = []
-    for w in sorted(page.words, key=lambda w: (w.box.y0, w.box.x0)):
-        if rows and _same_row(rows[-1][0].box, w.box):
+    for w in sorted(page.words, key=lambda w: (_side(w.box, page.fold), w.box.y0, w.box.x0)):
+        if (rows and _same_row(rows[-1][0].box, w.box)
+                and _side(rows[-1][0].box, page.fold) == _side(w.box, page.fold)):
             rows[-1].append(w)
         else:
             rows.append([w])
@@ -1255,11 +1322,24 @@ def _union(boxes: list[BBox]) -> BBox | None:
                 x1=max(b.x1 for b in boxes), y1=max(b.y1 for b in boxes))
 
 
-def _row_caption(hit: PageWord, words: list[PageWord]) -> list[PageWord]:
+def _side(box: BBox, fold: float | None) -> int:
+    """Which page of a spread a box is printed on: 0 left, 1 right (0 for a plain page)."""
+    if fold is None:
+        return 0
+    return 0 if (box.x0 + box.x1) / 2 < fold else 1
+
+
+def _row_caption(hit: PageWord, words: list[PageWord],
+                 fold: float | None = None) -> list[PageWord]:
     """The caption of the row a figure is printed on: the words left of it on its row, up to the
-    first figure (a note reference or another column)."""
+    first figure (a note reference or another column) — and on a two-page spread, on the figure's
+    own page: a right-page figure's row does not run on into the left page. MEASURED on Vivo
+    Energy Mauritius 2025, sheet 34: property, plant and equipment 1,908,274 (p67) took "Gross
+    profit" (p66) for its caption, and total assets "Share of profit of joint ventures"."""
+    side = _side(hit.box, fold)
     left = sorted((w for w in words if w is not hit and w.box.x1 <= hit.box.x0 + 1e-6
-                   and _same_row(w.box, hit.box)), key=lambda w: w.box.x0)
+                   and _same_row(w.box, hit.box) and _side(w.box, fold) == side),
+                  key=lambda w: w.box.x0)
     caption: list[PageWord] = []
     for w in left:
         if _word_value(w.text) is not None:
@@ -1305,7 +1385,7 @@ def locate(amount: Decimal, caption: str, page: PageText | None,
         if not page.upright:
             return hits[0].box, None
         scored = [(_likeness(caption, " ".join(c.text for c in cap)), i, h, cap)
-                  for i, h in enumerate(hits) for cap in [_row_caption(h, page.words)]]
+                  for i, h in enumerate(hits) for cap in [_row_caption(h, page.words, page.fold)]]
         top = max(t[0] for t in scored)
         best = min((t for t in scored if t[0] >= top - 1e-9), key=lambda t: t[1])
         # The same figure again on the best row, left to right: the year is its position.
@@ -1319,8 +1399,10 @@ def locate(amount: Decimal, caption: str, page: PageText | None,
     # BY CAPTION ALONE: the row whose leading words read most like the caption, when one is close.
     best_score, best_box = 0.0, None
     rows: list[list[PageWord]] = []
-    for w in sorted(page.words, key=lambda w: (w.box.y0, w.box.x0)):
-        if rows and _same_row(rows[-1][0].box, w.box):
+    # Each page of a spread on its own: a row does not run on across the fold.
+    for w in sorted(page.words, key=lambda w: (_side(w.box, page.fold), w.box.y0, w.box.x0)):
+        if (rows and _same_row(rows[-1][0].box, w.box)
+                and _side(rows[-1][0].box, page.fold) == _side(w.box, page.fold)):
             rows[-1].append(w)
         else:
             rows.append([w])

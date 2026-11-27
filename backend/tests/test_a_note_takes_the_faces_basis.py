@@ -170,13 +170,58 @@ def test_an_hkex_company_statement_after_the_notes_leaves_the_notes_the_groups()
     assert doc.notes and all(t.basis is None for t in doc.notes)
 
 
+def _group_with_an_unread_statement_pdf() -> bytes:
+    """A statement whose entity is not read ahead of the notes, in a filing that names the group.
+
+    Page 0 is titled "Statement of Profit or Loss" (no group, no company); page 1 is the
+    "Consolidated Statement of Financial Position". One statement names the group, so the filing is
+    no single entity (`face_bases.SINGLE_ENTITY` does not apply) and page 0 stays unread."""
+    import io
+
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas
+
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    _, height = A4
+    for title, rows in (("Statement of Profit or Loss",
+                         (("Revenue", "9,410"), ("Cost of sales", "(6,200)"),
+                          ("Profit for the year", "3,210"))),
+                        ("Consolidated Statement of Financial Position",
+                         (("Cash and cash equivalents      Note 14", "1,204"),
+                          ("Total assets", "1,204")))):
+        c.setFont("Helvetica-Bold", 14)
+        c.drawString(72, height - 72, title)
+        c.setFont("Helvetica", 10)
+        y = height - 110
+        for label, value in rows:
+            c.drawString(72, y, label)
+            c.drawRightString(500, y, value)
+            y -= 22
+        c.showPage()
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(72, height - 72, "Notes to the Financial Statements")
+    c.setFont("Helvetica", 10)
+    c.drawString(72, height - 100, "Note 14: Cash and cash equivalents")
+    c.drawString(72, height - 120, "Cash on hand      204")
+    c.drawString(72, height - 140, "Balances with banks      1,000")
+    c.showPage()
+    c.save()
+    return buf.getvalue()
+
+
 def test_an_unread_face_leaves_the_notes_as_they_were():
-    from tests.fixtures.generate import make_multipage_pdf
+    """A statement page whose entity was not read sits ahead of the notes: the face basis is
+    unknown, and the notes, which print no basis of their own, are left exactly as they were read.
+    (A filing whose statements name no one at all is a single entity: see
+    test_a_single_entity_is_filed_on_its_one_basis.py.)"""
+    doc, logs = _run(_group_with_an_unread_statement_pdf())
 
-    doc, logs = _run(make_multipage_pdf())
-
-    assert any(line.startswith("extract:face_bases=unknown(") for line in logs)
+    assert any(line.startswith("extract:face_bases=unknown(page=0:") for line in logs), [
+        line for line in logs if "face_bases" in line]
+    assert not any(line.startswith("extract:notes_on_face_basis=") for line in logs)
     assert doc.notes and all(t.basis is None for t in doc.notes)
+    assert _note_values(doc) == {"consolidated"}      # the row builder's no-band default, untouched
 
 
 def test_the_page_scope_screen_does_not_change_whose_the_notes_are():

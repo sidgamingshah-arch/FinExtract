@@ -20,6 +20,18 @@ _FRENCH_HINT = re.compile(
 _FRENCH_ACCENTS = re.compile(r"[àâçéèêëîïôûùüÿœ]", re.I)
 
 
+# THE WORDS A TEXT IS WRITTEN IN, not the letters its names are spelled with. Three accented
+# letters made a document French, and an English report from Mauritius prints them in its names —
+# Lux Island Resorts 2025 ("BÉGA", "Floréal", "Réunion") came out locale=fr, so no English alias was
+# used ("alias_locale_coverage locale=fr matchable=519 with_alias=0") and not one statement row was
+# mapped by its caption. The accents and the statement words still say "perhaps French"; the
+# commonest function words of each language decide it.
+_ENGLISH_WORDS = re.compile(r"\b(?:the|and|of|for|with|to|is|are|was|were|this|that|our|by)\b",
+                            re.I)
+_FRENCH_WORDS = re.compile(r"\b(?:le|la|les|des|du|et|pour|avec|dans|est|sont|une|aux|nous|sur)\b",
+                           re.I)
+
+
 def detect_locale(text: str) -> str:
     if not text:
         return "en"
@@ -28,7 +40,8 @@ def detect_locale(text: str) -> str:
     if _CJK.search(text):
         return "zh"
     if _FRENCH_HINT.search(text) or len(_FRENCH_ACCENTS.findall(text)) >= 3:
-        return "fr"
+        if len(_FRENCH_WORDS.findall(text)) >= len(_ENGLISH_WORDS.findall(text)):
+            return "fr"
     return "en"
 
 

@@ -23,6 +23,19 @@ comprehensive income" (-109 / 64), "Items that are or may be reclassified subseq
 loss Cash flow hedges" (-8,111 / -1,893) — which the residual refuses as narrative. Each now binds
 its line by an anchored regex. Two notes parts whose only keyword is "fair value" refuse a caption
 that begins with an OCI sub-header: hit beside the OCI line, they made the rule tier ambiguous.
+
+THE TOTAL'S OWN WORDING BINDS THE TOTAL. The set now aliases "Other comprehensive income for the
+year, net of tax" and its loss and (loss)/income variants to Total Other Comprehensive Income, as it
+already bound China SCE's "OTHER COMPREHENSIVE LOSS FOR THE YEAR": Vivo Energy Mauritius, Moroil,
+Gamma Civic, IndiGo, BYD Electronic and Far East Horizon print their totals so. Bound, the printed
+total is still not swept — it is the figure the OCI checks reconcile the swept components to. The
+other wordings above bind no line and the residual still refuses them.
+
+AND A BLOCK OF THE SECTION IS NOT ITS TOTAL. Far East Horizon prints its cash-flow-hedge block's
+subtotal on a bare line (674,974 / 216,597, p173), which the reader captions with the section's
+banner, "OTHER COMPREHENSIVE INCOME" — itself an alias of the total. It sat on the total beside the
+printed 641,328 / 136,036, and the two added up. A later row of the section prints it plus the rows
+in between, so it is a block (`map_ontology.sub_block_subtotals`) and binds nothing.
 """
 from __future__ import annotations
 
@@ -59,8 +72,6 @@ def _oci(rows, period: str) -> Decimal:
 
 @pytest.mark.parametrize("caption", [
     "年內其他全面收益，扣除稅項 for the year, net of tax",
-    "OTHER COMPREHENSIVE INCOME FOR THE YEAR, NET OF TAX 本年度其他綜合收益，扣除稅項",
-    "OTHER COMPREHENSIVE INCOME FOR THE YEAR, NET OF TAX",
     "OTHER COMPREHENSIVE INCOME/(EXPENSE) FOR THE YEAR",
     "OTHER COMPREHENSIVE INCOME, NET OF TAX",
     "TOTAL COMPREHENSIVE EXPENSE FOR THE YEAR",
@@ -74,6 +85,59 @@ def test_a_printed_total_is_refused_by_the_residual(shipped, caption):
     assert rows[1].canonical_key is None, (rows[1].canonical_key, rows[1].confidence.flags)
     assert any(f.startswith("residual_never_sweep:exclude_hints:")
                for f in rows[1].confidence.flags), rows[1].confidence.flags
+
+
+@pytest.mark.parametrize("caption", [
+    "OTHER COMPREHENSIVE INCOME FOR THE YEAR, NET OF TAX 本年度其他綜合收益，扣除稅項",
+    "OTHER COMPREHENSIVE INCOME FOR THE YEAR, NET OF TAX",
+    "Other comprehensive loss for the year, net of tax",
+    "Other comprehensive (loss)/income for the year",
+])
+def test_a_printed_total_in_the_totals_own_wording_binds_the_total_and_is_not_swept(shipped,
+                                                                                   caption):
+    """BYD Electronic p84, Far East Horizon p173, Vivo p66, Moroil p68."""
+    sec = "OTHER COMPREHENSIVE INCOME"
+    rows = [_row("Exchange realignments", "243212", "-229062", 0, sec),
+            _row(caption, "243212", "-229062", 0, sec)]
+    _run(rows, [_face("profit_and_loss")], shipped)
+    assert rows[0].canonical_key == RESIDUAL, (rows[0].canonical_key, rows[0].confidence.flags)
+    assert rows[1].canonical_key == TOTAL, (rows[1].canonical_key, rows[1].confidence.flags)
+    assert rows[1].confidence.method != "residual"
+    assert _oci(rows, "current") == Decimal("243212")      # the component alone, not twice
+    assert _oci(rows, "prior") == Decimal("-229062")
+
+
+def test_a_bare_block_subtotal_captioned_with_the_banner_is_not_the_total(shipped):
+    """Far East Horizon 2024, p173 (RMB'000). The cash-flow-hedge block closes on a bare line the
+    reader captions with the banner; the exchange row follows; the section closes twice, on the
+    net reclassifiable line and on the total."""
+    from app.services.row_reconstruct import FACE_SECTION_TOTAL_FLAG
+    from tests.face_row_harness import face, row, run
+
+    sec = "OTHER COMPREHENSIVE INCOME"
+    rows = [
+        row("Effective portion of changes in fair value of hedging instruments arising during the "
+            "year", "1081696", "907271", page=173, section=sec),
+        row("Reclassification to the consolidated statement of profit or loss", "-394499",
+            "-693910", page=173, section=sec),
+        row("Income tax effect", "-12223", "3236", page=173, section=sec),
+        row("OTHER COMPREHENSIVE INCOME", "674974", "216597", page=173, section=sec,
+            flags=(FACE_SECTION_TOTAL_FLAG,)),
+        row("Exchange differences on translation of foreign operations", "-33646", "-80561",
+            page=173, section=sec),
+        row("Net other comprehensive income that may be reclassified to profit or loss in "
+            "subsequent periods", "641328", "136036", page=173, section=sec),
+        row("OTHER COMPREHENSIVE INCOME FOR THE YEAR, NET OF TAX", "641328", "136036", page=173,
+            section=sec),
+    ]
+    doc, logs = run(rows, [face("profit_and_loss", 173)])
+    on_total = [r for r in rows if r.canonical_key == TOTAL]
+    assert [r.source_label for r in on_total] == [
+        "OTHER COMPREHENSIVE INCOME FOR THE YEAR, NET OF TAX"], [
+        (r.source_label, r.canonical_key) for r in rows]
+    assert rows[3].canonical_key in (None, "") or not rows[3].canonical_key.startswith("is_oci__")
+    assert any(line.startswith("map_line_items:section_block_subtotals_not_bound=1")
+               for line in logs), logs
 
 
 def test_grand_mings_oci_lines_add_to_the_printed_total(shipped):
